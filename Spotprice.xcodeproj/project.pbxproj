@@ -9,12 +9,14 @@
 /* Begin PBXBuildFile section */
 		20E60EE62F266CEF00143868 /* SummaryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20E60EE52F266CEF00143868 /* SummaryService.swift */; };
 		20E60EE82F266CF100143868 /* SummaryViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20E60EE72F266CF100143868 /* SummaryViewModel.swift */; };
+		20E63D732F26A05B00F90831 /* SpotPriceClockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20E63D722F26A05B00F90831 /* SpotPriceClockView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		200104F82F26582400B2F176 /* Spotprice.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Spotprice.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		20E60EE52F266CEF00143868 /* SummaryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SummaryService.swift; sourceTree = "<group>"; };
 		20E60EE72F266CF100143868 /* SummaryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SummaryViewModel.swift; sourceTree = "<group>"; };
+		20E63D722F26A05B00F90831 /* SpotPriceClockView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotPriceClockView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -43,6 +45,7 @@
 				200104F92F26582400B2F176 /* Products */,
 				20E60EE52F266CEF00143868 /* SummaryService.swift */,
 				20E60EE72F266CF100143868 /* SummaryViewModel.swift */,
+				20E63D722F26A05B00F90831 /* SpotPriceClockView.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -130,6 +133,7 @@
 			files = (
 				20E60EE62F266CEF00143868 /* SummaryService.swift in Sources */,
 				20E60EE82F266CF100143868 /* SummaryViewModel.swift in Sources */,
+				20E63D732F26A05B00F90831 /* SpotPriceClockView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

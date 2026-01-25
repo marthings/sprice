@@ -26,6 +26,11 @@ final class SpotPriceViewModel: ObservableObject {
         let thresholds: Thresholds
         let minOre: Double
         let maxOre: Double
+        
+        var currentBucket: PriceBucket? {
+            let now = Date()
+            return buckets.first { $0.start <= now && $0.end > now }
+        }
     }
     
     enum PriceCategory: String, Equatable, CaseIterable {

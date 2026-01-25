@@ -18,85 +18,35 @@ struct SpotpriceApp: App {
         // Här lägger vi till menyraden
         MenuBarExtra {
             // Innehållet i menyn när man klickar på den
-            VStack(alignment: .leading, spacing: 12) {
-                // Header
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Aktuellt spotpris")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    
-                    Text(viewModel.state.currentPriceLabel + " öre")
-                        .font(.title2)
-                        .fontWeight(.semibold)
-                }
+            VStack(spacing: 16) {
+                // Weekly Summary
+                MenuBarSummaryView(viewModel: summaryViewModel)
                 
-                // Chart showing upcoming prices
+                // Spot Price Chart
                 if case .loaded(let payload) = viewModel.state {
-                    let chartData = payload.day.upcomingBuckets(limit: 8)
-                    if !chartData.isEmpty {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Kommande timmar")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            
-                            Chart(chartData) { bucket in
-                                BarMark(
-                                    x: .value("Time", bucket.start, unit: .hour),
-                                    y: .value("Price", bucket.orePerKWh)
-                                )
-                                .foregroundStyle(bucket.category.color)
-                                .cornerRadius(2)
-                            }
-                            .frame(height: 80)
-                            .chartXAxis {
-                                AxisMarks(values: .stride(by: .hour)) { value in
-                                    if let date = value.as(Date.self) {
-                                        AxisValueLabel {
-                                            Text(date, format: .dateTime.hour(.defaultDigits(amPM: .omitted)))
-                                                .font(.caption2)
-                                        }
-                                    }
-                                }
-                            }
-                            .chartYAxis {
-                                AxisMarks { value in
-                                    AxisValueLabel {
-                                        if let price = value.as(Double.self) {
-                                            Text("\(Int(price))")
-                                                .font(.caption2)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    } else {
-                        Text("Inga kommande priser tillgängliga")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .padding(.vertical, 8)
-                    }
+                    SpotPriceBarChart(dayData: payload.day, configuration: .menuBar)
                 } else {
                     // Loading or error state
-                    HStack {
+                    VStack(spacing: 12) {
                         if case .loading = viewModel.state {
                             ProgressView()
-                                .scaleEffect(0.8)
+                                .scaleEffect(1.2)
                         } else {
-                            Image(systemName: "chart.bar")
+                            Image(systemName: "bolt.slash")
+                                .font(.system(size: 40))
                                 .foregroundStyle(.secondary)
                         }
                         
-                        Text(viewModel.state == .loading ? "Laddar..." : "Tryck Uppdatera för att se graf")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        Text(loadingStatusText)
+                            .font(.headline)
+                            .foregroundStyle(.primary)
+                            .multilineTextAlignment(.center)
                     }
-                    .padding(.vertical, 8)
+                    .frame(width: 280, height: 280)
                 }
                 
-                Divider()
-                
                 // Buttons
-                HStack {
+                HStack(spacing: 12) {
                     Button("Uppdatera") {
                         Task { 
                             await viewModel.load() 
@@ -104,8 +54,7 @@ struct SpotpriceApp: App {
                         }
                     }
                     .buttonStyle(.borderedProminent)
-                    
-                    Spacer()
+                    .disabled(viewModel.state == .loading)
                     
                     Button("Avsluta") {
                         NSApplication.shared.terminate(nil)
@@ -114,7 +63,7 @@ struct SpotpriceApp: App {
                 }
             }
             .padding()
-            .frame(width: 280)
+            .frame(width: 320) // Slightly wider to accommodate summary
         } label: {
             // Enklare label för topbaren
             HStack(spacing: 4) {
@@ -130,27 +79,27 @@ struct SpotpriceApp: App {
         .environmentObject(viewModel)
         .environmentObject(summaryViewModel) 
     }
+    
+    private var loadingStatusText: String {
+        switch viewModel.state {
+        case .idle:
+            return "Tryck Uppdatera för att ladda spotpriser"
+        case .loading:
+            return "Laddar spotpriser..."
+        case .failed(let message):
+            return message
+        case .loaded:
+            return ""
+        }
+    }
 }
 
 extension SpotPriceViewModel.State {
     var currentPriceLabel: String {
         if case .loaded(let payload) = self {
-            return payload.currentDisplay // Ex: "42 öre"
+            return payload.currentDisplay // Ex: "42"
         }
         return "--"
-    }
-    
-    var debugDescription: String {
-        switch self {
-        case .idle:
-            return "idle"
-        case .loading:
-            return "loading"
-        case .loaded(let payload):
-            return "loaded (\(payload.day.buckets.count) buckets)"
-        case .failed(let message):
-            return "failed: \(message)"
-        }
     }
 }
 
@@ -177,6 +126,72 @@ extension SpotPriceViewModel.PriceCategory {
             return .orange
         case .high:
             return .red
+        }
+    }
+}
+
+// MARK: - Menu Bar Summary View
+
+struct MenuBarSummaryView: View {
+    @ObservedObject var viewModel: SummaryViewModel
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: "chart.line.uptrend.xyaxis")
+                    .foregroundStyle(.blue)
+                Text("Veckans elmarknadsläge")
+                    .font(.subheadline.bold())
+                Spacer()
+            }
+            
+            switch viewModel.state {
+            case .idle:
+                Text("Tryck Uppdatera för att ladda summeringen")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .italic()
+                
+            case .loadingURL, .fetchingReport, .summarizing:
+                HStack(spacing: 6) {
+                    ProgressView()
+                        .controlSize(.mini)
+                    Text(loadingText(for: viewModel.state))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                
+            case .loaded(let summary, let url):
+                Text(summary)
+                    .font(.caption)
+                    .lineLimit(4)
+                    .fixedSize(horizontal: false, vertical: true)
+                
+                Link("Läs hela rapporten", destination: url)
+                    .font(.caption2)
+                    .padding(.top, 2)
+                
+            case .failed(let error):
+                HStack {
+                    Image(systemName: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                    Text("Kunde inte hämta summeringen")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+    }
+    
+    private func loadingText(for state: SummaryViewModel.State) -> String {
+        switch state {
+        case .loadingURL: return "Beräknar veckoadress..."
+        case .fetchingReport: return "Hämtar veckorapport..."
+        case .summarizing: return "Summerar med AI..."
+        default: return "Laddar..."
         }
     }
 }
