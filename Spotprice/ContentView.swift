@@ -3,10 +3,17 @@ import Charts
 
 struct ContentView: View {
     @EnvironmentObject private var viewModel: SpotPriceViewModel
+    @EnvironmentObject private var summaryViewModel: SummaryViewModel
+    
     @State private var selectedDate: Date?
     
     var body: some View {
         VStack(spacing: 16) {
+            
+            // Visa veckosummeringen här
+            WeeklySummaryView(viewModel: summaryViewModel)
+                .padding(.bottom, 8)
+            
             switch viewModel.state {
             case .idle, .loading:
                 ProgressView("Hämtar spotpris…").padding(.top, 12)
@@ -72,7 +79,11 @@ struct ContentView: View {
             }
         }
         .padding(24)
-        .task { await viewModel.load() }
+        // Ladda båda ViewModels när vyn visas
+        .task { 
+            await viewModel.load() 
+            await summaryViewModel.loadSummary()
+        }
     }
     
     // MARK: - Hjälpfunktioner för Responsivitet & Logik
@@ -124,6 +135,58 @@ struct ContentView: View {
         }
     }
 }
+
+// Hjälpvy för att visa summeringen
+struct WeeklySummaryView: View {
+    @ObservedObject var viewModel: SummaryViewModel
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Veckans elmarknadsläge:").font(.headline)
+            
+            switch viewModel.state {
+            case .idle:
+                EmptyView()
+            case .loadingURL, .fetchingReport, .summarizing:
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text(loadingText(for: viewModel.state))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            // ÄNDRAD: Extraherar URL och summering
+            case .loaded(let summary, let url):
+                Text(summary)
+                    .font(.subheadline)
+                    .fixedSize(horizontal: false, vertical: true)
+                
+                // NYTT: Klickbar länk
+                Link("Läs hela veckorapporten (extern länk)", destination: url)
+                    .font(.caption2)
+                    .padding(.top, 4)
+                
+            case .failed(let error):
+                Text("Kunde inte hämta summeringen: \(error)")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 10)
+        .background(Color.secondary.opacity(0.1))
+        .cornerRadius(8)
+    }
+    
+    private func loadingText(for state: SummaryViewModel.State) -> String {
+        switch state {
+        case .loadingURL: return "Beräknar veckoadress..."
+        case .fetchingReport: return "Hämtar veckorapport..."
+        case .summarizing: return "Summerar texten med AI..."
+        default: return "Laddar..."
+        }
+    }
+}
+
 
 private struct CalloutView: View {
     let title: String

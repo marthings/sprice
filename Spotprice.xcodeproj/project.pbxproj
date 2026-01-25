@@ -6,8 +6,15 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		20E60EE62F266CEF00143868 /* SummaryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20E60EE52F266CEF00143868 /* SummaryService.swift */; };
+		20E60EE82F266CF100143868 /* SummaryViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20E60EE72F266CF100143868 /* SummaryViewModel.swift */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		200104F82F26582400B2F176 /* Spotprice.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Spotprice.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		20E60EE52F266CEF00143868 /* SummaryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SummaryService.swift; sourceTree = "<group>"; };
+		20E60EE72F266CF100143868 /* SummaryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SummaryViewModel.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -34,6 +41,8 @@
 			children = (
 				200104FA2F26582400B2F176 /* Spotprice */,
 				200104F92F26582400B2F176 /* Products */,
+				20E60EE52F266CEF00143868 /* SummaryService.swift */,
+				20E60EE72F266CF100143868 /* SummaryViewModel.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -119,6 +128,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				20E60EE62F266CEF00143868 /* SummaryService.swift in Sources */,
+				20E60EE82F266CF100143868 /* SummaryViewModel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

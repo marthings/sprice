@@ -4,12 +4,14 @@ import AppKit
 @main
 struct SpotpriceApp: App {
     @StateObject private var viewModel = SpotPriceViewModel()
+    @StateObject private var summaryViewModel = SummaryViewModel() 
     
     var body: some Scene {
         // Din vanliga fönster-vy
         WindowGroup {
             ContentView()
                 .environmentObject(viewModel)
+                .environmentObject(summaryViewModel) 
         }
         
         // Här lägger vi till menyraden
@@ -26,7 +28,11 @@ struct SpotpriceApp: App {
                 Divider()
                 
                 Button("Uppdatera") {
-                    Task { await viewModel.load() }
+                    Task { 
+                        await viewModel.load() 
+                        // Uppdatera även summeringen manuellt om användaren klickar
+                        await summaryViewModel.loadSummary()
+                    }
                 }
                 
                 Button("Avsluta") {
@@ -43,6 +49,7 @@ struct SpotpriceApp: App {
         }
         // Säkerställ att samma viewModel också finns i menyns miljö om under-vyer skulle behöva den
         .environmentObject(viewModel)
+        .environmentObject(summaryViewModel) 
     }
 }
 
