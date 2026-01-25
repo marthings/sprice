@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 @main
 struct SpotpriceApp: App {
@@ -40,6 +41,8 @@ struct SpotpriceApp: App {
                 Text(viewModel.state.currentPriceLabel)
             }
         }
+        // Säkerställ att samma viewModel också finns i menyns miljö om under-vyer skulle behöva den
+        .environmentObject(viewModel)
     }
 }
 
@@ -48,6 +51,6 @@ extension SpotPriceViewModel.State {
         if case .loaded(let payload) = self {
             return payload.currentDisplay // Ex: "42 öre"
         }
-        return "-- öre"
+        return "--"
     }
 }

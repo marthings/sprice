@@ -2,7 +2,7 @@ import SwiftUI
 import Charts
 
 struct ContentView: View {
-    @StateObject private var viewModel = SpotPriceViewModel()
+    @EnvironmentObject private var viewModel: SpotPriceViewModel
     @State private var selectedDate: Date?
     
     var body: some View {

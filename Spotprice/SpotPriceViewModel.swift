@@ -66,6 +66,11 @@ final class SpotPriceViewModel: ObservableObject {
     private let area: String
     private let nowProvider: () -> Date
     
+    // Periodisk uppdaterings-Task
+    private var refreshTask: Task<Void, Never>?
+    // Konfigurerbart intervall (default 15 min)
+    private let refreshInterval: Duration
+    
     init(
         session: URLSession = .shared,
         area: String = "SE3",
@@ -83,7 +88,8 @@ final class SpotPriceViewModel: ObservableObject {
             formatter.minimumFractionDigits = 0
             return formatter
         }(),
-        now: @escaping () -> Date = { Date() }
+        now: @escaping () -> Date = { Date() },
+        refreshInterval: Duration = .seconds(900)
     ) {
         self.session = session
         self.area = area
@@ -91,10 +97,18 @@ final class SpotPriceViewModel: ObservableObject {
         self.calendar = calendar
         self.numberFormatter = numberFormatter
         self.nowProvider = now
+        self.refreshInterval = refreshInterval
         
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         self.decoder = decoder
+        
+        // Starta periodisk uppdatering direkt
+        startPeriodicRefresh()
+    }
+    
+    deinit {
+        refreshTask?.cancel()
     }
     
     func load() async {
@@ -130,6 +144,28 @@ final class SpotPriceViewModel: ObservableObject {
             state = .failed(error.message)
         } catch {
             state = .failed("Ett oväntat fel inträffade. Försök igen senare.")
+        }
+    }
+    
+    // MARK: - Periodisk uppdatering
+    
+    private func startPeriodicRefresh() {
+        refreshTask?.cancel()
+        refreshTask = Task { [weak self] in
+            guard let self else { return }
+            // Kör en initial laddning direkt
+            await self.load()
+            // Kör därefter var 15:e minut tills Task avbryts
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(for: self.refreshInterval)
+                } catch {
+                    // Avbruten sömn -> avsluta loopen
+                    break
+                }
+                if Task.isCancelled { break }
+                await self.load()
+            }
         }
     }
     
@@ -179,7 +215,7 @@ final class SpotPriceViewModel: ObservableObject {
         
         let ore = current.sekPerKWh * 100.0
         let formatted = formatter.string(from: NSNumber(value: ore)) ?? String(format: "%.1f", ore)
-        return "\(formatted) öre/kWh"
+        return "\(formatted)"
     }
     
     // MARK: - Chart derivation
