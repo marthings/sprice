@@ -9,8 +9,8 @@ final class SummaryViewModel: ObservableObject {
         case loadingURL
         case fetchingReport
         case summarizing
-        // ÄNDRAD: Nu lagrar vi både summeringen och den fullständiga URL:en
-        case loaded(summary: String, url: URL) 
+        // UPPDATERAD: Nu lagrar vi summering, URL och om det är föregående månads data
+        case loaded(summary: String, url: URL, isPreviousMonth: Bool) 
         case failed(String)
         
         static func == (lhs: State, rhs: State) -> Bool {
@@ -21,8 +21,8 @@ final class SummaryViewModel: ObservableObject {
                  (.summarizing, .summarizing), 
                  (.failed, .failed):
                 return true
-            case (.loaded(let lS, let lU), .loaded(let rS, let rU)):
-                return lS == rS && lU == rU
+            case (.loaded(let lS, let lU, let lP), .loaded(let rS, let rU, let rP)):
+                return lS == rS && lU == rU && lP == rP
             default:
                 return false
             }
@@ -31,13 +31,13 @@ final class SummaryViewModel: ObservableObject {
     
     @Published private(set) var state: State = .idle
     
-    private let urlGenerator: WeekURLGenerator
+    private let urlGenerator: MonthlyReportURLGenerator
     private let openAIService: OpenAIService
     private let session: URLSession
     
     init(
         session: URLSession = .shared,
-        urlGenerator: WeekURLGenerator = WeekURLGenerator(),
+        urlGenerator: MonthlyReportURLGenerator = MonthlyReportURLGenerator(),
         openAIService: OpenAIService = OpenAIService()
     ) {
         self.session = session
@@ -76,32 +76,28 @@ final class SummaryViewModel: ObservableObject {
         state = .loadingURL
         
         do {
-            // 1. Generera URL baserat på aktuell vecka
-            let reportURL = try urlGenerator.generateURL()
+            // 1. Försök först med aktuell månad
+            let currentMonthURL = try urlGenerator.generateURL()
             
-            state = .fetchingReport
-            
-            // 2. Hämta rått innehåll (Web Scraping)
-            let (data, response) = try await session.data(from: reportURL)
-            
-            guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
-                throw DisplayableError("Kunde inte hämta veckorapporten. Statuskod: \((response as? HTTPURLResponse)?.statusCode ?? 0)")
+            // Försök hämta aktuell månads rapport
+            if let result = try await attemptToFetchReport(from: currentMonthURL) {
+                state = .loaded(summary: result.summary, url: result.url, isPreviousMonth: false)
+                return
             }
             
-            guard let reportHTML = String(data: data, encoding: .utf8) else {
-                throw DisplayableError("Kunde inte tolka veckorapportens innehåll.")
+            // 2. Om aktuell månad misslyckas, försök föregående månad
+            let previousMonthDate = Calendar.current.date(byAdding: .month, value: -1, to: Date()) ?? Date()
+            let previousMonthURL = try urlGenerator.generateURL(for: previousMonthDate)
+            
+            if let result = try await attemptToFetchReport(from: previousMonthURL) {
+                // Lägg till notis om att rapporten kommer snart för aktuell månad
+                let enhancedSummary = result.summary + "\n\nObs: Rapporten för aktuell månad (januari 2026) kommer snart. Detta baseras på föregående månads data."
+                state = .loaded(summary: enhancedSummary, url: result.url, isPreviousMonth: true)
+                return
             }
             
-            // NYTT STEG: Parsa/städa HTML till ren text
-            let cleanReportText = try cleanHTMLToPlainText(reportHTML)
-            
-            state = .summarizing
-            
-            // 3. Skicka den rena texten till OpenAI för summering
-            let summary = try await openAIService.summarize(reportText: cleanReportText, sourceURL: reportURL)
-            
-            // 4. Ladda med summering och URL
-            state = .loaded(summary: summary, url: reportURL)
+            // 3. Om båda misslyckas
+            throw DisplayableError("Kunde inte hämta varken aktuell eller föregående månads rapport.")
             
         } catch let error as DisplayableError {
             state = .failed(error.message)
@@ -109,5 +105,36 @@ final class SummaryViewModel: ObservableObject {
             print("Oväntat fel vid summering: \(error)")
             state = .failed("Ett oväntat fel inträffade vid hämtning eller summering.")
         }
+    }
+    
+    // HJÄLPFUNKTION: Försöker hämta och summera rapport från given URL
+    private func attemptToFetchReport(from url: URL) async throws -> (summary: String, url: URL)? {
+        state = .fetchingReport
+        
+        let (data, response) = try await session.data(from: url)
+        
+        // Kontrollera om HTTP-svaret är lyckat
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            // Om det inte är 404, kasta fel. Om det är 404, returnera nil för att försöka nästa månad
+            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 404 {
+                print("Rapport inte funnen för URL: \(url.absoluteString)")
+                return nil
+            }
+            throw DisplayableError("Oväntat HTTP-fel vid hämtning från \(url.absoluteString). Statuskod: \((response as? HTTPURLResponse)?.statusCode ?? 0)")
+        }
+        
+        guard let reportHTML = String(data: data, encoding: .utf8) else {
+            throw DisplayableError("Kunde inte tolka rapportens innehåll från \(url.absoluteString)")
+        }
+        
+        // Parsa HTML till ren text
+        let cleanReportText = try cleanHTMLToPlainText(reportHTML)
+        
+        state = .summarizing
+        
+        // Skicka till OpenAI för summering
+        let summary = try await openAIService.summarize(reportText: cleanReportText, sourceURL: url)
+        
+        return (summary: summary, url: url)
     }
 }

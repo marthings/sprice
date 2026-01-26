@@ -1,21 +1,40 @@
 import Foundation
 
-// MARK: - 1. Utility för URL-generering (Statisk)
+// MARK: - 1. Utility för URL-generering (Månadsrapporter)
 
-final class WeekURLGenerator {
+final class MonthlyReportURLGenerator {
     
-    // ANVÄNDER STATISK URL EFTERSOM DYNAMISK GENERERING MÅSTE SES ÖVER
-    private let staticURLString = "https://ei.se/om-oss/nyheter/laget-pa-elmarknaden/arkiv---laget-pa-elmarknaden/2025-04-01-laget-pa-elmarknaden---vecka-13-2025"
+    private let baseURLString = "https://elmarknad.se/rapporter/laget-pa-elmarknaden"
+    
+    // Svenska månadsnamn för URL-generering
+    private let swedishMonthNames: [Int: String] = [
+        1: "januari", 2: "februari", 3: "mars", 4: "april",
+        5: "maj", 6: "juni", 7: "juli", 8: "augusti", 
+        9: "september", 10: "oktober", 11: "november", 12: "december"
+    ]
     
     init() {
-        // Inga kalenderinställningar behövs när vi använder statisk URL.
+        // Ingen konfiguration behövs
     }
     
-    /// Returnerar den statiska URL:en för veckobrevet.
+    /// Genererar URL baserat på aktuell månad på svenska
     func generateURL(for date: Date = Date()) throws -> URL {
-        guard let url = URL(string: staticURLString) else {
-            throw DisplayableError("Kunde inte skapa giltig URL för veckorapporten.")
+        let calendar = Calendar(identifier: .gregorian)
+        let components = calendar.dateComponents([.month, .year], from: date)
+        
+        guard let month = components.month,
+              let year = components.year,
+              let monthName = swedishMonthNames[month] else {
+            throw DisplayableError("Kunde inte extrahera månad från datum.")
         }
+        
+        // Bygger URL: https://elmarknad.se/rapporter/laget-pa-elmarknaden-[månad]-[år]/
+        let urlString = "\(baseURLString)-\(monthName)-\(year)/"
+        
+        guard let url = URL(string: urlString) else {
+            throw DisplayableError("Kunde inte skapa giltig URL för månadsrapporten: \(urlString)")
+        }
+        
         return url
     }
 }
@@ -33,7 +52,7 @@ actor OpenAIService {
     
     /// Skickar ren text (förväntas vara veckorapporten) till OpenAI för summering.
     func summarize(reportText: String, sourceURL: URL) async throws -> String {
-        let systemPrompt = "Du är en expert på elmarknaden. Din uppgift är att läsa den bifogade svenska veckorapporten (hämtad från \(sourceURL.absoluteString)) och ge en kort (max 3 meningar), mänsklig och enkel summering av vad som primärt påverkar elpriset just denna vecka. Svara endast med summeringen."
+        let systemPrompt = "Du är en expert på elmarknaden. Din uppgift är att läsa den bifogade svenska månadsrapporten (hämtad från \(sourceURL.absoluteString)) och ge en kort (max 3 meningar), mänsklig och enkel summering av vad som primärt påverkar elpriset under denna månad. Svara endast med summeringen."
         
         let model = "gpt-3.5-turbo"
         let url = URL(string: "https://api.openai.com/v1/chat/completions")!
@@ -42,7 +61,7 @@ actor OpenAIService {
             "model": model,
             "messages": [
                 ["role": "system", "content": systemPrompt],
-                ["role": "user", "content": "Veckorapporten (textinnehåll): \n\n" + reportText] 
+                ["role": "user", "content": "Månadsrapporten (textinnehåll): \n\n" + reportText] 
             ],
             "temperature": 0.3
         ]

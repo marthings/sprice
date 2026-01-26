@@ -658,7 +658,7 @@ struct MenuBarSummaryView: View {
             // Header with modern styling
             HStack(spacing: 8) {
 
-                Text("Veckans elmarknadsläge")
+                Text("Månadens elmarknadsläge")
                     .font(.headline.weight(.semibold))
                     .foregroundStyle(.primary)
                 
@@ -708,7 +708,7 @@ struct MenuBarSummaryView: View {
                     .font(.caption)
                     .foregroundStyle(.blue)
                 
-                Text("Tryck Uppdatera för att hämta veckans marknadsöversikt")
+                Text("Tryck Uppdatera för att hämta månadens marknadsöversikt")
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
             }
@@ -743,14 +743,14 @@ struct MenuBarSummaryView: View {
                 .frame(height: 3)
             }
             
-        case .loaded(let summary, let url):
+        case .loaded(let summary, let url, let isPreviousMonth):
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 6) {
-                    Image(systemName: "checkmark.circle.fill")
+                    Image(systemName: isPreviousMonth ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
                         .font(.caption2)
-                        .foregroundStyle(.green)
+                        .foregroundStyle(isPreviousMonth ? .orange : .green)
                     
-                    Text("Uppdaterad")
+                    Text(isPreviousMonth ? "Föregående månad" : "Uppdaterad")
                         .font(.caption2.weight(.medium))
                         .foregroundStyle(.secondary)
                     
@@ -759,7 +759,7 @@ struct MenuBarSummaryView: View {
                 
                 Text(summary)
                     .font(.caption.weight(.medium))
-                    .lineLimit(4)
+                    .lineLimit(isPreviousMonth ? 6 : 4) // Mer plats för notisen om föregående månad
                     .fixedSize(horizontal: false, vertical: true)
                     .foregroundStyle(.primary)
                 
@@ -807,7 +807,7 @@ struct MenuBarSummaryView: View {
     
     private func loadingText(for state: SummaryViewModel.State) -> String {
         switch state {
-        case .loadingURL: return "Förbereder veckodata..."
+        case .loadingURL: return "Förbereder månadsdata..."
         case .fetchingReport: return "Hämtar marknadsrapport..."
         case .summarizing: return "Analyserar med AI..."
         default: return "Laddar..."
