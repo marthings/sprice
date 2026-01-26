@@ -93,17 +93,49 @@ struct SpotPriceBarChart: View {
     
     private var chartContent: some View {
         Chart {
+            // Area fill under the line
             ForEach(dayData.buckets) { bucket in
-                BarMark(
-                    xStart: .value("Start", bucket.start),
-                    xEnd: .value("End", bucket.end),
+                AreaMark(
+                    x: .value("Tid", bucket.start),
                     y: .value("Pris", bucket.orePerKWh)
                 )
-                .foregroundStyle(bucket.category.gradientColor)
-                .cornerRadius(3)
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [
+                            dynamicGradientColor(for: bucket).opacity(0.4),
+                            dynamicGradientColor(for: bucket).opacity(0.1),
+                            .clear
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
                 .opacity(selectedDate == nil || isBucketSelected(bucket, selectedDate: selectedDate) ? 1.0 : 0.3)
-                .accessibilityLabel("Pris \(Int(bucket.orePerKWh.rounded())) öre per kWh från \(timeLabel(bucket.start)) till \(timeLabel(bucket.end))")
+            }
+            
+            // Main line with smooth curves
+            ForEach(dayData.buckets) { bucket in
+                LineMark(
+                    x: .value("Tid", bucket.start),
+                    y: .value("Pris", bucket.orePerKWh)
+                )
+                .foregroundStyle(dynamicGradientColor(for: bucket))
+                .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+                .interpolationMethod(.catmullRom)
+                .opacity(selectedDate == nil || isBucketSelected(bucket, selectedDate: selectedDate) ? 1.0 : 0.4)
+                .accessibilityLabel("Pris \(Int(bucket.orePerKWh.rounded())) öre per kWh klockan \(timeLabel(bucket.start))")
                 .accessibilityValue("\(bucket.category.description)")
+            }
+            
+            // Data point circle - only for selected/hovered bucket
+            if let selectedDate, let bucket = findBucket(for: selectedDate, in: dayData.buckets) {
+                PointMark(
+                    x: .value("Tid", bucket.start),
+                    y: .value("Pris", bucket.orePerKWh)
+                )
+                .foregroundStyle(dynamicGradientColor(for: bucket))
+                .symbolSize(64)
+                .symbol(.circle)
             }
             
             // Current time indicator
@@ -253,6 +285,22 @@ struct SpotPriceBarChart: View {
     }
     
     // MARK: - Helper Methods
+    
+    private func dynamicGradientColor(for bucket: SpotPriceViewModel.PriceBucket) -> Color {
+        // Create a smooth color transition based on price level
+        let normalizedPrice = (bucket.orePerKWh - dayData.minOre) / (dayData.maxOre - dayData.minOre)
+        
+        if normalizedPrice <= 0.33 {
+            // Low prices: Green to Yellow-Green
+            return Color.green.interpolated(to: .yellow, by: normalizedPrice * 3)
+        } else if normalizedPrice <= 0.66 {
+            // Medium prices: Yellow to Orange
+            return Color.yellow.interpolated(to: .orange, by: (normalizedPrice - 0.33) * 3)
+        } else {
+            // High prices: Orange to Red
+            return Color.orange.interpolated(to: .red, by: (normalizedPrice - 0.66) * 3)
+        }
+    }
     
     private func calendarBounds(for date: Date?) -> ClosedRange<Date> {
         let start = Calendar.current.startOfDay(for: date ?? Date())
@@ -492,6 +540,41 @@ struct SpotpriceApp: App {
         .menuBarExtraStyle(.window)
         .environmentObject(viewModel)
         .environmentObject(summaryViewModel)
+    }
+}
+
+extension Color {
+    /// Interpolates between two colors by a given factor (0.0 to 1.0)
+    func interpolated(to color: Color, by factor: Double) -> Color {
+        let clampedFactor = max(0, min(1, factor))
+        
+        // Convert to RGB components (simplified approach)
+        let fromComponents = self.rgbComponents()
+        let toComponents = color.rgbComponents()
+        
+        let red = fromComponents.red + (toComponents.red - fromComponents.red) * clampedFactor
+        let green = fromComponents.green + (toComponents.green - fromComponents.green) * clampedFactor
+        let blue = fromComponents.blue + (toComponents.blue - fromComponents.blue) * clampedFactor
+        
+        return Color(red: red, green: green, blue: blue)
+    }
+    
+    private func rgbComponents() -> (red: Double, green: Double, blue: Double) {
+        #if canImport(UIKit)
+        let uiColor = UIColor(self)
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+        uiColor.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        return (Double(red), Double(green), Double(blue))
+        #elseif canImport(AppKit)
+        let nsColor = NSColor(self)
+        let convertedColor = nsColor.usingColorSpace(.deviceRGB) ?? nsColor
+        return (Double(convertedColor.redComponent), Double(convertedColor.greenComponent), Double(convertedColor.blueComponent))
+        #else
+        return (0.5, 0.5, 0.5) // Fallback
+        #endif
     }
 }
 
