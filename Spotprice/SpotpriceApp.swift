@@ -49,13 +49,10 @@ struct SpotPriceBarChart: View {
         VStack(spacing: 0) {
             // Chart title and current price
             chartHeader
-            
+                .padding(.horizontal)
             // Main chart
             chartContent
-                .glassEffect(.regular.interactive(), in: .rect(cornerRadius: configuration.cornerRadius))
         }
-        .background(.ultraThinMaterial)  // Lätt vit bakgrund
-
     }
     
     private var chartHeader: some View {
@@ -290,23 +287,20 @@ struct ModernMenuBarView: View {
             // Main content
             ScrollView {
                 VStack(spacing: 20) {
-                    // Weekly Summary with glass effect
-                    MenuBarSummaryView(viewModel: summaryViewModel)
-                        .glassEffect(.regular.tint(.clear), in: .rect(cornerRadius: 16))
+                    // Weekly Summary with glass effect and update button
+                    MenuBarSummaryView(viewModel: summaryViewModel, spotPriceViewModel: viewModel)
+
                     
                     // Chart section
                     chartSection
-                    
+                        .glassEffect(.regular.tint(.clear), in: .rect(cornerRadius: 16))
                     // Quick stats
                     quickStats
                 }
                 .padding(20)
             }
-            
-            // Action buttons with modern styling
-            actionButtons
         }
-        .background(.ultraThinMaterial)
+
         .frame(width: 380, height: 520)
     }
     
@@ -325,16 +319,21 @@ struct ModernMenuBarView: View {
             
             Spacer()
             
-            Text(Date().formatted(.dateTime.weekday(.wide).day().month(.abbreviated)))
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(.quaternary.opacity(0.5), in: Capsule())
+            // Avsluta-knapp med stäng-ikon
+            Button(action: {
+                NSApplication.shared.terminate(nil)
+            }) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 24, height: 24)
+                    .background(.quaternary.opacity(0.5), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .help("Avsluta")
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 16)
-
     }
     
     private var chartSection: some View {
@@ -431,43 +430,6 @@ struct ModernMenuBarView: View {
         .glassEffect(.regular.tint(color.opacity(0.1)), in: .rect(cornerRadius: 12))
     }
     
-    private var actionButtons: some View {
-        HStack(spacing: 12) {
-            Button(action: {
-                Task {
-                    await viewModel.load()
-                    await summaryViewModel.loadSummary()
-                }
-            }) {
-                HStack(spacing: 6) {
-                    if viewModel.state == .loading || summaryViewModel.state.isLoading {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle())
-                            .controlSize(.small)
-                            .tint(.white)
-                    } else {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 14, weight: .semibold))
-                    }
-                    Text("Uppdatera")
-                        .font(.system(size: 14, weight: .semibold))
-                }
-                .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.glass)
-            .disabled(viewModel.state == .loading || summaryViewModel.state.isLoading)
-            
-            Button("Avsluta") {
-                NSApplication.shared.terminate(nil)
-            }
-            .buttonStyle(.glassProminent)
-            .frame(maxWidth: .infinity)
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 16)
-
-
-    }
     
     private func averagePrice(_ buckets: [SpotPriceViewModel.PriceBucket]) -> Double {
         let sum = buckets.reduce(0) { $0 + $1.orePerKWh }
@@ -606,59 +568,53 @@ extension SpotPriceViewModel.PriceCategory {
 
 struct MenuBarSummaryView: View {
     @ObservedObject var viewModel: SummaryViewModel
+    @ObservedObject var spotPriceViewModel: SpotPriceViewModel
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             // Header with modern styling
             HStack(spacing: 8) {
-                Image(systemName: "chart.line.uptrend.xyaxis")
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(.blue.gradient)
-                
+
                 Text("Veckans elmarknadsläge")
                     .font(.headline.weight(.semibold))
                     .foregroundStyle(.primary)
                 
                 Spacer()
                 
-                // Status indicator
-                statusIndicator
+                // Uppdatera-knapp
+                Button(action: {
+                    Task {
+                        await spotPriceViewModel.load()
+                        await viewModel.loadSummary()
+                    }
+                }) {
+                    HStack(spacing: 4) {
+                        if spotPriceViewModel.state == .loading || viewModel.state.isLoading {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle())
+                                .controlSize(.mini)
+                                .tint(.white)
+                        } else {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.system(size: 12, weight: .semibold))
+                        }
+
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(.blue.gradient, in: Capsule())
+                    .foregroundStyle(.white)
+                }
+                .buttonStyle(.plain)
+                .disabled(spotPriceViewModel.state == .loading || viewModel.state.isLoading)
             }
             
             // Content based on state
             contentView
         }
-        .padding(16)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
 
     }
     
-    @ViewBuilder
-    private var statusIndicator: some View {
-        switch viewModel.state {
-        case .idle:
-            Image(systemName: "clock")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .symbolEffect(.pulse, isActive: true)
-                
-        case .loadingURL, .fetchingReport, .summarizing:
-            ProgressView()
-                .progressViewStyle(CircularProgressViewStyle())
-                .controlSize(.mini)
-                .tint(.blue)
-                
-        case .loaded:
-            Image(systemName: "checkmark.circle.fill")
-                .font(.caption)
-                .foregroundStyle(.green)
-                
-        case .failed:
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.caption)
-                .foregroundStyle(.orange)
-        }
-    }
     
     @ViewBuilder
     private var contentView: some View {
@@ -677,6 +633,11 @@ struct MenuBarSummaryView: View {
         case .loadingURL, .fetchingReport, .summarizing:
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle())
+                        .controlSize(.mini)
+                        .tint(.blue)
+                    
                     Text(loadingText(for: viewModel.state))
                         .font(.caption.weight(.medium))
                         .foregroundStyle(.primary)
@@ -701,6 +662,18 @@ struct MenuBarSummaryView: View {
             
         case .loaded(let summary, let url):
             VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.green)
+                    
+                    Text("Uppdaterad")
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(.secondary)
+                    
+                    Spacer()
+                }
+                
                 Text(summary)
                     .font(.caption.weight(.medium))
                     .lineLimit(4)
@@ -725,7 +698,7 @@ struct MenuBarSummaryView: View {
             
         case .failed(let error):
             HStack(spacing: 8) {
-                Image(systemName: "exclamationmark.triangle")
+                Image(systemName: "exclamationmark.triangle.fill")
                     .font(.caption)
                     .foregroundStyle(.orange)
                 
