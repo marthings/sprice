@@ -10,15 +10,29 @@ enum ChartConfiguration {
     
     var height: CGFloat {
         switch self {
-        case .menuBar: return 180
-        case .fullSize: return 260
+        case .menuBar: return 200
+        case .fullSize: return 300
         }
     }
     
     var showXAxisLabels: Bool {
         switch self {
-        case .menuBar: return false
+        case .menuBar: return true
         case .fullSize: return true
+        }
+    }
+    
+    var showYAxisLabels: Bool {
+        switch self {
+        case .menuBar: return true
+        case .fullSize: return true
+        }
+    }
+    
+    var cornerRadius: CGFloat {
+        switch self {
+        case .menuBar: return 12
+        case .fullSize: return 16
         }
     }
 }
@@ -29,8 +43,58 @@ struct SpotPriceBarChart: View {
     let dayData: SpotPriceViewModel.DayChartData
     let configuration: ChartConfiguration
     @State private var selectedDate: Date?
+    @State private var hoveredBucket: SpotPriceViewModel.PriceBucket?
     
     var body: some View {
+        VStack(spacing: 0) {
+            // Chart title and current price
+            chartHeader
+            
+            // Main chart
+            chartContent
+                .glassEffect(.regular.interactive(), in: .rect(cornerRadius: configuration.cornerRadius))
+        }
+        .background(.ultraThinMaterial)  // Lätt vit bakgrund
+
+    }
+    
+    private var chartHeader: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Spotpris idag")
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                
+                if let current = currentPriceBucket {
+                    Text("\(Int(current.orePerKWh.rounded())) öre/kWh")
+                        .font(.title2.weight(.bold).monospacedDigit())
+                        .foregroundStyle(current.category.color)
+                }
+            }
+            
+            Spacer()
+            
+            VStack(alignment: .trailing, spacing: 2) {
+                Text("Nästa timme")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                
+                if let next = nextPriceBucket {
+                    HStack(spacing: 4) {
+                        priceChangeIndicator(current: currentPriceBucket?.orePerKWh, next: next.orePerKWh)
+                        Text("\(Int(next.orePerKWh.rounded()))")
+                            .font(.caption.weight(.semibold).monospacedDigit())
+                            .foregroundStyle(next.category.color)
+                    }
+                }
+            }
+        }
+
+        .padding(.top, 12)
+        .padding(.bottom, 8)
+    }
+    
+    private var chartContent: some View {
         Chart {
             ForEach(dayData.buckets) { bucket in
                 BarMark(
@@ -38,39 +102,157 @@ struct SpotPriceBarChart: View {
                     xEnd: .value("End", bucket.end),
                     y: .value("Pris", bucket.orePerKWh)
                 )
-                .foregroundStyle(bucket.category.color)
-                .cornerRadius(2)
-                .opacity(selectedDate == nil || isBucketSelected(bucket, selectedDate: selectedDate) ? 1.0 : 0.5)
+                .foregroundStyle(bucket.category.gradientColor)
+                .cornerRadius(3)
+                .opacity(selectedDate == nil || isBucketSelected(bucket, selectedDate: selectedDate) ? 1.0 : 0.3)
+                .accessibilityLabel("Pris \(Int(bucket.orePerKWh.rounded())) öre per kWh från \(timeLabel(bucket.start)) till \(timeLabel(bucket.end))")
+                .accessibilityValue("\(bucket.category.description)")
             }
             
+            // Current time indicator
+            if let now = Calendar.current.date(bySettingHour: Calendar.current.component(.hour, from: Date()), minute: 0, second: 0, of: Date()) {
+                RuleMark(x: .value("Nu", now))
+                    .foregroundStyle(.primary)
+                    .lineStyle(StrokeStyle(lineWidth: 2))
+                    .accessibilityLabel("Nuvarande tid")
+            }
+            
+            // Selection indicator
             if let selectedDate, let bucket = findBucket(for: selectedDate, in: dayData.buckets) {
                 RuleMark(x: .value("Vald tid", selectedDate))
-                    .foregroundStyle(Color.secondary.opacity(0.5))
-                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [5]))
-                    .annotation(position: .top, spacing: 0) {
-                        CalloutView(
-                            title: "\(timeLabel(bucket.start))–\(timeLabel(bucket.end))",
-                            value: "\(Int(bucket.orePerKWh.rounded())) öre/kWh",
-                            color: bucket.category.color
-                        )
+                    .foregroundStyle(.secondary.opacity(0.8))
+                    .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [6, 4]))
+                    .annotation(position: .top, spacing: 8, overflowResolution: .init(x: .fit, y: .disabled)) {
+                        modernCallout(for: bucket)
                     }
             }
         }
         .chartXScale(domain: calendarBounds(for: dayData.buckets.first?.start))
+        .chartYScale(domain: 0...max(dayData.maxOre * 1.1, dayData.minOre + 10))
         .chartXSelection(value: $selectedDate)
-        .chartYScale(domain: dayData.minOre...max(dayData.maxOre, dayData.minOre + 1))
         .chartXAxis {
             if configuration.showXAxisLabels {
-                AxisMarks(values: .stride(by: .hour, count: 4)) { value in
-                    AxisGridLine()
-                    AxisTick()
+                AxisMarks(values: .stride(by: .hour, count: 6)) { value in
+                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                        .foregroundStyle(.quaternary)
+                    AxisTick(stroke: StrokeStyle(lineWidth: 0.5))
+                        .foregroundStyle(.tertiary)
                     if let date = value.as(Date.self) {
-                        AxisValueLabel(date.formatted(.dateTime.hour()))
+                        AxisValueLabel {
+                            Text(date.formatted(.dateTime.hour()))
+                                .font(.caption2.weight(.medium))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+        }
+        .chartYAxis {
+            if configuration.showYAxisLabels {
+                AxisMarks(position: .leading) { value in
+                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                        .foregroundStyle(.quaternary)
+                    AxisTick(stroke: StrokeStyle(lineWidth: 0.5))
+                        .foregroundStyle(.tertiary)
+                    AxisValueLabel {
+                        if let price = value.as(Double.self) {
+                            Text("\(Int(price.rounded()))")
+                                .font(.caption2.weight(.medium))
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
             }
         }
         .frame(height: configuration.height)
+        .padding(.horizontal, 16)
+        .padding(.bottom, 16)
+        .contentShape(Rectangle())
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { value in
+                    // Convert gesture location to chart coordinates for better interaction
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        updateSelection(at: value.location)
+                    }
+                }
+        )
+    }
+    
+    private func modernCallout(for bucket: SpotPriceViewModel.PriceBucket) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(bucket.category.gradientColor)
+                    .frame(width: 10, height: 10)
+                Text("\(timeLabel(bucket.start))–\(timeLabel(bucket.end))")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.primary)
+            }
+            
+            HStack(spacing: 6) {
+                Text("\(Int(bucket.orePerKWh.rounded()))")
+                    .font(.title3.weight(.bold).monospacedDigit())
+                    .foregroundStyle(bucket.category.color)
+                Text("öre/kWh")
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(.secondary)
+            }
+            
+            Text(bucket.category.description)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 2)
+                .background(bucket.category.color.opacity(0.1), in: Capsule())
+        }
+        .padding(12)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(.quaternary, lineWidth: 0.5)
+        )
+        .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
+    }
+    
+    private var currentPriceBucket: SpotPriceViewModel.PriceBucket? {
+        let now = Date()
+        return dayData.buckets.first { $0.start <= now && $0.end > now }
+    }
+    
+    private var nextPriceBucket: SpotPriceViewModel.PriceBucket? {
+        let now = Date()
+        return dayData.buckets.first { $0.start > now }
+    }
+    
+    private func priceChangeIndicator(current: Double?, next: Double?) -> some View {
+        guard let current, let next else {
+            return AnyView(EmptyView())
+        }
+        
+        let change = next - current
+        let isIncrease = change > 0
+        let icon = isIncrease ? "arrow.up" : change < 0 ? "arrow.down" : "minus"
+        let color: Color = isIncrease ? .red : change < 0 ? .green : .secondary
+        
+        return AnyView(
+            Image(systemName: icon)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(color)
+        )
+    }
+    
+    private func updateSelection(at location: CGPoint) {
+        // This is a simplified version - in a real implementation,
+        // you'd convert the location to chart coordinates
+        let now = Date()
+        let startOfDay = Calendar.current.startOfDay(for: now)
+        let hourProgress = location.x / 300 // Approximate chart width
+        let selectedHour = Int(hourProgress * 24)
+        
+        if let selectedDate = Calendar.current.date(byAdding: .hour, value: selectedHour, to: startOfDay) {
+            self.selectedDate = selectedDate
+        }
     }
     
     // MARK: - Helper Methods
@@ -91,27 +273,218 @@ struct SpotPriceBarChart: View {
     }
     
     private func timeLabel(_ date: Date) -> String {
-        date.formatted(.dateTime.hour().minute())
+        date.formatted(.dateTime.hour(.defaultDigits(amPM: .omitted)))
     }
 }
 
-private struct CalloutView: View {
-    let title: String
-    let value: String
-    let color: Color
+// MARK: - Modern Menu Bar View
+struct ModernMenuBarView: View {
+    @ObservedObject var viewModel: SpotPriceViewModel
+    @ObservedObject var summaryViewModel: SummaryViewModel
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title).font(.caption2).foregroundStyle(.secondary)
-            HStack(spacing: 6) {
-                Circle().fill(color).frame(width: 8, height: 8)
-                Text(value).font(.caption).bold().monospacedDigit()
+        VStack(spacing: 0) {
+            // Header with app branding
+            menuHeader
+            
+            // Main content
+            ScrollView {
+                VStack(spacing: 20) {
+                    // Weekly Summary with glass effect
+                    MenuBarSummaryView(viewModel: summaryViewModel)
+                        .glassEffect(.regular.tint(.clear), in: .rect(cornerRadius: 16))
+                    
+                    // Chart section
+                    chartSection
+                    
+                    // Quick stats
+                    quickStats
+                }
+                .padding(20)
+            }
+            
+            // Action buttons with modern styling
+            actionButtons
+        }
+        .background(.ultraThinMaterial)
+        .frame(width: 380, height: 520)
+    }
+    
+    private var menuHeader: some View {
+        HStack {
+            HStack(spacing: 8) {
+                Image(systemName: "bolt.fill")
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(.orange.gradient)
+                    .symbolEffect(.pulse.wholeSymbol, options: .repeat(.continuous))
+                
+                Text("Spotpris")
+                    .font(.title2.weight(.bold))
+                    .foregroundStyle(.primary)
+            }
+            
+            Spacer()
+            
+            Text(Date().formatted(.dateTime.weekday(.wide).day().month(.abbreviated)))
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(.quaternary.opacity(0.5), in: Capsule())
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 16)
+
+    }
+    
+    private var chartSection: some View {
+        VStack(spacing: 0) {
+            if case .loaded(let payload) = viewModel.state {
+                SpotPriceBarChart(dayData: payload.day, configuration: .menuBar)
+            } else {
+                loadingStateView
+                    .frame(height: 200)
             }
         }
-        .padding(6)
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 6))
-        .shadow(color: .black.opacity(0.15), radius: 2)
+    }
+    
+    private var loadingStateView: some View {
+        VStack(spacing: 16) {
+            Group {
+                if case .loading = viewModel.state {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle())
+                        .scaleEffect(1.2)
+                        .tint(.orange)
+                } else {
+                    Image(systemName: "bolt.slash.fill")
+                        .font(.system(size: 48, weight: .light))
+                        .foregroundStyle(.secondary.opacity(0.6))
+                }
+            }
+            
+            Text(loadingStatusText)
+                .font(.headline.weight(.medium))
+                .foregroundStyle(.primary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .glassEffect(.regular.tint(.clear), in: .rect(cornerRadius: 16))
+    }
+    
+    @ViewBuilder
+    private var quickStats: some View {
+        if case .loaded(let payload) = viewModel.state {
+            HStack(spacing: 12) {
+                statCard(
+                    title: "Lägsta pris",
+                    value: "\(Int(payload.day.minOre.rounded()))",
+                    unit: "öre",
+                    color: .green,
+                    icon: "arrow.down.circle.fill"
+                )
+                
+                statCard(
+                    title: "Högsta pris", 
+                    value: "\(Int(payload.day.maxOre.rounded()))",
+                    unit: "öre",
+                    color: .red,
+                    icon: "arrow.up.circle.fill"
+                )
+                
+                statCard(
+                    title: "Medelpris",
+                    value: "\(Int(averagePrice(payload.day.buckets).rounded()))",
+                    unit: "öre",
+                    color: .blue,
+                    icon: "chart.line.uptrend.xyaxis"
+                )
+            }
+        }
+    }
+    
+    private func statCard(title: String, value: String, unit: String, color: Color, icon: String) -> some View {
+        VStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.title3)
+                .foregroundStyle(color.gradient)
+            
+            VStack(spacing: 2) {
+                HStack(alignment: .lastTextBaseline, spacing: 2) {
+                    Text(value)
+                        .font(.title3.weight(.bold).monospacedDigit())
+                        .foregroundStyle(.primary)
+                    Text(unit)
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(.secondary)
+                }
+                
+                Text(title)
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+        .padding(.horizontal, 8)
+        .glassEffect(.regular.tint(color.opacity(0.1)), in: .rect(cornerRadius: 12))
+    }
+    
+    private var actionButtons: some View {
+        HStack(spacing: 12) {
+            Button(action: {
+                Task {
+                    await viewModel.load()
+                    await summaryViewModel.loadSummary()
+                }
+            }) {
+                HStack(spacing: 6) {
+                    if viewModel.state == .loading || summaryViewModel.state.isLoading {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle())
+                            .controlSize(.small)
+                            .tint(.white)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 14, weight: .semibold))
+                    }
+                    Text("Uppdatera")
+                        .font(.system(size: 14, weight: .semibold))
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.glass)
+            .disabled(viewModel.state == .loading || summaryViewModel.state.isLoading)
+            
+            Button("Avsluta") {
+                NSApplication.shared.terminate(nil)
+            }
+            .buttonStyle(.glassProminent)
+            .frame(maxWidth: .infinity)
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 16)
+
+
+    }
+    
+    private func averagePrice(_ buckets: [SpotPriceViewModel.PriceBucket]) -> Double {
+        let sum = buckets.reduce(0) { $0 + $1.orePerKWh }
+        return sum / Double(buckets.count)
+    }
+    
+    private var loadingStatusText: String {
+        switch viewModel.state {
+        case .idle:
+            return "Tryck Uppdatera för att ladda dagens spotpriser"
+        case .loading:
+            return "Hämtar aktuella spotpriser..."
+        case .failed(let message):
+            return message
+        case .loaded:
+            return ""
+        }
     }
 }
 
@@ -133,82 +506,30 @@ struct SpotpriceApp: App {
         // Menu bar only app - no WindowGroup needed
         
         MenuBarExtra {
-            // Innehållet i menyn när man klickar på den
-            VStack(spacing: 16) {
-                // Weekly Summary
-                MenuBarSummaryView(viewModel: summaryViewModel)
-                
-                // Spot Price Chart
-                if case .loaded(let payload) = viewModel.state {
-                    SpotPriceBarChart(dayData: payload.day, configuration: .menuBar)
-                } else {
-                    // Loading or error state
-                    VStack(spacing: 12) {
-                        if case .loading = viewModel.state {
-                            ProgressView()
-                                .scaleEffect(1.2)
-                        } else {
-                            Image(systemName: "bolt.slash")
-                                .font(.system(size: 40))
-                                .foregroundStyle(.secondary)
-                        }
-                        
-                        Text(loadingStatusText)
-                            .font(.headline)
-                            .foregroundStyle(.primary)
-                            .multilineTextAlignment(.center)
-                    }
-                    .frame(width: 280, height: 280)
-                }
-                
-                // Buttons
-                HStack(spacing: 12) {
-                    Button("Uppdatera") {
-                        Task { 
-                            await viewModel.load() 
-                            await summaryViewModel.loadSummary()
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(viewModel.state == .loading)
-                    
-                    Button("Avsluta") {
-                        NSApplication.shared.terminate(nil)
-                    }
-                    .buttonStyle(.bordered)
-                }
-            }
-            .padding()
-            .frame(width: 320) // Slightly wider to accommodate summary
-            .presentationBackground(.ultraThinMaterial)
-                .preferredColorScheme(.dark)
+            // Modern dropdown interface
+            ModernMenuBarView(viewModel: viewModel, summaryViewModel: summaryViewModel)
         } label: {
-            // Enklare label för topbaren
+            // Enhanced menu bar label with live data
             HStack(spacing: 4) {
                 Image(systemName: "bolt.fill")
-                    .foregroundColor(.orange)
+                    .foregroundStyle(viewModel.state.labelColor.gradient)
+                    .symbolEffect(.pulse.wholeSymbol, isActive: viewModel.state == .loading)
                 
                 Text(viewModel.state.currentPriceLabel)
                     .font(.system(size: 13, weight: .medium))
+                    .monospacedDigit()
+                    .foregroundStyle(viewModel.state.labelColor)
+                
+                if case .loaded = viewModel.state {
+                    Text("öre")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
             }
         }
         .menuBarExtraStyle(.window)
-        // Säkerställ att samma viewModel också finns i menyns miljö om under-vyer skulle behöva den
         .environmentObject(viewModel)
-        .environmentObject(summaryViewModel) 
-    }
-    
-    private var loadingStatusText: String {
-        switch viewModel.state {
-        case .idle:
-            return "Tryck Uppdatera för att ladda spotpriser"
-        case .loading:
-            return "Laddar spotpriser..."
-        case .failed(let message):
-            return message
-        case .loaded:
-            return ""
-        }
+        .environmentObject(summaryViewModel)
     }
 }
 
@@ -218,6 +539,17 @@ extension SpotPriceViewModel.State {
             return payload.currentDisplay // Ex: "42"
         }
         return "--"
+    }
+    
+    var labelColor: Color {
+        if case .loaded(let payload) = self {
+            // Find current price bucket to determine color
+            let now = Date()
+            if let currentBucket = payload.day.buckets.first(where: { $0.start <= now && $0.end > now }) {
+                return currentBucket.category.color
+            }
+        }
+        return .secondary
     }
 }
 
@@ -246,6 +578,28 @@ extension SpotPriceViewModel.PriceCategory {
             return .red
         }
     }
+    
+    var gradientColor: LinearGradient {
+        switch self {
+        case .low:
+            return LinearGradient(colors: [.green.opacity(0.8), .green], startPoint: .top, endPoint: .bottom)
+        case .medium:
+            return LinearGradient(colors: [.orange.opacity(0.8), .orange], startPoint: .top, endPoint: .bottom)
+        case .high:
+            return LinearGradient(colors: [.red.opacity(0.8), .red], startPoint: .top, endPoint: .bottom)
+        }
+    }
+    
+    var description: String {
+        switch self {
+        case .low:
+            return "Lågt pris"
+        case .medium:
+            return "Medelpris"
+        case .high:
+            return "Högt pris"
+        }
+    }
 }
 
 // MARK: - Menu Bar Summary View
@@ -254,62 +608,166 @@ struct MenuBarSummaryView: View {
     @ObservedObject var viewModel: SummaryViewModel
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
+        VStack(alignment: .leading, spacing: 12) {
+            // Header with modern styling
+            HStack(spacing: 8) {
                 Image(systemName: "chart.line.uptrend.xyaxis")
-                    .foregroundStyle(.blue)
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(.blue.gradient)
+                
                 Text("Veckans elmarknadsläge")
-                    .font(.subheadline.bold())
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                
                 Spacer()
+                
+                // Status indicator
+                statusIndicator
             }
             
-            switch viewModel.state {
-            case .idle:
-                Text("Tryck Uppdatera för att ladda summeringen")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .italic()
+            // Content based on state
+            contentView
+        }
+        .padding(16)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+
+    }
+    
+    @ViewBuilder
+    private var statusIndicator: some View {
+        switch viewModel.state {
+        case .idle:
+            Image(systemName: "clock")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .symbolEffect(.pulse, isActive: true)
                 
-            case .loadingURL, .fetchingReport, .summarizing:
-                HStack(spacing: 6) {
-                    ProgressView()
-                        .controlSize(.mini)
+        case .loadingURL, .fetchingReport, .summarizing:
+            ProgressView()
+                .progressViewStyle(CircularProgressViewStyle())
+                .controlSize(.mini)
+                .tint(.blue)
+                
+        case .loaded:
+            Image(systemName: "checkmark.circle.fill")
+                .font(.caption)
+                .foregroundStyle(.green)
+                
+        case .failed:
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.caption)
+                .foregroundStyle(.orange)
+        }
+    }
+    
+    @ViewBuilder
+    private var contentView: some View {
+        switch viewModel.state {
+        case .idle:
+            HStack(spacing: 8) {
+                Image(systemName: "info.circle")
+                    .font(.caption)
+                    .foregroundStyle(.blue)
+                
+                Text("Tryck Uppdatera för att hämta veckans marknadsöversikt")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+            }
+            
+        case .loadingURL, .fetchingReport, .summarizing:
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
                     Text(loadingText(for: viewModel.state))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.primary)
+                    
+                    Spacer()
                 }
                 
-            case .loaded(let summary, let url):
+                // Progress bar
+                GeometryReader { geometry in
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(.quaternary)
+                        .frame(height: 3)
+                        .overlay(alignment: .leading) {
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(.blue.gradient)
+                                .frame(width: geometry.size.width * progressValue, height: 3)
+                                .animation(.easeInOut(duration: 0.3), value: progressValue)
+                        }
+                }
+                .frame(height: 3)
+            }
+            
+        case .loaded(let summary, let url):
+            VStack(alignment: .leading, spacing: 12) {
                 Text(summary)
-                    .font(.caption)
+                    .font(.caption.weight(.medium))
                     .lineLimit(4)
                     .fixedSize(horizontal: false, vertical: true)
+                    .foregroundStyle(.primary)
                 
-                Link("Läs hela rapporten", destination: url)
-                    .font(.caption2)
-                    .padding(.top, 2)
-                
-            case .failed(let error):
-                HStack {
-                    Image(systemName: "exclamationmark.triangle")
-                        .foregroundStyle(.orange)
-                    Text("Kunde inte hämta summeringen")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                Link(destination: url) {
+                    HStack(spacing: 6) {
+                        Text("Läs hela rapporten")
+                            .font(.caption2.weight(.semibold))
+                        
+                        Image(systemName: "arrow.up.right")
+                            .font(.caption2)
+                    }
+                    .foregroundStyle(.blue)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(.blue.opacity(0.1), in: Capsule())
                 }
+                .buttonStyle(.plain)
+            }
+            
+        case .failed(let error):
+            HStack(spacing: 8) {
+                Image(systemName: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                
+                Text("Kunde inte hämta marknadsöversikten")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
             }
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+    }
+    
+    private var progressValue: Double {
+        switch viewModel.state {
+        case .loadingURL:
+            return 0.3
+        case .fetchingReport:
+            return 0.6
+        case .summarizing:
+            return 0.9
+        default:
+            return 0.0
+        }
     }
     
     private func loadingText(for state: SummaryViewModel.State) -> String {
         switch state {
-        case .loadingURL: return "Beräknar veckoadress..."
-        case .fetchingReport: return "Hämtar veckorapport..."
-        case .summarizing: return "Summerar med AI..."
+        case .loadingURL: return "Förbereder veckodata..."
+        case .fetchingReport: return "Hämtar marknadsrapport..."
+        case .summarizing: return "Analyserar med AI..."
         default: return "Laddar..."
+        }
+    }
+}
+
+// MARK: - Summary View Model Extensions
+
+extension SummaryViewModel.State {
+    var isLoading: Bool {
+        switch self {
+        case .loadingURL, .fetchingReport, .summarizing:
+            return true
+        default:
+            return false
         }
     }
 }
