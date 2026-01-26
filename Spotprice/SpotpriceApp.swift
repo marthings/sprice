@@ -348,8 +348,8 @@ struct ModernMenuBarView: View {
                 .padding(20)
             }
         }
-
-        .frame(width: 380, height: 520)
+        .glassEffect(.regular, in: .rect(cornerRadius: 16))
+        .frame(width: 380, height: 680)
     }
     
     private var menuHeader: some View {
@@ -422,40 +422,42 @@ struct ModernMenuBarView: View {
     @ViewBuilder
     private var quickStats: some View {
         if case .loaded(let payload) = viewModel.state {
-            HStack(spacing: 12) {
-                statCard(
-                    title: "Lägsta pris",
-                    value: "\(Int(payload.day.minOre.rounded()))",
-                    unit: "öre",
-                    color: .green,
-                    icon: "arrow.down.circle.fill"
-                )
+            VStack(spacing: 16) {
+                // Original stat cards
+                HStack(spacing: 12) {
+                    statCard(
+                        title: "Lägsta pris",
+                        value: "\(Int(payload.day.minOre.rounded()))",
+                        unit: "öre",
+                        color: .green,
+                        icon: "arrow.down.circle.fill"
+                    )
+                    
+                    statCard(
+                        title: "Högsta pris", 
+                        value: "\(Int(payload.day.maxOre.rounded()))",
+                        unit: "öre",
+                        color: .red,
+                        icon: "arrow.up.circle.fill"
+                    )
+                    
+                    statCard(
+                        title: "Medelpris",
+                        value: "\(Int(averagePrice(payload.day.buckets).rounded()))",
+                        unit: "öre",
+                        color: .blue,
+                        icon: "chart.line.uptrend.xyaxis"
+                    )
+                }
                 
-                statCard(
-                    title: "Högsta pris", 
-                    value: "\(Int(payload.day.maxOre.rounded()))",
-                    unit: "öre",
-                    color: .red,
-                    icon: "arrow.up.circle.fill"
-                )
-                
-                statCard(
-                    title: "Medelpris",
-                    value: "\(Int(averagePrice(payload.day.buckets).rounded()))",
-                    unit: "öre",
-                    color: .blue,
-                    icon: "chart.line.uptrend.xyaxis"
-                )
+                // Cost calculation section
+                costCalculationSection(payload: payload)
             }
         }
     }
     
     private func statCard(title: String, value: String, unit: String, color: Color, icon: String) -> some View {
         VStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.title3)
-                .foregroundStyle(color.gradient)
-            
             VStack(spacing: 2) {
                 HStack(alignment: .lastTextBaseline, spacing: 2) {
                     Text(value)
@@ -476,6 +478,139 @@ struct ModernMenuBarView: View {
         .padding(.vertical, 12)
         .padding(.horizontal, 8)
         .glassEffect(.regular.tint(color.opacity(0.1)), in: .rect(cornerRadius: 12))
+    }
+    
+    private func costCalculationSection(payload: SpotPriceViewModel.CurrentAndDay) -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Med elpriset idag kostar...")
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(.primary)
+            
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 2), spacing: 12) {
+                costCard(
+                    title: "En dusch",
+                    mainCost: calculateCost(kWh: 6.0, currentPrice: getCurrentPrice(payload)),
+                    highCost: calculateCost(kWh: 6.0, price: payload.day.maxOre),
+                    lowCost: calculateCost(kWh: 6.0, price: payload.day.minOre),
+                    description: "10 min, 160 liter vatten ≈ ~6 kWh",
+                    icon: "drop.fill"
+                )
+                
+                costCard(
+                    title: "Baka en pizza",
+                    mainCost: calculateCost(kWh: 1.1, currentPrice: getCurrentPrice(payload)),
+                    highCost: calculateCost(kWh: 1.1, price: payload.day.maxOre),
+                    lowCost: calculateCost(kWh: 1.1, price: payload.day.minOre),
+                    description: "Ugn i 30 min ≈ ~1,1 kWh",
+                    icon: "triangle.fill"
+                )
+                
+                costCard(
+                    title: "En värmepump dygnet runt",
+                    mainCost: calculateCost(kWh: 24.0, currentPrice: getCurrentPrice(payload)),
+                    highCost: calculateCost(kWh: 24.0, price: payload.day.maxOre),
+                    lowCost: calculateCost(kWh: 24.0, price: payload.day.minOre),
+                    description: "1000W × 24 timmar = 24 kWh",
+                    icon: "thermometer"
+                )
+                
+                costCard(
+                    title: "Ett bad",
+                    mainCost: calculateCost(kWh: 7.5, currentPrice: getCurrentPrice(payload)),
+                    highCost: calculateCost(kWh: 7.5, price: payload.day.maxOre),
+                    lowCost: calculateCost(kWh: 7.5, price: payload.day.minOre),
+                    description: "200 liter vatten ≈ ~7,5 kWh",
+                    icon: "bathtub.fill"
+                )
+                
+                costCard(
+                    title: "Koka 1 liter vatten",
+                    mainCost: calculateCost(kWh: 0.12, currentPrice: getCurrentPrice(payload)),
+                    highCost: calculateCost(kWh: 0.12, price: payload.day.maxOre),
+                    lowCost: calculateCost(kWh: 0.12, price: payload.day.minOre),
+                    description: "Varmplatta i 4 min ≈ ~0,12 kWh",
+                    icon: "drop"
+                )
+                
+                costCard(
+                    title: "Ladda elbilen",
+                    mainCost: calculateCost(kWh: 45.0, currentPrice: getCurrentPrice(payload)),
+                    highCost: calculateCost(kWh: 45.0, price: payload.day.maxOre),
+                    lowCost: calculateCost(kWh: 45.0, price: payload.day.minOre),
+                    description: "Tesla Model 3 10-80% ≈ ~45 kWh",
+                    icon: "car.fill"
+                )
+            }
+        }
+        .padding(.top, 8)
+    }
+    
+    private func costCard(title: String, mainCost: String, highCost: String, lowCost: String, description: String, icon: String) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                
+                HStack(alignment: .lastTextBaseline, spacing: 2) {
+                    Text(mainCost)
+                        .font(.title2.weight(.bold).monospacedDigit())
+                        .foregroundStyle(.primary)
+                    Text("kr")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            
+            // High/Low price comparison
+            HStack(spacing: 12) {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.up")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.red)
+                    Text(highCost + " kr")
+                        .font(.caption.weight(.medium).monospacedDigit())
+                        .foregroundStyle(.red)
+                }
+                
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.down")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.green)
+                    Text(lowCost + " kr")
+                        .font(.caption.weight(.medium).monospacedDigit())
+                        .foregroundStyle(.green)
+                }
+            }
+            
+            Text(description)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(16)
+        .glassEffect(.regular.tint(.clear), in: .rect(cornerRadius: 12))
+    }
+    
+    private func calculateCost(kWh: Double, currentPrice: Double) -> String {
+        // Convert öre/kWh to kr and calculate total cost
+        let costInKr = (currentPrice / 100.0) * kWh
+        return String(format: "%.2f", costInKr)
+    }
+    
+    private func calculateCost(kWh: Double, price: Double) -> String {
+        // Convert öre/kWh to kr and calculate total cost
+        let costInKr = (price / 100.0) * kWh
+        return String(format: "%.2f", costInKr)
+    }
+    
+    private func getCurrentPrice(_ payload: SpotPriceViewModel.CurrentAndDay) -> Double {
+        let now = Date()
+        if let currentBucket = payload.day.buckets.first(where: { $0.start <= now && $0.end > now }) {
+            return currentBucket.orePerKWh
+        }
+        return averagePrice(payload.day.buckets)
     }
     
     
