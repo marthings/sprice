@@ -10,7 +10,7 @@ enum ChartConfiguration {
     
     var height: CGFloat {
         switch self {
-        case .menuBar: return 200
+        case .menuBar: return 160
         case .fullSize: return 300
         }
     }
@@ -31,7 +31,7 @@ enum ChartConfiguration {
     
     var cornerRadius: CGFloat {
         switch self {
-        case .menuBar: return 12
+        case .menuBar: return 10
         case .fullSize: return 16
         }
     }
@@ -56,39 +56,44 @@ struct SpotPriceBarChart: View {
     }
     
     private var chartHeader: some View {
-        HStack {
+        HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Spotpris idag")
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(.primary)
+                Text("Pris nu")
+                    .font(.custom("Avenir", size: 12).weight(.medium))
+                    .foregroundStyle(.secondary)
                 
                 if let current = currentPriceBucket {
-                    Text("\(Int(current.orePerKWh.rounded())) öre/kWh")
-                        .font(.title2.weight(.bold).monospacedDigit())
-                        .foregroundStyle(current.category.color)
+                    HStack(alignment: .lastTextBaseline, spacing: 2) {
+                        Text("\(Int(current.orePerKWh.rounded()))")
+                            .font(.custom("Avenir", size: 20).weight(.bold).monospacedDigit())
+                            .foregroundStyle(current.category.color)
+                        Text("öre/kWh")
+                            .font(.custom("Avenir", size: 11).weight(.medium))
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
             
             Spacer()
             
             VStack(alignment: .trailing, spacing: 2) {
-                Text("Nästa timme")
-                    .font(.caption)
+                Text("Nästa")
+                    .font(.custom("Avenir", size: 10).weight(.medium))
                     .foregroundStyle(.secondary)
                 
                 if let next = nextPriceBucket {
                     HStack(spacing: 4) {
                         priceChangeIndicator(current: currentPriceBucket?.orePerKWh, next: next.orePerKWh)
                         Text("\(Int(next.orePerKWh.rounded()))")
-                            .font(.caption.weight(.semibold).monospacedDigit())
+                            .font(.custom("Avenir", size: 12).weight(.semibold).monospacedDigit())
                             .foregroundStyle(next.category.color)
                     }
                 }
             }
         }
 
-        .padding(.top, 12)
-        .padding(.bottom, 8)
+        .padding(.top, 8)
+        .padding(.bottom, 16)
     }
     
     private var chartContent: some View {
@@ -169,7 +174,7 @@ struct SpotPriceBarChart: View {
                     if let date = value.as(Date.self) {
                         AxisValueLabel {
                             Text(date.formatted(.dateTime.hour()))
-                                .font(.caption2.weight(.medium))
+                                .font(.custom("Avenir", size: 10).weight(.medium))
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -186,7 +191,7 @@ struct SpotPriceBarChart: View {
                     AxisValueLabel {
                         if let price = value.as(Double.self) {
                             Text("\(Int(price.rounded()))")
-                                .font(.caption2.weight(.medium))
+                                .font(.custom("Avenir", size: 10).weight(.medium))
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -213,35 +218,38 @@ struct SpotPriceBarChart: View {
             HStack(spacing: 8) {
                 Circle()
                     .fill(bucket.category.gradientColor)
-                    .frame(width: 10, height: 10)
+                    .frame(width: 8, height: 8)
                 Text("\(timeLabel(bucket.start))–\(timeLabel(bucket.end))")
-                    .font(.caption.weight(.semibold))
+                    .font(.custom("Avenir", size: 11).weight(.semibold))
                     .foregroundStyle(.primary)
             }
             
             HStack(spacing: 6) {
                 Text("\(Int(bucket.orePerKWh.rounded()))")
-                    .font(.title3.weight(.bold).monospacedDigit())
+                    .font(.custom("Avenir", size: 16).weight(.bold).monospacedDigit())
                     .foregroundStyle(bucket.category.color)
                 Text("öre/kWh")
-                    .font(.caption2.weight(.medium))
+                    .font(.custom("Avenir", size: 10).weight(.medium))
                     .foregroundStyle(.secondary)
             }
             
             Text(bucket.category.description)
-                .font(.caption2)
+                .font(.custom("Avenir", size: 9))
                 .foregroundStyle(.secondary)
-                .padding(.horizontal, 8)
+                .padding(.horizontal, 6)
                 .padding(.vertical, 2)
                 .background(bucket.category.color.opacity(0.1), in: Capsule())
         }
         .padding(12)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(.quaternary, lineWidth: 0.5)
-        )
-        .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
+        .background {
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color("Surface"))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(.quaternary, lineWidth: 0.5)
+                }
+        }
+        .shadow(color: .black.opacity(0.2), radius: 12, x: 0, y: 6)
     }
     
     private var currentPriceBucket: SpotPriceViewModel.PriceBucket? {
@@ -334,263 +342,252 @@ struct ModernMenuBarView: View {
             
             // Main content
             ScrollView {
-                VStack(spacing: 20) {
-                    // Weekly Summary with glass effect and update button
-                    MenuBarSummaryView(viewModel: summaryViewModel, spotPriceViewModel: viewModel)
-
-                    
-                    // Chart section
-                    chartSection
-                        .glassEffect(.regular.tint(.clear), in: .rect(cornerRadius: 16))
-                    // Quick stats
-                    quickStats
+                GlassEffectContainer(spacing: 14) {
+                    VStack(spacing: 14) {
+                        // Weekly Summary with glass effect and update button
+                        MenuBarSummaryView(viewModel: summaryViewModel, spotPriceViewModel: viewModel)
+                            .background(.ultraThinMaterial)
+                            .cornerRadius(16)
+                        
+                        // Chart section
+                        chartSection
+                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+                        
+                        // Quick stats
+                        quickStats
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
                 }
-                .padding(20)
             }
+            .scrollIndicators(.hidden)
         }
-        .glassEffect(.regular, in: .rect(cornerRadius: 16))
-        .frame(width: 380, height: 680)
+        .frame(width: 340, height: 620)
+        .font(.custom("Avenir", size: 13))
     }
     
     private var menuHeader: some View {
-        HStack {
-            HStack(spacing: 8) {
-                Image(systemName: "bolt.fill")
-                    .font(.title2.weight(.semibold))
-                    .foregroundStyle(.orange.gradient)
-                    .symbolEffect(.pulse.wholeSymbol, options: .repeat(.continuous))
+        HStack(spacing: 12) {
+            // App icon and title
+            HStack(spacing: 10) {
+                Circle()
+                    .fill(.blue.gradient)
+                    .frame(width: 28, height: 28)
+                    .overlay {
+                        Image(systemName: "bolt.fill")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(.white)
+                            .symbolEffect(.pulse.wholeSymbol, options: .repeat(.continuous))
+                    }
                 
                 Text("Spotpris")
-                    .font(.title2.weight(.bold))
+                    .font(.custom("Avenir", size: 16).weight(.bold))
                     .foregroundStyle(.primary)
             }
             
             Spacer()
             
-            // Avsluta-knapp med stäng-ikon
+            // Close button with glass effect
             Button(action: {
                 NSApplication.shared.terminate(nil)
             }) {
                 Image(systemName: "xmark")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: 11, weight: .bold))
+                    .frame(width: 32, height: 32)
                     .foregroundStyle(.secondary)
-                    .frame(width: 24, height: 24)
-                    .background(.quaternary.opacity(0.5), in: Circle())
+                    .background(.ultraThinMaterial)
+                    .cornerRadius(999)
             }
+          
             .buttonStyle(.plain)
             .help("Avsluta")
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 16)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
     }
     
     private var chartSection: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: 8) {
             if case .loaded(let payload) = viewModel.state {
                 SpotPriceBarChart(dayData: payload.day, configuration: .menuBar)
             } else {
                 loadingStateView
-                    .frame(height: 200)
+                    .frame(height: 180)
             }
         }
+        .padding(.vertical, 8)
     }
     
     private var loadingStateView: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 12) {
             Group {
                 if case .loading = viewModel.state {
                     ProgressView()
                         .progressViewStyle(CircularProgressViewStyle())
-                        .scaleEffect(1.2)
+                        .scaleEffect(1.0)
                         .tint(.orange)
                 } else {
                     Image(systemName: "bolt.slash.fill")
-                        .font(.system(size: 48, weight: .light))
+                        .font(.system(size: 36, weight: .light))
                         .foregroundStyle(.secondary.opacity(0.6))
                 }
             }
             
             Text(loadingStatusText)
-                .font(.headline.weight(.medium))
+                .font(.custom("Avenir", size: 14).weight(.medium))
                 .foregroundStyle(.primary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .glassEffect(.regular.tint(.clear), in: .rect(cornerRadius: 16))
+        .padding(.vertical, 20)
     }
     
     @ViewBuilder
     private var quickStats: some View {
         if case .loaded(let payload) = viewModel.state {
-            VStack(spacing: 16) {
-                // Original stat cards
-                HStack(spacing: 12) {
-                    statCard(
-                        title: "Lägsta pris",
-                        value: "\(Int(payload.day.minOre.rounded()))",
-                        unit: "öre",
-                        color: .green,
-                        icon: "arrow.down.circle.fill"
-                    )
-                    
-                    statCard(
-                        title: "Högsta pris", 
-                        value: "\(Int(payload.day.maxOre.rounded()))",
-                        unit: "öre",
-                        color: .red,
-                        icon: "arrow.up.circle.fill"
-                    )
-                    
-                    statCard(
-                        title: "Medelpris",
-                        value: "\(Int(averagePrice(payload.day.buckets).rounded()))",
-                        unit: "öre",
-                        color: .blue,
-                        icon: "chart.line.uptrend.xyaxis"
-                    )
+            VStack(spacing: 12) {
+                // Stat cards in a more compact layout
+                GlassEffectContainer(spacing: 10) {
+                    HStack(spacing: 10) {
+                        statCard(
+                            title: "Lägsta",
+                            value: "\(Int(payload.day.minOre.rounded()))",
+                            unit: "öre",
+                            color: .green,
+                            icon: "arrow.down.circle.fill"
+                        )
+                        
+                        statCard(
+                            title: "Högsta", 
+                            value: "\(Int(payload.day.maxOre.rounded()))",
+                            unit: "öre",
+                            color: .red,
+                            icon: "arrow.up.circle.fill"
+                        )
+                        
+                        statCard(
+                            title: "Snitt",
+                            value: "\(Int(averagePrice(payload.day.buckets).rounded()))",
+                            unit: "öre",
+                            color: .blue,
+                            icon: "chart.line.uptrend.xyaxis"
+                        )
+                    }
                 }
                 
-                // Cost calculation section
+                // Cost calculation section (more compact)
                 costCalculationSection(payload: payload)
             }
         }
     }
     
     private func statCard(title: String, value: String, unit: String, color: Color, icon: String) -> some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 6) {
             VStack(spacing: 2) {
+                Text(title)
+                    .font(.custom("Avenir", size: 10).weight(.medium))
+                    .foregroundStyle(.primary)
+                    .multilineTextAlignment(.center)
                 HStack(alignment: .lastTextBaseline, spacing: 2) {
                     Text(value)
-                        .font(.title3.weight(.bold).monospacedDigit())
-                        .foregroundStyle(.primary)
+                        .font(.custom("Avenir", size: 16).weight(.bold).monospacedDigit())
+                        .foregroundStyle(color)
                     Text(unit)
-                        .font(.caption2.weight(.medium))
+                        .font(.custom("Avenir", size: 11).weight(.medium))
                         .foregroundStyle(.secondary)
                 }
                 
-                Text(title)
-                    .font(.caption2.weight(.medium))
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
+ 
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 12)
-        .padding(.horizontal, 8)
-        .glassEffect(.regular.tint(color.opacity(0.1)), in: .rect(cornerRadius: 12))
+        .padding(.vertical, 10)
+        .padding(.horizontal, 6)
+        .background(.ultraThinMaterial)
+        .cornerRadius(16)
     }
     
     private func costCalculationSection(payload: SpotPriceViewModel.CurrentAndDay) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Med elpriset idag kostar...")
-                .font(.headline.weight(.semibold))
-                .foregroundStyle(.primary)
-            
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 2), spacing: 12) {
-                costCard(
-                    title: "En dusch",
-                    mainCost: calculateCost(kWh: 6.0, currentPrice: getCurrentPrice(payload)),
-                    highCost: calculateCost(kWh: 6.0, price: payload.day.maxOre),
-                    lowCost: calculateCost(kWh: 6.0, price: payload.day.minOre),
-                    description: "10 min, 160 liter vatten ≈ ~6 kWh",
-                    icon: "drop.fill"
-                )
-                
-                costCard(
-                    title: "Baka en pizza",
-                    mainCost: calculateCost(kWh: 1.1, currentPrice: getCurrentPrice(payload)),
-                    highCost: calculateCost(kWh: 1.1, price: payload.day.maxOre),
-                    lowCost: calculateCost(kWh: 1.1, price: payload.day.minOre),
-                    description: "Ugn i 30 min ≈ ~1,1 kWh",
-                    icon: "triangle.fill"
-                )
-                
-                costCard(
-                    title: "En värmepump dygnet runt",
-                    mainCost: calculateCost(kWh: 24.0, currentPrice: getCurrentPrice(payload)),
-                    highCost: calculateCost(kWh: 24.0, price: payload.day.maxOre),
-                    lowCost: calculateCost(kWh: 24.0, price: payload.day.minOre),
-                    description: "1000W × 24 timmar = 24 kWh",
-                    icon: "thermometer"
-                )
-                
-                costCard(
-                    title: "Ett bad",
-                    mainCost: calculateCost(kWh: 7.5, currentPrice: getCurrentPrice(payload)),
-                    highCost: calculateCost(kWh: 7.5, price: payload.day.maxOre),
-                    lowCost: calculateCost(kWh: 7.5, price: payload.day.minOre),
-                    description: "200 liter vatten ≈ ~7,5 kWh",
-                    icon: "bathtub.fill"
-                )
-                
-                costCard(
-                    title: "Koka 1 liter vatten",
-                    mainCost: calculateCost(kWh: 0.12, currentPrice: getCurrentPrice(payload)),
-                    highCost: calculateCost(kWh: 0.12, price: payload.day.maxOre),
-                    lowCost: calculateCost(kWh: 0.12, price: payload.day.minOre),
-                    description: "Varmplatta i 4 min ≈ ~0,12 kWh",
-                    icon: "drop"
-                )
-                
-                costCard(
-                    title: "Ladda elbilen",
-                    mainCost: calculateCost(kWh: 45.0, currentPrice: getCurrentPrice(payload)),
-                    highCost: calculateCost(kWh: 45.0, price: payload.day.maxOre),
-                    lowCost: calculateCost(kWh: 45.0, price: payload.day.minOre),
-                    description: "Tesla Model 3 10-80% ≈ ~45 kWh",
-                    icon: "car.fill"
-                )
-            }
-        }
-        .padding(.top, 8)
-    }
-    
-    private func costCard(title: String, mainCost: String, highCost: String, lowCost: String, description: String, icon: String) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
+            HStack(spacing: 6) {
+                Text("Kostnad med detta pris")
+                    .font(.custom("Avenir", size: 14).weight(.semibold))
                     .foregroundStyle(.primary)
                 
-                HStack(alignment: .lastTextBaseline, spacing: 2) {
-                    Text(mainCost)
-                        .font(.title2.weight(.bold).monospacedDigit())
-                        .foregroundStyle(.primary)
-                    Text("kr")
-                        .font(.caption.weight(.medium))
+                // Show current price indicator
+                if let currentPrice = getCurrentPrice(payload) {
+                    Text("(\(Int(currentPrice.rounded())) öre/kWh)")
+                        .font(.custom("Avenir", size: 11).weight(.medium))
                         .foregroundStyle(.secondary)
                 }
             }
             
-            // High/Low price comparison
-            HStack(spacing: 12) {
-                HStack(spacing: 4) {
-                    Image(systemName: "arrow.up")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.red)
-                    Text(highCost + " kr")
-                        .font(.caption.weight(.medium).monospacedDigit())
-                        .foregroundStyle(.red)
-                }
-                
-                HStack(spacing: 4) {
-                    Image(systemName: "arrow.down")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.green)
-                    Text(lowCost + " kr")
-                        .font(.caption.weight(.medium).monospacedDigit())
-                        .foregroundStyle(.green)
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 2), spacing: 8) {
+                GlassEffectContainer(spacing: 8) {
+                    costCard(
+                        title: "Dusch (10 min)",
+                        mainCost: calculateCost(kWh: 6.0, currentPrice: getCurrentPriceOrAverage(payload)),
+                        description: "~6 kWh",
+                        color: .blue
+                    )
+                    
+                    costCard(
+                        title: "Pizza i ugn",
+                        mainCost: calculateCost(kWh: 1.1, currentPrice: getCurrentPriceOrAverage(payload)),
+                        description: "~1,1 kWh",
+                        color: .orange
+                    )
+                    
+                    costCard(
+                        title: "Värmepump/dag",
+                        mainCost: calculateCost(kWh: 24.0, currentPrice: getCurrentPriceOrAverage(payload)),
+                        description: "~24 kWh",
+                        color: .red
+                    )
+                    
+                    costCard(
+                        title: "Ladda bilen",
+                        mainCost: calculateCost(kWh: 45.0, currentPrice: getCurrentPriceOrAverage(payload)),
+                        description: "~45 kWh",
+                        color: .green
+                    )
                 }
             }
-            
-            Text(description)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
         }
-        .frame(maxWidth: .infinity)
-        .padding(16)
-        .glassEffect(.regular.tint(.clear), in: .rect(cornerRadius: 12))
+        .padding(.top, 4)
+    }
+    
+    private func costCard(title: String, mainCost: String, description: String, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.custom("Avenir", size: 12).weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                    
+                    Text(description)
+                        .font(.custom("Avenir", size: 10))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                
+                Spacer()
+            }
+            
+            HStack(alignment: .lastTextBaseline, spacing: 2) {
+                Text(mainCost)
+                    .font(.custom("Avenir", size: 15).weight(.bold).monospacedDigit())
+                    .foregroundStyle(.primary)
+                Text("kr")
+                    .font(.custom("Avenir", size: 10).weight(.medium))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(.ultraThinMaterial)
+        .cornerRadius(16)
     }
     
     private func calculateCost(kWh: Double, currentPrice: Double) -> String {
@@ -605,12 +602,17 @@ struct ModernMenuBarView: View {
         return String(format: "%.2f", costInKr)
     }
     
-    private func getCurrentPrice(_ payload: SpotPriceViewModel.CurrentAndDay) -> Double {
+    private func getCurrentPrice(_ payload: SpotPriceViewModel.CurrentAndDay) -> Double? {
         let now = Date()
         if let currentBucket = payload.day.buckets.first(where: { $0.start <= now && $0.end > now }) {
             return currentBucket.orePerKWh
         }
-        return averagePrice(payload.day.buckets)
+        // If no current bucket found (e.g., data is for a different day), return nil
+        return nil
+    }
+    
+    private func getCurrentPriceOrAverage(_ payload: SpotPriceViewModel.CurrentAndDay) -> Double {
+        return getCurrentPrice(payload) ?? averagePrice(payload.day.buckets)
     }
     
     
@@ -661,13 +663,13 @@ struct SpotpriceApp: App {
                     .symbolEffect(.pulse.wholeSymbol, isActive: viewModel.state == .loading)
                 
                 Text(viewModel.state.currentPriceLabel)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.custom("Avenir", size: 13).weight(.medium))
                     .monospacedDigit()
                     .foregroundStyle(viewModel.state.labelColor)
                 
                 if case .loaded = viewModel.state {
                     Text("öre")
-                        .font(.system(size: 11, weight: .medium))
+                        .font(.custom("Avenir", size: 11).weight(.medium))
                         .foregroundStyle(.secondary)
                 }
             }
@@ -789,24 +791,23 @@ struct MenuBarSummaryView: View {
     @ObservedObject var spotPriceViewModel: SpotPriceViewModel
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             // Header with modern styling
             HStack(spacing: 8) {
-
-                Text("Månadens elmarknadsläge")
-                    .font(.headline.weight(.semibold))
+                Text("Marknadsläge")
+                    .font(.custom("Avenir", size: 14).weight(.semibold))
                     .foregroundStyle(.primary)
                 
                 Spacer()
                 
-                // Uppdatera-knapp
+                // Compact update button
                 Button(action: {
                     Task {
                         await spotPriceViewModel.load()
                         await viewModel.loadSummary()
                     }
                 }) {
-                    HStack(spacing: 4) {
+                    Group {
                         if spotPriceViewModel.state == .loading || viewModel.state.isLoading {
                             ProgressView()
                                 .progressViewStyle(CircularProgressViewStyle())
@@ -814,13 +815,11 @@ struct MenuBarSummaryView: View {
                                 .tint(.white)
                         } else {
                             Image(systemName: "arrow.clockwise")
-                                .font(.system(size: 12, weight: .semibold))
+                                .font(.system(size: 10, weight: .semibold))
                         }
-
                     }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(.blue.gradient, in: Capsule())
+                    .frame(width: 24, height: 24)
+                    .glassEffect(.regular.tint(.blue.opacity(0.2)), in: .circle)
                     .foregroundStyle(.white)
                 }
                 .buttonStyle(.plain)
@@ -830,7 +829,8 @@ struct MenuBarSummaryView: View {
             // Content based on state
             contentView
         }
-
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
     }
     
     
@@ -838,15 +838,9 @@ struct MenuBarSummaryView: View {
     private var contentView: some View {
         switch viewModel.state {
         case .idle:
-            HStack(spacing: 8) {
-                Image(systemName: "info.circle")
-                    .font(.caption)
-                    .foregroundStyle(.blue)
-                
-                Text("Tryck Uppdatera för att hämta månadens marknadsöversikt")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.secondary)
-            }
+            Text("Väntar på uppdatering")
+                .font(.custom("Avenir", size: 11).weight(.medium))
+                .foregroundStyle(.secondary)
             
         case .loadingURL, .fetchingReport, .summarizing:
             VStack(alignment: .leading, spacing: 6) {
@@ -857,59 +851,59 @@ struct MenuBarSummaryView: View {
                         .tint(.blue)
                     
                     Text(loadingText(for: viewModel.state))
-                        .font(.caption.weight(.medium))
+                        .font(.custom("Avenir", size: 11).weight(.medium))
                         .foregroundStyle(.primary)
                     
                     Spacer()
                 }
                 
-                // Progress bar
+                // Compact progress bar
                 GeometryReader { geometry in
-                    RoundedRectangle(cornerRadius: 2)
+                    RoundedRectangle(cornerRadius: 1)
                         .fill(.quaternary)
-                        .frame(height: 3)
+                        .frame(height: 2)
                         .overlay(alignment: .leading) {
-                            RoundedRectangle(cornerRadius: 2)
+                            RoundedRectangle(cornerRadius: 1)
                                 .fill(.blue.gradient)
-                                .frame(width: geometry.size.width * progressValue, height: 3)
+                                .frame(width: geometry.size.width * progressValue, height: 2)
                                 .animation(.easeInOut(duration: 0.3), value: progressValue)
                         }
                 }
-                .frame(height: 3)
+                .frame(height: 2)
             }
             
         case .loaded(let summary, let url, let isPreviousMonth):
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 6) {
                     Image(systemName: isPreviousMonth ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
-                        .font(.caption2)
+                        .font(.system(size: 10))
                         .foregroundStyle(isPreviousMonth ? .orange : .green)
                     
-                    Text(isPreviousMonth ? "Föregående månad" : "Uppdaterad")
-                        .font(.caption2.weight(.medium))
+                    Text(isPreviousMonth ? "Föreg. månad" : "Uppdaterad")
+                        .font(.custom("Avenir", size: 10).weight(.medium))
                         .foregroundStyle(.secondary)
                     
                     Spacer()
                 }
                 
                 Text(summary)
-                    .font(.caption.weight(.medium))
-                    .lineLimit(isPreviousMonth ? 6 : 4) // Mer plats för notisen om föregående månad
+                    .font(.custom("Avenir", size: 11).weight(.medium))
+                    .lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true)
                     .foregroundStyle(.primary)
                 
                 Link(destination: url) {
-                    HStack(spacing: 6) {
+                    HStack(spacing: 4) {
                         Text("Läs hela rapporten")
-                            .font(.caption2.weight(.semibold))
+                            .font(.custom("Avenir", size: 10).weight(.semibold))
                         
                         Image(systemName: "arrow.up.right")
-                            .font(.caption2)
+                            .font(.system(size: 9))
                     }
                     .foregroundStyle(.blue)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(.blue.opacity(0.1), in: Capsule())
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .glassEffect(.regular.tint(.blue.opacity(0.1)), in: .capsule)
                 }
                 .buttonStyle(.plain)
             }
@@ -917,11 +911,11 @@ struct MenuBarSummaryView: View {
         case .failed(let error):
             HStack(spacing: 8) {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.caption)
+                    .font(.system(size: 11))
                     .foregroundStyle(.orange)
                 
                 Text("Kunde inte hämta marknadsöversikten")
-                    .font(.caption.weight(.medium))
+                    .font(.custom("Avenir", size: 11).weight(.medium))
                     .foregroundStyle(.secondary)
             }
         }
@@ -961,4 +955,29 @@ extension SummaryViewModel.State {
             return false
         }
     }
+}
+
+struct RemoveWindowBorder: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        
+        DispatchQueue.main.async {
+            if let window = view.window {
+                // Ta bort ramen
+                window.styleMask.remove(.titled)
+                window.styleMask.insert(.borderless)
+                
+                // Gör fönstret transparent
+                window.isOpaque = false
+                window.backgroundColor = .clear
+                
+                // Behåll skuggan för djup
+                window.hasShadow = true
+            }
+        }
+        
+        return view
+    }
+    
+    func updateNSView(_ nsView: NSView, context: Context) {}
 }
