@@ -2,6 +2,44 @@ import SwiftUI
 import AppKit
 import Charts
 
+// MARK: - Missing View Components
+
+struct GlassEffectContainer<Content: View>: View {
+    let spacing: CGFloat
+    let content: () -> Content
+    
+    init(spacing: CGFloat = 8, @ViewBuilder content: @escaping () -> Content) {
+        self.spacing = spacing
+        self.content = content
+    }
+    
+    var body: some View {
+        VStack(spacing: spacing) {
+            content()
+        }
+    }
+}
+
+extension View {
+    func glassEffect(_ material: Material, in shape: some InsettableShape) -> some View {
+        self.background(material, in: shape)
+    }
+    
+    func glassEffect(_ material: Material, in shape: AnyShape) -> some View {
+        self.background(material)
+            .clipShape(shape)
+    }
+}
+
+extension Material {
+    static let regular = Material.regularMaterial
+}
+
+extension AnyShape {
+    static let circle = AnyShape(Circle())
+    static let capsule = AnyShape(Capsule())
+}
+
 // MARK: - Chart Configuration
 
 enum ChartConfiguration {
@@ -40,10 +78,10 @@ enum ChartConfiguration {
 // MARK: - Reusable Chart Component
 
 struct SpotPriceBarChart: View {
-    let dayData: SpotPriceViewModel.DayChartData
+    let dayData: DayChartData
     let configuration: ChartConfiguration
     @State private var selectedDate: Date?
-    @State private var hoveredBucket: SpotPriceViewModel.PriceBucket?
+    @State private var hoveredBucket: PriceBucket?
     
     var body: some View {
         VStack(spacing: 0) {
@@ -213,7 +251,7 @@ struct SpotPriceBarChart: View {
         )
     }
     
-    private func modernCallout(for bucket: SpotPriceViewModel.PriceBucket) -> some View {
+    private func modernCallout(for bucket: PriceBucket) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 Circle()
@@ -252,12 +290,12 @@ struct SpotPriceBarChart: View {
         .shadow(color: .black.opacity(0.2), radius: 12, x: 0, y: 6)
     }
     
-    private var currentPriceBucket: SpotPriceViewModel.PriceBucket? {
+    private var currentPriceBucket: PriceBucket? {
         let now = Date()
         return dayData.buckets.first { $0.start <= now && $0.end > now }
     }
     
-    private var nextPriceBucket: SpotPriceViewModel.PriceBucket? {
+    private var nextPriceBucket: PriceBucket? {
         let now = Date()
         return dayData.buckets.first { $0.start > now }
     }
@@ -294,7 +332,7 @@ struct SpotPriceBarChart: View {
     
     // MARK: - Helper Methods
     
-    private func dynamicGradientColor(for bucket: SpotPriceViewModel.PriceBucket) -> Color {
+    private func dynamicGradientColor(for bucket: PriceBucket) -> Color {
         // Create a smooth color transition based on price level
         let normalizedPrice = (bucket.orePerKWh - dayData.minOre) / (dayData.maxOre - dayData.minOre)
         
@@ -316,11 +354,11 @@ struct SpotPriceBarChart: View {
         return start...end
     }
     
-    private func findBucket(for date: Date, in buckets: [SpotPriceViewModel.PriceBucket]) -> SpotPriceViewModel.PriceBucket? {
+    private func findBucket(for date: Date, in buckets: [PriceBucket]) -> PriceBucket? {
         buckets.first { $0.start <= date && $0.end > date }
     }
     
-    private func isBucketSelected(_ bucket: SpotPriceViewModel.PriceBucket, selectedDate: Date?) -> Bool {
+    private func isBucketSelected(_ bucket: PriceBucket, selectedDate: Date?) -> Bool {
         guard let selectedDate else { return true }
         return bucket.start <= selectedDate && bucket.end > selectedDate
     }
@@ -522,8 +560,8 @@ struct ModernMenuBarView: View {
                 }
             }
             
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 2), spacing: 8) {
-                GlassEffectContainer(spacing: 8) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 2)) {
+                GlassEffectContainer {
                     costCard(
                         title: "Dusch (10 min)",
                         mainCost: calculateCost(kWh: 6.0, currentPrice: getCurrentPriceOrAverage(payload)),
@@ -616,7 +654,7 @@ struct ModernMenuBarView: View {
     }
     
     
-    private func averagePrice(_ buckets: [SpotPriceViewModel.PriceBucket]) -> Double {
+    private func averagePrice(_ buckets: [PriceBucket]) -> Double {
         let sum = buckets.reduce(0) { $0 + $1.orePerKWh }
         return sum / Double(buckets.count)
     }
@@ -735,8 +773,8 @@ extension SpotPriceViewModel.State {
     }
 }
 
-extension SpotPriceViewModel.DayChartData {
-    func upcomingBuckets(limit: Int) -> [SpotPriceViewModel.PriceBucket] {
+extension DayChartData {
+    func upcomingBuckets(limit: Int) -> [PriceBucket] {
         let now = Date()
         let upcoming = buckets.filter { $0.start >= now }
         
@@ -749,7 +787,7 @@ extension SpotPriceViewModel.DayChartData {
     }
 }
 
-extension SpotPriceViewModel.PriceCategory {
+extension PriceCategory {
     var color: Color {
         switch self {
         case .low:
