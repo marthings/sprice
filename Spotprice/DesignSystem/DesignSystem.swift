@@ -114,10 +114,15 @@ enum DS {
         static let iconSmall: CGFloat = 14
         static let iconMedium: CGFloat = 20
         static let iconLarge: CGFloat = 28
+        static let iconXL: CGFloat = 36
 
         // Cards
         static let statCardIconSize: CGFloat = 24
         static let headerIconSize: CGFloat = 28
+
+        // Buttons
+        static let closeButtonSize: CGFloat = 32
+        static let closeButtonIconSize: CGFloat = 11
     }
 }
 

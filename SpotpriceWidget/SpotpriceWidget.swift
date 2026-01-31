@@ -310,8 +310,8 @@ struct SpotpriceWidgetEntryView: View {
 
                     // Monthly stats or bolt icon
                     if let kWh = entry.monthlyKWh {
-                        VStack(alignment: .trailing, spacing: 2) {
-                            HStack(spacing: 2) {
+                        VStack(alignment: .trailing, spacing: DS.Spacing.xxs) {
+                            HStack(spacing: DS.Spacing.xxs) {
                                 Text("\(Int(kWh.rounded()))")
                                     .font(DS.Font.semibold(11).monospacedDigit())
                                 Text("kWh")
@@ -320,7 +320,7 @@ struct SpotpriceWidgetEntryView: View {
                             .foregroundStyle(.secondary)
 
                             if let cost = entry.monthlyCostKr {
-                                HStack(spacing: 2) {
+                                HStack(spacing: DS.Spacing.xxs) {
                                     Text("\(Int(cost.rounded()))")
                                         .font(DS.Font.semibold(11).monospacedDigit())
                                     Text("kr")
@@ -333,7 +333,7 @@ struct SpotpriceWidgetEntryView: View {
                     } else {
                         // Icon - color matches current price
                         Image(systemName: "bolt.fill")
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(.system(size: DS.Size.iconSmall + 2, weight: .semibold))
                             .foregroundStyle(renderingMode == .accented ? .primary : currentPriceColor)
                             .widgetAccentable()
                     }
@@ -382,7 +382,7 @@ struct SpotpriceWidgetEntryView: View {
     private var errorView: some View {
         VStack(spacing: DS.Spacing.sm) {
             Image(systemName: "bolt.slash.fill")
-                .font(.system(size: 20))
+                .font(.system(size: DS.Size.iconMedium))
                 .foregroundStyle(.secondary)
             Text("--")
                 .font(DS.Font.title)

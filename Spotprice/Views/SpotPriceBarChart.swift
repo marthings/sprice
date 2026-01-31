@@ -31,14 +31,14 @@ struct SpotPriceBarChart: View {
         let nextBucket = dayData.buckets.first { $0.start <= nextHour && $0.end > nextHour }
         let nextPrice = nextBucket?.orePerKWh
 
-        return HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
+        return HStack(spacing: DS.Spacing.md) {
+            VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
                 Text("Pris nu")
                     .font(DS.Font.medium(12))
                     .foregroundStyle(.secondary)
 
                 if let price = currentPrice {
-                    HStack(alignment: .lastTextBaseline, spacing: 2) {
+                    HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
                         Text("\(Int(price.rounded()))")
                             .font(DS.Font.bold(20).monospacedDigit())
                             .foregroundStyle(priceColor(for: price))
@@ -51,13 +51,13 @@ struct SpotPriceBarChart: View {
 
             Spacer()
 
-            VStack(alignment: .trailing, spacing: 2) {
+            VStack(alignment: .trailing, spacing: DS.Spacing.xxs) {
                 Text("Nästa")
                     .font(DS.Font.micro)
                     .foregroundStyle(.secondary)
 
                 if let next = nextPrice {
-                    HStack(spacing: 4) {
+                    HStack(spacing: DS.Spacing.xs) {
                         PriceChangeIndicator(current: currentPrice, next: next)
                         Text("\(Int(next.rounded()))")
                             .font(DS.Font.semibold(12).monospacedDigit())
@@ -66,8 +66,8 @@ struct SpotPriceBarChart: View {
                 }
             }
         }
-        .padding(.top, 8)
-        .padding(.bottom, 16)
+        .padding(.top, DS.Spacing.sm)
+        .padding(.bottom, DS.Spacing.lg)
     }
 
     // MARK: - Chart Content
@@ -130,7 +130,7 @@ struct SpotPriceBarChart: View {
                 RuleMark(x: .value("Vald tid", selectedDate))
                     .foregroundStyle(.secondary.opacity(0.5))
                     .lineStyle(StrokeStyle(lineWidth: 1))
-                    .annotation(position: .top, spacing: 8, overflowResolution: .init(x: .fit, y: .disabled)) {
+                    .annotation(position: .top, spacing: DS.Spacing.sm, overflowResolution: .init(x: .fit, y: .disabled)) {
                         ChartCalloutView(bucket: bucket, dayData: dayData)
                     }
             }
@@ -173,8 +173,8 @@ struct SpotPriceBarChart: View {
             }
         }
         .frame(height: configuration.height)
-        .padding(.horizontal, 16)
-        .padding(.bottom, 16)
+        .padding(.horizontal, DS.Spacing.lg)
+        .padding(.bottom, DS.Spacing.lg)
         .contentShape(Rectangle())
         .gesture(
             DragGesture(minimumDistance: 0)

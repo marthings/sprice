@@ -11,8 +11,8 @@ enum ChartConfiguration {
 
     var height: CGFloat {
         switch self {
-        case .menuBar: return 160
-        case .fullSize: return 300
+        case .menuBar: return DS.Size.chartHeightMenuBar
+        case .fullSize: return DS.Size.chartHeightFull
         }
     }
 
@@ -21,8 +21,8 @@ enum ChartConfiguration {
 
     var cornerRadius: CGFloat {
         switch self {
-        case .menuBar: return 10
-        case .fullSize: return 16
+        case .menuBar: return DS.Radius.sm
+        case .fullSize: return DS.Radius.lg
         }
     }
 }

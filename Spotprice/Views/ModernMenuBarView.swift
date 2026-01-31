@@ -59,8 +59,8 @@ struct ModernMenuBarView: View {
                 NSApplication.shared.terminate(nil)
             }) {
                 Image(systemName: "xmark")
-                    .font(.system(size: 11, weight: .bold))
-                    .frame(width: 32, height: 32)
+                    .font(.system(size: DS.Size.closeButtonIconSize, weight: .bold))
+                    .frame(width: DS.Size.closeButtonSize, height: DS.Size.closeButtonSize)
                     .foregroundStyle(.secondary)
                     .background(.ultraThinMaterial)
                     .cornerRadius(DS.Radius.full)
@@ -96,7 +96,7 @@ struct ModernMenuBarView: View {
                         .tint(.orange)
                 } else {
                     Image(systemName: "bolt.slash.fill")
-                        .font(.system(size: 36, weight: .light))
+                        .font(.system(size: DS.Size.iconXL, weight: .light))
                         .foregroundStyle(.secondary.opacity(0.6))
                 }
             }

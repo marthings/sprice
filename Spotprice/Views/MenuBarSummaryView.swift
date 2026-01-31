@@ -10,20 +10,20 @@ struct MenuBarSummaryView: View {
     @ObservedObject var spotPriceViewModel: SpotPriceViewModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
             headerView
             contentView
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.horizontal, DS.Spacing.md)
+        .padding(.vertical, DS.Spacing.sm)
     }
 
     // MARK: - Header
 
     private var headerView: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: DS.Spacing.sm) {
             Text("Marknadsläge")
-                .font(.custom("Avenir", size: 14).weight(.semibold))
+                .font(DS.Font.semibold(14))
                 .foregroundStyle(.primary)
 
             Spacer()
@@ -42,10 +42,10 @@ struct MenuBarSummaryView: View {
                             .tint(.white)
                     } else {
                         Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 10, weight: .semibold))
+                            .font(DS.Font.semibold(10))
                     }
                 }
-                .frame(width: 24, height: 24)
+                .frame(width: DS.Size.statCardIconSize, height: DS.Size.statCardIconSize)
                 .glassEffect(.regular.tint(.blue.opacity(0.2)), in: .circle)
                 .foregroundStyle(.white)
             }
@@ -61,7 +61,7 @@ struct MenuBarSummaryView: View {
         switch viewModel.state {
         case .idle:
             Text("Väntar på uppdatering")
-                .font(.custom("Avenir", size: 11).weight(.medium))
+                .font(DS.Font.medium(11))
                 .foregroundStyle(.secondary)
 
         case .loadingURL, .fetchingReport, .summarizing:
@@ -76,15 +76,15 @@ struct MenuBarSummaryView: View {
     }
 
     private var loadingView: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+            HStack(spacing: DS.Spacing.sm) {
                 ProgressView()
                     .progressViewStyle(CircularProgressViewStyle())
                     .controlSize(.mini)
                     .tint(.blue)
 
                 Text(loadingText(for: viewModel.state))
-                    .font(.custom("Avenir", size: 11).weight(.medium))
+                    .font(DS.Font.medium(11))
                     .foregroundStyle(.primary)
 
                 Spacer()
@@ -93,49 +93,49 @@ struct MenuBarSummaryView: View {
             GeometryReader { geometry in
                 RoundedRectangle(cornerRadius: 1)
                     .fill(.quaternary)
-                    .frame(height: 2)
+                    .frame(height: DS.Spacing.xxs)
                     .overlay(alignment: .leading) {
                         RoundedRectangle(cornerRadius: 1)
                             .fill(.blue.gradient)
-                            .frame(width: geometry.size.width * progressValue, height: 2)
+                            .frame(width: geometry.size.width * progressValue, height: DS.Spacing.xxs)
                             .animation(.easeInOut(duration: 0.3), value: progressValue)
                     }
             }
-            .frame(height: 2)
+            .frame(height: DS.Spacing.xxs)
         }
     }
 
     private func loadedView(summary: String, url: URL, isPreviousMonth: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+            HStack(spacing: DS.Spacing.xs) {
                 Image(systemName: isPreviousMonth ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
-                    .font(.system(size: 10))
-                    .foregroundStyle(isPreviousMonth ? .orange : .green)
+                    .font(DS.Font.micro)
+                    .foregroundStyle(isPreviousMonth ? DS.Color.warning : DS.Color.success)
 
                 Text(isPreviousMonth ? "Föreg. månad" : "Uppdaterad")
-                    .font(.custom("Avenir", size: 10).weight(.medium))
+                    .font(DS.Font.micro)
                     .foregroundStyle(.secondary)
 
                 Spacer()
             }
 
             Text(summary)
-                .font(.custom("Avenir", size: 11).weight(.medium))
+                .font(DS.Font.medium(11))
                 .lineLimit(3)
                 .fixedSize(horizontal: false, vertical: true)
                 .foregroundStyle(.primary)
 
             Link(destination: url) {
-                HStack(spacing: 4) {
+                HStack(spacing: DS.Spacing.xs) {
                     Text("Läs hela rapporten")
-                        .font(.custom("Avenir", size: 10).weight(.semibold))
+                        .font(DS.Font.semibold(10))
 
                     Image(systemName: "arrow.up.right")
-                        .font(.system(size: 9))
+                        .font(DS.Font.regular(9))
                 }
                 .foregroundStyle(.blue)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
+                .padding(.horizontal, DS.Spacing.xs)
+                .padding(.vertical, DS.Spacing.xxs + 1)
                 .glassEffect(.regular.tint(.blue.opacity(0.1)), in: .capsule)
             }
             .buttonStyle(.plain)
@@ -143,13 +143,13 @@ struct MenuBarSummaryView: View {
     }
 
     private var failedView: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: DS.Spacing.sm) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 11))
-                .foregroundStyle(.orange)
+                .font(DS.Font.caption)
+                .foregroundStyle(DS.Color.warning)
 
             Text("Kunde inte hämta marknadsöversikten")
-                .font(.custom("Avenir", size: 11).weight(.medium))
+                .font(DS.Font.medium(11))
                 .foregroundStyle(.secondary)
         }
     }

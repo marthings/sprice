@@ -14,17 +14,17 @@ struct ChartCalloutView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+            HStack(spacing: DS.Spacing.sm) {
                 Circle()
                     .fill(priceColor)
-                    .frame(width: 8, height: 8)
+                    .frame(width: DS.Spacing.sm, height: DS.Spacing.sm)
                 Text("\(timeLabel(bucket.start))–\(timeLabel(bucket.end))")
                     .font(DS.Font.semibold(11))
                     .foregroundStyle(.primary)
             }
 
-            HStack(spacing: 6) {
+            HStack(spacing: DS.Spacing.xs) {
                 Text("\(Int(bucket.orePerKWh.rounded()))")
                     .font(DS.Font.bold(16).monospacedDigit())
                     .foregroundStyle(priceColor)
@@ -34,22 +34,22 @@ struct ChartCalloutView: View {
             }
 
             Text(priceLabel)
-                .font(.system(size: 9))
+                .font(DS.Font.regular(9))
                 .foregroundStyle(.secondary)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
+                .padding(.horizontal, DS.Spacing.xs)
+                .padding(.vertical, DS.Spacing.xxs)
                 .background(priceColor.opacity(0.15), in: Capsule())
         }
-        .padding(12)
+        .padding(DS.Spacing.md)
         .background {
-            RoundedRectangle(cornerRadius: 10)
+            RoundedRectangle(cornerRadius: DS.Radius.sm)
                 .fill(.ultraThinMaterial)
                 .overlay {
-                    RoundedRectangle(cornerRadius: 10)
+                    RoundedRectangle(cornerRadius: DS.Radius.sm)
                         .stroke(.quaternary, lineWidth: 0.5)
                 }
         }
-        .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
+        .shadow(color: .black.opacity(0.15), radius: DS.Spacing.sm, x: 0, y: DS.Spacing.xs)
     }
 
     private var priceLabel: String {
