@@ -15,9 +15,13 @@ extension SpotPriceViewModel.State {
 
     var labelColor: Color {
         if case .loaded(let payload) = self {
-            let now = Date()
-            if let currentBucket = payload.day.buckets.first(where: { $0.start <= now && $0.end > now }) {
-                return currentBucket.category.color
+            // Use current hour index to match the chart exactly
+            let currentHour = Calendar.current.component(.hour, from: Date())
+            let prices = payload.day.buckets.map { $0.orePerKWh }
+
+            if currentHour >= 0 && currentHour < prices.count {
+                let priceAtCurrentHour = prices[currentHour]
+                return DS.Color.forPrice(priceAtCurrentHour, min: payload.day.minOre, max: payload.day.maxOre)
             }
         }
         return .secondary

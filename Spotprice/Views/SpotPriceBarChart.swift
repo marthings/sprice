@@ -10,7 +10,6 @@ struct SpotPriceBarChart: View {
     let dayData: DayChartData
     let configuration: ChartConfiguration
     @State private var selectedDate: Date?
-    @State private var hoveredBucket: PriceBucket?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -23,19 +22,24 @@ struct SpotPriceBarChart: View {
     // MARK: - Chart Header
 
     private var chartHeader: some View {
-        HStack(spacing: 12) {
+        let currentHour = Calendar.current.component(.hour, from: Date())
+        let prices = dayData.buckets.map { $0.orePerKWh }
+        let currentPrice = (currentHour >= 0 && currentHour < prices.count) ? prices[currentHour] : nil
+        let nextPrice = (currentHour + 1 >= 0 && currentHour + 1 < prices.count) ? prices[currentHour + 1] : nil
+
+        return HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Pris nu")
-                    .font(.custom("Avenir", size: 12).weight(.medium))
+                    .font(DS.Font.medium(12))
                     .foregroundStyle(.secondary)
 
-                if let current = currentPriceBucket {
+                if let price = currentPrice {
                     HStack(alignment: .lastTextBaseline, spacing: 2) {
-                        Text("\(Int(current.orePerKWh.rounded()))")
-                            .font(.custom("Avenir", size: 20).weight(.bold).monospacedDigit())
-                            .foregroundStyle(current.category.color)
+                        Text("\(Int(price.rounded()))")
+                            .font(DS.Font.bold(20).monospacedDigit())
+                            .foregroundStyle(priceColor(for: price))
                         Text("öre/kWh")
-                            .font(.custom("Avenir", size: 11).weight(.medium))
+                            .font(DS.Font.medium(11))
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -45,15 +49,15 @@ struct SpotPriceBarChart: View {
 
             VStack(alignment: .trailing, spacing: 2) {
                 Text("Nästa")
-                    .font(.custom("Avenir", size: 10).weight(.medium))
+                    .font(DS.Font.micro)
                     .foregroundStyle(.secondary)
 
-                if let next = nextPriceBucket {
+                if let next = nextPrice {
                     HStack(spacing: 4) {
-                        PriceChangeIndicator(current: currentPriceBucket?.orePerKWh, next: next.orePerKWh)
-                        Text("\(Int(next.orePerKWh.rounded()))")
-                            .font(.custom("Avenir", size: 12).weight(.semibold).monospacedDigit())
-                            .foregroundStyle(next.category.color)
+                        PriceChangeIndicator(current: currentPrice, next: next)
+                        Text("\(Int(next.rounded()))")
+                            .font(DS.Font.semibold(12).monospacedDigit())
+                            .foregroundStyle(priceColor(for: next))
                     }
                 }
             }
@@ -66,61 +70,64 @@ struct SpotPriceBarChart: View {
 
     private var chartContent: some View {
         Chart {
+            // Area fill
             ForEach(dayData.buckets) { bucket in
                 AreaMark(
                     x: .value("Tid", bucket.start),
                     y: .value("Pris", bucket.orePerKWh)
                 )
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [
-                            dynamicGradientColor(for: bucket).opacity(0.4),
-                            dynamicGradientColor(for: bucket).opacity(0.1),
-                            .clear
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
+                .foregroundStyle(areaGradient)
                 .opacity(selectedDate == nil || isBucketSelected(bucket, selectedDate: selectedDate) ? 1.0 : 0.3)
             }
 
-            ForEach(dayData.buckets) { bucket in
+            // Line with gradient coloring
+            LineMark(
+                x: .value("Tid", dayData.buckets.first?.start ?? Date()),
+                y: .value("Pris", dayData.buckets.first?.orePerKWh ?? 0),
+                series: .value("Price", "A")
+            )
+            .foregroundStyle(lineGradient)
+            .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+            .interpolationMethod(.catmullRom)
+
+            ForEach(dayData.buckets.dropFirst()) { bucket in
                 LineMark(
                     x: .value("Tid", bucket.start),
-                    y: .value("Pris", bucket.orePerKWh)
+                    y: .value("Pris", bucket.orePerKWh),
+                    series: .value("Price", "A")
                 )
-                .foregroundStyle(dynamicGradientColor(for: bucket))
-                .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+                .foregroundStyle(lineGradient)
+                .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
                 .interpolationMethod(.catmullRom)
                 .opacity(selectedDate == nil || isBucketSelected(bucket, selectedDate: selectedDate) ? 1.0 : 0.4)
-                .accessibilityLabel("Pris \(Int(bucket.orePerKWh.rounded())) öre per kWh klockan \(timeLabel(bucket.start))")
-                .accessibilityValue("\(bucket.category.description)")
             }
 
+            // Selected point
             if let selectedDate, let bucket = findBucket(for: selectedDate, in: dayData.buckets) {
                 PointMark(
                     x: .value("Tid", bucket.start),
                     y: .value("Pris", bucket.orePerKWh)
                 )
-                .foregroundStyle(dynamicGradientColor(for: bucket))
+                .foregroundStyle(priceColor(for: bucket.orePerKWh))
                 .symbolSize(64)
                 .symbol(.circle)
             }
 
+            // Current time indicator
             if let now = Calendar.current.date(bySettingHour: Calendar.current.component(.hour, from: Date()), minute: 0, second: 0, of: Date()) {
                 RuleMark(x: .value("Nu", now))
-                    .foregroundStyle(.primary)
-                    .lineStyle(StrokeStyle(lineWidth: 2))
+                    .foregroundStyle(.primary.opacity(0.6))
+                    .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
                     .accessibilityLabel("Nuvarande tid")
             }
 
+            // Selection indicator with callout
             if let selectedDate, let bucket = findBucket(for: selectedDate, in: dayData.buckets) {
                 RuleMark(x: .value("Vald tid", selectedDate))
-                    .foregroundStyle(.secondary.opacity(0.8))
-                    .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [6, 4]))
+                    .foregroundStyle(.secondary.opacity(0.5))
+                    .lineStyle(StrokeStyle(lineWidth: 1))
                     .annotation(position: .top, spacing: 8, overflowResolution: .init(x: .fit, y: .disabled)) {
-                        ChartCalloutView(bucket: bucket)
+                        ChartCalloutView(bucket: bucket, dayData: dayData)
                     }
             }
         }
@@ -137,7 +144,7 @@ struct SpotPriceBarChart: View {
                     if let date = value.as(Date.self) {
                         AxisValueLabel {
                             Text(date.formatted(.dateTime.hour()))
-                                .font(.custom("Avenir", size: 10).weight(.medium))
+                                .font(DS.Font.micro)
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -154,7 +161,7 @@ struct SpotPriceBarChart: View {
                     AxisValueLabel {
                         if let price = value.as(Double.self) {
                             Text("\(Int(price.rounded()))")
-                                .font(.custom("Avenir", size: 10).weight(.medium))
+                                .font(DS.Font.micro)
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -168,37 +175,40 @@ struct SpotPriceBarChart: View {
         .gesture(
             DragGesture(minimumDistance: 0)
                 .onChanged { value in
-                    withAnimation(.easeOut(duration: 0.2)) {
+                    withAnimation(.easeOut(duration: 0.15)) {
                         updateSelection(at: value.location)
                     }
                 }
         )
     }
 
-    // MARK: - Computed Properties
+    // MARK: - Gradients
 
-    private var currentPriceBucket: PriceBucket? {
-        let now = Date()
-        return dayData.buckets.first { $0.start <= now && $0.end > now }
+    private var areaGradient: LinearGradient {
+        LinearGradient(
+            colors: [
+                DS.Color.warning.opacity(0.3),
+                DS.Color.warning.opacity(0.1),
+                .clear
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
     }
 
-    private var nextPriceBucket: PriceBucket? {
-        let now = Date()
-        return dayData.buckets.first { $0.start > now }
+    private var lineGradient: LinearGradient {
+        let colors = dayData.buckets.map { priceColor(for: $0.orePerKWh) }
+        return LinearGradient(
+            colors: colors,
+            startPoint: .leading,
+            endPoint: .trailing
+        )
     }
 
     // MARK: - Helper Methods
 
-    private func dynamicGradientColor(for bucket: PriceBucket) -> Color {
-        let normalizedPrice = (bucket.orePerKWh - dayData.minOre) / (dayData.maxOre - dayData.minOre)
-
-        if normalizedPrice <= 0.33 {
-            return Color.green.interpolated(to: .yellow, by: normalizedPrice * 3)
-        } else if normalizedPrice <= 0.66 {
-            return Color.yellow.interpolated(to: .orange, by: (normalizedPrice - 0.33) * 3)
-        } else {
-            return Color.orange.interpolated(to: .red, by: (normalizedPrice - 0.66) * 3)
-        }
+    private func priceColor(for price: Double) -> Color {
+        DS.Color.forPrice(price, min: dayData.minOre, max: dayData.maxOre)
     }
 
     private func calendarBounds(for date: Date?) -> ClosedRange<Date> {

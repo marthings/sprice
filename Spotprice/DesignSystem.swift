@@ -54,6 +54,27 @@ enum DS {
             case .high: return error
             }
         }
+
+        /// Returns a color based on where the price falls in the day's range
+        /// - Parameters:
+        ///   - price: Current price
+        ///   - min: Day's minimum price
+        ///   - max: Day's maximum price
+        /// - Returns: Green for low, yellow/orange for medium, red for high
+        static func forPrice(_ price: Double, min: Double, max: Double) -> SwiftUI.Color {
+            let range = max - min
+            guard range > 0 else { return warning }
+
+            let normalized = (price - min) / range
+
+            if normalized <= 0.33 {
+                return success
+            } else if normalized <= 0.66 {
+                return warning
+            } else {
+                return error
+            }
+        }
     }
 
     // MARK: - Spacing

@@ -261,8 +261,22 @@ struct SpotpriceWidgetEntryView: View {
     var entry: SpotPriceEntry
     @Environment(\.widgetRenderingMode) var renderingMode
 
+    /// Color based on actual price at currentHour in the chart data
+    private var currentPriceColor: Color {
+        guard let dayData = entry.dayData else {
+            return DS.Color.warning
+        }
+        // Use the actual price from the bucket at currentHour to match the chart
+        let prices = dayData.buckets.map { $0.orePerKWh }
+        guard entry.currentHour >= 0 && entry.currentHour < prices.count else {
+            return DS.Color.warning
+        }
+        let priceAtCurrentHour = prices[entry.currentHour]
+        return DS.Color.forPrice(priceAtCurrentHour, min: dayData.minOre, max: dayData.maxOre)
+    }
+
     var body: some View {
-        if let price = entry.currentPrice, let category = entry.priceCategory {
+        if let price = entry.currentPrice, let _ = entry.priceCategory {
             VStack(spacing: 0) {
                 // Header with price
                 HStack(alignment: .top) {
@@ -271,17 +285,17 @@ struct SpotpriceWidgetEntryView: View {
                             .font(DS.Font.micro)
                             .foregroundStyle(.secondary)
 
-                        // Price display adapts to rendering mode
-                        priceView(price: price, category: category)
+                        // Price display - color matches chart position
+                        priceView(price: price)
                     }
                     .widgetAccentable()
 
                     Spacer()
 
-                    // Icon - uses SF Symbol which auto-adapts
+                    // Icon - color matches current price
                     Image(systemName: "bolt.fill")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(renderingMode == .accented ? .primary : DS.Color.forCategory(category))
+                        .foregroundStyle(renderingMode == .accented ? .primary : currentPriceColor)
                         .widgetAccentable()
                 }
                 .padding(.bottom, DS.Spacing.sm)
@@ -313,12 +327,12 @@ struct SpotpriceWidgetEntryView: View {
     }
 
     @ViewBuilder
-    private func priceView(price: Int, category: PriceCategory) -> some View {
+    private func priceView(price: Int) -> some View {
         HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
             Text("\(price)")
                 .font(DS.Font.bold(16))
                 .monospacedDigit()
-                .foregroundStyle(renderingMode == .accented ? .primary : DS.Color.forCategory(category))
+                .foregroundStyle(renderingMode == .accented ? .primary : currentPriceColor)
             Text("öre")
                 .font(DS.Font.micro)
                 .foregroundStyle(.secondary)

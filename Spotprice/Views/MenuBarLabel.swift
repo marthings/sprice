@@ -15,13 +15,12 @@ struct MenuBarLabel: View {
                 .symbolEffect(.pulse.wholeSymbol, isActive: state == .loading)
 
             Text(state.currentPriceLabel)
-                .font(.custom("Avenir", size: 13).weight(.medium))
-                .monospacedDigit()
+                .font(DS.Font.medium(13).monospacedDigit())
                 .foregroundStyle(state.labelColor)
 
             if case .loaded = state {
                 Text("öre")
-                    .font(.custom("Avenir", size: 11).weight(.medium))
+                    .font(DS.Font.medium(11))
                     .foregroundStyle(.secondary)
             }
         }
