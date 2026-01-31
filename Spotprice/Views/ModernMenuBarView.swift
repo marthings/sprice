@@ -14,20 +14,18 @@ struct ModernMenuBarView: View {
             menuHeader
 
             ScrollView {
-                GlassEffectContainer(spacing: 14) {
-                    VStack(spacing: 14) {
-                        MenuBarSummaryView(viewModel: summaryViewModel, spotPriceViewModel: viewModel)
-                            .background(.ultraThinMaterial)
-                            .cornerRadius(16)
+                VStack(spacing: 14) {
+                    MenuBarSummaryView(viewModel: summaryViewModel, spotPriceViewModel: viewModel)
+                        .background(.ultraThinMaterial)
+                        .cornerRadius(16)
 
-                        chartSection
-                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+                    chartSection
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
 
-                        quickStats
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
+                    quickStats
                 }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
             }
             .scrollIndicators(.hidden)
         }
@@ -118,32 +116,30 @@ struct ModernMenuBarView: View {
     private var quickStats: some View {
         if case .loaded(let payload) = viewModel.state {
             VStack(spacing: 12) {
-                GlassEffectContainer(spacing: 10) {
-                    HStack(spacing: 10) {
-                        StatCardView(
-                            title: "Lägsta",
-                            value: "\(Int(payload.day.minOre.rounded()))",
-                            unit: "öre",
-                            color: .green,
-                            icon: "arrow.down.circle.fill"
-                        )
+                HStack(spacing: 10) {
+                    StatCardView(
+                        title: "Lägsta",
+                        value: "\(Int(payload.day.minOre.rounded()))",
+                        unit: "öre",
+                        color: .green,
+                        icon: "arrow.down.circle.fill"
+                    )
 
-                        StatCardView(
-                            title: "Högsta",
-                            value: "\(Int(payload.day.maxOre.rounded()))",
-                            unit: "öre",
-                            color: .red,
-                            icon: "arrow.up.circle.fill"
-                        )
+                    StatCardView(
+                        title: "Högsta",
+                        value: "\(Int(payload.day.maxOre.rounded()))",
+                        unit: "öre",
+                        color: .red,
+                        icon: "arrow.up.circle.fill"
+                    )
 
-                        StatCardView(
-                            title: "Snitt",
-                            value: "\(Int(averagePrice(payload.day.buckets).rounded()))",
-                            unit: "öre",
-                            color: .blue,
-                            icon: "chart.line.uptrend.xyaxis"
-                        )
-                    }
+                    StatCardView(
+                        title: "Snitt",
+                        value: "\(Int(averagePrice(payload.day.buckets).rounded()))",
+                        unit: "öre",
+                        color: .blue,
+                        icon: "chart.line.uptrend.xyaxis"
+                    )
                 }
 
                 costCalculationSection(payload: payload)
@@ -154,51 +150,49 @@ struct ModernMenuBarView: View {
     // MARK: - Cost Calculation Section
 
     private func costCalculationSection(payload: SpotPriceViewModel.CurrentAndDay) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        let currentPrice = getCurrentPriceOrAverage(payload)
+
+        return VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 6) {
                 Text("Kostnad med detta pris")
                     .font(.custom("Avenir", size: 14).weight(.semibold))
                     .foregroundStyle(.primary)
 
-                if let currentPrice = getCurrentPrice(payload) {
-                    Text("(\(Int(currentPrice.rounded())) öre/kWh)")
+                if let price = getCurrentPrice(payload) {
+                    Text("(\(Int(price.rounded())) öre/kWh)")
                         .font(.custom("Avenir", size: 11).weight(.medium))
                         .foregroundStyle(.secondary)
                 }
             }
 
-            let currentPrice = getCurrentPriceOrAverage(payload)
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
+                CostCardView(
+                    title: "Dusch (10 min)",
+                    mainCost: CostCardView.calculateCost(kWh: 6.0, priceInOre: currentPrice),
+                    description: "~6 kWh",
+                    color: .blue
+                )
 
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 2)) {
-                GlassEffectContainer {
-                    CostCardView(
-                        title: "Dusch (10 min)",
-                        mainCost: CostCardView.calculateCost(kWh: 6.0, priceInOre: currentPrice),
-                        description: "~6 kWh",
-                        color: .blue
-                    )
+                CostCardView(
+                    title: "Pizza i ugn",
+                    mainCost: CostCardView.calculateCost(kWh: 1.1, priceInOre: currentPrice),
+                    description: "~1,1 kWh",
+                    color: .orange
+                )
 
-                    CostCardView(
-                        title: "Pizza i ugn",
-                        mainCost: CostCardView.calculateCost(kWh: 1.1, priceInOre: currentPrice),
-                        description: "~1,1 kWh",
-                        color: .orange
-                    )
+                CostCardView(
+                    title: "Värmepump/dag",
+                    mainCost: CostCardView.calculateCost(kWh: 24.0, priceInOre: currentPrice),
+                    description: "~24 kWh",
+                    color: .red
+                )
 
-                    CostCardView(
-                        title: "Värmepump/dag",
-                        mainCost: CostCardView.calculateCost(kWh: 24.0, priceInOre: currentPrice),
-                        description: "~24 kWh",
-                        color: .red
-                    )
-
-                    CostCardView(
-                        title: "Ladda bilen",
-                        mainCost: CostCardView.calculateCost(kWh: 45.0, priceInOre: currentPrice),
-                        description: "~45 kWh",
-                        color: .green
-                    )
-                }
+                CostCardView(
+                    title: "Ladda bilen",
+                    mainCost: CostCardView.calculateCost(kWh: 45.0, priceInOre: currentPrice),
+                    description: "~45 kWh",
+                    color: .green
+                )
             }
         }
         .padding(.top, 4)
