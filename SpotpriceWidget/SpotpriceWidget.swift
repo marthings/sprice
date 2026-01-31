@@ -105,11 +105,12 @@ extension Calendar {
     }
 }
 
-// MARK: - Mini Chart View
+// MARK: - Mini Chart View (Adapts to rendering mode)
 
 struct MiniPriceChart: View {
     let dayData: DayChartData
     let currentHour: Int
+    @Environment(\.widgetRenderingMode) var renderingMode
 
     var body: some View {
         GeometryReader { geo in
@@ -122,94 +123,120 @@ struct MiniPriceChart: View {
             let safeRange = range > 0 ? range : 1
 
             ZStack {
-                // Area fill with gradient
-                Path { path in
-                    guard prices.count > 1 else { return }
-                    let stepX = width / CGFloat(prices.count - 1)
+                // Area fill
+                areaPath(prices: prices, width: width, height: height, minPrice: minPrice, safeRange: safeRange)
+                    .fill(areaGradient)
 
-                    path.move(to: CGPoint(x: 0, y: height))
-
-                    for (index, price) in prices.enumerated() {
-                        let x = CGFloat(index) * stepX
-                        let normalizedY = (price - minPrice) / safeRange
-                        let y = height - (normalizedY * height * 0.85) - (height * 0.075)
-
-                        if index == 0 {
-                            path.addLine(to: CGPoint(x: x, y: y))
-                        } else {
-                            path.addLine(to: CGPoint(x: x, y: y))
-                        }
-                    }
-
-                    path.addLine(to: CGPoint(x: width, y: height))
-                    path.closeSubpath()
-                }
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            DS.Color.warning.opacity(0.4),
-                            DS.Color.warning.opacity(0.1),
-                            .clear
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-
-                // Line with color segments
-                Path { path in
-                    guard prices.count > 1 else { return }
-                    let stepX = width / CGFloat(prices.count - 1)
-
-                    for (index, price) in prices.enumerated() {
-                        let x = CGFloat(index) * stepX
-                        let normalizedY = (price - minPrice) / safeRange
-                        let y = height - (normalizedY * height * 0.85) - (height * 0.075)
-
-                        if index == 0 {
-                            path.move(to: CGPoint(x: x, y: y))
-                        } else {
-                            path.addLine(to: CGPoint(x: x, y: y))
-                        }
-                    }
-                }
-                .stroke(
-                    LinearGradient(
-                        colors: prices.map { priceToColor($0, min: minPrice, max: maxPrice) },
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    ),
-                    style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round)
-                )
+                // Line
+                linePath(prices: prices, width: width, height: height, minPrice: minPrice, safeRange: safeRange)
+                    .stroke(lineGradient(prices: prices, minPrice: minPrice, maxPrice: maxPrice),
+                            style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
 
                 // Current time indicator
                 if currentHour >= 0 && currentHour < 24 && prices.count > currentHour {
-                    let stepX = width / CGFloat(max(prices.count - 1, 1))
-                    let x = CGFloat(currentHour) * stepX
-                    let price = prices[currentHour]
-                    let normalizedY = (price - minPrice) / safeRange
-                    let y = height - (normalizedY * height * 0.85) - (height * 0.075)
-
-                    // Vertical line
-                    Path { path in
-                        path.move(to: CGPoint(x: x, y: 0))
-                        path.addLine(to: CGPoint(x: x, y: height))
-                    }
-                    .stroke(DS.Color.primary.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
-
-                    // Current point
-                    Circle()
-                        .fill(priceToColor(price, min: minPrice, max: maxPrice))
-                        .frame(width: 8, height: 8)
-                        .position(x: x, y: y)
-
-                    Circle()
-                        .fill(.white)
-                        .frame(width: 4, height: 4)
-                        .position(x: x, y: y)
+                    currentTimeIndicator(prices: prices, width: width, height: height,
+                                        minPrice: minPrice, maxPrice: maxPrice, safeRange: safeRange)
                 }
             }
         }
+    }
+
+    // MARK: - Rendering Mode Adaptive Colors
+
+    private var areaGradient: LinearGradient {
+        switch renderingMode {
+        case .accented:
+            return LinearGradient(
+                colors: [.primary.opacity(0.3), .primary.opacity(0.1), .clear],
+                startPoint: .top, endPoint: .bottom
+            )
+        default:
+            return LinearGradient(
+                colors: [DS.Color.warning.opacity(0.4), DS.Color.warning.opacity(0.1), .clear],
+                startPoint: .top, endPoint: .bottom
+            )
+        }
+    }
+
+    private func lineGradient(prices: [Double], minPrice: Double, maxPrice: Double) -> LinearGradient {
+        switch renderingMode {
+        case .accented:
+            return LinearGradient(colors: [.primary], startPoint: .leading, endPoint: .trailing)
+        default:
+            return LinearGradient(
+                colors: prices.map { priceToColor($0, min: minPrice, max: maxPrice) },
+                startPoint: .leading, endPoint: .trailing
+            )
+        }
+    }
+
+    // MARK: - Path Builders
+
+    private func areaPath(prices: [Double], width: CGFloat, height: CGFloat, minPrice: Double, safeRange: Double) -> Path {
+        Path { path in
+            guard prices.count > 1 else { return }
+            let stepX = width / CGFloat(prices.count - 1)
+
+            path.move(to: CGPoint(x: 0, y: height))
+
+            for (index, price) in prices.enumerated() {
+                let x = CGFloat(index) * stepX
+                let normalizedY = (price - minPrice) / safeRange
+                let y = height - (normalizedY * height * 0.85) - (height * 0.075)
+                path.addLine(to: CGPoint(x: x, y: y))
+            }
+
+            path.addLine(to: CGPoint(x: width, y: height))
+            path.closeSubpath()
+        }
+    }
+
+    private func linePath(prices: [Double], width: CGFloat, height: CGFloat, minPrice: Double, safeRange: Double) -> Path {
+        Path { path in
+            guard prices.count > 1 else { return }
+            let stepX = width / CGFloat(prices.count - 1)
+
+            for (index, price) in prices.enumerated() {
+                let x = CGFloat(index) * stepX
+                let normalizedY = (price - minPrice) / safeRange
+                let y = height - (normalizedY * height * 0.85) - (height * 0.075)
+
+                if index == 0 {
+                    path.move(to: CGPoint(x: x, y: y))
+                } else {
+                    path.addLine(to: CGPoint(x: x, y: y))
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func currentTimeIndicator(prices: [Double], width: CGFloat, height: CGFloat,
+                                      minPrice: Double, maxPrice: Double, safeRange: Double) -> some View {
+        let stepX = width / CGFloat(max(prices.count - 1, 1))
+        let x = CGFloat(currentHour) * stepX
+        let price = prices[currentHour]
+        let normalizedY = (price - minPrice) / safeRange
+        let y = height - (normalizedY * height * 0.85) - (height * 0.075)
+
+        // Vertical dashed line
+        Path { path in
+            path.move(to: CGPoint(x: x, y: 0))
+            path.addLine(to: CGPoint(x: x, y: height))
+        }
+        .stroke(.primary.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+
+        // Current point - adapts to rendering mode
+        Circle()
+            .fill(renderingMode == .accented ? .primary : priceToColor(price, min: minPrice, max: maxPrice))
+            .frame(width: 8, height: 8)
+            .position(x: x, y: y)
+            .widgetAccentable()
+
+        Circle()
+            .fill(.background)
+            .frame(width: 4, height: 4)
+            .position(x: x, y: y)
     }
 
     private func priceToColor(_ price: Double, min: Double, max: Double) -> Color {
@@ -232,7 +259,7 @@ struct MiniPriceChart: View {
 
 struct SpotpriceWidgetEntryView: View {
     var entry: SpotPriceEntry
-    @Environment(\.widgetFamily) var family
+    @Environment(\.widgetRenderingMode) var renderingMode
 
     var body: some View {
         if let price = entry.currentPrice, let category = entry.priceCategory {
@@ -242,14 +269,20 @@ struct SpotpriceWidgetEntryView: View {
                     VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
                         Text("Nu")
                             .font(DS.Font.micro)
-                            .foregroundStyle(DS.Color.secondary)
+                            .foregroundStyle(.secondary)
 
-                        PriceDisplay(price: price, category: category, size: .small)
+                        // Price display adapts to rendering mode
+                        priceView(price: price, category: category)
                     }
+                    .widgetAccentable()
 
                     Spacer()
 
-                    PriceIcon(category: category, size: 16)
+                    // Icon - uses SF Symbol which auto-adapts
+                    Image(systemName: "bolt.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(renderingMode == .accented ? .primary : DS.Color.forCategory(category))
+                        .widgetAccentable()
                 }
                 .padding(.bottom, DS.Spacing.sm)
 
@@ -264,31 +297,44 @@ struct SpotpriceWidgetEntryView: View {
                 // Footer with time range
                 HStack {
                     Text("00")
-                        .font(DS.Font.micro)
-                        .foregroundStyle(DS.Color.secondary)
                     Spacer()
                     Text("12")
-                        .font(DS.Font.micro)
-                        .foregroundStyle(DS.Color.secondary)
                     Spacer()
                     Text("24")
-                        .font(DS.Font.micro)
-                        .foregroundStyle(DS.Color.secondary)
                 }
+                .font(DS.Font.micro)
+                .foregroundStyle(.secondary)
                 .padding(.top, DS.Spacing.xs)
             }
             .padding(DS.Spacing.md)
         } else {
-            VStack(spacing: DS.Spacing.sm) {
-                Image(systemName: "bolt.slash.fill")
-                    .font(.system(size: 20))
-                    .foregroundStyle(DS.Color.secondary)
-                Text("--")
-                    .font(DS.Font.title)
-                    .foregroundStyle(DS.Color.secondary)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            errorView
         }
+    }
+
+    @ViewBuilder
+    private func priceView(price: Int, category: PriceCategory) -> some View {
+        HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
+            Text("\(price)")
+                .font(DS.Font.bold(16))
+                .monospacedDigit()
+                .foregroundStyle(renderingMode == .accented ? .primary : DS.Color.forCategory(category))
+            Text("öre")
+                .font(DS.Font.micro)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var errorView: some View {
+        VStack(spacing: DS.Spacing.sm) {
+            Image(systemName: "bolt.slash.fill")
+                .font(.system(size: 20))
+                .foregroundStyle(.secondary)
+            Text("--")
+                .font(DS.Font.title)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -299,28 +345,8 @@ struct SpotpriceWidget: Widget {
 
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: SpotPriceProvider()) { entry in
-            if #available(macOS 14.0, *) {
-                SpotpriceWidgetEntryView(entry: entry)
-                    .containerBackground(for: .widget) {
-                        ZStack {
-                            Color.clear
-                                .background(.ultraThinMaterial)
-
-                            LinearGradient(
-                                colors: [
-                                    Color.white.opacity(0.1),
-                                    Color.clear
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        }
-                    }
-            } else {
-                SpotpriceWidgetEntryView(entry: entry)
-                    .padding()
-                    .background(.ultraThinMaterial)
-            }
+            SpotpriceWidgetEntryView(entry: entry)
+                .containerBackground(.fill, for: .widget)
         }
         .configurationDisplayName("Spotpris")
         .description("Visar aktuellt elpris med dagskurva")

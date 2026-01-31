@@ -2,14 +2,17 @@
 //  DesignSystem.swift
 //  Spotprice
 //
-//  Shared design system for app and widget
+//  Shared design tokens for app and widget
 //
 
 import SwiftUI
 
-// MARK: - Typography
+// MARK: - Design System
 
 enum DS {
+
+    // MARK: - Typography
+
     enum Font {
         static func regular(_ size: CGFloat) -> SwiftUI.Font {
             .custom("Avenir", size: size)
@@ -37,28 +40,18 @@ enum DS {
         static let micro = medium(10)
     }
 
-    // MARK: - Colors
+    // MARK: - Semantic Colors
 
     enum Color {
-        static let primary = SwiftUI.Color.primary
-        static let secondary = SwiftUI.Color.secondary
-
         static let success = SwiftUI.Color.green
         static let warning = SwiftUI.Color.orange
         static let error = SwiftUI.Color.red
 
-        static let accent = SwiftUI.Color.blue
-
-        // Price category colors
-        static let priceLow = success
-        static let priceMedium = warning
-        static let priceHigh = error
-
         static func forCategory(_ category: PriceCategory) -> SwiftUI.Color {
             switch category {
-            case .low: return priceLow
-            case .medium: return priceMedium
-            case .high: return priceHigh
+            case .low: return success
+            case .medium: return warning
+            case .high: return error
             }
         }
     }
@@ -72,47 +65,24 @@ enum DS {
         static let md: CGFloat = 12
         static let lg: CGFloat = 16
         static let xl: CGFloat = 24
-        static let xxl: CGFloat = 32
     }
 
-    // MARK: - Corner Radius
+    // MARK: - Radius
 
     enum Radius {
         static let sm: CGFloat = 8
         static let md: CGFloat = 12
         static let lg: CGFloat = 16
-        static let full: CGFloat = 999
     }
 }
 
-// MARK: - View Extensions
-
-extension View {
-    func dsFont(_ font: Font) -> some View {
-        self.font(font)
-    }
-
-    func dsCard() -> some View {
-        self
-            .background(.ultraThinMaterial)
-            .cornerRadius(DS.Radius.lg)
-    }
-
-    func dsPill() -> some View {
-        self
-            .padding(.horizontal, DS.Spacing.sm)
-            .padding(.vertical, DS.Spacing.xs)
-            .background(.ultraThinMaterial)
-            .cornerRadius(DS.Radius.full)
-    }
-}
-
-// MARK: - Price Display Component
+// MARK: - Reusable Price Components
 
 struct PriceDisplay: View {
     let price: Int
     let category: PriceCategory
     let size: Size
+    var useSemanticColor: Bool = true
 
     enum Size {
         case small, medium, large
@@ -139,23 +109,22 @@ struct PriceDisplay: View {
             Text("\(price)")
                 .font(size.priceFont)
                 .monospacedDigit()
-                .foregroundStyle(DS.Color.forCategory(category))
+                .foregroundStyle(useSemanticColor ? DS.Color.forCategory(category) : .primary)
             Text("öre")
                 .font(size.unitFont)
-                .foregroundStyle(DS.Color.secondary)
+                .foregroundStyle(.secondary)
         }
     }
 }
 
-// MARK: - Icon with Badge
-
 struct PriceIcon: View {
     let category: PriceCategory
     let size: CGFloat
+    var useSemanticColor: Bool = true
 
     var body: some View {
         Image(systemName: "bolt.fill")
             .font(.system(size: size, weight: .semibold))
-            .foregroundStyle(DS.Color.forCategory(category).gradient)
+            .foregroundStyle(useSemanticColor ? DS.Color.forCategory(category) : .primary)
     }
 }
