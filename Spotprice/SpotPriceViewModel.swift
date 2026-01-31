@@ -15,25 +15,29 @@ final class SpotPriceViewModel: ObservableObject {
         case loaded(CurrentAndDay)  // carries current display text and chart-ready day data
         case failed(String)
     }
-    
+
     struct CurrentAndDay: Equatable {
         let currentDisplay: String
         let day: DayChartData
     }
-    
+
     @Published private(set) var state: State = .idle
-    
+    @Published private(set) var monthlyConsumption: ConsumptionData?
+    @Published private(set) var consumptionError: String?
+
     private let service: SpotPriceService
+    private let consumptionService: ConsumptionService
     private let numberFormatter: NumberFormatter
     private let nowProvider: () -> Date
-    
+
     // Periodisk uppdaterings-Task
     private var refreshTask: Task<Void, Never>?
     // Konfigurerbart intervall (default 15 min)
     private let refreshInterval: Duration
-    
+
     init(
         service: SpotPriceService = SpotPriceService(),
+        consumptionService: ConsumptionService = ConsumptionService(),
         numberFormatter: NumberFormatter = {
             let formatter = NumberFormatter()
             formatter.locale = .current
@@ -46,10 +50,11 @@ final class SpotPriceViewModel: ObservableObject {
         refreshInterval: Duration = .seconds(900)
     ) {
         self.service = service
+        self.consumptionService = consumptionService
         self.numberFormatter = numberFormatter
         self.nowProvider = now
         self.refreshInterval = refreshInterval
-        
+
         // Starta periodisk uppdatering direkt
         startPeriodicRefresh()
     }
@@ -62,26 +67,42 @@ final class SpotPriceViewModel: ObservableObject {
         // Avoid redundant loads
         if case .loading = state { return }
         state = .loading
-        
+
         do {
             let now = nowProvider()
             let items = try await service.fetchSpotPrices(for: now)
-            
+
             // Build current display text
             let currentDisplay = try service.makeDisplayText(
                 from: items,
                 now: now,
                 formatter: numberFormatter
             )
-            
+
             // Build chart-ready day data
             let dayData = try service.makeDayChartData(from: items, for: now)
-            
+
             state = .loaded(CurrentAndDay(currentDisplay: currentDisplay, day: dayData))
         } catch let error as DisplayableError {
             state = .failed(error.message)
         } catch {
             state = .failed("Ett oväntat fel inträffade. Försök igen senare.")
+        }
+
+        // Also load consumption (don't block on errors)
+        await loadConsumption()
+    }
+
+    func loadConsumption() async {
+        do {
+            print("📊 ViewModel: Loading consumption...")
+            monthlyConsumption = try await consumptionService.fetchCurrentMonthConsumption()
+            consumptionError = nil
+            print("📊 ViewModel: Consumption loaded - \(monthlyConsumption?.totalKWh ?? 0) kWh")
+        } catch {
+            consumptionError = error.localizedDescription
+            print("📊 ViewModel: Consumption error - \(error.localizedDescription)")
+            // Don't clear existing data on error
         }
     }
     

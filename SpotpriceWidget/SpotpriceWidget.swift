@@ -16,6 +16,7 @@ struct SpotPriceEntry: TimelineEntry {
     let priceCategory: PriceCategory?
     let dayData: DayChartData?
     let currentHour: Int
+    let monthlyKWh: Double?
 
     static var placeholder: SpotPriceEntry {
         SpotPriceEntry(
@@ -23,7 +24,8 @@ struct SpotPriceEntry: TimelineEntry {
             currentPrice: 42,
             priceCategory: .medium,
             dayData: nil,
-            currentHour: 12
+            currentHour: 12,
+            monthlyKWh: 142
         )
     }
 
@@ -33,7 +35,8 @@ struct SpotPriceEntry: TimelineEntry {
             currentPrice: nil,
             priceCategory: nil,
             dayData: nil,
-            currentHour: Calendar.current.component(.hour, from: Date())
+            currentHour: Calendar.current.component(.hour, from: Date()),
+            monthlyKWh: nil
         )
     }
 }
@@ -42,6 +45,7 @@ struct SpotPriceEntry: TimelineEntry {
 
 struct SpotPriceProvider: TimelineProvider {
     let service = SpotPriceService()
+    let consumptionService = ConsumptionService()
 
     func placeholder(in context: Context) -> SpotPriceEntry {
         .placeholder
@@ -76,6 +80,9 @@ struct SpotPriceProvider: TimelineProvider {
             let items = try await service.fetchSpotPrices(for: Date())
             let dayData = try service.makeDayChartData(from: items, for: Date())
 
+            // Fetch consumption (don't fail if this errors)
+            let monthlyKWh: Double? = try? await consumptionService.fetchCurrentMonthConsumption().totalKWh
+
             let now = Date()
             let currentHour = Calendar.current.component(.hour, from: now)
 
@@ -85,7 +92,8 @@ struct SpotPriceProvider: TimelineProvider {
                     currentPrice: Int(currentBucket.orePerKWh.rounded()),
                     priceCategory: currentBucket.category,
                     dayData: dayData,
-                    currentHour: currentHour
+                    currentHour: currentHour,
+                    monthlyKWh: monthlyKWh
                 )
             }
 
@@ -292,11 +300,29 @@ struct SpotpriceWidgetEntryView: View {
 
                     Spacer()
 
-                    // Icon - color matches current price
-                    Image(systemName: "bolt.fill")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(renderingMode == .accented ? .primary : currentPriceColor)
+                    // Monthly consumption or bolt icon
+                    if let kWh = entry.monthlyKWh {
+                        VStack(alignment: .trailing, spacing: DS.Spacing.xxs) {
+                            Text("Månad")
+                                .font(DS.Font.micro)
+                                .foregroundStyle(.secondary)
+                            HStack(alignment: .lastTextBaseline, spacing: 2) {
+                                Text("\(Int(kWh.rounded()))")
+                                    .font(DS.Font.semibold(12).monospacedDigit())
+                                    .foregroundStyle(renderingMode == .accented ? .primary : .secondary)
+                                Text("kWh")
+                                    .font(DS.Font.micro)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
                         .widgetAccentable()
+                    } else {
+                        // Icon - color matches current price
+                        Image(systemName: "bolt.fill")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(renderingMode == .accented ? .primary : currentPriceColor)
+                            .widgetAccentable()
+                    }
                 }
                 .padding(.bottom, DS.Spacing.sm)
 

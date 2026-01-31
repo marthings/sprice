@@ -58,6 +58,7 @@
 		20861FA62F2E0C450067EDC1 /* Exceptions for "Spotprice" folder in "SpotpriceWidgetExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				ConsumptionService.swift,
 				DesignSystem.swift,
 				SpotPriceService.swift,
 			);

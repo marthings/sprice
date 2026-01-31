@@ -142,8 +142,67 @@ struct ModernMenuBarView: View {
                     )
                 }
 
+                // Monthly stats section
+                monthlyStatsSection
+
                 costCalculationSection(payload: payload)
             }
+        }
+    }
+
+    // MARK: - Monthly Stats Section
+
+    @ViewBuilder
+    private var monthlyStatsSection: some View {
+        if let consumption = viewModel.monthlyConsumption {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Månadsstatistik")
+                    .font(.custom("Avenir", size: 14).weight(.semibold))
+                    .foregroundStyle(.primary)
+
+                HStack(spacing: 10) {
+                    // Consumption card
+                    ConsumptionStatCard(
+                        title: "Förbrukning",
+                        value: "\(Int(consumption.totalKWh.rounded()))",
+                        unit: "kWh",
+                        color: .purple,
+                        icon: "bolt.circle.fill"
+                    )
+
+                    // Estimated cost this month (using average price)
+                    if case .loaded(let payload) = viewModel.state {
+                        let avgPrice = averagePrice(payload.day.buckets)
+                        let estimatedCost = (avgPrice / 100.0) * consumption.totalKWh
+                        ConsumptionStatCard(
+                            title: "Uppskattad kostnad",
+                            value: String(format: "%.0f", estimatedCost),
+                            unit: "kr",
+                            color: .orange,
+                            icon: "creditcard.fill"
+                        )
+                    }
+                }
+            }
+        } else if let error = viewModel.consumptionError {
+            // Show error state
+            HStack(spacing: 10) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Kunde inte hämta förbrukning")
+                        .font(.custom("Avenir", size: 12).weight(.medium))
+                        .foregroundStyle(.primary)
+                    Text(error)
+                        .font(.custom("Avenir", size: 10))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+                Spacer()
+            }
+            .padding(DS.Spacing.md)
+            .background(.ultraThinMaterial)
+            .cornerRadius(DS.Radius.lg)
         }
     }
 
@@ -228,5 +287,47 @@ struct ModernMenuBarView: View {
         case .loaded:
             return ""
         }
+    }
+}
+
+// MARK: - Consumption Stat Card
+
+struct ConsumptionStatCard: View {
+    let title: String
+    let value: String
+    let unit: String
+    let color: Color
+    let icon: String
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 20))
+                .foregroundStyle(color.gradient)
+                .frame(width: 28)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.custom("Avenir", size: 10).weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+
+                HStack(alignment: .lastTextBaseline, spacing: 2) {
+                    Text(value)
+                        .font(.custom("Avenir", size: 16).weight(.bold).monospacedDigit())
+                        .foregroundStyle(.primary)
+                    Text(unit)
+                        .font(.custom("Avenir", size: 11).weight(.medium))
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity)
+        .background(.ultraThinMaterial)
+        .cornerRadius(12)
     }
 }
