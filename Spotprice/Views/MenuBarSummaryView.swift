@@ -46,7 +46,11 @@ struct MenuBarSummaryView: View {
                     }
                 }
                 .frame(width: DS.Size.statCardIconSize, height: DS.Size.statCardIconSize)
-                .glassEffect(.regular.tint(.blue.opacity(0.2)), in: .circle)
+                .background {
+                    Circle()
+                        .fill(.ultraThinMaterial)
+                        .overlay(Circle().fill(.blue.opacity(0.2)))
+                }
                 .foregroundStyle(.white)
             }
             .buttonStyle(.plain)
@@ -136,7 +140,11 @@ struct MenuBarSummaryView: View {
                 .foregroundStyle(.blue)
                 .padding(.horizontal, DS.Spacing.xs)
                 .padding(.vertical, DS.Spacing.xxs + 1)
-                .glassEffect(.regular.tint(.blue.opacity(0.1)), in: .capsule)
+                .background {
+                    Capsule()
+                        .fill(.ultraThinMaterial)
+                        .overlay(Capsule().fill(.blue.opacity(0.1)))
+                }
             }
             .buttonStyle(.plain)
         }
