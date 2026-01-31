@@ -42,13 +42,12 @@ struct ModernMenuBarView: View {
         HStack(spacing: DS.Spacing.md) {
             HStack(spacing: DS.Spacing.sm) {
                 Circle()
-                    .fill(.blue.gradient)
+                    .fill(.ultraThinMaterial)
                     .frame(width: DS.Size.headerIconSize, height: DS.Size.headerIconSize)
                     .overlay {
                         Image(systemName: "bolt.fill")
                             .font(.system(size: DS.Size.iconSmall, weight: .bold))
-                            .foregroundStyle(.white)
-                            .symbolEffect(.pulse.wholeSymbol, options: .repeat(.continuous))
+                            .foregroundStyle(.primary)
                     }
 
                 Text("Spotpris")
@@ -63,7 +62,7 @@ struct ModernMenuBarView: View {
                     Image(systemName: "gearshape.fill")
                         .font(.system(size: DS.Size.closeButtonIconSize, weight: .semibold))
                         .frame(width: DS.Size.closeButtonSize, height: DS.Size.closeButtonSize)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.primary)
                         .background(.ultraThinMaterial)
                         .cornerRadius(DS.Radius.full)
                 }
@@ -76,7 +75,7 @@ struct ModernMenuBarView: View {
                     Image(systemName: "xmark")
                         .font(.system(size: DS.Size.closeButtonIconSize, weight: .bold))
                         .frame(width: DS.Size.closeButtonSize, height: DS.Size.closeButtonSize)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.primary)
                         .background(.ultraThinMaterial)
                         .cornerRadius(DS.Radius.full)
                 }
@@ -212,7 +211,7 @@ struct ModernMenuBarView: View {
                     Spacer()
                     Image(systemName: "chevron.right")
                         .font(DS.Font.caption)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(.secondary)
                 }
                 .padding(DS.Spacing.md)
                 .background(.ultraThinMaterial)

@@ -19,10 +19,10 @@ final class SpotPriceService {
     init(
         session: URLSession = .shared,
         area: String = "SE3",
-        timeZone: TimeZone = TimeZone(secondsFromGMT: 0) ?? .gmt,
+        timeZone: TimeZone = TimeZone(identifier: "Europe/Stockholm") ?? .current,
         calendar: Calendar = {
             var cal = Calendar(identifier: .gregorian)
-            cal.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+            cal.timeZone = TimeZone(identifier: "Europe/Stockholm") ?? .current
             return cal
         }()
     ) {
@@ -39,10 +39,18 @@ final class SpotPriceService {
     /// Fetches spot prices for the given date and returns raw items
     func fetchSpotPrices(for date: Date = Date()) async throws -> [SpotPriceItem] {
         let url = try endpointURL(for: date, area: area, timeZone: timeZone, calendar: calendar)
+        print("⚡️ Fetching spot prices from: \(url)")
+
         let (data, response) = try await session.data(from: url)
         try validate(response: response)
-        
+
         let items = try decoder.decode([SpotPriceItem].self, from: data)
+        print("⚡️ Got \(items.count) price items")
+
+        if let first = items.first, let last = items.last {
+            print("⚡️ First: \(first.timeStart) - Last: \(last.timeEnd)")
+        }
+
         return items
     }
     
@@ -75,8 +83,14 @@ final class SpotPriceService {
     /// Creates chart-ready day data from spot price items
     func makeDayChartData(from items: [SpotPriceItem], for now: Date = Date()) throws -> DayChartData {
         // Filter items for the day of 'now'
+        print("⚡️ makeDayChartData - now: \(now), items count: \(items.count)")
+
         let dayItems = items.filter { calendar.isDate($0.timeStart, inSameDayAs: now) || calendar.isDate($0.timeEnd, inSameDayAs: now) }
+
+        print("⚡️ After filtering: \(dayItems.count) items for today")
+
         guard !dayItems.isEmpty else {
+            print("⚡️ ERROR: No items match today's date!")
             throw DisplayableError("Inga prisdata hittades för idag.")
         }
         

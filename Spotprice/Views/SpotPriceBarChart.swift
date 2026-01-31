@@ -152,7 +152,7 @@ struct SpotPriceBarChart: View {
                     AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
                         .foregroundStyle(.quaternary)
                     AxisTick(stroke: StrokeStyle(lineWidth: 0.5))
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(.secondary)
                     if let date = value.as(Date.self) {
                         AxisValueLabel {
                             Text(date.formatted(.dateTime.hour()))
@@ -169,7 +169,7 @@ struct SpotPriceBarChart: View {
                     AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
                         .foregroundStyle(.quaternary)
                     AxisTick(stroke: StrokeStyle(lineWidth: 0.5))
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(.secondary)
                     AxisValueLabel {
                         if let price = value.as(Double.self) {
                             Text("\(Int(price.rounded()))")

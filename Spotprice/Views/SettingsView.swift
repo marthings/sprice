@@ -13,15 +13,12 @@ struct SettingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.lg) {
             // Header
-            Text("Vaggeryds Energi")
+            Text("Koppla till Vaggeryds Energi")
                 .font(DS.Font.title)
                 .foregroundStyle(.primary)
 
             // Inloggning
             VStack(alignment: .leading, spacing: DS.Spacing.md) {
-                Text("Inloggning")
-                    .font(DS.Font.semibold(13))
-                    .foregroundStyle(.secondary)
 
                 SettingsField(
                     label: "Kundnummer",
@@ -39,10 +36,6 @@ struct SettingsView: View {
 
             // Anläggning
             VStack(alignment: .leading, spacing: DS.Spacing.md) {
-                Text("Anläggning")
-                    .font(DS.Font.semibold(13))
-                    .foregroundStyle(.secondary)
-
                 SettingsField(
                     label: "Konto-ID",
                     text: $settings.accountId,
@@ -96,7 +89,7 @@ struct SettingsView: View {
                 Button("Återställ") {
                     settings.reset()
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.glass)
 
                 Spacer()
 
@@ -126,7 +119,7 @@ struct SettingsView: View {
                         }
                     }
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.glassProminent)
                 .disabled(!settings.isConfigured)
             }
         }
@@ -162,6 +155,7 @@ struct SettingsField: View {
         VStack(alignment: .leading, spacing: DS.Spacing.xs) {
             Text(label)
                 .font(DS.Font.medium(12))
+                .fontWeight(.bold)
                 .foregroundStyle(.primary)
 
             if isSecure {
