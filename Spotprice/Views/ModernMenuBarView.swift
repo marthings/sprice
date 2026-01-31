@@ -166,7 +166,7 @@ struct ModernMenuBarView: View {
                         title: "Förbrukning",
                         value: "\(Int(consumption.totalKWh.rounded()))",
                         unit: "kWh",
-                        color: .purple,
+                        color: .secondary,
                         icon: "bolt.circle.fill"
                     )
 
@@ -178,7 +178,7 @@ struct ModernMenuBarView: View {
                             title: "Uppskattad kostnad",
                             value: String(format: "%.0f", estimatedCost),
                             unit: "kr",
-                            color: .orange,
+                            color: .secondary,
                             icon: "creditcard.fill"
                         )
                     }

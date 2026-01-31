@@ -22,10 +22,14 @@ struct SpotPriceBarChart: View {
     // MARK: - Chart Header
 
     private var chartHeader: some View {
-        let currentHour = Calendar.current.component(.hour, from: Date())
-        let prices = dayData.buckets.map { $0.orePerKWh }
-        let currentPrice = (currentHour >= 0 && currentHour < prices.count) ? prices[currentHour] : nil
-        let nextPrice = (currentHour + 1 >= 0 && currentHour + 1 < prices.count) ? prices[currentHour + 1] : nil
+        let now = Date()
+        let currentBucket = dayData.buckets.first { $0.start <= now && $0.end > now }
+        let currentPrice = currentBucket?.orePerKWh
+
+        // Find next hour's bucket
+        let nextHour = Calendar.current.date(byAdding: .hour, value: 1, to: now) ?? now
+        let nextBucket = dayData.buckets.first { $0.start <= nextHour && $0.end > nextHour }
+        let nextPrice = nextBucket?.orePerKWh
 
         return HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
