@@ -10,6 +10,8 @@
 		20861F902F2E0B9A0067EDC1 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 20861F8F2F2E0B9A0067EDC1 /* WidgetKit.framework */; };
 		20861F922F2E0B9A0067EDC1 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 20861F912F2E0B9A0067EDC1 /* SwiftUI.framework */; };
 		20861F9F2F2E0B9B0067EDC1 /* SpotpriceWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 20861F8D2F2E0B9A0067EDC1 /* SpotpriceWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		20861FD12F2EB8920067EDC1 /* spotprice.icon in Resources */ = {isa = PBXBuildFile; fileRef = 20861FD02F2EB8920067EDC1 /* spotprice.icon */; };
+		20861FD22F2EB8920067EDC1 /* spotprice.icon in Resources */ = {isa = PBXBuildFile; fileRef = 20861FD02F2EB8920067EDC1 /* spotprice.icon */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -41,6 +43,7 @@
 		20861F8D2F2E0B9A0067EDC1 /* SpotpriceWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SpotpriceWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		20861F8F2F2E0B9A0067EDC1 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		20861F912F2E0B9A0067EDC1 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		20861FD02F2EB8920067EDC1 /* spotprice.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = spotprice.icon; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -55,6 +58,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				DesignSystem/DesignSystem.swift,
+				Models/ConsumptionSettings.swift,
 				Models/SpotPriceModels.swift,
 				Services/ConsumptionService.swift,
 				Services/SpotPriceService.swift,
@@ -109,6 +113,7 @@
 				20861F932F2E0B9A0067EDC1 /* SpotpriceWidget */,
 				20861F8E2F2E0B9A0067EDC1 /* Frameworks */,
 				200104F92F26582400B2F176 /* Products */,
+				20861FD02F2EB8920067EDC1 /* spotprice.icon */,
 			);
 			sourceTree = "<group>";
 		};
@@ -222,6 +227,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				20861FD22F2EB8920067EDC1 /* spotprice.icon in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -229,6 +235,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				20861FD12F2EB8920067EDC1 /* spotprice.icon in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

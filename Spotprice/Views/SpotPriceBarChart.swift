@@ -46,6 +46,10 @@ struct SpotPriceBarChart: View {
                             .font(DS.Font.medium(11))
                             .foregroundStyle(.secondary)
                     }
+                } else {
+                    Text("–")
+                        .font(DS.Font.bold(20))
+                        .foregroundStyle(.secondary)
                 }
             }
 
@@ -63,6 +67,10 @@ struct SpotPriceBarChart: View {
                             .font(DS.Font.semibold(12).monospacedDigit())
                             .foregroundStyle(priceColor(for: next))
                     }
+                } else {
+                    Text("–")
+                        .font(DS.Font.semibold(12))
+                        .foregroundStyle(.secondary)
                 }
             }
         }

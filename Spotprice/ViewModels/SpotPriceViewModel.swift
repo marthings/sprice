@@ -34,6 +34,8 @@ final class SpotPriceViewModel: ObservableObject {
     private var refreshTask: Task<Void, Never>?
     // Konfigurerbart intervall (default 15 min)
     private let refreshInterval: Duration
+    // Subscription för settings-notifikation
+    private var settingsSubscription: AnyCancellable?
 
     init(
         service: SpotPriceService = SpotPriceService(),
@@ -57,10 +59,20 @@ final class SpotPriceViewModel: ObservableObject {
 
         // Starta periodisk uppdatering direkt
         startPeriodicRefresh()
+
+        // Lyssna på settings-ändringar
+        settingsSubscription = NotificationCenter.default
+            .publisher(for: .consumptionSettingsDidSave)
+            .sink { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    await self?.loadConsumption()
+                }
+            }
     }
-    
+
     deinit {
         refreshTask?.cancel()
+        settingsSubscription?.cancel()
     }
     
     func load() async {

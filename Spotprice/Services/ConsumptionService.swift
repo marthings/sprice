@@ -10,22 +10,12 @@ import os.log
 
 private let logger = Logger(subsystem: "se.spotprice", category: "ConsumptionService")
 
-// MARK: - Configuration (Replace with your credentials)
-
-enum ConsumptionConfig {
-    static let customerId = "113125"
-    static let password = "1979"
-    static let utilityId = "735999252003205654"  // Fixed: was missing a digit
-    static let accountId = "354404037-3"
-    static let netId = "VGD"
-    static let type = "1"
-}
-
 // MARK: - Service
 
 final class ConsumptionService {
     private let session: URLSession
     private let baseURL = "https://api-minasidor.vaggerydsenergi.se"
+    private var settings: ConsumptionSettings { ConsumptionSettings.shared }
 
     init(session: URLSession = .shared) {
         self.session = session
@@ -33,6 +23,10 @@ final class ConsumptionService {
 
     /// Fetches consumption data for the current month
     func fetchCurrentMonthConsumption() async throws -> ConsumptionData {
+        guard settings.isConfigured else {
+            throw ConsumptionError.missingCredentials
+        }
+
         let now = Date()
         let calendar = Calendar.current
         let year = calendar.component(.year, from: now)
@@ -75,14 +69,31 @@ final class ConsumptionService {
             let apiResponse = try decoder.decode(ConsumptionAPIResponse.self, from: data)
             logger.info("Success! Got \(apiResponse.consumptionValues.count) values")
 
-            // Filter to only the requested month
-            let calendar = Calendar.current
-            let currentMonthValue = apiResponse.consumptionValues.first { value in
-                calendar.component(.year, from: value.date) == year &&
-                calendar.component(.month, from: value.date) == month
+            // Debug: Log all values
+            for value in apiResponse.consumptionValues {
+                logger.info("📊 Value: \(value.date) -> \(value.consumption) kWh")
             }
 
+            // Filter to only the requested month
+            // Note: API returns dates at end of PREVIOUS month, so 2025-12-31 = January 2026 data
+            let calendar = Calendar.current
+
+            func findValue(for targetYear: Int, targetMonth: Int) -> ConsumptionValueAPI? {
+                apiResponse.consumptionValues.first { value in
+                    guard let nextDay = calendar.date(byAdding: .day, value: 1, to: value.date) else { return false }
+                    return calendar.component(.year, from: nextDay) == targetYear &&
+                           calendar.component(.month, from: nextDay) == targetMonth
+                }
+            }
+
+            // Find value for requested month
+            let currentMonthValue = findValue(for: year, targetMonth: month)
+
+            logger.info("📊 Looking for year=\(year), month=\(month)")
+            logger.info("📊 Found value: \(currentMonthValue?.consumption ?? 0) kWh")
+
             let totalKWh = currentMonthValue?.consumption ?? 0
+            let monthDate = calendar.date(from: DateComponents(year: year, month: month, day: 1))!
 
             return ConsumptionData(
                 totalKWh: totalKWh,
@@ -94,7 +105,8 @@ final class ConsumptionService {
                     )
                 },
                 meterName: apiResponse.utility.name,
-                meterId: apiResponse.utility.meterid ?? ""
+                meterId: apiResponse.utility.meterid ?? "",
+                monthDate: monthDate
             )
         } catch {
             logger.error("Error: \(error.localizedDescription)")
@@ -108,7 +120,7 @@ final class ConsumptionService {
         // URL pattern: /minasidor/v3/consumption/monthly/{accountId}/{utilityId}/{netId}/{type}/{startYear}/{endYear}/{month}/1
         // Note: startYear seems to be a fixed value (2024), endYear is the query year
         let startYear = 2024
-        let path = "/minasidor/v3/consumption/monthly/\(ConsumptionConfig.accountId)/\(ConsumptionConfig.utilityId)/\(ConsumptionConfig.netId)/\(ConsumptionConfig.type)/\(startYear)/\(year)/\(month)/1"
+        let path = "/minasidor/v3/consumption/monthly/\(settings.accountId)/\(settings.utilityId)/\(settings.netId)/\(settings.type)/\(startYear)/\(year)/\(month)/1"
 
         guard let url = URL(string: baseURL + path) else {
             throw ConsumptionError.invalidURL
@@ -119,7 +131,7 @@ final class ConsumptionService {
     }
 
     private func basicAuthHeader() -> String {
-        let credentials = "\(ConsumptionConfig.customerId):\(ConsumptionConfig.password)"
+        let credentials = "\(settings.customerId):\(settings.password)"
         guard let data = credentials.data(using: .utf8) else {
             return ""
         }
@@ -175,10 +187,19 @@ struct ConsumptionData {
     let values: [ConsumptionValue]
     let meterName: String
     let meterId: String
+    let monthDate: Date
 
     /// Formatted total for display (e.g., "142 kWh")
     var formattedTotal: String {
         "\(Int(totalKWh.rounded())) kWh"
+    }
+
+    /// Month name for display (e.g., "januari 2026")
+    var monthName: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "sv_SE")
+        formatter.dateFormat = "MMMM yyyy"
+        return formatter.string(from: monthDate)
     }
 }
 

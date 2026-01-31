@@ -46,6 +46,7 @@ enum DS {
         static let success = SwiftUI.Color.green
         static let warning = SwiftUI.Color.orange
         static let error = SwiftUI.Color.red
+        static let outline = SwiftUI.Color.secondary
 
         static func forCategory(_ category: PriceCategory) -> SwiftUI.Color {
             switch category {

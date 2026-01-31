@@ -15,6 +15,9 @@ struct ModernMenuBarView: View {
 
             ScrollView {
                 VStack(spacing: DS.Spacing.lg) {
+
+                    monthlyStatsSection
+                    
                     MenuBarSummaryView(viewModel: summaryViewModel, spotPriceViewModel: viewModel)
                         .background(.ultraThinMaterial)
                         .cornerRadius(DS.Radius.lg)
@@ -55,18 +58,31 @@ struct ModernMenuBarView: View {
 
             Spacer()
 
-            Button(action: {
-                NSApplication.shared.terminate(nil)
-            }) {
-                Image(systemName: "xmark")
-                    .font(.system(size: DS.Size.closeButtonIconSize, weight: .bold))
-                    .frame(width: DS.Size.closeButtonSize, height: DS.Size.closeButtonSize)
-                    .foregroundStyle(.secondary)
-                    .background(.ultraThinMaterial)
-                    .cornerRadius(DS.Radius.full)
+            HStack(spacing: DS.Spacing.sm) {
+                SettingsLink {
+                    Image(systemName: "gearshape.fill")
+                        .font(.system(size: DS.Size.closeButtonIconSize, weight: .semibold))
+                        .frame(width: DS.Size.closeButtonSize, height: DS.Size.closeButtonSize)
+                        .foregroundStyle(.secondary)
+                        .background(.ultraThinMaterial)
+                        .cornerRadius(DS.Radius.full)
+                }
+                .buttonStyle(.plain)
+                .help("Inställningar")
+
+                Button(action: {
+                    NSApplication.shared.terminate(nil)
+                }) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: DS.Size.closeButtonIconSize, weight: .bold))
+                        .frame(width: DS.Size.closeButtonSize, height: DS.Size.closeButtonSize)
+                        .foregroundStyle(.secondary)
+                        .background(.ultraThinMaterial)
+                        .cornerRadius(DS.Radius.full)
+                }
+                .buttonStyle(.plain)
+                .help("Avsluta")
             }
-            .buttonStyle(.plain)
-            .help("Avsluta")
         }
         .padding(.horizontal, DS.Spacing.lg)
         .padding(.vertical, DS.Spacing.md)
@@ -142,9 +158,6 @@ struct ModernMenuBarView: View {
                     )
                 }
 
-                // Monthly stats section
-                monthlyStatsSection
-
                 costCalculationSection(payload: payload)
             }
         }
@@ -156,7 +169,7 @@ struct ModernMenuBarView: View {
     private var monthlyStatsSection: some View {
         if let consumption = viewModel.monthlyConsumption {
             VStack(alignment: .leading, spacing: DS.Spacing.md) {
-                Text("Månadsstatistik")
+                Text("Förbrukning \(consumption.monthName)")
                     .font(DS.Font.semibold(14))
                     .foregroundStyle(.primary)
 
@@ -182,6 +195,30 @@ struct ModernMenuBarView: View {
                     }
                 }
             }
+        } else if !ConsumptionSettings.shared.isConfigured {
+            SettingsLink {
+                HStack(spacing: DS.Spacing.sm) {
+                    Image(systemName: "gearshape.fill")
+                        .foregroundStyle(.blue)
+                    VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
+                        Text("Konfigurera förbrukning")
+                            .font(DS.Font.medium(12))
+                            .foregroundStyle(.primary)
+                        Text("Lägg till dina uppgifter för att se månadsstatistik")
+                            .font(DS.Font.micro)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(DS.Font.caption)
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(DS.Spacing.md)
+                .background(.ultraThinMaterial)
+                .cornerRadius(DS.Radius.lg)
+            }
+            .buttonStyle(.plain)
         } else if let error = viewModel.consumptionError {
             HStack(spacing: DS.Spacing.sm) {
                 Image(systemName: "exclamationmark.triangle.fill")

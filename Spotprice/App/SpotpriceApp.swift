@@ -20,5 +20,9 @@ struct SpotpriceApp: App {
         .menuBarExtraStyle(.window)
         .environmentObject(viewModel)
         .environmentObject(summaryViewModel)
+
+        Settings {
+            SettingsView()
+        }
     }
 }
