@@ -14,42 +14,42 @@ struct ModernMenuBarView: View {
             menuHeader
 
             ScrollView {
-                VStack(spacing: 14) {
+                VStack(spacing: DS.Spacing.lg) {
                     MenuBarSummaryView(viewModel: summaryViewModel, spotPriceViewModel: viewModel)
                         .background(.ultraThinMaterial)
-                        .cornerRadius(16)
+                        .cornerRadius(DS.Radius.lg)
 
                     chartSection
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: DS.Radius.md))
 
                     quickStats
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
+                .padding(.horizontal, DS.Spacing.lg)
+                .padding(.vertical, DS.Spacing.md)
             }
             .scrollIndicators(.hidden)
         }
-        .frame(width: 340, height: 620)
-        .font(.custom("Avenir", size: 13))
+        .frame(width: DS.Size.menuBarWidth, height: DS.Size.menuBarHeight)
+        .font(DS.Font.callout)
     }
 
     // MARK: - Header
 
     private var menuHeader: some View {
-        HStack(spacing: 12) {
-            HStack(spacing: 10) {
+        HStack(spacing: DS.Spacing.md) {
+            HStack(spacing: DS.Spacing.sm) {
                 Circle()
                     .fill(.blue.gradient)
-                    .frame(width: 28, height: 28)
+                    .frame(width: DS.Size.headerIconSize, height: DS.Size.headerIconSize)
                     .overlay {
                         Image(systemName: "bolt.fill")
-                            .font(.system(size: 14, weight: .bold))
+                            .font(.system(size: DS.Size.iconSmall, weight: .bold))
                             .foregroundStyle(.white)
                             .symbolEffect(.pulse.wholeSymbol, options: .repeat(.continuous))
                     }
 
                 Text("Spotpris")
-                    .font(.custom("Avenir", size: 16).weight(.bold))
+                    .font(DS.Font.headline)
                     .foregroundStyle(.primary)
             }
 
@@ -63,31 +63,31 @@ struct ModernMenuBarView: View {
                     .frame(width: 32, height: 32)
                     .foregroundStyle(.secondary)
                     .background(.ultraThinMaterial)
-                    .cornerRadius(999)
+                    .cornerRadius(DS.Radius.full)
             }
             .buttonStyle(.plain)
             .help("Avsluta")
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, DS.Spacing.lg)
+        .padding(.vertical, DS.Spacing.md)
     }
 
     // MARK: - Chart Section
 
     private var chartSection: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: DS.Spacing.sm) {
             if case .loaded(let payload) = viewModel.state {
                 SpotPriceBarChart(dayData: payload.day, configuration: .menuBar)
             } else {
                 loadingStateView
-                    .frame(height: 180)
+                    .frame(height: DS.Size.chartHeightMenuBar)
             }
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, DS.Spacing.sm)
     }
 
     private var loadingStateView: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: DS.Spacing.md) {
             Group {
                 if case .loading = viewModel.state {
                     ProgressView()
@@ -102,12 +102,12 @@ struct ModernMenuBarView: View {
             }
 
             Text(loadingStatusText)
-                .font(.custom("Avenir", size: 14).weight(.medium))
+                .font(DS.Font.medium(14))
                 .foregroundStyle(.primary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.vertical, 20)
+        .padding(.vertical, DS.Spacing.xl)
     }
 
     // MARK: - Quick Stats
@@ -115,13 +115,13 @@ struct ModernMenuBarView: View {
     @ViewBuilder
     private var quickStats: some View {
         if case .loaded(let payload) = viewModel.state {
-            VStack(spacing: 12) {
-                HStack(spacing: 10) {
+            VStack(spacing: DS.Spacing.md) {
+                HStack(spacing: DS.Spacing.sm) {
                     StatCardView(
                         title: "Lägsta",
                         value: "\(Int(payload.day.minOre.rounded()))",
                         unit: "öre",
-                        color: .green,
+                        color: DS.Color.success,
                         icon: "arrow.down.circle.fill"
                     )
 
@@ -129,7 +129,7 @@ struct ModernMenuBarView: View {
                         title: "Högsta",
                         value: "\(Int(payload.day.maxOre.rounded()))",
                         unit: "öre",
-                        color: .red,
+                        color: DS.Color.error,
                         icon: "arrow.up.circle.fill"
                     )
 
@@ -155,13 +155,12 @@ struct ModernMenuBarView: View {
     @ViewBuilder
     private var monthlyStatsSection: some View {
         if let consumption = viewModel.monthlyConsumption {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: DS.Spacing.md) {
                 Text("Månadsstatistik")
-                    .font(.custom("Avenir", size: 14).weight(.semibold))
+                    .font(DS.Font.semibold(14))
                     .foregroundStyle(.primary)
 
-                HStack(spacing: 10) {
-                    // Consumption card
+                HStack(spacing: DS.Spacing.sm) {
                     ConsumptionStatCard(
                         title: "Förbrukning",
                         value: "\(Int(consumption.totalKWh.rounded()))",
@@ -170,7 +169,6 @@ struct ModernMenuBarView: View {
                         icon: "bolt.circle.fill"
                     )
 
-                    // Estimated cost this month (using average price)
                     if case .loaded(let payload) = viewModel.state {
                         let avgPrice = averagePrice(payload.day.buckets)
                         let estimatedCost = (avgPrice / 100.0) * consumption.totalKWh
@@ -185,16 +183,15 @@ struct ModernMenuBarView: View {
                 }
             }
         } else if let error = viewModel.consumptionError {
-            // Show error state
-            HStack(spacing: 10) {
+            HStack(spacing: DS.Spacing.sm) {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
-                VStack(alignment: .leading, spacing: 2) {
+                    .foregroundStyle(DS.Color.warning)
+                VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
                     Text("Kunde inte hämta förbrukning")
-                        .font(.custom("Avenir", size: 12).weight(.medium))
+                        .font(DS.Font.medium(12))
                         .foregroundStyle(.primary)
                     Text(error)
-                        .font(.custom("Avenir", size: 10))
+                        .font(DS.Font.micro)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
                 }
@@ -211,20 +208,20 @@ struct ModernMenuBarView: View {
     private func costCalculationSection(payload: SpotPriceViewModel.CurrentAndDay) -> some View {
         let currentPrice = getCurrentPriceOrAverage(payload)
 
-        return VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 6) {
+        return VStack(alignment: .leading, spacing: DS.Spacing.md) {
+            HStack(spacing: DS.Spacing.xs) {
                 Text("Kostnad med detta pris")
-                    .font(.custom("Avenir", size: 14).weight(.semibold))
+                    .font(DS.Font.semibold(14))
                     .foregroundStyle(.primary)
 
                 if let price = getCurrentPrice(payload) {
                     Text("(\(Int(price.rounded())) öre/kWh)")
-                        .font(.custom("Avenir", size: 11).weight(.medium))
+                        .font(DS.Font.medium(11))
                         .foregroundStyle(.secondary)
                 }
             }
 
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: DS.Spacing.sm), GridItem(.flexible(), spacing: DS.Spacing.sm)], spacing: DS.Spacing.sm) {
                 CostCardView(
                     title: "Dusch (10 min)",
                     mainCost: CostCardView.calculateCost(kWh: 6.0, priceInOre: currentPrice),
@@ -236,44 +233,41 @@ struct ModernMenuBarView: View {
                     title: "Pizza i ugn",
                     mainCost: CostCardView.calculateCost(kWh: 1.1, priceInOre: currentPrice),
                     description: "~1,1 kWh",
-                    color: .orange
+                    color: DS.Color.warning
                 )
 
                 CostCardView(
                     title: "Värmepump/dag",
                     mainCost: CostCardView.calculateCost(kWh: 24.0, priceInOre: currentPrice),
                     description: "~24 kWh",
-                    color: .red
+                    color: DS.Color.error
                 )
 
                 CostCardView(
                     title: "Ladda bilen",
                     mainCost: CostCardView.calculateCost(kWh: 45.0, priceInOre: currentPrice),
                     description: "~45 kWh",
-                    color: .green
+                    color: DS.Color.success
                 )
             }
         }
-        .padding(.top, 4)
+        .padding(.top, DS.Spacing.xs)
     }
 
     // MARK: - Helpers
 
     private func getCurrentPrice(_ payload: SpotPriceViewModel.CurrentAndDay) -> Double? {
         let now = Date()
-        if let currentBucket = payload.day.buckets.first(where: { $0.start <= now && $0.end > now }) {
-            return currentBucket.orePerKWh
-        }
-        return nil
+        return payload.day.buckets.first { $0.start <= now && $0.end > now }?.orePerKWh
     }
 
     private func getCurrentPriceOrAverage(_ payload: SpotPriceViewModel.CurrentAndDay) -> Double {
-        return getCurrentPrice(payload) ?? averagePrice(payload.day.buckets)
+        getCurrentPrice(payload) ?? averagePrice(payload.day.buckets)
     }
 
     private func averagePrice(_ buckets: [PriceBucket]) -> Double {
-        let sum = buckets.reduce(0) { $0 + $1.orePerKWh }
-        return sum / Double(buckets.count)
+        guard !buckets.isEmpty else { return 0 }
+        return buckets.reduce(0) { $0 + $1.orePerKWh } / Double(buckets.count)
     }
 
     private var loadingStatusText: String {
@@ -300,34 +294,34 @@ struct ConsumptionStatCard: View {
     let icon: String
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: DS.Spacing.sm) {
             Image(systemName: icon)
-                .font(.system(size: 20))
+                .font(.system(size: DS.Size.iconMedium))
                 .foregroundStyle(color.gradient)
-                .frame(width: 28)
+                .frame(width: DS.Size.headerIconSize)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
                 Text(title)
-                    .font(.custom("Avenir", size: 10).weight(.medium))
+                    .font(DS.Font.micro)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
 
-                HStack(alignment: .lastTextBaseline, spacing: 2) {
+                HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
                     Text(value)
-                        .font(.custom("Avenir", size: 16).weight(.bold).monospacedDigit())
+                        .font(DS.Font.bold(16).monospacedDigit())
                         .foregroundStyle(.primary)
                     Text(unit)
-                        .font(.custom("Avenir", size: 11).weight(.medium))
+                        .font(DS.Font.medium(11))
                         .foregroundStyle(.secondary)
                 }
             }
 
             Spacer()
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.horizontal, DS.Spacing.md)
+        .padding(.vertical, DS.Spacing.sm)
         .frame(maxWidth: .infinity)
         .background(.ultraThinMaterial)
-        .cornerRadius(12)
+        .cornerRadius(DS.Radius.md)
     }
 }

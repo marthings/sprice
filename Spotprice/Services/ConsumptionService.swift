@@ -120,7 +120,9 @@ final class ConsumptionService {
 
     private func basicAuthHeader() -> String {
         let credentials = "\(ConsumptionConfig.customerId):\(ConsumptionConfig.password)"
-        let data = credentials.data(using: .utf8)!
+        guard let data = credentials.data(using: .utf8) else {
+            return ""
+        }
         let base64 = data.base64EncodedString()
         return "Basic \(base64)"
     }

@@ -12,16 +12,16 @@ struct CostCardView: View {
     let color: Color
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+            HStack(spacing: DS.Spacing.xs) {
+                VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
                     Text(title)
-                        .font(.custom("Avenir", size: 12).weight(.semibold))
+                        .font(DS.Font.semibold(12))
                         .foregroundStyle(.primary)
                         .lineLimit(1)
 
                     Text(description)
-                        .font(.custom("Avenir", size: 10))
+                        .font(DS.Font.micro)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
@@ -29,19 +29,19 @@ struct CostCardView: View {
                 Spacer()
             }
 
-            HStack(alignment: .lastTextBaseline, spacing: 2) {
+            HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
                 Text(mainCost)
-                    .font(.custom("Avenir", size: 15).weight(.bold).monospacedDigit())
+                    .font(DS.Font.bold(15).monospacedDigit())
                     .foregroundStyle(.primary)
                 Text("kr")
-                    .font(.custom("Avenir", size: 10).weight(.medium))
+                    .font(DS.Font.micro)
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, DS.Spacing.lg)
+        .padding(.vertical, DS.Spacing.md)
         .background(.ultraThinMaterial)
-        .cornerRadius(16)
+        .cornerRadius(DS.Radius.lg)
     }
 }
 

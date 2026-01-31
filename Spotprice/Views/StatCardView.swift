@@ -13,26 +13,26 @@ struct StatCardView: View {
     let icon: String
 
     var body: some View {
-        VStack(spacing: 6) {
-            VStack(spacing: 2) {
+        VStack(spacing: DS.Spacing.xs) {
+            VStack(spacing: DS.Spacing.xxs) {
                 Text(title)
-                    .font(.custom("Avenir", size: 10).weight(.medium))
+                    .font(DS.Font.micro)
                     .foregroundStyle(.primary)
                     .multilineTextAlignment(.center)
-                HStack(alignment: .lastTextBaseline, spacing: 2) {
+                HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
                     Text(value)
-                        .font(.custom("Avenir", size: 16).weight(.bold).monospacedDigit())
+                        .font(DS.Font.bold(16).monospacedDigit())
                         .foregroundStyle(color)
                     Text(unit)
-                        .font(.custom("Avenir", size: 11).weight(.medium))
+                        .font(DS.Font.medium(11))
                         .foregroundStyle(.secondary)
                 }
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 10)
-        .padding(.horizontal, 6)
+        .padding(.vertical, DS.Spacing.sm)
+        .padding(.horizontal, DS.Spacing.xs)
         .background(.ultraThinMaterial)
-        .cornerRadius(16)
+        .cornerRadius(DS.Radius.lg)
     }
 }

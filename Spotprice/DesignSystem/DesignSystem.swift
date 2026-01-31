@@ -94,6 +94,30 @@ enum DS {
         static let sm: CGFloat = 8
         static let md: CGFloat = 12
         static let lg: CGFloat = 16
+        static let xl: CGFloat = 20
+        static let full: CGFloat = 999
+    }
+
+    // MARK: - Component Sizes
+
+    enum Size {
+        // Menu Bar
+        static let menuBarWidth: CGFloat = 340
+        static let menuBarHeight: CGFloat = 620
+
+        // Charts
+        static let chartHeightMenuBar: CGFloat = 180
+        static let chartHeightFull: CGFloat = 200
+        static let chartHeightWidget: CGFloat = 80
+
+        // Icons
+        static let iconSmall: CGFloat = 14
+        static let iconMedium: CGFloat = 20
+        static let iconLarge: CGFloat = 28
+
+        // Cards
+        static let statCardIconSize: CGFloat = 24
+        static let headerIconSize: CGFloat = 28
     }
 }
 
