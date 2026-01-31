@@ -179,7 +179,7 @@ struct MiniPriceChart: View {
                         startPoint: .leading,
                         endPoint: .trailing
                     ),
-                    style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round)
+                    style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round)
                 )
 
                 // Current time indicator
@@ -301,7 +301,21 @@ struct SpotpriceWidget: Widget {
         StaticConfiguration(kind: kind, provider: SpotPriceProvider()) { entry in
             if #available(macOS 14.0, *) {
                 SpotpriceWidgetEntryView(entry: entry)
-                    .containerBackground(.ultraThinMaterial, for: .widget)
+                    .containerBackground(for: .widget) {
+                        ZStack {
+                            Color.clear
+                                .background(.ultraThinMaterial)
+
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(0.1),
+                                    Color.clear
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        }
+                    }
             } else {
                 SpotpriceWidgetEntryView(entry: entry)
                     .padding()
