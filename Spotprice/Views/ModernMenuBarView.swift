@@ -144,7 +144,7 @@ struct ModernMenuBarView: View {
                         title: "Högsta",
                         value: "\(Int(payload.day.maxOre.rounded()))",
                         unit: "öre",
-                        color: DS.Color.error,
+                        color: DS.Color.danger,
                         icon: "arrow.up.circle.fill"
                     )
 
@@ -279,7 +279,7 @@ struct ModernMenuBarView: View {
                     title: "Värmepump/dag",
                     mainCost: CostCardView.calculateCost(kWh: 24.0, priceInOre: currentPrice),
                     description: "~24 kWh",
-                    color: DS.Color.error
+                    color: DS.Color.danger
                 )
 
                 CostCardView(
@@ -447,7 +447,7 @@ struct TopConsumptionDaysCard: View {
 
     private func barColor(for kWh: Double) -> Color {
         let ratio = kWh / maxKWh
-        if ratio > 0.9 { return DS.Color.error }
+        if ratio > 0.9 { return DS.Color.danger }
         if ratio > 0.7 { return DS.Color.warning }
         return .blue
     }

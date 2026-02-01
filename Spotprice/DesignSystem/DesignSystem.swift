@@ -43,16 +43,22 @@ enum DS {
     // MARK: - Semantic Colors
 
     enum Color {
-        static let success = SwiftUI.Color.green
-        static let warning = SwiftUI.Color.orange
-        static let error = SwiftUI.Color.red
+        // Semantic colors from assets (auto light/dark)
+        static let primary = SwiftUI.Color("Primary")
+        static let success = SwiftUI.Color("Success")
+        static let info = SwiftUI.Color("Info")
+        static let warning = SwiftUI.Color("Warning")
+        static let danger = SwiftUI.Color("Danger")
+
+        // Keep for backwards compatibility during transition
+        static let error = danger
         static let outline = SwiftUI.Color.secondary
 
         static func forCategory(_ category: PriceCategory) -> SwiftUI.Color {
             switch category {
             case .low: return success
             case .medium: return warning
-            case .high: return error
+            case .high: return danger
             }
         }
 
@@ -73,7 +79,7 @@ enum DS {
             } else if normalized <= 0.66 {
                 return warning
             } else {
-                return error
+                return danger
             }
         }
     }

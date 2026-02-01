@@ -1,16 +1,25 @@
 {
   "fill" : {
-    "solid" : "display-p3:0.00000,0.00000,0.00000,1.00000"
+    "solid" : "display-p3:0.09056,0.10186,0.07822,1.00000"
   },
   "groups" : [
     {
       "layers" : [
         {
-          "image-name" : "bol 3.svg",
-          "name" : "bol 3"
+          "fill" : {
+            "solid" : "display-p3:0.73443,0.80811,0.78899,1.00000"
+          },
+          "image-name" : "bolt 5.svg",
+          "name" : "bolt 5",
+          "position" : {
+            "scale" : 1,
+            "translation-in-points" : [
+              -6.3125,
+              6.5234375
+            ]
+          }
         }
       ],
-      "name" : "Group",
       "shadow" : {
         "kind" : "neutral",
         "opacity" : 0.5

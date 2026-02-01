@@ -64,7 +64,7 @@ struct MenuBarSummaryView: View {
     private var contentView: some View {
         switch viewModel.state {
         case .idle:
-            Text("Väntar på uppdatering")
+            Text("Hämta data för att kunna visa analys")
                 .font(DS.Font.medium(11))
                 .foregroundStyle(.secondary)
 
@@ -131,7 +131,7 @@ struct MenuBarSummaryView: View {
     private func priceChangeBadge(change: Double, previousMonth: String) -> some View {
         let isHigher = change >= 0
         let arrow = isHigher ? "arrow.up" : "arrow.down"
-        let color: Color = isHigher ? DS.Color.error : DS.Color.success
+        let color: Color = isHigher ? DS.Color.danger : DS.Color.success
         let changeText = String(format: "%.0f", abs(change))
         let comparisonText = isHigher ? "dyrare" : "billigare"
 
