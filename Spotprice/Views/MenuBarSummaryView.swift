@@ -46,12 +46,8 @@ struct MenuBarSummaryView: View {
                     }
                 }
                 .frame(width: DS.Size.statCardIconSize, height: DS.Size.statCardIconSize)
-                .background {
-                    Circle()
-                        .fill(.regularMaterial)
-     
-                }
-                .foregroundStyle(.white)
+                .glassEffect(.regular, in: Circle())
+                .foregroundStyle(.primary)
             }
             .buttonStyle(.plain)
             .disabled(spotPriceViewModel.state == .loading || viewModel.state.isLoading)

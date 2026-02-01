@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>ATSApplicationFontsPath</key>
-	<string>Fonts</string>
+	<string>.</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>osans-regular.otf</string>

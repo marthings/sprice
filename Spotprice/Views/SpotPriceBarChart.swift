@@ -150,7 +150,7 @@ struct SpotPriceBarChart: View {
             if configuration.showXAxisLabels {
                 AxisMarks(values: .stride(by: .hour, count: 6)) { value in
                     AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
-                        .foregroundStyle(.quaternary)
+                        .foregroundStyle(.tertiary)
                     AxisTick(stroke: StrokeStyle(lineWidth: 0.5))
                         .foregroundStyle(.secondary)
                     if let date = value.as(Date.self) {
@@ -167,7 +167,7 @@ struct SpotPriceBarChart: View {
             if configuration.showYAxisLabels {
                 AxisMarks(position: .leading) { value in
                     AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
-                        .foregroundStyle(.quaternary)
+                        .foregroundStyle(.tertiary)
                     AxisTick(stroke: StrokeStyle(lineWidth: 0.5))
                         .foregroundStyle(.secondary)
                     AxisValueLabel {
