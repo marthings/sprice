@@ -22,7 +22,7 @@ struct MenuBarSummaryView: View {
 
     private var headerView: some View {
         HStack(spacing: DS.Spacing.sm) {
-            Text("Marknadsläge")
+            Text("Prisanalys")
                 .font(DS.Font.semibold(14))
                 .foregroundStyle(.primary)
 
@@ -68,11 +68,14 @@ struct MenuBarSummaryView: View {
                 .font(DS.Font.medium(11))
                 .foregroundStyle(.secondary)
 
-        case .loadingURL, .fetchingReport, .summarizing:
+        case .loadingConsumption, .analyzing:
             loadingView
 
-        case .loaded(let summary, let url, let isPreviousMonth):
-            loadedView(summary: summary, url: url, isPreviousMonth: isPreviousMonth)
+        case .loaded(let summary, let priceChange, _, let previousMonth):
+            loadedView(summary: summary, priceChange: priceChange, previousMonth: previousMonth)
+
+        case .noConsumptionConfigured:
+            noConfigView
 
         case .failed:
             failedView
@@ -109,44 +112,54 @@ struct MenuBarSummaryView: View {
         }
     }
 
-    private func loadedView(summary: String, url: URL, isPreviousMonth: Bool) -> some View {
+    private func loadedView(summary: String, priceChange: Double?, previousMonth: String?) -> some View {
         VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-            HStack(spacing: DS.Spacing.xs) {
-                Image(systemName: isPreviousMonth ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
-                    .font(DS.Font.micro)
-                    .foregroundStyle(isPreviousMonth ? DS.Color.warning : DS.Color.success)
-
-                Text(isPreviousMonth ? "Föreg. månad" : "Uppdaterad")
-                    .font(DS.Font.micro)
-                    .foregroundStyle(.secondary)
-
-                Spacer()
+            // Price change badge
+            if let change = priceChange, let prevMonth = previousMonth {
+                priceChangeBadge(change: change, previousMonth: prevMonth)
             }
 
+            // AI analysis text
             Text(summary)
                 .font(DS.Font.medium(11))
-                .lineLimit(3)
+                .lineLimit(5)
                 .fixedSize(horizontal: false, vertical: true)
                 .foregroundStyle(.primary)
+        }
+    }
 
-            Link(destination: url) {
-                HStack(spacing: DS.Spacing.xs) {
-                    Text("Läs hela rapporten")
-                        .font(DS.Font.semibold(10))
+    private func priceChangeBadge(change: Double, previousMonth: String) -> some View {
+        let isHigher = change >= 0
+        let arrow = isHigher ? "arrow.up" : "arrow.down"
+        let color: Color = isHigher ? DS.Color.error : DS.Color.success
+        let changeText = String(format: "%.0f", abs(change))
+        let comparisonText = isHigher ? "dyrare" : "billigare"
 
-                    Image(systemName: "arrow.up.right")
-                        .font(DS.Font.regular(9))
-                }
-                .foregroundStyle(.blue)
-                .padding(.horizontal, DS.Spacing.xs)
-                .padding(.vertical, DS.Spacing.xxs + 1)
-                .background {
-                    Capsule()
-                        .fill(.ultraThinMaterial)
-                        .overlay(Capsule().fill(.blue.opacity(0.1)))
-                }
-            }
-            .buttonStyle(.plain)
+        return HStack(spacing: DS.Spacing.xs) {
+            Image(systemName: arrow)
+                .font(DS.Font.semibold(10))
+
+            Text("\(changeText)% \(comparisonText) vs \(previousMonth)")
+                .font(DS.Font.semibold(11))
+        }
+        .foregroundStyle(color)
+        .padding(.horizontal, DS.Spacing.sm)
+        .padding(.vertical, DS.Spacing.xs)
+        .background {
+            Capsule()
+                .fill(color.opacity(0.15))
+        }
+    }
+
+    private var noConfigView: some View {
+        HStack(spacing: DS.Spacing.sm) {
+            Image(systemName: "bolt.slash")
+                .font(DS.Font.caption)
+                .foregroundStyle(.secondary)
+
+            Text("Konfigurera förbrukning i inställningar")
+                .font(DS.Font.medium(11))
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -156,7 +169,7 @@ struct MenuBarSummaryView: View {
                 .font(DS.Font.caption)
                 .foregroundStyle(DS.Color.warning)
 
-            Text("Kunde inte hämta marknadsöversikten")
+            Text("Kunde inte hämta prisanalys")
                 .font(DS.Font.medium(11))
                 .foregroundStyle(.secondary)
         }
@@ -166,18 +179,16 @@ struct MenuBarSummaryView: View {
 
     private var progressValue: Double {
         switch viewModel.state {
-        case .loadingURL: return 0.3
-        case .fetchingReport: return 0.6
-        case .summarizing: return 0.9
+        case .loadingConsumption: return 0.4
+        case .analyzing: return 0.8
         default: return 0.0
         }
     }
 
     private func loadingText(for state: SummaryViewModel.State) -> String {
         switch state {
-        case .loadingURL: return "Förbereder månadsdata..."
-        case .fetchingReport: return "Hämtar marknadsrapport..."
-        case .summarizing: return "Analyserar med AI..."
+        case .loadingConsumption: return "Hämtar förbrukningsdata..."
+        case .analyzing: return "Analyserar med AI..."
         default: return "Laddar..."
         }
     }

@@ -31,7 +31,7 @@ extension SpotPriceViewModel.State {
 extension SummaryViewModel.State {
     var isLoading: Bool {
         switch self {
-        case .loadingURL, .fetchingReport, .summarizing:
+        case .loadingConsumption, .analyzing:
             return true
         default:
             return false

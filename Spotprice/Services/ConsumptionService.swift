@@ -49,6 +49,94 @@ final class ConsumptionService {
         return try await fetchDailyConsumption(year: year, month: month)
     }
 
+    /// Fetches consumption comparison between current and previous month
+    func fetchMonthlyComparison(spotPriceService: SpotPriceService) async throws -> MonthlyComparison {
+        guard settings.isConfigured else {
+            throw ConsumptionError.missingCredentials
+        }
+
+        let now = Date()
+        let calendar = Calendar.current
+        let currentYear = calendar.component(.year, from: now)
+        let currentMonth = calendar.component(.month, from: now)
+
+        // Calculate previous month
+        let previousMonthDate = calendar.date(byAdding: .month, value: -1, to: now)!
+        let previousYear = calendar.component(.year, from: previousMonthDate)
+        let previousMonth = calendar.component(.month, from: previousMonthDate)
+
+        // Fetch current month consumption
+        let currentConsumption = try await fetchConsumption(year: currentYear, month: currentMonth)
+
+        // Fetch previous month consumption (may fail if no data)
+        var previousConsumption: ConsumptionData?
+        do {
+            previousConsumption = try await fetchConsumption(year: previousYear, month: previousMonth)
+        } catch {
+            logger.info("No previous month consumption data available: \(error.localizedDescription)")
+        }
+
+        // Get average prices for both months
+        let currentAvgPrice = try await fetchAveragePrice(for: currentYear, month: currentMonth, spotPriceService: spotPriceService)
+        var previousAvgPrice: Double?
+        if previousConsumption != nil {
+            do {
+                previousAvgPrice = try await fetchAveragePrice(for: previousYear, month: previousMonth, spotPriceService: spotPriceService)
+            } catch {
+                logger.info("Could not fetch previous month average price: \(error.localizedDescription)")
+            }
+        }
+
+        return MonthlyComparison(
+            current: currentConsumption,
+            previous: previousConsumption,
+            currentAvgPrice: currentAvgPrice,
+            previousAvgPrice: previousAvgPrice
+        )
+    }
+
+    /// Fetches average spot price for a given month (öre/kWh)
+    private func fetchAveragePrice(for year: Int, month: Int, spotPriceService: SpotPriceService) async throws -> Double {
+        let calendar = Calendar.current
+
+        // Get all days in the month up to today (or entire month if past)
+        let monthStart = calendar.date(from: DateComponents(year: year, month: month, day: 1))!
+        let now = Date()
+
+        // Determine end date: either end of month or today
+        var endDate: Date
+        let isCurrentMonth = calendar.component(.year, from: now) == year && calendar.component(.month, from: now) == month
+        if isCurrentMonth {
+            endDate = now
+        } else {
+            // Get last day of month
+            let nextMonth = calendar.date(byAdding: .month, value: 1, to: monthStart)!
+            endDate = calendar.date(byAdding: .day, value: -1, to: nextMonth)!
+        }
+
+        // For simplicity, sample a few days to get average
+        var allPrices: [Double] = []
+        var currentDate = monthStart
+
+        // Sample every 3rd day for efficiency
+        while currentDate <= endDate {
+            do {
+                let items = try await spotPriceService.fetchSpotPrices(for: currentDate)
+                let dayPrices = items.map { $0.sekPerKWh * 100.0 } // Convert to öre
+                allPrices.append(contentsOf: dayPrices)
+            } catch {
+                logger.debug("Could not fetch prices for \(currentDate): \(error.localizedDescription)")
+            }
+            currentDate = calendar.date(byAdding: .day, value: 3, to: currentDate)!
+        }
+
+        guard !allPrices.isEmpty else {
+            throw ConsumptionError.notFound
+        }
+
+        return allPrices.reduce(0, +) / Double(allPrices.count)
+    }
+
     /// Fetches daily consumption data for a specific month
     func fetchDailyConsumption(year: Int, month: Int) async throws -> [DailyConsumption] {
         let url = try buildDailyConsumptionURL(year: year, month: month)
@@ -283,6 +371,37 @@ struct DailyConsumption: Identifiable {
         formatter.locale = Locale(identifier: "sv_SE")
         formatter.dateFormat = "d MMM"
         return formatter.string(from: date)
+    }
+}
+
+/// Comparison data for current and previous month
+struct MonthlyComparison {
+    let current: ConsumptionData
+    let previous: ConsumptionData?
+    let currentAvgPrice: Double  // öre/kWh
+    let previousAvgPrice: Double?
+
+    /// Price change percentage (positive = more expensive, negative = cheaper)
+    var priceChangePercent: Double? {
+        guard let prevPrice = previousAvgPrice, prevPrice > 0 else { return nil }
+        return ((currentAvgPrice - prevPrice) / prevPrice) * 100
+    }
+
+    /// Current month name (e.g., "februari")
+    var currentMonthName: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "sv_SE")
+        formatter.dateFormat = "MMMM"
+        return formatter.string(from: current.monthDate)
+    }
+
+    /// Previous month name (e.g., "januari")
+    var previousMonthName: String? {
+        guard let prev = previous else { return nil }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "sv_SE")
+        formatter.dateFormat = "MMMM"
+        return formatter.string(from: prev.monthDate)
     }
 }
 
