@@ -15,7 +15,7 @@ struct SpotPriceEntry: TimelineEntry {
     let currentPrice: Int?
     let priceCategory: PriceCategory?
     let dayData: DayChartData?
-    let currentHour: Int
+    let currentBucketIndex: Int
     let monthlyKWh: Double
     let monthlyCostKr: Double
     let monthDate: Date
@@ -34,7 +34,7 @@ struct SpotPriceEntry: TimelineEntry {
             currentPrice: 42,
             priceCategory: .medium,
             dayData: nil,
-            currentHour: 12,
+            currentBucketIndex: 48,  // Noon = 12 * 4
             monthlyKWh: 873,
             monthlyCostKr: 829,
             monthDate: Date()
@@ -42,15 +42,19 @@ struct SpotPriceEntry: TimelineEntry {
     }
 
     static var error: SpotPriceEntry {
-        SpotPriceEntry(
-            date: Date(),
+        let now = Date()
+        let hour = Calendar.current.component(.hour, from: now)
+        let minute = Calendar.current.component(.minute, from: now)
+        let bucketIndex = hour * 4 + minute / 15
+        return SpotPriceEntry(
+            date: now,
             currentPrice: nil,
             priceCategory: nil,
             dayData: nil,
-            currentHour: Calendar.current.component(.hour, from: Date()),
+            currentBucketIndex: bucketIndex,
             monthlyKWh: 0,
             monthlyCostKr: 0,
-            monthDate: Date()
+            monthDate: now
         )
     }
 }
@@ -81,8 +85,11 @@ struct SpotPriceProvider: TimelineProvider {
         Task {
             let entry = await fetchCurrentPrice()
 
-            let nextHour = Calendar.current.date(byAdding: .hour, value: 1, to: Date())!
-            let nextUpdate = Calendar.current.startOfHour(for: nextHour)
+            // Update every 15 minutes (quarter hour)
+            let now = Date()
+            let minute = Calendar.current.component(.minute, from: now)
+            let minutesToNextQuarter = 15 - (minute % 15)
+            let nextUpdate = Calendar.current.date(byAdding: .minute, value: minutesToNextQuarter, to: now)!
 
             let timeline = Timeline(entries: [entry], policy: .after(nextUpdate))
             completion(timeline)
@@ -104,7 +111,10 @@ struct SpotPriceProvider: TimelineProvider {
             let avgPrice = dayData.buckets.map { $0.orePerKWh }.reduce(0, +) / Double(dayData.buckets.count)
             let monthlyCostKr = (monthlyKWh * avgPrice) / 100.0
 
-            let currentHour = Calendar.current.component(.hour, from: now)
+            // Calculate bucket index (0-95 for 15-minute intervals)
+            let hour = Calendar.current.component(.hour, from: now)
+            let minute = Calendar.current.component(.minute, from: now)
+            let currentBucketIndex = hour * 4 + minute / 15
 
             if let currentBucket = dayData.buckets.first(where: { $0.start <= now && $0.end > now }) {
                 return SpotPriceEntry(
@@ -112,7 +122,7 @@ struct SpotPriceProvider: TimelineProvider {
                     currentPrice: Int(currentBucket.orePerKWh.rounded()),
                     priceCategory: currentBucket.category,
                     dayData: dayData,
-                    currentHour: currentHour,
+                    currentBucketIndex: currentBucketIndex,
                     monthlyKWh: monthlyKWh,
                     monthlyCostKr: monthlyCostKr,
                     monthDate: monthDate
@@ -139,7 +149,7 @@ extension Calendar {
 
 struct MiniPriceChart: View {
     let dayData: DayChartData
-    let currentHour: Int
+    let currentBucketIndex: Int
     @Environment(\.widgetRenderingMode) var renderingMode
 
     var body: some View {
@@ -163,7 +173,7 @@ struct MiniPriceChart: View {
                             style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
 
                 // Current time indicator
-                if currentHour >= 0 && currentHour < 24 && prices.count > currentHour {
+                if currentBucketIndex >= 0 && currentBucketIndex < prices.count {
                     currentTimeIndicator(prices: prices, width: width, height: height,
                                         minPrice: minPrice, maxPrice: maxPrice, safeRange: safeRange)
                 }
@@ -244,8 +254,8 @@ struct MiniPriceChart: View {
     private func currentTimeIndicator(prices: [Double], width: CGFloat, height: CGFloat,
                                       minPrice: Double, maxPrice: Double, safeRange: Double) -> some View {
         let stepX = width / CGFloat(max(prices.count - 1, 1))
-        let x = CGFloat(currentHour) * stepX
-        let price = prices[currentHour]
+        let x = CGFloat(currentBucketIndex) * stepX
+        let price = prices[currentBucketIndex]
         let normalizedY = (price - minPrice) / safeRange
         let y = height - (normalizedY * height * 0.85) - (height * 0.075)
 
@@ -291,18 +301,18 @@ struct SpotpriceWidgetEntryView: View {
     var entry: SpotPriceEntry
     @Environment(\.widgetRenderingMode) var renderingMode
 
-    /// Color based on actual price at currentHour in the chart data
+    /// Color based on actual price at current bucket in the chart data
     private var currentPriceColor: Color {
         guard let dayData = entry.dayData else {
             return DS.Color.warning
         }
-        // Use the actual price from the bucket at currentHour to match the chart
+        // Use the actual price from the current bucket to match the chart
         let prices = dayData.buckets.map { $0.orePerKWh }
-        guard entry.currentHour >= 0 && entry.currentHour < prices.count else {
+        guard entry.currentBucketIndex >= 0 && entry.currentBucketIndex < prices.count else {
             return DS.Color.warning
         }
-        let priceAtCurrentHour = prices[entry.currentHour]
-        return DS.Color.forPrice(priceAtCurrentHour, min: dayData.minOre, max: dayData.maxOre)
+        let priceAtCurrentBucket = prices[entry.currentBucketIndex]
+        return DS.Color.forPrice(priceAtCurrentBucket, min: dayData.minOre, max: dayData.maxOre)
     }
 
     var body: some View {
@@ -340,7 +350,7 @@ struct SpotpriceWidgetEntryView: View {
 
                 // Chart
                 if let dayData = entry.dayData {
-                    MiniPriceChart(dayData: dayData, currentHour: entry.currentHour)
+                    MiniPriceChart(dayData: dayData, currentBucketIndex: entry.currentBucketIndex)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     Spacer()

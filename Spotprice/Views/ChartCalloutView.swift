@@ -64,6 +64,6 @@ struct ChartCalloutView: View {
     }
 
     private func timeLabel(_ date: Date) -> String {
-        date.formatted(.dateTime.hour(.defaultDigits(amPM: .omitted)))
+        date.formatted(.dateTime.hour(.defaultDigits(amPM: .omitted)).minute(.twoDigits))
     }
 }

@@ -26,9 +26,9 @@ struct SpotPriceBarChart: View {
         let currentBucket = dayData.buckets.first { $0.start <= now && $0.end > now }
         let currentPrice = currentBucket?.orePerKWh
 
-        // Find next hour's bucket
-        let nextHour = Calendar.current.date(byAdding: .hour, value: 1, to: now) ?? now
-        let nextBucket = dayData.buckets.first { $0.start <= nextHour && $0.end > nextHour }
+        // Find next quarter's bucket (15 minutes)
+        let currentBucketEnd = currentBucket?.end ?? now
+        let nextBucket = dayData.buckets.first { $0.start >= currentBucketEnd }
         let nextPrice = nextBucket?.orePerKWh
 
         return HStack(spacing: DS.Spacing.md) {
