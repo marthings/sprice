@@ -15,29 +15,29 @@ enum DS {
 
     enum Font {
         static func regular(_ size: CGFloat) -> SwiftUI.Font {
-            .custom("Avenir", size: size)
+            .custom("DIN Alternate", size: size)
         }
 
         static func medium(_ size: CGFloat) -> SwiftUI.Font {
-            .custom("Avenir", size: size).weight(.medium)
+            .custom("DIN Alternate", size: size).weight(.medium)
         }
 
         static func semibold(_ size: CGFloat) -> SwiftUI.Font {
-            .custom("Avenir", size: size).weight(.semibold)
+            .custom("DIN Alternate", size: size).weight(.semibold)
         }
 
         static func bold(_ size: CGFloat) -> SwiftUI.Font {
-            .custom("Avenir", size: size).weight(.bold)
+            .custom("DIN Alternate", size: size).weight(.bold)
         }
 
         // Preset sizes
         static let largeTitle = bold(32)
         static let title = bold(20)
-        static let headline = semibold(16)
-        static let body = regular(14)
-        static let callout = medium(13)
-        static let caption = medium(11)
-        static let micro = medium(10)
+        static let headline = semibold(17)
+        static let body = regular(15)
+        static let callout = medium(14)
+        static let caption = medium(12)
+        static let micro = medium(11)
     }
 
     // MARK: - Semantic Colors

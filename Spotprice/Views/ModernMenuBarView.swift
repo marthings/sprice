@@ -16,15 +16,14 @@ struct ModernMenuBarView: View {
 
             ScrollView {
                 VStack(spacing: DS.Spacing.lg) {
-
-                    monthlyStatsSection
                     
+                    chartSection
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: DS.Radius.md))
                     MenuBarSummaryView(viewModel: summaryViewModel, spotPriceViewModel: viewModel)
                         .background(.ultraThinMaterial)
                         .cornerRadius(DS.Radius.lg)
 
-                    chartSection
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: DS.Radius.md))
+                    monthlyStatsSection
 
                     quickStats
                 }
@@ -51,7 +50,7 @@ struct ModernMenuBarView: View {
                             .foregroundStyle(.primary)
                     }
 
-                Text("Spotpris")
+                Text("Sprice")
                     .font(DS.Font.headline)
                     .foregroundStyle(.primary)
             }
@@ -340,10 +339,10 @@ struct ConsumptionStatCard: View {
                 .foregroundStyle(color.gradient)
                 .frame(width: DS.Size.headerIconSize)
 
-            VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
+            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                 Text(title)
                     .font(DS.Font.micro)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.primary)
                     .lineLimit(1)
 
                 HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
@@ -393,10 +392,10 @@ struct TopConsumptionDaysCard: View {
             HStack(spacing: DS.Spacing.xs) {
                 Image(systemName: "chart.bar.fill")
                     .font(.system(size: DS.Size.iconSmall))
-                    .foregroundStyle(.orange.gradient)
+                    .foregroundStyle(.secondary)
                 Text("Effekttoppar denna månad")
                     .font(DS.Font.micro)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.primary)
             }
 
             if hasData {
@@ -431,9 +430,6 @@ struct TopConsumptionDaysCard: View {
                 HStack {
                     Spacer()
                     VStack(spacing: DS.Spacing.xs) {
-                        Image(systemName: "clock")
-                            .font(.system(size: DS.Size.iconMedium))
-                            .foregroundStyle(.secondary.opacity(0.6))
                         Text("Väntar på data")
                             .font(DS.Font.caption)
                             .foregroundStyle(.secondary)

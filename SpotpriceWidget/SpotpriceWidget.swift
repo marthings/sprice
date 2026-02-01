@@ -16,8 +16,17 @@ struct SpotPriceEntry: TimelineEntry {
     let priceCategory: PriceCategory?
     let dayData: DayChartData?
     let currentHour: Int
-    let monthlyKWh: Double?
-    let monthlyCostKr: Double?
+    let monthlyKWh: Double
+    let monthlyCostKr: Double
+    let monthDate: Date
+
+    /// Compact month label (e.g., "feb")
+    var monthLabel: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "sv_SE")
+        formatter.dateFormat = "MMM"
+        return formatter.string(from: monthDate)
+    }
 
     static var placeholder: SpotPriceEntry {
         SpotPriceEntry(
@@ -27,7 +36,8 @@ struct SpotPriceEntry: TimelineEntry {
             dayData: nil,
             currentHour: 12,
             monthlyKWh: 873,
-            monthlyCostKr: 829
+            monthlyCostKr: 829,
+            monthDate: Date()
         )
     }
 
@@ -38,8 +48,9 @@ struct SpotPriceEntry: TimelineEntry {
             priceCategory: nil,
             dayData: nil,
             currentHour: Calendar.current.component(.hour, from: Date()),
-            monthlyKWh: nil,
-            monthlyCostKr: nil
+            monthlyKWh: 0,
+            monthlyCostKr: 0,
+            monthDate: Date()
         )
     }
 }
@@ -80,17 +91,19 @@ struct SpotPriceProvider: TimelineProvider {
 
     private func fetchCurrentPrice() async -> SpotPriceEntry {
         do {
-            let items = try await service.fetchSpotPrices(for: Date())
-            let dayData = try service.makeDayChartData(from: items, for: Date())
+            let now = Date()
+            let items = try await service.fetchSpotPrices(for: now)
+            let dayData = try service.makeDayChartData(from: items, for: now)
 
             // Fetch consumption (don't fail if this errors)
-            let monthlyKWh: Double? = try? await consumptionService.fetchCurrentMonthConsumption().totalKWh
+            let consumption = try? await consumptionService.fetchCurrentMonthConsumption()
+            let monthlyKWh = consumption?.totalKWh ?? 0
+            let monthDate = consumption?.monthDate ?? now
 
             // Calculate estimated cost using average price
             let avgPrice = dayData.buckets.map { $0.orePerKWh }.reduce(0, +) / Double(dayData.buckets.count)
-            let monthlyCostKr: Double? = monthlyKWh.map { ($0 * avgPrice) / 100.0 }
+            let monthlyCostKr = (monthlyKWh * avgPrice) / 100.0
 
-            let now = Date()
             let currentHour = Calendar.current.component(.hour, from: now)
 
             if let currentBucket = dayData.buckets.first(where: { $0.start <= now && $0.end > now }) {
@@ -101,7 +114,8 @@ struct SpotPriceProvider: TimelineProvider {
                     dayData: dayData,
                     currentHour: currentHour,
                     monthlyKWh: monthlyKWh,
-                    monthlyCostKr: monthlyCostKr
+                    monthlyCostKr: monthlyCostKr,
+                    monthDate: monthDate
                 )
             }
 
@@ -293,50 +307,34 @@ struct SpotpriceWidgetEntryView: View {
 
     var body: some View {
         if let price = entry.currentPrice, let _ = entry.priceCategory {
-            VStack(spacing: 0) {
-                // Header with price
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
-                        Text("Nu")
-                            .font(DS.Font.micro)
-                            .foregroundStyle(.secondary)
-
-                        // Price display - color matches chart position
-                        priceView(price: price)
-                    }
-                    .widgetAccentable()
+            VStack(alignment: .leading, spacing: 0) {
+                
+                HStack(alignment: .center) {
+                    priceView(price: price)
 
                     Spacer()
 
-                    // Monthly stats or bolt icon
-                    if let kWh = entry.monthlyKWh {
-                        VStack(alignment: .trailing, spacing: DS.Spacing.xxs) {
-                            HStack(spacing: DS.Spacing.xxs) {
-                                Text("\(Int(kWh.rounded()))")
-                                    .font(DS.Font.semibold(11).monospacedDigit())
-                                Text("kWh")
-                                    .font(DS.Font.micro)
-                            }
-                            .foregroundStyle(.secondary)
+                    // Monthly stats with month label
+                    VStack(alignment: .trailing, spacing: DS.Spacing.xxs) {
+                        
 
-                            if let cost = entry.monthlyCostKr {
-                                HStack(spacing: DS.Spacing.xxs) {
-                                    Text("\(Int(cost.rounded()))")
-                                        .font(DS.Font.semibold(11).monospacedDigit())
-                                    Text("kr")
-                                        .font(DS.Font.micro)
-                                }
-                                .foregroundStyle(.secondary)
-                            }
+                        HStack(spacing: DS.Spacing.xxs) {
+                            Text("\(Int(entry.monthlyKWh.rounded()))")
+                                .font(DS.Font.semibold(11).monospacedDigit())
+                            Text("kWh")
+                                .font(DS.Font.micro)
                         }
-                        .widgetAccentable()
-                    } else {
-                        // Icon - color matches current price
-                        Image(systemName: "bolt.fill")
-                            .font(.system(size: DS.Size.iconSmall + 2, weight: .semibold))
-                            .foregroundStyle(renderingMode == .accented ? .primary : currentPriceColor)
-                            .widgetAccentable()
+                        .foregroundStyle(.secondary)
+
+                        HStack(spacing: DS.Spacing.xxs) {
+                            Text("\(Int(entry.monthlyCostKr.rounded()))")
+                                .font(DS.Font.semibold(11).monospacedDigit())
+                            Text("kr")
+                                .font(DS.Font.micro)
+                        }
+                        .foregroundStyle(.secondary)
                     }
+                    .widgetAccentable()
                 }
                 .padding(.bottom, DS.Spacing.sm)
 
@@ -357,7 +355,7 @@ struct SpotpriceWidgetEntryView: View {
                     Text("24")
                 }
                 .font(DS.Font.micro)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.tertiary)
                 .padding(.top, DS.Spacing.xs)
             }
             .padding(DS.Spacing.md)
@@ -370,7 +368,7 @@ struct SpotpriceWidgetEntryView: View {
     private func priceView(price: Int) -> some View {
         HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
             Text("\(price)")
-                .font(DS.Font.bold(16))
+                .font(DS.Font.bold(28))
                 .monospacedDigit()
                 .foregroundStyle(renderingMode == .accented ? .primary : currentPriceColor)
             Text("öre")
