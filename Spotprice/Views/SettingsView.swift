@@ -86,10 +86,18 @@ struct SettingsView: View {
 
             // Footer
             HStack {
-                Button("Återställ") {
+                Button {
                     settings.reset()
+                } label: {
+                    Text("Återställ")
+                        .padding(.horizontal, DS.Spacing.md)
+                        .padding(.vertical, DS.Spacing.sm)
+                        .background(DS.Color.danger)
+                        .cornerRadius(DS.Radius.md)
+                        .font(DS.Font.medium(12))
+                        .foregroundStyle(.white)
                 }
-                .buttonStyle(.glass)
+                .buttonStyle(.plain)
 
                 Spacer()
 
@@ -108,7 +116,7 @@ struct SettingsView: View {
                         .foregroundStyle(DS.Color.warning)
                 }
 
-                Button("Spara") {
+                Button {
                     NotificationCenter.default.post(name: .consumptionSettingsDidSave, object: nil)
                     withAnimation {
                         showSavedFeedback = true
@@ -118,8 +126,16 @@ struct SettingsView: View {
                             showSavedFeedback = false
                         }
                     }
+                } label: {
+                    Text("Spara")
+                        .padding(.horizontal, DS.Spacing.md)
+                        .padding(.vertical, DS.Spacing.sm)
+                        .background(DS.Color.primary)
+                        .cornerRadius(DS.Radius.md)
+                        .font(DS.Font.medium(12))
+                        .foregroundStyle(.white)
                 }
-                .buttonStyle(.glassProminent)
+                .buttonStyle(.plain)
                 .disabled(!settings.isConfigured)
             }
         }
