@@ -13,6 +13,33 @@ enum PriceCategory: String, Equatable, CaseIterable, Sendable {
     case low
     case medium
     case high
+
+    /// Swedish label for accessibility
+    var label: String {
+        switch self {
+        case .low: return "Lågt"
+        case .medium: return "Medel"
+        case .high: return "Högt"
+        }
+    }
+
+    /// SF Symbol that works for colorblind users
+    var accessibilityIcon: String {
+        switch self {
+        case .low: return "checkmark.circle.fill"
+        case .medium: return "minus.circle.fill"
+        case .high: return "exclamationmark.circle.fill"
+        }
+    }
+
+    /// Compact icon for tight spaces
+    var compactIcon: String {
+        switch self {
+        case .low: return "arrow.down"
+        case .medium: return "minus"
+        case .high: return "arrow.up"
+        }
+    }
 }
 
 // MARK: - Thresholds

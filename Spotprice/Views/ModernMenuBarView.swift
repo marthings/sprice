@@ -19,13 +19,11 @@ struct ModernMenuBarView: View {
                     Text("Spotpriset").font(DS.Font.semibold(14))
                     chartSection
                         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: DS.Radius.md))
+                    quickStats
+                    monthlyStatsSection
                     MenuBarSummaryView(viewModel: summaryViewModel, spotPriceViewModel: viewModel)
                         .background(.ultraThinMaterial)
                         .cornerRadius(DS.Radius.lg)
-
-                    monthlyStatsSection
-
-                    quickStats
                 }
                 .padding(.horizontal, DS.Spacing.lg)
                 .padding(.vertical, DS.Spacing.md)

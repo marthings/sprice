@@ -13,12 +13,16 @@ struct PriceChangeIndicator: View {
         if let current, let next {
             let change = next - current
             let isIncrease = change > 0
-            let icon = isIncrease ? "arrow.up" : change < 0 ? "arrow.down" : "minus"
-            let color: Color = isIncrease ? .red : change < 0 ? .green : .secondary
+            let isDecrease = change < 0
+
+            // Use semantic icons and colors for accessibility
+            let icon = isIncrease ? "arrow.up.right" : isDecrease ? "arrow.down.right" : "arrow.right"
+            let color: Color = isIncrease ? DS.Color.danger : isDecrease ? DS.Color.success : .secondary
 
             Image(systemName: icon)
-                .font(.caption2.weight(.semibold))
+                .font(.system(size: 10, weight: .bold))
                 .foregroundStyle(color)
+                .accessibilityLabel(isIncrease ? "Ökar" : isDecrease ? "Minskar" : "Stabilt")
         }
     }
 }

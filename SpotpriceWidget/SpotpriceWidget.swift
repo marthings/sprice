@@ -319,34 +319,8 @@ struct SpotpriceWidgetEntryView: View {
         if let price = entry.currentPrice, let _ = entry.priceCategory {
             VStack(alignment: .leading, spacing: 0) {
                 
-                HStack(alignment: .center) {
-                    priceView(price: price)
-
-                    Spacer()
-
-                    // Monthly stats with month label
-                    VStack(alignment: .trailing, spacing: DS.Spacing.xxs) {
-                        
-
-                        HStack(spacing: DS.Spacing.xxs) {
-                            Text("\(Int(entry.monthlyKWh.rounded()))")
-                                .font(DS.Font.semibold(11).monospacedDigit())
-                            Text("kWh")
-                                .font(DS.Font.micro)
-                        }
-                        .foregroundStyle(.secondary)
-
-                        HStack(spacing: DS.Spacing.xxs) {
-                            Text("\(Int(entry.monthlyCostKr.rounded()))")
-                                .font(DS.Font.semibold(11).monospacedDigit())
-                            Text("kr")
-                                .font(DS.Font.micro)
-                        }
-                        .foregroundStyle(.secondary)
-                    }
-                    .widgetAccentable()
-                }
-                .padding(.bottom, DS.Spacing.sm)
+                priceView(price: price)
+                    .padding(.bottom, DS.Spacing.sm)
 
                 // Chart
                 if let dayData = entry.dayData {
@@ -356,17 +330,27 @@ struct SpotpriceWidgetEntryView: View {
                     Spacer()
                 }
 
-                // Footer with time range
-                HStack {
-                    Text("00")
-                    Spacer()
-                    Text("12")
-                    Spacer()
-                    Text("24")
+                // Monthly stats with month label
+                HStack(alignment: .top, spacing: DS.Spacing.xxs) {
+                    
+
+                    HStack(spacing: DS.Spacing.xxs) {
+                        Text("\(Int(entry.monthlyKWh.rounded()))")
+                            .font(DS.Font.semibold(10).monospacedDigit())
+                        Text("kWh")
+                            .font(DS.Font.micro)
+                    }
+                    .foregroundStyle(.secondary)
+
+                    HStack(spacing: DS.Spacing.xxs) {
+                        Text("\(Int(entry.monthlyCostKr.rounded()))")
+                            .font(DS.Font.semibold(10).monospacedDigit())
+                        Text("kr")
+                            .font(DS.Font.micro)
+                    }
+                    .foregroundStyle(.secondary)
                 }
-                .font(DS.Font.micro)
-                .foregroundStyle(.tertiary)
-                .padding(.top, DS.Spacing.xs)
+                .widgetAccentable()
             }
             .padding(DS.Spacing.md)
         } else {
@@ -374,16 +358,36 @@ struct SpotpriceWidgetEntryView: View {
         }
     }
 
+    /// Get price category for accessibility
+    private var currentPriceCategory: PriceCategory? {
+        guard let dayData = entry.dayData else { return entry.priceCategory }
+        let prices = dayData.buckets.map { $0.orePerKWh }
+        guard entry.currentBucketIndex >= 0 && entry.currentBucketIndex < prices.count else {
+            return entry.priceCategory
+        }
+        let price = prices[entry.currentBucketIndex]
+        return DS.Color.categoryForPrice(price, min: dayData.minOre, max: dayData.maxOre)
+    }
+
     @ViewBuilder
     private func priceView(price: Int) -> some View {
-        HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
-            Text("\(price)")
-                .font(DS.Font.bold(24))
-                .monospacedDigit()
-                .foregroundStyle(renderingMode == .accented ? .primary : currentPriceColor)
-            Text("öre")
-                .font(DS.Font.micro)
-                .foregroundStyle(.secondary)
+        HStack(alignment: .center) {
+            HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
+                Text("\(price)")
+                    .font(DS.Font.bold(20))
+                    .monospacedDigit()
+                    .foregroundStyle(renderingMode == .accented ? .primary : currentPriceColor)
+                Text("öre")
+                    .font(DS.Font.micro)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            // Accessible text label for price level
+            if let category = currentPriceCategory, renderingMode != .accented {
+                Text(category.label)
+                    .font(DS.Font.semibold(9))
+                    .foregroundStyle(currentPriceColor.opacity(0.8))
+            }
         }
     }
 

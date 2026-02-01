@@ -32,20 +32,19 @@ struct SpotPriceBarChart: View {
         let nextPrice = nextBucket?.orePerKWh
 
         return HStack(spacing: DS.Spacing.md) {
-            VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
-                Text("Pris nu")
-                    .font(DS.Font.medium(12))
-                    .foregroundStyle(.secondary)
-
+            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                 if let price = currentPrice {
+                    // Price with accessible category badge
                     HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
                         Text("\(Int(price.rounded()))")
-                            .font(DS.Font.bold(20).monospacedDigit())
+                            .font(DS.Font.bold(30).monospacedDigit())
                             .foregroundStyle(priceColor(for: price))
                         Text("öre/kWh")
                             .font(DS.Font.medium(11))
                             .foregroundStyle(.secondary)
                     }
+
+                    
                 } else {
                     Text("–")
                         .font(DS.Font.bold(20))
@@ -56,17 +55,21 @@ struct SpotPriceBarChart: View {
             Spacer()
 
             VStack(alignment: .trailing, spacing: DS.Spacing.xxs) {
-                Text("Nästa")
+                Text("Nästa kvart")
                     .font(DS.Font.micro)
                     .foregroundStyle(.secondary)
 
-                if let next = nextPrice {
+                if let next = nextPrice, let current = currentPrice {
                     HStack(spacing: DS.Spacing.xs) {
-                        PriceChangeIndicator(current: currentPrice, next: next)
+                        TrendIndicator(current: current, next: next)
                         Text("\(Int(next.rounded()))")
                             .font(DS.Font.semibold(12).monospacedDigit())
                             .foregroundStyle(priceColor(for: next))
                     }
+                } else if let next = nextPrice {
+                    Text("\(Int(next.rounded()))")
+                        .font(DS.Font.semibold(12).monospacedDigit())
+                        .foregroundStyle(priceColor(for: next))
                 } else {
                     Text("–")
                         .font(DS.Font.semibold(12))

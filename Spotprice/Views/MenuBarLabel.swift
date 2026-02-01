@@ -15,14 +15,7 @@ struct MenuBarLabel: View {
                 .symbolEffect(.pulse.wholeSymbol, isActive: state == .loading)
 
             Text(state.currentPriceLabel)
-                .font(DS.Font.medium(13).monospacedDigit())
-                .foregroundStyle(state.labelColor)
 
-            if case .loaded = state {
-                Text("öre")
-                    .font(DS.Font.medium(11))
-                    .foregroundStyle(.secondary)
-            }
         }
     }
 }

@@ -69,17 +69,22 @@ enum DS {
         ///   - max: Day's maximum price
         /// - Returns: Green for low, yellow/orange for medium, red for high
         static func forPrice(_ price: Double, min: Double, max: Double) -> SwiftUI.Color {
+            forCategory(categoryForPrice(price, min: min, max: max))
+        }
+
+        /// Returns a PriceCategory based on where the price falls in the day's range
+        static func categoryForPrice(_ price: Double, min: Double, max: Double) -> PriceCategory {
             let range = max - min
-            guard range > 0 else { return warning }
+            guard range > 0 else { return .medium }
 
             let normalized = (price - min) / range
 
             if normalized <= 0.33 {
-                return success
+                return .low
             } else if normalized <= 0.66 {
-                return warning
+                return .medium
             } else {
-                return danger
+                return .high
             }
         }
     }
@@ -183,5 +188,77 @@ struct PriceIcon: View {
         Image(systemName: "bolt.fill")
             .font(.system(size: size, weight: .semibold))
             .foregroundStyle(useSemanticColor ? DS.Color.forCategory(category) : .primary)
+    }
+}
+
+// MARK: - Accessible Price Badge
+
+/// A badge that shows price level with both color AND icon/text for colorblind accessibility
+struct PriceLevelBadge: View {
+    let category: PriceCategory
+    var style: Style = .full
+
+    enum Style {
+        case full      // Icon + label
+        case compact   // Icon only
+        case label     // Label only
+    }
+
+    var body: some View {
+        HStack(spacing: DS.Spacing.xxs) {
+            if style != .label {
+                Image(systemName: category.accessibilityIcon)
+                    .font(.system(size: 10, weight: .semibold))
+            }
+            if style != .compact {
+                Text(category.label)
+                    .font(DS.Font.semibold(10))
+            }
+        }
+        .foregroundStyle(DS.Color.forCategory(category))
+        .padding(.horizontal, style == .compact ? DS.Spacing.xs : DS.Spacing.sm)
+        .padding(.vertical, DS.Spacing.xxs)
+        .background(DS.Color.forCategory(category).opacity(0.15), in: Capsule())
+    }
+}
+
+// MARK: - Trend Indicator
+
+/// Shows price trend direction with accessible icon
+struct TrendIndicator: View {
+    let current: Double
+    let next: Double
+
+    private var change: Double { next - current }
+    private var percentChange: Double {
+        guard current > 0 else { return 0 }
+        return (change / current) * 100
+    }
+
+    private var icon: String {
+        if change > 0 { return "arrow.up.right" }
+        if change < 0 { return "arrow.down.right" }
+        return "arrow.right"
+    }
+
+    private var color: Color {
+        if change > 0 { return DS.Color.danger }
+        if change < 0 { return DS.Color.success }
+        return .secondary
+    }
+
+    private var accessibilityLabel: String {
+        if change > 0 { return "Ökar" }
+        if change < 0 { return "Minskar" }
+        return "Stabilt"
+    }
+
+    var body: some View {
+        HStack(spacing: DS.Spacing.xxs) {
+            Image(systemName: icon)
+                .font(.system(size: 10, weight: .bold))
+        }
+        .foregroundStyle(color)
+        .accessibilityLabel(accessibilityLabel)
     }
 }
