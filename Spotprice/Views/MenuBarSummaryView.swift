@@ -48,8 +48,8 @@ struct MenuBarSummaryView: View {
                 .frame(width: DS.Size.statCardIconSize, height: DS.Size.statCardIconSize)
                 .background {
                     Circle()
-                        .fill(.ultraThinMaterial)
-                        .overlay(Circle().fill(.blue.opacity(0.2)))
+                        .fill(.regularMaterial)
+     
                 }
                 .foregroundStyle(.white)
             }

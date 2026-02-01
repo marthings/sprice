@@ -15,8 +15,8 @@ struct ModernMenuBarView: View {
             menuHeader
 
             ScrollView {
-                VStack(spacing: DS.Spacing.lg) {
-                    
+                VStack(alignment: .leading, spacing: DS.Spacing.lg) {
+                    Text("Spotpriset").font(DS.Font.semibold(14))
                     chartSection
                         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: DS.Radius.md))
                     MenuBarSummaryView(viewModel: summaryViewModel, spotPriceViewModel: viewModel)

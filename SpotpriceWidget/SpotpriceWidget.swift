@@ -280,7 +280,7 @@ struct MiniPriceChart: View {
         } else if normalized <= 0.66 {
             return DS.Color.warning
         } else {
-            return DS.Color.danger
+            return DS.Color.error
         }
     }
 }
@@ -368,7 +368,7 @@ struct SpotpriceWidgetEntryView: View {
     private func priceView(price: Int) -> some View {
         HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
             Text("\(price)")
-                .font(DS.Font.bold(28))
+                .font(DS.Font.bold(24))
                 .monospacedDigit()
                 .foregroundStyle(renderingMode == .accented ? .primary : currentPriceColor)
             Text("öre")

@@ -16,7 +16,7 @@ struct CostCardView: View {
             HStack(spacing: DS.Spacing.xs) {
                 VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
                     Text(title)
-                        .font(DS.Font.semibold(12))
+                        .font(DS.Font.micro)
                         .foregroundStyle(.primary)
                         .lineLimit(1)
 

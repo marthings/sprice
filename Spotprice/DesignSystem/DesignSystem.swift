@@ -15,19 +15,19 @@ enum DS {
 
     enum Font {
         static func regular(_ size: CGFloat) -> SwiftUI.Font {
-            .custom("DIN Alternate", size: size)
+            .custom("PPObjectSans-Regular", size: size)
         }
 
         static func medium(_ size: CGFloat) -> SwiftUI.Font {
-            .custom("DIN Alternate", size: size).weight(.medium)
+            .custom("PPObjectSans-Regular", size: size).weight(.medium)
         }
 
         static func semibold(_ size: CGFloat) -> SwiftUI.Font {
-            .custom("DIN Alternate", size: size).weight(.semibold)
+            .custom("PPObjectSans-Heavy", size: size)
         }
 
         static func bold(_ size: CGFloat) -> SwiftUI.Font {
-            .custom("DIN Alternate", size: size).weight(.bold)
+            .custom("PPObjectSans-Heavy", size: size)
         }
 
         // Preset sizes
