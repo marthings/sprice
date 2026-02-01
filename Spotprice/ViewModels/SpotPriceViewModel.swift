@@ -23,6 +23,7 @@ final class SpotPriceViewModel: ObservableObject {
 
     @Published private(set) var state: State = .idle
     @Published private(set) var monthlyConsumption: ConsumptionData?
+    @Published private(set) var dailyConsumption: [DailyConsumption] = []
     @Published private(set) var consumptionError: String?
 
     private let service: SpotPriceService
@@ -108,9 +109,16 @@ final class SpotPriceViewModel: ObservableObject {
     func loadConsumption() async {
         do {
             print("📊 ViewModel: Loading consumption...")
-            monthlyConsumption = try await consumptionService.fetchCurrentMonthConsumption()
+
+            // Fetch monthly and daily data in parallel
+            async let monthlyData = consumptionService.fetchCurrentMonthConsumption()
+            async let dailyData = consumptionService.fetchCurrentMonthDailyConsumption()
+
+            monthlyConsumption = try await monthlyData
+            dailyConsumption = (try? await dailyData) ?? []
             consumptionError = nil
-            print("📊 ViewModel: Consumption loaded - \(monthlyConsumption?.totalKWh ?? 0) kWh")
+
+            print("📊 ViewModel: Consumption loaded - \(monthlyConsumption?.totalKWh ?? 0) kWh, \(dailyConsumption.count) daily values")
         } catch {
             consumptionError = error.localizedDescription
             print("📊 ViewModel: Consumption error - \(error.localizedDescription)")

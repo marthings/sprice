@@ -125,6 +125,7 @@ struct SettingsView: View {
         }
         .padding(DS.Spacing.lg)
         .frame(width: 420)
+        .background(.clear)
     }
 }
 

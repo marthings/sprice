@@ -35,6 +35,56 @@ final class ConsumptionService {
         return try await fetchConsumption(year: year, month: month)
     }
 
+    /// Fetches daily consumption data for the current month
+    func fetchCurrentMonthDailyConsumption() async throws -> [DailyConsumption] {
+        guard settings.isConfigured else {
+            throw ConsumptionError.missingCredentials
+        }
+
+        let now = Date()
+        let calendar = Calendar.current
+        let year = calendar.component(.year, from: now)
+        let month = calendar.component(.month, from: now)
+
+        return try await fetchDailyConsumption(year: year, month: month)
+    }
+
+    /// Fetches daily consumption data for a specific month
+    func fetchDailyConsumption(year: Int, month: Int) async throws -> [DailyConsumption] {
+        let url = try buildDailyConsumptionURL(year: year, month: month)
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("application/json, text/plain, */*", forHTTPHeaderField: "Accept")
+        request.setValue(basicAuthHeader(), forHTTPHeaderField: "Authorization")
+        request.setValue("https://minasidor.vaggerydsenergi.se", forHTTPHeaderField: "Origin")
+        request.setValue("https://minasidor.vaggerydsenergi.se/", forHTTPHeaderField: "Referer")
+
+        logger.info("Fetching daily consumption for \(year)/\(month)...")
+
+        let (data, response) = try await session.data(for: request)
+
+        if let http = response as? HTTPURLResponse {
+            logger.info("Daily HTTP Status: \(http.statusCode)")
+        }
+
+        try validateResponse(response)
+
+        let decoder = JSONDecoder()
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+        dateFormatter.timeZone = TimeZone(identifier: "Europe/Stockholm")
+        decoder.dateDecodingStrategy = .formatted(dateFormatter)
+
+        let apiResponse = try decoder.decode(ConsumptionAPIResponse.self, from: data)
+        logger.info("Daily: Got \(apiResponse.consumptionValues.count) values")
+
+        // Convert to DailyConsumption, filtering out zero values
+        return apiResponse.consumptionValues
+            .map { DailyConsumption(date: $0.date, kWh: $0.consumption) }
+            .filter { $0.kWh > 0 }
+            .sorted { $0.date < $1.date }
+    }
+
     /// Fetches consumption data for a specific month
     func fetchConsumption(year: Int, month: Int) async throws -> ConsumptionData {
         let url = try buildConsumptionURL(year: year, month: month)
@@ -130,6 +180,18 @@ final class ConsumptionService {
         return url
     }
 
+    private func buildDailyConsumptionURL(year: Int, month: Int) throws -> URL {
+        // URL pattern: /minasidor/v3/consumption/daily/{accountId}/{utilityId}/{netId}/{type}/{year}/{month}/1
+        let path = "/minasidor/v3/consumption/daily/\(settings.accountId)/\(settings.utilityId)/\(settings.netId)/\(settings.type)/\(year)/\(month)/1"
+
+        guard let url = URL(string: baseURL + path) else {
+            throw ConsumptionError.invalidURL
+        }
+
+        logger.debug("Daily URL: \(url.absoluteString)")
+        return url
+    }
+
     private func basicAuthHeader() -> String {
         let credentials = "\(settings.customerId):\(settings.password)"
         guard let data = credentials.data(using: .utf8) else {
@@ -207,6 +269,21 @@ struct ConsumptionValue {
     let date: Date
     let kWh: Double
     let price: Double
+}
+
+struct DailyConsumption: Identifiable {
+    let date: Date
+    let kWh: Double
+
+    var id: Date { date }
+
+    /// Day of month for display (e.g., "15 jan")
+    var dayLabel: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "sv_SE")
+        formatter.dateFormat = "d MMM"
+        return formatter.string(from: date)
+    }
 }
 
 // MARK: - Errors
