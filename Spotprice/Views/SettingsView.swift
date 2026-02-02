@@ -7,10 +7,17 @@
 import SwiftUI
 import WidgetKit
 
+enum ConnectionStatus: Equatable {
+    case unknown      // Ännu ej testad
+    case testing      // Testar...
+    case connected    // API svarade 200
+    case failed(String)  // Fel med meddelande
+}
+
 struct SettingsView: View {
     @ObservedObject var settings = ConsumptionSettings.shared
-    @State private var showSavedFeedback = false
     @State private var selectedPriceArea = "SE3"
+    @State private var connectionStatus: ConnectionStatus = .unknown
 
     private let priceAreas = ["SE1", "SE2", "SE3", "SE4"]
 
@@ -46,7 +53,31 @@ struct SettingsView: View {
             Text("Koppla till Vaggeryds Energi")
                 .font(DS.Font.title)
                 .foregroundStyle(.primary)
-
+            Group {
+                switch connectionStatus {
+                case .unknown:
+                    if settings.isConfigured {
+                        Label("Verifiera dina uppgifter genom att spara", systemImage: "questionmark.circle.fill")
+                            .foregroundStyle(DS.Color.warning)
+                    } else {
+                        Label("Ej konfigurerad", systemImage: "exclamationmark.circle.fill")
+                            .foregroundStyle(DS.Color.warning)
+                    }
+                case .testing:
+                    HStack(spacing: 4) {
+                        ProgressView().scaleEffect(0.7)
+                        Text("Testar...")
+                    }
+                    .foregroundStyle(.secondary)
+                case .connected:
+                    Label("Kopplad!", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(DS.Color.success)
+                case .failed(let message):
+                    Label(message, systemImage: "xmark.circle.fill")
+                        .foregroundStyle(DS.Color.danger)
+                }
+            }
+            .font(DS.Font.caption)
             // Inloggning
             VStack(alignment: .leading, spacing: DS.Spacing.md) {
 
@@ -119,7 +150,6 @@ struct SettingsView: View {
             .background(.quaternary.opacity(0.5))
             .cornerRadius(DS.Radius.md)
 
-            Spacer()
 
             // Footer
             HStack(spacing: 8) {
@@ -138,32 +168,16 @@ struct SettingsView: View {
 
                 Spacer()
 
-                if showSavedFeedback {
-                    Label("Sparad!", systemImage: "checkmark.circle.fill")
-                        .font(DS.Font.caption)
-                        .foregroundStyle(DS.Color.success)
-                        .transition(.opacity)
-                } else if settings.isConfigured {
-                    Label("Kopplad!", systemImage: "checkmark.circle.fill")
-                        .font(DS.Font.caption)
-                        .foregroundStyle(DS.Color.success)
-                } else {
-                    Label("Ej konfigurerad", systemImage: "exclamationmark.circle.fill")
-                        .font(DS.Font.caption)
-                        .foregroundStyle(DS.Color.warning)
-                }
-                
-                Spacer()
-
                 Button {
-                    NotificationCenter.default.post(name: .consumptionSettingsDidSave, object: nil)
-                    WidgetCenter.shared.reloadAllTimelines()
-                    withAnimation {
-                        showSavedFeedback = true
-                    }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                        withAnimation {
-                            showSavedFeedback = false
+                    Task {
+                        connectionStatus = .testing
+                        do {
+                            try await ConsumptionService().testConnection()
+                            connectionStatus = .connected
+                            NotificationCenter.default.post(name: .consumptionSettingsDidSave, object: nil)
+                            WidgetCenter.shared.reloadAllTimelines()
+                        } catch {
+                            connectionStatus = .failed(error.localizedDescription)
                         }
                     }
                 } label: {
@@ -176,7 +190,7 @@ struct SettingsView: View {
                         .foregroundStyle(.white)
                 }
                 .buttonStyle(.plain)
-                .disabled(!settings.isConfigured)
+                .disabled(!settings.isConfigured || connectionStatus == .testing)
             }
         }
         .padding(DS.Spacing.lg)

@@ -21,6 +21,15 @@ final class ConsumptionService {
         self.session = session
     }
 
+    /// Tests the connection to Vaggeryds Energi API
+    func testConnection() async throws {
+        guard settings.isConfigured else {
+            throw ConsumptionError.missingCredentials
+        }
+        // Försök hämta data för att verifiera credentials
+        _ = try await fetchCurrentMonthConsumption()
+    }
+
     /// Fetches consumption data for the current month
     func fetchCurrentMonthConsumption() async throws -> ConsumptionData {
         guard settings.isConfigured else {
