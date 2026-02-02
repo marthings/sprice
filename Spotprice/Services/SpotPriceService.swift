@@ -14,11 +14,13 @@ final class SpotPriceService {
     private let decoder: JSONDecoder
     private let calendar: Calendar
     private let timeZone: TimeZone
-    private let area: String
-    
+
+    private var area: String {
+        ConsumptionSettings.shared.priceArea
+    }
+
     init(
         session: URLSession = NetworkSession.shared,
-        area: String = "SE3",
         timeZone: TimeZone = TimeZone(identifier: "Europe/Stockholm") ?? .current,
         calendar: Calendar = {
             var cal = Calendar(identifier: .gregorian)
@@ -27,10 +29,9 @@ final class SpotPriceService {
         }()
     ) {
         self.session = session
-        self.area = area
         self.timeZone = timeZone
         self.calendar = calendar
-        
+
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         self.decoder = decoder

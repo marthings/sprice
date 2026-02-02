@@ -61,12 +61,12 @@ final class SpotPriceViewModel: ObservableObject {
         // Starta periodisk uppdatering direkt
         startPeriodicRefresh()
 
-        // Lyssna på settings-ändringar
+        // Lyssna på settings-ändringar (ladda om både priser och förbrukning)
         settingsSubscription = NotificationCenter.default
             .publisher(for: .consumptionSettingsDidSave)
             .sink { [weak self] _ in
                 Task { @MainActor [weak self] in
-                    await self?.loadConsumption()
+                    await self?.load()
                 }
             }
     }

@@ -27,6 +27,7 @@ final class ConsumptionSettings: ObservableObject {
         static let accountId = "consumption_accountId"
         static let netId = "consumption_netId"
         static let type = "consumption_type"
+        static let priceArea = "settings_priceArea"
     }
 
     // MARK: - Properties
@@ -49,6 +50,9 @@ final class ConsumptionSettings: ObservableObject {
     @Published var type: String {
         didSet { Self.defaults.set(type, forKey: Keys.type) }
     }
+    @Published var priceArea: String {
+        didSet { Self.defaults.set(priceArea, forKey: Keys.priceArea) }
+    }
 
     var isConfigured: Bool {
         !customerId.isEmpty && !password.isEmpty && !utilityId.isEmpty && !accountId.isEmpty
@@ -63,6 +67,7 @@ final class ConsumptionSettings: ObservableObject {
         self.accountId = Self.defaults.string(forKey: Keys.accountId) ?? ""
         self.netId = Self.defaults.string(forKey: Keys.netId) ?? "VGD"
         self.type = Self.defaults.string(forKey: Keys.type) ?? "1"
+        self.priceArea = Self.defaults.string(forKey: Keys.priceArea) ?? "SE3"
     }
 
     func reset() {
@@ -72,5 +77,6 @@ final class ConsumptionSettings: ObservableObject {
         accountId = ""
         netId = "VGD"
         type = "1"
+        priceArea = "SE3"
     }
 }

@@ -10,9 +10,38 @@ import WidgetKit
 struct SettingsView: View {
     @ObservedObject var settings = ConsumptionSettings.shared
     @State private var showSavedFeedback = false
+    @State private var selectedPriceArea = "SE3"
+
+    private let priceAreas = ["SE1", "SE2", "SE3", "SE4"]
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.lg) {
+            // Prisområde
+            VStack(alignment: .leading, spacing: DS.Spacing.md) {
+                Text("Prisområde")
+                    .font(DS.Font.bold(12))
+                    .foregroundStyle(.primary)
+
+                Picker("", selection: $selectedPriceArea) {
+                    ForEach(priceAreas, id: \.self) { area in
+                        Text(area).tag(area)
+                    }
+                }
+                .pickerStyle(.palette)
+                .onChange(of: selectedPriceArea) { _, newValue in
+                    settings.priceArea = newValue
+                    // Ladda om priser direkt vid byte av område
+                    NotificationCenter.default.post(name: .consumptionSettingsDidSave, object: nil)
+                    WidgetCenter.shared.reloadAllTimelines()
+                }
+
+                Text("Välj ditt elområde i Sverige")
+                    .font(DS.Font.micro)
+                    .foregroundStyle(.secondary)
+            }
+
+            Divider()
+
             // Header
             Text("Koppla till Vaggeryds Energi")
                 .font(DS.Font.title)
@@ -153,6 +182,9 @@ struct SettingsView: View {
         .padding(DS.Spacing.lg)
         .frame(width: 420)
         .background(.ultraThinMaterial)
+        .onAppear {
+            selectedPriceArea = settings.priceArea
+        }
     }
 }
 
@@ -162,13 +194,13 @@ struct OutlinedTextFieldStyle: TextFieldStyle {
     func _body(configuration: TextField<Self._Label>) -> some View {
         configuration
             .textFieldStyle(.plain)
-            .padding(.horizontal, DS.Spacing.md)
-            .padding(.vertical, DS.Spacing.sm)
-            .background(Color(nsColor: .textBackgroundColor))
+            .padding(.horizontal, DS.Spacing.lg)
+            .padding(.vertical, DS.Spacing.md)
+            .background(.ultraThinMaterial)
             .clipShape(RoundedRectangle(cornerRadius: DS.Radius.sm))
             .overlay {
                 RoundedRectangle(cornerRadius: DS.Radius.sm, style: .continuous)
-                    .stroke(DS.Color.outline.opacity(0.3), lineWidth: 1)
+                    .stroke(DS.Color.outline.opacity(0.4), lineWidth: 1)
             }
     }
 }
@@ -180,7 +212,7 @@ struct SettingsField: View {
     var isSecure: Bool = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
             Text(label)
                 .font(DS.Font.bold(12))
                 .foregroundStyle(.primary)

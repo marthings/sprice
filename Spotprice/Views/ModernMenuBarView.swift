@@ -197,9 +197,9 @@ struct ModernMenuBarView: View {
             }
         } else if !ConsumptionSettings.shared.isConfigured {
             SettingsLink {
-                HStack(spacing: DS.Spacing.sm) {
+                HStack(spacing: DS.Spacing.md) {
                     Image(systemName: "gearshape.fill")
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(.secondary)
                     VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
                         Text("Konfigurera förbrukning")
                             .font(DS.Font.medium(12))
@@ -214,7 +214,7 @@ struct ModernMenuBarView: View {
                         .font(DS.Font.caption)
                         .foregroundStyle(.secondary)
                 }
-                .padding(DS.Spacing.md)
+                .padding(DS.Spacing.lg)
                 .background(.ultraThinMaterial)
                 .cornerRadius(DS.Radius.lg)
             }

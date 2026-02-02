@@ -14,8 +14,8 @@ struct MenuBarSummaryView: View {
             headerView
             contentView
         }
-        .padding(.horizontal, DS.Spacing.md)
-        .padding(.vertical, DS.Spacing.sm)
+        .padding(.horizontal, DS.Spacing.lg)
+        .padding(.vertical, DS.Spacing.lg)
     }
 
     // MARK: - Header
