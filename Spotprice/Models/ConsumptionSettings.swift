@@ -14,6 +14,10 @@ extension Notification.Name {
 final class ConsumptionSettings: ObservableObject {
     static let shared = ConsumptionSettings()
 
+    // MARK: - Shared UserDefaults (App Group)
+
+    private static let defaults = UserDefaults(suiteName: "group.mb.Spotprice") ?? .standard
+
     // MARK: - Keys
 
     private enum Keys {
@@ -28,22 +32,22 @@ final class ConsumptionSettings: ObservableObject {
     // MARK: - Properties
 
     @Published var customerId: String {
-        didSet { UserDefaults.standard.set(customerId, forKey: Keys.customerId) }
+        didSet { Self.defaults.set(customerId, forKey: Keys.customerId) }
     }
     @Published var password: String {
-        didSet { UserDefaults.standard.set(password, forKey: Keys.password) }
+        didSet { Self.defaults.set(password, forKey: Keys.password) }
     }
     @Published var utilityId: String {
-        didSet { UserDefaults.standard.set(utilityId, forKey: Keys.utilityId) }
+        didSet { Self.defaults.set(utilityId, forKey: Keys.utilityId) }
     }
     @Published var accountId: String {
-        didSet { UserDefaults.standard.set(accountId, forKey: Keys.accountId) }
+        didSet { Self.defaults.set(accountId, forKey: Keys.accountId) }
     }
     @Published var netId: String {
-        didSet { UserDefaults.standard.set(netId, forKey: Keys.netId) }
+        didSet { Self.defaults.set(netId, forKey: Keys.netId) }
     }
     @Published var type: String {
-        didSet { UserDefaults.standard.set(type, forKey: Keys.type) }
+        didSet { Self.defaults.set(type, forKey: Keys.type) }
     }
 
     var isConfigured: Bool {
@@ -53,12 +57,12 @@ final class ConsumptionSettings: ObservableObject {
     // MARK: - Init
 
     private init() {
-        self.customerId = UserDefaults.standard.string(forKey: Keys.customerId) ?? ""
-        self.password = UserDefaults.standard.string(forKey: Keys.password) ?? ""
-        self.utilityId = UserDefaults.standard.string(forKey: Keys.utilityId) ?? ""
-        self.accountId = UserDefaults.standard.string(forKey: Keys.accountId) ?? ""
-        self.netId = UserDefaults.standard.string(forKey: Keys.netId) ?? "VGD"
-        self.type = UserDefaults.standard.string(forKey: Keys.type) ?? "1"
+        self.customerId = Self.defaults.string(forKey: Keys.customerId) ?? ""
+        self.password = Self.defaults.string(forKey: Keys.password) ?? ""
+        self.utilityId = Self.defaults.string(forKey: Keys.utilityId) ?? ""
+        self.accountId = Self.defaults.string(forKey: Keys.accountId) ?? ""
+        self.netId = Self.defaults.string(forKey: Keys.netId) ?? "VGD"
+        self.type = Self.defaults.string(forKey: Keys.type) ?? "1"
     }
 
     func reset() {

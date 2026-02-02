@@ -4,12 +4,17 @@
 //
 
 import SwiftUI
+import WidgetKit
 
 @main
 struct SpotpriceApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var viewModel = SpotPriceViewModel()
     @StateObject private var summaryViewModel = SummaryViewModel()
+
+    init() {
+        WidgetCenter.shared.reloadAllTimelines()
+    }
 
     var body: some Scene {
         MenuBarExtra {

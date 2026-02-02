@@ -7,11 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		206B18FB2F313EBE00E5F9E7 /* spotprice.icon in Resources */ = {isa = PBXBuildFile; fileRef = 206B18FA2F313EBE00E5F9E7 /* spotprice.icon */; };
+		206B18FC2F313EBE00E5F9E7 /* spotprice.icon in Resources */ = {isa = PBXBuildFile; fileRef = 206B18FA2F313EBE00E5F9E7 /* spotprice.icon */; };
 		20861F902F2E0B9A0067EDC1 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 20861F8F2F2E0B9A0067EDC1 /* WidgetKit.framework */; };
 		20861F922F2E0B9A0067EDC1 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 20861F912F2E0B9A0067EDC1 /* SwiftUI.framework */; };
 		20861F9F2F2E0B9B0067EDC1 /* SpotpriceWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 20861F8D2F2E0B9A0067EDC1 /* SpotpriceWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		20861FD72F2F70580067EDC1 /* spotprice.icon in Resources */ = {isa = PBXBuildFile; fileRef = 20861FD62F2F70580067EDC1 /* spotprice.icon */; };
-		20861FD82F2F70580067EDC1 /* spotprice.icon in Resources */ = {isa = PBXBuildFile; fileRef = 20861FD62F2F70580067EDC1 /* spotprice.icon */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -40,10 +40,11 @@
 
 /* Begin PBXFileReference section */
 		200104F82F26582400B2F176 /* Spotprice.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Spotprice.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		206B18F82F2FFC2600E5F9E7 /* SpotpriceWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SpotpriceWidgetExtension.entitlements; sourceTree = "<group>"; };
+		206B18FA2F313EBE00E5F9E7 /* spotprice.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = spotprice.icon; sourceTree = "<group>"; };
 		20861F8D2F2E0B9A0067EDC1 /* SpotpriceWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SpotpriceWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		20861F8F2F2E0B9A0067EDC1 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		20861F912F2E0B9A0067EDC1 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
-		20861FD62F2F70580067EDC1 /* spotprice.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = spotprice.icon; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -56,6 +57,7 @@
 				Models/ConsumptionSettings.swift,
 				Models/SpotPriceModels.swift,
 				Services/ConsumptionService.swift,
+				Services/NetworkSession.swift,
 				Services/SpotPriceService.swift,
 			);
 			target = 20861F8C2F2E0B9A0067EDC1 /* SpotpriceWidgetExtension */;
@@ -101,11 +103,12 @@
 		200104EF2F26582400B2F176 = {
 			isa = PBXGroup;
 			children = (
+				206B18F82F2FFC2600E5F9E7 /* SpotpriceWidgetExtension.entitlements */,
 				200104FA2F26582400B2F176 /* Spotprice */,
 				20861F932F2E0B9A0067EDC1 /* SpotpriceWidget */,
 				20861F8E2F2E0B9A0067EDC1 /* Frameworks */,
 				200104F92F26582400B2F176 /* Products */,
-				20861FD62F2F70580067EDC1 /* spotprice.icon */,
+				206B18FA2F313EBE00E5F9E7 /* spotprice.icon */,
 			);
 			sourceTree = "<group>";
 		};
@@ -219,7 +222,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				20861FD82F2F70580067EDC1 /* spotprice.icon in Resources */,
+				206B18FB2F313EBE00E5F9E7 /* spotprice.icon in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -227,7 +230,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				20861FD72F2F70580067EDC1 /* spotprice.icon in Resources */,
+				206B18FC2F313EBE00E5F9E7 /* spotprice.icon in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -384,6 +387,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = spotprice;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Spotprice/Spotprice.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
@@ -428,6 +432,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = spotprice;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Spotprice/Spotprice.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
@@ -472,6 +477,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = SpotpriceWidgetExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = U8J74WVQ4D;
@@ -500,6 +506,7 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = mb.Spotprice.SpotpriceWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -514,6 +521,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = SpotpriceWidgetExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = U8J74WVQ4D;
@@ -542,6 +550,7 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = mb.Spotprice.SpotpriceWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;

@@ -17,7 +17,7 @@ final class SpotPriceService {
     private let area: String
     
     init(
-        session: URLSession = .shared,
+        session: URLSession = NetworkSession.shared,
         area: String = "SE3",
         timeZone: TimeZone = TimeZone(identifier: "Europe/Stockholm") ?? .current,
         calendar: Calendar = {

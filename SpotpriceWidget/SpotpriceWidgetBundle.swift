@@ -12,6 +12,5 @@ import SwiftUI
 struct SpotpriceWidgetBundle: WidgetBundle {
     var body: some Widget {
         SpotpriceWidget()
-        SpotpriceWidgetControl()
     }
 }

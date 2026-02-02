@@ -3,12 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>ATSApplicationFontsPath</key>
-	<string>.</string>
-	<key>UIAppFonts</key>
-	<array>
-		<string>osans-regular.otf</string>
-		<string>osans-heavy.otf</string>
-	</array>
+	<string>Fonts</string>
 	<key>NSExtension</key>
 	<dict>
 		<key>NSExtensionPointIdentifier</key>

@@ -5,6 +5,7 @@
 //  Settings window for consumption configuration
 
 import SwiftUI
+import WidgetKit
 
 struct SettingsView: View {
     @ObservedObject var settings = ConsumptionSettings.shared
@@ -52,16 +53,23 @@ struct SettingsView: View {
             // Hjälpsektion
             VStack(alignment: .leading, spacing: DS.Spacing.sm) {
                 Label("Hitta Konto-ID och Anläggnings-ID", systemImage: "questionmark.circle")
-                    .font(DS.Font.semibold(11))
+                    .font(DS.Font.semibold(12))
                     .foregroundStyle(.primary)
 
-                Text("1. Öppna Mina Sidor i Chrome\n2. Logga in och gå till Förbrukning\n3. Öppna DevTools (Cmd+Option+I)\n4. Gå till Network-fliken\n5. Ladda om sidan och klicka på en \"1\"-request\n6. Under Headers → :path hittar du:")
-                    .font(DS.Font.micro)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("1. Öppna Mina Sidor i Chrome")
+                    Text("2. Logga in och gå till statistik")
+                    Text("3. Öppna DevTools (Cmd+Option+I)")
+                    Text("4. Gå till Network-fliken")
+                    Text("5. Ladda om sidan och klicka på en \"1\"-request")
+                    Text("6. Under Headers → :path hittar du:")
+                }
+                .font(DS.Font.micro)
+                .foregroundStyle(.secondary)
+
 
                 Text(".../monthly/[Konto-ID]/[Anläggnings-ID]/...")
-                    .font(.system(size: 9, design: .monospaced))
+                    .font(.system(size: 11, design: .monospaced))
                     .foregroundStyle(.secondary)
                     .padding(DS.Spacing.xs)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -85,7 +93,7 @@ struct SettingsView: View {
             Spacer()
 
             // Footer
-            HStack {
+            HStack(spacing: 8) {
                 Button {
                     settings.reset()
                 } label: {
@@ -107,7 +115,7 @@ struct SettingsView: View {
                         .foregroundStyle(DS.Color.success)
                         .transition(.opacity)
                 } else if settings.isConfigured {
-                    Label("Konfigurerad", systemImage: "checkmark.circle.fill")
+                    Label("Kopplad!", systemImage: "checkmark.circle.fill")
                         .font(DS.Font.caption)
                         .foregroundStyle(DS.Color.success)
                 } else {
@@ -115,9 +123,12 @@ struct SettingsView: View {
                         .font(DS.Font.caption)
                         .foregroundStyle(DS.Color.warning)
                 }
+                
+                Spacer()
 
                 Button {
                     NotificationCenter.default.post(name: .consumptionSettingsDidSave, object: nil)
+                    WidgetCenter.shared.reloadAllTimelines()
                     withAnimation {
                         showSavedFeedback = true
                     }
@@ -141,7 +152,7 @@ struct SettingsView: View {
         }
         .padding(DS.Spacing.lg)
         .frame(width: 420)
-        .background(.clear)
+        .background(.ultraThinMaterial)
     }
 }
 
@@ -171,8 +182,7 @@ struct SettingsField: View {
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.xs) {
             Text(label)
-                .font(DS.Font.medium(12))
-                .fontWeight(.bold)
+                .font(DS.Font.bold(12))
                 .foregroundStyle(.primary)
 
             if isSecure {

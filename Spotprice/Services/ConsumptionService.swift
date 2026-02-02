@@ -17,7 +17,7 @@ final class ConsumptionService {
     private let baseURL = "https://api-minasidor.vaggerydsenergi.se"
     private var settings: ConsumptionSettings { ConsumptionSettings.shared }
 
-    init(session: URLSession = .shared) {
+    init(session: URLSession = NetworkSession.shared) {
         self.session = session
     }
 
