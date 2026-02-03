@@ -6,8 +6,8 @@
 import SwiftUI
 
 struct MenuBarSummaryView: View {
-    @ObservedObject var viewModel: SummaryViewModel
-    @ObservedObject var spotPriceViewModel: SpotPriceViewModel
+    var viewModel: SummaryViewModel
+    var spotPriceViewModel: SpotPriceViewModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.sm) {
@@ -58,24 +58,27 @@ struct MenuBarSummaryView: View {
 
     @ViewBuilder
     private var contentView: some View {
-        switch viewModel.state {
-        case .idle:
-            Text("Hämta data för att kunna visa analys")
-                .font(DS.Font.medium(11))
-                .foregroundStyle(.secondary)
+        Group {
+            switch viewModel.state {
+            case .idle:
+                Text("Hämta data för att kunna visa analys")
+                    .font(DS.Font.medium(11))
+                    .foregroundStyle(.secondary)
 
-        case .loadingConsumption, .analyzing:
-            loadingView
+            case .loadingConsumption, .analyzing:
+                loadingView
 
-        case .loaded(let summary, let priceChange, _, let previousMonth):
-            loadedView(summary: summary, priceChange: priceChange, previousMonth: previousMonth)
+            case .loaded(let summary, let priceChange, _, let previousMonth):
+                loadedView(summary: summary, priceChange: priceChange, previousMonth: previousMonth)
 
-        case .noConsumptionConfigured:
-            noConfigView
+            case .noConsumptionConfigured:
+                noConfigView
 
-        case .failed:
-            failedView
+            case .failed(let errorMessage):
+                failedView(message: errorMessage)
+            }
         }
+        .frame(minHeight: 50, alignment: .topLeading)
     }
 
     private var loadingView: some View {
@@ -159,15 +162,38 @@ struct MenuBarSummaryView: View {
         }
     }
 
-    private var failedView: some View {
-        HStack(spacing: DS.Spacing.sm) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(DS.Font.caption)
-                .foregroundStyle(DS.Color.warning)
+    private func failedView(message: String) -> some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+            HStack(spacing: DS.Spacing.sm) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(DS.Font.caption)
+                    .foregroundStyle(DS.Color.warning)
 
-            Text("Kunde inte hämta prisanalys")
-                .font(DS.Font.medium(11))
+                Text("Kunde inte hämta prisanalys")
+                    .font(DS.Font.medium(11))
+                    .foregroundStyle(.primary)
+            }
+
+            Text(message)
+                .font(DS.Font.micro)
                 .foregroundStyle(.secondary)
+                .lineLimit(2)
+
+            Button {
+                Task {
+                    await spotPriceViewModel.load()
+                    await viewModel.loadSummary()
+                }
+            } label: {
+                HStack(spacing: DS.Spacing.xs) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(DS.Font.semibold(10))
+                    Text("Försök igen")
+                        .font(DS.Font.medium(11))
+                }
+                .foregroundStyle(.blue)
+            }
+            .buttonStyle(.plain)
         }
     }
 

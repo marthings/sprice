@@ -9,8 +9,8 @@ import WidgetKit
 @main
 struct SpotpriceApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    @StateObject private var viewModel = SpotPriceViewModel()
-    @StateObject private var summaryViewModel = SummaryViewModel()
+    @State private var viewModel = SpotPriceViewModel()
+    @State private var summaryViewModel = SummaryViewModel()
 
     init() {
         WidgetCenter.shared.reloadAllTimelines()
@@ -23,8 +23,6 @@ struct SpotpriceApp: App {
             MenuBarLabel(state: viewModel.state)
         }
         .menuBarExtraStyle(.window)
-        .environmentObject(viewModel)
-        .environmentObject(summaryViewModel)
 
         Settings {
             SettingsView()

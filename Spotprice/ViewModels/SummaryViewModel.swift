@@ -2,8 +2,8 @@ import Foundation
 import Combine
 import SwiftUI
 
-@MainActor
-final class SummaryViewModel: ObservableObject {
+@Observable @MainActor
+final class SummaryViewModel {
     enum State: Equatable {
         case idle
         case loadingConsumption
@@ -34,7 +34,7 @@ final class SummaryViewModel: ObservableObject {
         }
     }
 
-    @Published private(set) var state: State = .idle
+    private(set) var state: State = .idle
 
     private let consumptionService: ConsumptionService
     private let spotPriceService: SpotPriceService

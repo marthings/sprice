@@ -133,8 +133,7 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
                     .padding(DS.Spacing.xs)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.quaternary)
-                    .cornerRadius(DS.Radius.sm)
+                    .background(.quaternary, in: .rect(cornerRadius: DS.Radius.sm))
 
                 Link(destination: URL(string: "https://minasidor.vaggerydsenergi.se")!) {
                     HStack(spacing: DS.Spacing.xs) {
@@ -147,8 +146,7 @@ struct SettingsView: View {
                 }
             }
             .padding(DS.Spacing.md)
-            .background(.quaternary.opacity(0.5))
-            .cornerRadius(DS.Radius.md)
+            .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: DS.Radius.md))
 
 
             // Footer
@@ -159,10 +157,9 @@ struct SettingsView: View {
                     Text("Återställ")
                         .padding(.horizontal, DS.Spacing.md)
                         .padding(.vertical, DS.Spacing.sm)
-                        .background(DS.Color.danger)
-                        .cornerRadius(DS.Radius.md)
                         .font(DS.Font.medium(12))
                         .foregroundStyle(.white)
+                        .background(DS.Color.danger, in: .rect(cornerRadius: DS.Radius.md))
                 }
                 .buttonStyle(.plain)
 
@@ -184,10 +181,9 @@ struct SettingsView: View {
                     Text("Spara")
                         .padding(.horizontal, DS.Spacing.md)
                         .padding(.vertical, DS.Spacing.sm)
-                        .background(DS.Color.primary)
-                        .cornerRadius(DS.Radius.md)
                         .font(DS.Font.medium(12))
                         .foregroundStyle(.white)
+                        .background(DS.Color.primary, in: .rect(cornerRadius: DS.Radius.md))
                 }
                 .buttonStyle(.plain)
                 .disabled(!settings.isConfigured || connectionStatus == .testing)

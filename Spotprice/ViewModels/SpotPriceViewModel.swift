@@ -7,8 +7,8 @@
 import SwiftUI
 import Combine
 
-@MainActor
-final class SpotPriceViewModel: ObservableObject {
+@Observable @MainActor
+final class SpotPriceViewModel {
     enum State: Equatable {
         case idle
         case loading
@@ -21,10 +21,10 @@ final class SpotPriceViewModel: ObservableObject {
         let day: DayChartData
     }
 
-    @Published private(set) var state: State = .idle
-    @Published private(set) var monthlyConsumption: ConsumptionData?
-    @Published private(set) var dailyConsumption: [DailyConsumption] = []
-    @Published private(set) var consumptionError: String?
+    private(set) var state: State = .idle
+    private(set) var monthlyConsumption: ConsumptionData?
+    private(set) var dailyConsumption: [DailyConsumption] = []
+    private(set) var consumptionError: String?
 
     private let service: SpotPriceService
     private let consumptionService: ConsumptionService
@@ -32,11 +32,13 @@ final class SpotPriceViewModel: ObservableObject {
     private let nowProvider: () -> Date
 
     // Periodisk uppdaterings-Task
-    private var refreshTask: Task<Void, Never>?
+    @ObservationIgnored
+    nonisolated(unsafe) private var refreshTask: Task<Void, Never>?
     // Konfigurerbart intervall (default 15 min)
     private let refreshInterval: Duration
     // Subscription för settings-notifikation
-    private var settingsSubscription: AnyCancellable?
+    @ObservationIgnored
+    nonisolated(unsafe) private var settingsSubscription: AnyCancellable?
 
     init(
         service: SpotPriceService = SpotPriceService(),

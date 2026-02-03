@@ -32,7 +32,6 @@ struct StatCardView: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, DS.Spacing.sm)
         .padding(.horizontal, DS.Spacing.xs)
-        .background(.ultraThinMaterial)
-        .cornerRadius(DS.Radius.lg)
+        .glassCard(cornerRadius: DS.Radius.lg)
     }
 }

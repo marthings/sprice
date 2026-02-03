@@ -7,8 +7,8 @@ import SwiftUI
 import Charts
 
 struct ModernMenuBarView: View {
-    @ObservedObject var viewModel: SpotPriceViewModel
-    @ObservedObject var summaryViewModel: SummaryViewModel
+    var viewModel: SpotPriceViewModel
+    var summaryViewModel: SummaryViewModel
 
     var body: some View {
         VStack(spacing: 0) {
@@ -18,12 +18,11 @@ struct ModernMenuBarView: View {
                 VStack(alignment: .leading, spacing: DS.Spacing.lg) {
                     Text("Spotpriset").font(DS.Font.semibold(14))
                     chartSection
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: DS.Radius.md))
+                        .glassCard(cornerRadius: DS.Radius.md)
                     quickStats
                     monthlyStatsSection
                     MenuBarSummaryView(viewModel: summaryViewModel, spotPriceViewModel: viewModel)
-                        .background(.ultraThinMaterial)
-                        .cornerRadius(DS.Radius.lg)
+                        .glassCard(cornerRadius: DS.Radius.lg)
                 }
                 .padding(.horizontal, DS.Spacing.lg)
                 .padding(.vertical, DS.Spacing.md)
@@ -61,8 +60,7 @@ struct ModernMenuBarView: View {
                         .font(.system(size: DS.Size.closeButtonIconSize, weight: .semibold))
                         .frame(width: DS.Size.closeButtonSize, height: DS.Size.closeButtonSize)
                         .foregroundStyle(.primary)
-                        .background(.ultraThinMaterial)
-                        .cornerRadius(DS.Radius.full)
+                        .background(.ultraThinMaterial, in: .circle)
                 }
                 .buttonStyle(.plain)
                 .help("Inställningar")
@@ -74,8 +72,7 @@ struct ModernMenuBarView: View {
                         .font(.system(size: DS.Size.closeButtonIconSize, weight: .bold))
                         .frame(width: DS.Size.closeButtonSize, height: DS.Size.closeButtonSize)
                         .foregroundStyle(.primary)
-                        .background(.ultraThinMaterial)
-                        .cornerRadius(DS.Radius.full)
+                        .background(.ultraThinMaterial, in: .circle)
                 }
                 .buttonStyle(.plain)
                 .help("Avsluta")
@@ -215,8 +212,7 @@ struct ModernMenuBarView: View {
                         .foregroundStyle(.secondary)
                 }
                 .padding(DS.Spacing.lg)
-                .background(.ultraThinMaterial)
-                .cornerRadius(DS.Radius.lg)
+                .glassCard(cornerRadius: DS.Radius.lg, interactive: true)
             }
             .buttonStyle(.plain)
         } else if let error = viewModel.consumptionError {
@@ -235,8 +231,7 @@ struct ModernMenuBarView: View {
                 Spacer()
             }
             .padding(DS.Spacing.md)
-            .background(.ultraThinMaterial)
-            .cornerRadius(DS.Radius.lg)
+            .glassCard(cornerRadius: DS.Radius.lg)
         }
     }
 
@@ -358,8 +353,7 @@ struct ConsumptionStatCard: View {
         .padding(.horizontal, DS.Spacing.md)
         .padding(.vertical, DS.Spacing.sm)
         .frame(maxWidth: .infinity)
-        .background(.ultraThinMaterial)
-        .cornerRadius(DS.Radius.md)
+        .glassCard(cornerRadius: DS.Radius.md)
     }
 }
 
@@ -439,8 +433,7 @@ struct TopConsumptionDaysCard: View {
         }
         .padding(DS.Spacing.md)
         .frame(maxWidth: .infinity)
-        .background(.ultraThinMaterial)
-        .cornerRadius(DS.Radius.md)
+        .glassCard(cornerRadius: DS.Radius.md)
     }
 
     private func barColor(for kWh: Double) -> Color {

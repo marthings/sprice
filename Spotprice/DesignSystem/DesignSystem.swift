@@ -110,6 +110,15 @@ enum DS {
         static let full: CGFloat = 999
     }
 
+    // MARK: - Glass Effects (macOS 26+)
+
+    enum Glass {
+        /// Standard corner radius for glass cards
+        static let cardRadius: CGFloat = Radius.lg
+        /// Corner radius for small glass elements
+        static let smallRadius: CGFloat = Radius.md
+    }
+
     // MARK: - Component Sizes
 
     enum Size {
@@ -219,6 +228,36 @@ struct PriceLevelBadge: View {
         .padding(.horizontal, style == .compact ? DS.Spacing.xs : DS.Spacing.sm)
         .padding(.vertical, DS.Spacing.xxs)
         .background(DS.Color.forCategory(category).opacity(0.15), in: Capsule())
+    }
+}
+
+// MARK: - Glass Card Modifier
+
+/// A modifier that applies glass effect on macOS 26+ with ultraThinMaterial fallback
+struct GlassCardModifier: ViewModifier {
+    let cornerRadius: CGFloat
+    let isInteractive: Bool
+
+    func body(content: Content) -> some View {
+        if #available(macOS 26, *) {
+            if isInteractive {
+                content
+                    .glassEffect(.clear.interactive(), in: .rect(cornerRadius: cornerRadius))
+            } else {
+                content
+                    .glassEffect(.clear, in: .rect(cornerRadius: cornerRadius))
+            }
+        } else {
+            content
+                .background(.ultraThinMaterial, in: .rect(cornerRadius: cornerRadius))
+        }
+    }
+}
+
+extension View {
+    /// Applies a glass card style with automatic fallback for older macOS versions
+    func glassCard(cornerRadius: CGFloat = DS.Glass.cardRadius, interactive: Bool = false) -> some View {
+        modifier(GlassCardModifier(cornerRadius: cornerRadius, isInteractive: interactive))
     }
 }
 

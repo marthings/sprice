@@ -40,8 +40,7 @@ struct CostCardView: View {
         }
         .padding(.horizontal, DS.Spacing.lg)
         .padding(.vertical, DS.Spacing.md)
-        .background(.ultraThinMaterial)
-        .cornerRadius(DS.Radius.lg)
+        .glassCard(cornerRadius: DS.Radius.lg)
     }
 }
 
