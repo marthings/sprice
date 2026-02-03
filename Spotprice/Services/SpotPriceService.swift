@@ -9,14 +9,19 @@ import Foundation
 
 // MARK: - SpotPriceService
 
-final class SpotPriceService {
+struct SpotPriceService: Sendable {
     private let session: URLSession
-    private let decoder: JSONDecoder
-    private let calendar: Calendar
     private let timeZone: TimeZone
+    private let calendar: Calendar
 
     private var area: String {
         ConsumptionSettings.shared.priceArea
+    }
+
+    private var decoder: JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return decoder
     }
 
     init(
@@ -31,10 +36,6 @@ final class SpotPriceService {
         self.session = session
         self.timeZone = timeZone
         self.calendar = calendar
-
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        self.decoder = decoder
     }
     
     /// Fetches spot prices for the given date and returns raw items

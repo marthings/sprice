@@ -41,13 +41,13 @@ final class SummaryViewModel {
     private let openAIService: OpenAIService
 
     init(
-        consumptionService: ConsumptionService = ConsumptionService(),
-        spotPriceService: SpotPriceService = SpotPriceService(),
-        openAIService: OpenAIService = OpenAIService()
+        consumptionService: ConsumptionService? = nil,
+        spotPriceService: SpotPriceService? = nil,
+        openAIService: OpenAIService? = nil
     ) {
-        self.consumptionService = consumptionService
-        self.spotPriceService = spotPriceService
-        self.openAIService = openAIService
+        self.consumptionService = consumptionService ?? ConsumptionService()
+        self.spotPriceService = spotPriceService ?? SpotPriceService()
+        self.openAIService = openAIService ?? OpenAIService()
     }
 
     func loadSummary() async {
@@ -83,7 +83,7 @@ final class SummaryViewModel {
         } catch let error as DisplayableError {
             state = .failed(error.message)
         } catch let error as ConsumptionError {
-            state = .failed(error.localizedDescription ?? "Kunde inte hämta förbrukningsdata.")
+            state = .failed(error.localizedDescription)
         } catch {
             print("Oväntat fel vid prisanalys: \(error)")
             state = .failed("Ett oväntat fel inträffade vid prisanalysen.")

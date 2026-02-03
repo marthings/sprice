@@ -41,22 +41,22 @@ final class SpotPriceViewModel {
     nonisolated(unsafe) private var settingsSubscription: AnyCancellable?
 
     init(
-        service: SpotPriceService = SpotPriceService(),
-        consumptionService: ConsumptionService = ConsumptionService(),
-        numberFormatter: NumberFormatter = {
+        service: SpotPriceService? = nil,
+        consumptionService: ConsumptionService? = nil,
+        numberFormatter: NumberFormatter? = nil,
+        now: @escaping () -> Date = { Date() },
+        refreshInterval: Duration = .seconds(900)
+    ) {
+        self.service = service ?? SpotPriceService()
+        self.consumptionService = consumptionService ?? ConsumptionService()
+        self.numberFormatter = numberFormatter ?? {
             let formatter = NumberFormatter()
             formatter.locale = .current
             formatter.numberStyle = .decimal
             formatter.maximumFractionDigits = 1
             formatter.minimumFractionDigits = 0
             return formatter
-        }(),
-        now: @escaping () -> Date = { Date() },
-        refreshInterval: Duration = .seconds(900)
-    ) {
-        self.service = service
-        self.consumptionService = consumptionService
-        self.numberFormatter = numberFormatter
+        }()
         self.nowProvider = now
         self.refreshInterval = refreshInterval
 

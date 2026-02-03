@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - OpenAI Summeringstjänst
 
-actor OpenAIService {
+struct OpenAIService: Sendable {
     private let session: URLSession
     private let apiKey: String = "REMOVED_OPENAI_KEY"
 
@@ -100,9 +100,9 @@ actor OpenAIService {
 
 // MARK: - DTO:er för OpenAI API
 
-struct OpenAICompletionResponse: Decodable {
-    struct Choice: Decodable {
-        struct Message: Decodable {
+struct OpenAICompletionResponse: Decodable, Sendable {
+    struct Choice: Decodable, Sendable {
+        struct Message: Decodable, Sendable {
             let role: String
             let content: String
         }
@@ -116,8 +116,8 @@ struct OpenAICompletionResponse: Decodable {
     let choices: [Choice]
 }
 
-struct OpenAIErrorResponse: Decodable {
-    struct ErrorDetail: Decodable {
+struct OpenAIErrorResponse: Decodable, Sendable {
+    struct ErrorDetail: Decodable, Sendable {
         let message: String
         let type: String
     }

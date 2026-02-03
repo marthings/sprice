@@ -12,7 +12,7 @@ private let logger = Logger(subsystem: "se.spotprice", category: "ConsumptionSer
 
 // MARK: - Service
 
-final class ConsumptionService {
+struct ConsumptionService: Sendable {
     private let session: URLSession
     private let baseURL = "https://api-minasidor.vaggerydsenergi.se"
     private var settings: ConsumptionSettings { ConsumptionSettings.shared }
