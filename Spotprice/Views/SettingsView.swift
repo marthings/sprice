@@ -53,31 +53,6 @@ struct SettingsView: View {
             Text("Koppla till Vaggeryds Energi")
                 .font(DS.Font.title)
                 .foregroundStyle(.primary)
-            Group {
-                switch connectionStatus {
-                case .unknown:
-                    if settings.isConfigured {
-                        Label("Verifiera dina uppgifter genom att spara", systemImage: "questionmark.circle.fill")
-                            .foregroundStyle(DS.Color.warning)
-                    } else {
-                        Label("Ej konfigurerad", systemImage: "exclamationmark.circle.fill")
-                            .foregroundStyle(DS.Color.warning)
-                    }
-                case .testing:
-                    HStack(spacing: 4) {
-                        ProgressView().scaleEffect(0.7)
-                        Text("Testar...")
-                    }
-                    .foregroundStyle(.secondary)
-                case .connected:
-                    Label("Kopplad!", systemImage: "checkmark.circle.fill")
-                        .foregroundStyle(DS.Color.success)
-                case .failed(let message):
-                    Label(message, systemImage: "xmark.circle.fill")
-                        .foregroundStyle(DS.Color.danger)
-                }
-            }
-            .font(DS.Font.caption)
             // Inloggning
             VStack(alignment: .leading, spacing: DS.Spacing.md) {
 
@@ -151,17 +126,31 @@ struct SettingsView: View {
 
             // Footer
             HStack(spacing: 8) {
-                Button {
-                    settings.reset()
-                } label: {
-                    Text("Återställ")
-                        .padding(.horizontal, DS.Spacing.md)
-                        .padding(.vertical, DS.Spacing.sm)
-                        .font(DS.Font.medium(12))
-                        .foregroundStyle(.white)
-                        .background(DS.Color.danger, in: .rect(cornerRadius: DS.Radius.md))
+                Group {
+                    switch connectionStatus {
+                    case .unknown:
+                        if settings.isConfigured {
+                            Label("Verifiera dina uppgifter genom att spara", systemImage: "questionmark.circle.fill")
+                                .foregroundStyle(DS.Color.warning)
+                        } else {
+                            Label("Ej konfigurerad", systemImage: "exclamationmark.circle.fill")
+                                .foregroundStyle(DS.Color.warning)
+                        }
+                    case .testing:
+                        HStack(spacing: 4) {
+                            ProgressView().scaleEffect(0.7)
+                            Text("Testar...")
+                        }
+                        .foregroundStyle(.secondary)
+                    case .connected:
+                        Label("Kopplad!", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(DS.Color.success)
+                    case .failed(let message):
+                        Label(message, systemImage: "xmark.circle.fill")
+                            .foregroundStyle(DS.Color.danger)
+                    }
                 }
-                .buttonStyle(.plain)
+                .font(DS.Font.caption)
 
                 Spacer()
 
@@ -181,9 +170,9 @@ struct SettingsView: View {
                     Text("Spara")
                         .padding(.horizontal, DS.Spacing.md)
                         .padding(.vertical, DS.Spacing.sm)
-                        .font(DS.Font.medium(12))
+                        .font(DS.Font.bold(12))
                         .foregroundStyle(.white)
-                        .background(DS.Color.primary, in: .rect(cornerRadius: DS.Radius.md))
+                        .background(DS.Color.brand, in: .rect(cornerRadius: DS.Radius.md))
                 }
                 .buttonStyle(.plain)
                 .disabled(!settings.isConfigured || connectionStatus == .testing)

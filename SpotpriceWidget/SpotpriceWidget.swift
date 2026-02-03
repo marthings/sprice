@@ -290,7 +290,7 @@ struct MiniPriceChart: View {
         } else if normalized <= 0.66 {
             return DS.Color.warning
         } else {
-            return DS.Color.error
+            return DS.Color.danger
         }
     }
 }

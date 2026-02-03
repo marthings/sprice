@@ -44,14 +44,12 @@ enum DS {
 
     enum Color {
         // Semantic colors from assets (auto light/dark)
-        static let primary = SwiftUI.Color("Primary")
-        static let success = SwiftUI.Color("Success")
-        static let info = SwiftUI.Color("Info")
-        static let warning = SwiftUI.Color("Warning")
-        static let danger = SwiftUI.Color("Danger")
+        static let brand = SwiftUI.Color("BrandColor")
+        static let success = SwiftUI.Color("SuccessColor")
+        static let info = SwiftUI.Color("InfoColor")
+        static let warning = SwiftUI.Color("WarningColor")
+        static let danger = SwiftUI.Color("DangerColor")
 
-        // Keep for backwards compatibility during transition
-        static let error = danger
         static let outline = SwiftUI.Color.secondary
 
         static func forCategory(_ category: PriceCategory) -> SwiftUI.Color {

@@ -62,12 +62,27 @@
 			);
 			target = 20861F8C2F2E0B9A0067EDC1 /* SpotpriceWidgetExtension */;
 		};
+		20EACE422F32A1A90022513B /* Exceptions for "SpotpriceWidget" folder in "SpotpriceWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 20861F8C2F2E0B9A0067EDC1 /* SpotpriceWidgetExtension */;
+		};
+		20EACE432F32A1D90022513B /* Exceptions for "Spotprice" folder in "Spotprice" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 200104F72F26582400B2F176 /* Spotprice */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		200104FA2F26582400B2F176 /* Spotprice */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
+				20EACE432F32A1D90022513B /* Exceptions for "Spotprice" folder in "Spotprice" target */,
 				20861FC72F2E82310067EDC1 /* Exceptions for "Spotprice" folder in "SpotpriceWidgetExtension" target */,
 			);
 			path = Spotprice;
@@ -75,6 +90,9 @@
 		};
 		20861F932F2E0B9A0067EDC1 /* SpotpriceWidget */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				20EACE422F32A1A90022513B /* Exceptions for "SpotpriceWidget" folder in "SpotpriceWidgetExtension" target */,
+			);
 			path = SpotpriceWidget;
 			sourceTree = "<group>";
 		};
