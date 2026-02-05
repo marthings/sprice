@@ -21,7 +21,7 @@ struct ModernMenuBarView: View {
                     quickStats
                     MonthlyStatsSection(
                         consumption: viewModel.monthlyConsumption,
-                        dailyConsumption: viewModel.dailyConsumption,
+                        powerPeaks: viewModel.powerPeaks,
                         consumptionError: viewModel.consumptionError,
                         isConfigured: ConsumptionSettings.shared.isConfigured,
                         averagePrice: loadedAveragePrice,

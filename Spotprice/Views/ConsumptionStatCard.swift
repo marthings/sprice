@@ -10,14 +10,9 @@ struct ConsumptionStatCard: View {
     let value: String
     let unit: String
     let color: Color
-    let icon: String
 
     var body: some View {
         HStack(spacing: DS.Spacing.sm) {
-            Image(systemName: icon)
-                .font(.system(size: DS.Size.iconMedium))
-                .foregroundStyle(color.gradient)
-                .frame(width: DS.Size.headerIconSize)
 
             VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                 Text(title)
@@ -37,8 +32,8 @@ struct ConsumptionStatCard: View {
 
             Spacer()
         }
-        .padding(.horizontal, DS.Spacing.md)
-        .padding(.vertical, DS.Spacing.sm)
+        .padding(.horizontal, DS.Spacing.lg)
+        .padding(.vertical, DS.Spacing.md)
         .frame(maxWidth: .infinity)
         .glassCard(cornerRadius: DS.Radius.md)
     }

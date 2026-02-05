@@ -24,6 +24,7 @@ final class SpotPriceViewModel {
     private(set) var state: State = .idle
     private(set) var monthlyConsumption: ConsumptionData?
     private(set) var dailyConsumption: [DailyConsumption] = []
+    private(set) var powerPeaks: [PowerPeak] = []
     private(set) var preciseMonthlyCost: PreciseMonthlyCost?
     private(set) var consumptionError: String?
 
@@ -126,6 +127,14 @@ final class SpotPriceViewModel {
             consumptionError = error.localizedDescription
             print("📊 ViewModel: Consumption error - \(error.localizedDescription)")
             // Don't clear existing data on error
+        }
+
+        // Calculate power peaks (non-blocking, best-effort)
+        do {
+            powerPeaks = try await consumptionService.calculatePowerPeaks()
+            print("📊 ViewModel: Power peaks = \(powerPeaks.count)")
+        } catch {
+            print("📊 ViewModel: Power peaks unavailable - \(error.localizedDescription)")
         }
 
         // Calculate precise monthly cost (non-blocking, best-effort)

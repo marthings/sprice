@@ -261,6 +261,94 @@ struct ConsumptionService: Sendable {
         }
     }
 
+    /// Fetches hourly consumption data for a date range
+    func fetchHourlyConsumption(startDate: Date, endDate: Date) async throws -> [HourlyConsumption] {
+        guard settings.isConfigured else {
+            throw ConsumptionError.missingCredentials
+        }
+
+        let url = try buildHourlyConsumptionURL(startDate: startDate, endDate: endDate)
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("application/json, text/plain, */*", forHTTPHeaderField: "Accept")
+        request.setValue(basicAuthHeader(), forHTTPHeaderField: "Authorization")
+        request.setValue("https://minasidor.vaggerydsenergi.se", forHTTPHeaderField: "Origin")
+        request.setValue("https://minasidor.vaggerydsenergi.se/", forHTTPHeaderField: "Referer")
+
+        logger.info("Fetching hourly consumption...")
+
+        let (data, response) = try await session.data(for: request)
+
+        if let http = response as? HTTPURLResponse {
+            logger.info("Hourly HTTP Status: \(http.statusCode)")
+        }
+
+        try validateResponse(response)
+
+        let decoder = JSONDecoder()
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+        dateFormatter.timeZone = TimeZone(identifier: "Europe/Stockholm")
+        decoder.dateDecodingStrategy = .formatted(dateFormatter)
+
+        let apiResponse = try decoder.decode(ConsumptionAPIResponse.self, from: data)
+        logger.info("Hourly: Got \(apiResponse.consumptionValues.count) values")
+
+        return apiResponse.consumptionValues
+            .map { HourlyConsumption(date: $0.date, kWh: $0.consumption) }
+            .filter { $0.kWh > 0 }
+            .sorted { $0.date < $1.date }
+    }
+
+    /// Calculates power peaks (effekttoppar) for the current month.
+    /// Returns the top 3 hourly peaks (kW) from different weekdays during high-load hours (07–18).
+    func calculatePowerPeaks() async throws -> [PowerPeak] {
+        let calendar = Calendar.current
+        let now = Date()
+        let monthStart = calendar.date(from: DateComponents(
+            year: calendar.component(.year, from: now),
+            month: calendar.component(.month, from: now),
+            day: 1
+        ))!
+
+        let hourlyData = try await fetchHourlyConsumption(startDate: monthStart, endDate: now)
+        logger.info("Power peaks: Got \(hourlyData.count) hourly entries")
+
+        // Filter to weekdays (Mon–Fri) and high-load hours (07–18)
+        let filtered = hourlyData.filter { entry in
+            let weekday = calendar.component(.weekday, from: entry.date)
+            let hour = calendar.component(.hour, from: entry.date)
+            // weekday: 1=Sun, 2=Mon, ..., 6=Fri, 7=Sat
+            let isWeekday = weekday >= 2 && weekday <= 6
+            let isHighLoad = hour >= 7 && hour <= 18
+            return isWeekday && isHighLoad
+        }
+
+        logger.info("Power peaks: \(filtered.count) entries after weekday/hour filter")
+
+        // Sort by kWh descending and pick top peaks from different days
+        let sorted = filtered.sorted { $0.kWh > $1.kWh }
+        var peaks: [PowerPeak] = []
+        var usedDays: Set<DateComponents> = []
+
+        for entry in sorted {
+            let dayComps = calendar.dateComponents([.year, .month, .day], from: entry.date)
+            if !usedDays.contains(dayComps) {
+                peaks.append(PowerPeak(date: entry.date, kW: entry.kWh))
+                usedDays.insert(dayComps)
+                if peaks.count >= 3 { break }
+            }
+        }
+
+        // Sort by kW descending for display
+        let result = peaks.sorted { $0.kW > $1.kW }
+        for peak in result {
+            logger.info("⚡ Peak: \(peak.date) → \(String(format: "%.1f", peak.kW)) kW")
+        }
+
+        return result
+    }
+
     /// Fetches 15-min interval consumption data for a date range
     func fetchQuarterlyConsumption(startDate: Date, endDate: Date) async throws -> [QuarterlyConsumption] {
         guard settings.isConfigured else {
@@ -403,6 +491,24 @@ struct ConsumptionService: Sendable {
         return url
     }
 
+    private func buildHourlyConsumptionURL(startDate: Date, endDate: Date) throws -> URL {
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        dateFormatter.timeZone = TimeZone(identifier: "Europe/Stockholm")
+
+        let startStr = dateFormatter.string(from: startDate)
+        let endStr = dateFormatter.string(from: endDate)
+
+        let path = "/minasidor/v3/consumption/hourly/\(settings.accountId)/\(settings.utilityId)/\(settings.netId)/\(settings.type)/\(startStr)/\(endStr)/1/1"
+
+        guard let url = URL(string: baseURL + path) else {
+            throw ConsumptionError.invalidURL
+        }
+
+        logger.debug("Hourly URL: \(url.absoluteString)")
+        return url
+    }
+
     private func buildConsumptionURL(year: Int, month: Int) throws -> URL {
         // URL pattern: /minasidor/v3/consumption/monthly/{accountId}/{utilityId}/{netId}/{type}/{startYear}/{endYear}/{month}/1
         // Note: startYear seems to be a fixed value (2024), endYear is the query year
@@ -534,6 +640,17 @@ struct DailyConsumption: Identifiable {
         formatter.dateFormat = "d MMM"
         return formatter.string(from: date)
     }
+}
+
+struct HourlyConsumption {
+    let date: Date       // hour start
+    let kWh: Double      // = kW for 1h interval
+}
+
+struct PowerPeak: Identifiable {
+    let date: Date       // the hour
+    let kW: Double       // timmedeleffekt
+    var id: Date { date }
 }
 
 /// Comparison data for current and previous month

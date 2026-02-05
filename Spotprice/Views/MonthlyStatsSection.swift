@@ -7,7 +7,7 @@ import SwiftUI
 
 struct MonthlyStatsSection: View {
     let consumption: ConsumptionData?
-    let dailyConsumption: [DailyConsumption]
+    let powerPeaks: [PowerPeak]
     let consumptionError: String?
     let isConfigured: Bool
     let averagePrice: Double?
@@ -25,8 +25,7 @@ struct MonthlyStatsSection: View {
                         title: "Förbrukning",
                         value: "\(Int(consumption.totalKWh.rounded()))",
                         unit: "kWh",
-                        color: .secondary,
-                        icon: "bolt.circle.fill"
+                        color: .secondary
                     )
 
                     if let preciseCost {
@@ -34,8 +33,7 @@ struct MonthlyStatsSection: View {
                             title: "Faktisk kostnad",
                             value: String(format: "%.0f", preciseCost.totalCostKr),
                             unit: "kr",
-                            color: .secondary,
-                            icon: "checkmark.seal.fill"
+                            color: .secondary
                         )
                     } else if let avgPrice = averagePrice {
                         let estimatedCost = (avgPrice / 100.0) * consumption.totalKWh
@@ -43,14 +41,13 @@ struct MonthlyStatsSection: View {
                             title: "Uppskattad kostnad",
                             value: String(format: "%.0f", estimatedCost),
                             unit: "kr",
-                            color: .secondary,
-                            icon: "creditcard.fill"
+                            color: .secondary
                         )
                     }
                 }
 
-                // Top consumption days
-                TopConsumptionDaysCard(dailyValues: dailyConsumption)
+                // Power peaks (effekttoppar)
+                TopConsumptionDaysCard(peaks: powerPeaks)
             }
         } else if !isConfigured {
             SettingsLink {

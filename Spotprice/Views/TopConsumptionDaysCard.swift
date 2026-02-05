@@ -7,55 +7,60 @@ import SwiftUI
 import Charts
 
 struct TopConsumptionDaysCard: View {
-    let dailyValues: [DailyConsumption]
+    let peaks: [PowerPeak]
 
-    private var topDays: [DailyConsumption] {
-        Array(
-            dailyValues
-                .sorted { $0.kWh > $1.kWh }
-                .prefix(3)
-                .sorted { $0.date < $1.date }  // Sort by date for display
-        )
+    private var topPeaks: [PowerPeak] {
+        Array(peaks.prefix(3).sorted { $0.date < $1.date })
     }
 
-    private var maxKWh: Double {
-        topDays.map(\.kWh).max() ?? 1
+    private var maxKW: Double {
+        topPeaks.map(\.kW).max() ?? 1
+    }
+
+    private var averageKW: Double? {
+        guard !topPeaks.isEmpty else { return nil }
+        return topPeaks.map(\.kW).reduce(0, +) / Double(topPeaks.count)
     }
 
     private var hasData: Bool {
-        !topDays.isEmpty
+        !topPeaks.isEmpty
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.sm) {
             HStack(spacing: DS.Spacing.xs) {
-                Image(systemName: "chart.bar.fill")
-                    .font(.system(size: DS.Size.iconSmall))
-                    .foregroundStyle(.secondary)
-                Text("Effekttoppar denna månad")
-                    .font(DS.Font.micro)
-                    .foregroundStyle(.primary)
+                VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                    Text("Effekttoppar denna månad")
+                        .font(DS.Font.micro)
+                        .foregroundStyle(.primary)
+                    if let avg = averageKW {
+                        Text("Snitt: \(String(format: "%.1f", avg)) kW")
+                            .font(DS.Font.micro)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
+            .padding(.bottom, DS.Spacing.md)
 
             if hasData {
-                Chart(topDays) { day in
+                Chart(topPeaks) { peak in
                     BarMark(
-                        x: .value("Dag", day.date, unit: .day),
-                        y: .value("kWh", day.kWh)
+                        x: .value("Tid", peakLabel(peak.date)),
+                        y: .value("kW", peak.kW)
                     )
-                    .foregroundStyle(barColor(for: day.kWh).gradient)
+                    .foregroundStyle(Color("InfoColor"))
                     .cornerRadius(DS.Radius.sm)
                     .annotation(position: .top, spacing: DS.Spacing.xxs) {
-                        Text("\(Int(day.kWh.rounded()))")
+                        Text(String(format: "%.1f", peak.kW))
                             .font(DS.Font.bold(11).monospacedDigit())
                             .foregroundStyle(.primary)
                     }
                 }
                 .chartXAxis {
                     AxisMarks(values: .automatic) { value in
-                        if let date = value.as(Date.self) {
+                        if let label = value.as(String.self) {
                             AxisValueLabel {
-                                Text(dayLabel(date))
+                                Text(label)
                                     .font(DS.Font.micro)
                                     .foregroundStyle(.secondary)
                             }
@@ -63,7 +68,7 @@ struct TopConsumptionDaysCard: View {
                     }
                 }
                 .chartYAxis(.hidden)
-                .chartYScale(domain: 0...(maxKWh * 1.3))
+                .chartYScale(domain: 0...(maxKW * 1.3))
                 .frame(height: 70)
             } else {
                 HStack {
@@ -83,17 +88,10 @@ struct TopConsumptionDaysCard: View {
         .glassCard(cornerRadius: DS.Radius.md)
     }
 
-    private func barColor(for kWh: Double) -> Color {
-        let ratio = kWh / maxKWh
-        if ratio > 0.9 { return DS.Color.danger }
-        if ratio > 0.7 { return DS.Color.warning }
-        return .blue
-    }
-
-    private func dayLabel(_ date: Date) -> String {
+    private func peakLabel(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "sv_SE")
-        formatter.dateFormat = "d MMM"
+        formatter.dateFormat = "d MMM HH:mm"
         return formatter.string(from: date)
     }
 }
