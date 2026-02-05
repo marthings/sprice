@@ -24,6 +24,7 @@ final class SpotPriceViewModel {
     private(set) var state: State = .idle
     private(set) var monthlyConsumption: ConsumptionData?
     private(set) var dailyConsumption: [DailyConsumption] = []
+    private(set) var preciseMonthlyCost: PreciseMonthlyCost?
     private(set) var consumptionError: String?
 
     private let service: SpotPriceService
@@ -125,6 +126,15 @@ final class SpotPriceViewModel {
             consumptionError = error.localizedDescription
             print("📊 ViewModel: Consumption error - \(error.localizedDescription)")
             // Don't clear existing data on error
+        }
+
+        // Calculate precise monthly cost (non-blocking, best-effort)
+        do {
+            preciseMonthlyCost = try await consumptionService.calculatePreciseMonthlyCost(spotPriceService: service)
+            print("📊 ViewModel: Precise cost = \(String(format: "%.2f", preciseMonthlyCost?.totalCostKr ?? 0)) kr")
+        } catch {
+            print("📊 ViewModel: Precise cost unavailable - \(error.localizedDescription)")
+            // Keep preciseMonthlyCost as nil — UI falls back to estimated
         }
     }
     

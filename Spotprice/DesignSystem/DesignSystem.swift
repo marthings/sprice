@@ -121,7 +121,7 @@ enum DS {
 
     enum Size {
         // Menu Bar
-        static let menuBarWidth: CGFloat = 340
+        static let menuBarWidth: CGFloat = 400
         static let menuBarHeight: CGFloat = 620
 
         // Charts

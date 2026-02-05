@@ -261,7 +261,147 @@ struct ConsumptionService: Sendable {
         }
     }
 
+    /// Fetches 15-min interval consumption data for a date range
+    func fetchQuarterlyConsumption(startDate: Date, endDate: Date) async throws -> [QuarterlyConsumption] {
+        guard settings.isConfigured else {
+            throw ConsumptionError.missingCredentials
+        }
+
+        let url = try buildQuarterlyConsumptionURL(startDate: startDate, endDate: endDate)
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("application/json, text/plain, */*", forHTTPHeaderField: "Accept")
+        request.setValue(basicAuthHeader(), forHTTPHeaderField: "Authorization")
+        request.setValue("https://minasidor.vaggerydsenergi.se", forHTTPHeaderField: "Origin")
+        request.setValue("https://minasidor.vaggerydsenergi.se/", forHTTPHeaderField: "Referer")
+
+        logger.info("Fetching quarterly consumption...")
+
+        let (data, response) = try await session.data(for: request)
+
+        if let http = response as? HTTPURLResponse {
+            logger.info("Quarterly HTTP Status: \(http.statusCode)")
+        }
+
+        try validateResponse(response)
+
+        let decoder = JSONDecoder()
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+        dateFormatter.timeZone = TimeZone(identifier: "Europe/Stockholm")
+        decoder.dateDecodingStrategy = .formatted(dateFormatter)
+
+        let apiResponse = try decoder.decode(ConsumptionAPIResponse.self, from: data)
+        logger.info("Quarterly: Got \(apiResponse.consumptionValues.count) values")
+
+        return apiResponse.consumptionValues
+            .map { QuarterlyConsumption(date: $0.date, kWh: $0.consumption) }
+            .filter { $0.kWh > 0 }
+            .sorted { $0.date < $1.date }
+    }
+
+    /// Calculates precise monthly cost by matching 15-min consumption against hourly spot prices
+    func calculatePreciseMonthlyCost(spotPriceService: SpotPriceService) async throws -> PreciseMonthlyCost {
+        let calendar = Calendar.current
+        let now = Date()
+        let monthStart = calendar.date(from: DateComponents(
+            year: calendar.component(.year, from: now),
+            month: calendar.component(.month, from: now),
+            day: 1
+        ))!
+
+        // Fetch quarterly consumption for the whole month
+        let quarterlyData = try await fetchQuarterlyConsumption(startDate: monthStart, endDate: now)
+        logger.info("Precise cost: Got \(quarterlyData.count) quarterly intervals")
+
+        guard !quarterlyData.isEmpty else {
+            throw ConsumptionError.notFound
+        }
+
+        // Determine which days we need spot prices for
+        var daysNeeded: Set<DateComponents> = []
+        for entry in quarterlyData {
+            let comps = calendar.dateComponents([.year, .month, .day], from: entry.date)
+            daysNeeded.insert(comps)
+        }
+
+        // Fetch spot prices for all needed days in parallel
+        let spotPriceLookup: [Date: Double] = try await withThrowingTaskGroup(of: [(Date, Double)].self) { group in
+            for dayComps in daysNeeded {
+                guard let dayDate = calendar.date(from: dayComps) else { continue }
+                group.addTask {
+                    do {
+                        let items = try await spotPriceService.fetchSpotPrices(for: dayDate)
+                        return items.map { item in
+                            // Floor to hour start for lookup key
+                            let hourStart = calendar.date(from: calendar.dateComponents([.year, .month, .day, .hour], from: item.timeStart))!
+                            return (hourStart, item.sekPerKWh * 100.0) // öre/kWh
+                        }
+                    } catch {
+                        return []
+                    }
+                }
+            }
+
+            var lookup: [Date: Double] = [:]
+            for try await pairs in group {
+                for (date, price) in pairs {
+                    lookup[date] = price
+                }
+            }
+            return lookup
+        }
+
+        logger.info("Precise cost: Built price lookup with \(spotPriceLookup.count) hours")
+
+        // Match each 15-min interval to its hour's spot price
+        var totalCost = 0.0
+        var totalKWh = 0.0
+        var matchedIntervals = 0
+
+        for entry in quarterlyData {
+            let hourStart = calendar.date(from: calendar.dateComponents([.year, .month, .day, .hour], from: entry.date))!
+            if let priceOre = spotPriceLookup[hourStart] {
+                totalCost += entry.kWh * priceOre / 100.0  // öre → kr
+                totalKWh += entry.kWh
+                matchedIntervals += 1
+            }
+        }
+
+        logger.info("Precise cost: \(String(format: "%.2f", totalCost)) kr from \(matchedIntervals)/\(quarterlyData.count) intervals (\(String(format: "%.1f", totalKWh)) kWh)")
+
+        return PreciseMonthlyCost(
+            totalCostKr: totalCost,
+            totalKWh: totalKWh,
+            matchedIntervals: matchedIntervals,
+            totalIntervals: quarterlyData.count
+        )
+    }
+
     // MARK: - Private Helpers
+
+    private func buildQuarterlyConsumptionURL(startDate: Date, endDate: Date) throws -> URL {
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        dateFormatter.timeZone = TimeZone(identifier: "Europe/Stockholm")
+
+        let startStr = dateFormatter.string(from: startDate)
+        let endStr = dateFormatter.string(from: endDate)
+
+        guard let encodedStart = startStr.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+              let encodedEnd = endStr.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else {
+            throw ConsumptionError.invalidURL
+        }
+
+        let path = "/minasidor/v3/consumption/quarterly/\(settings.accountId)/\(settings.utilityId)/\(settings.netId)/\(settings.type)/\(encodedStart)/\(encodedEnd)/1/1"
+
+        guard let url = URL(string: baseURL + path) else {
+            throw ConsumptionError.invalidURL
+        }
+
+        logger.debug("Quarterly URL: \(url.absoluteString)")
+        return url
+    }
 
     private func buildConsumptionURL(year: Int, month: Int) throws -> URL {
         // URL pattern: /minasidor/v3/consumption/monthly/{accountId}/{utilityId}/{netId}/{type}/{startYear}/{endYear}/{month}/1
@@ -366,6 +506,19 @@ struct ConsumptionValue {
     let date: Date
     let kWh: Double
     let price: Double
+}
+
+struct QuarterlyConsumption: Identifiable {
+    let date: Date
+    let kWh: Double
+    var id: Date { date }
+}
+
+struct PreciseMonthlyCost {
+    let totalCostKr: Double
+    let totalKWh: Double
+    let matchedIntervals: Int
+    let totalIntervals: Int
 }
 
 struct DailyConsumption: Identifiable {

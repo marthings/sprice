@@ -11,6 +11,7 @@ struct MonthlyStatsSection: View {
     let consumptionError: String?
     let isConfigured: Bool
     let averagePrice: Double?
+    let preciseCost: PreciseMonthlyCost?
 
     var body: some View {
         if let consumption {
@@ -28,7 +29,15 @@ struct MonthlyStatsSection: View {
                         icon: "bolt.circle.fill"
                     )
 
-                    if let avgPrice = averagePrice {
+                    if let preciseCost {
+                        ConsumptionStatCard(
+                            title: "Faktisk kostnad",
+                            value: String(format: "%.0f", preciseCost.totalCostKr),
+                            unit: "kr",
+                            color: .secondary,
+                            icon: "checkmark.seal.fill"
+                        )
+                    } else if let avgPrice = averagePrice {
                         let estimatedCost = (avgPrice / 100.0) * consumption.totalKWh
                         ConsumptionStatCard(
                             title: "Uppskattad kostnad",

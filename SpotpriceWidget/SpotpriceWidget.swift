@@ -317,7 +317,7 @@ struct SpotpriceWidgetEntryView: View {
 
     var body: some View {
         if let price = entry.currentPrice, let _ = entry.priceCategory {
-            VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 8) {
                 
                 priceView(price: price)
                     .padding(.bottom, DS.Spacing.sm)
@@ -329,6 +329,8 @@ struct SpotpriceWidgetEntryView: View {
                 } else {
                     Spacer()
                 }
+                
+
 
                 // Monthly stats with month label
                 HStack(alignment: .top, spacing: DS.Spacing.xxs) {
@@ -341,6 +343,8 @@ struct SpotpriceWidgetEntryView: View {
                             .font(DS.Font.micro)
                     }
                     .foregroundStyle(.secondary)
+                    
+                    Spacer()
 
                     HStack(spacing: DS.Spacing.xxs) {
                         Text("\(Int(entry.monthlyCostKr.rounded()))")
@@ -351,8 +355,11 @@ struct SpotpriceWidgetEntryView: View {
                     .foregroundStyle(.secondary)
                 }
                 .widgetAccentable()
+                .padding(.vertical, 4)
+                .padding(.horizontal, 8)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
             }
-            .padding(DS.Spacing.md)
+
         } else {
             errorView
         }
@@ -374,7 +381,7 @@ struct SpotpriceWidgetEntryView: View {
         HStack(alignment: .center) {
             HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
                 Text("\(price)")
-                    .font(DS.Font.bold(20))
+                    .font(DS.Font.bold(24))
                     .monospacedDigit()
                     .foregroundStyle(renderingMode == .accented ? .primary : currentPriceColor)
                 Text("öre")
@@ -386,7 +393,7 @@ struct SpotpriceWidgetEntryView: View {
             if let category = currentPriceCategory, renderingMode != .accented {
                 Text(category.label)
                     .font(DS.Font.semibold(9))
-                    .foregroundStyle(currentPriceColor.opacity(0.8))
+                    .foregroundStyle(currentPriceColor)
             }
         }
     }
