@@ -44,15 +44,10 @@ struct ModernMenuBarView: View {
     private var menuHeader: some View {
         HStack(spacing: DS.Spacing.md) {
             HStack(spacing: DS.Spacing.sm) {
-                Circle()
-                    .fill(.ultraThinMaterial)
-                    .frame(width: DS.Size.headerIconSize, height: DS.Size.headerIconSize)
-                    .overlay {
-                        Image(systemName: "bolt.fill")
-                            .font(.system(size: DS.Size.iconSmall, weight: .bold))
-                            .foregroundStyle(.primary)
-                    }
-
+                Image("Logo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 32, height: 32)
                 Text("Sprice")
                     .font(DS.Font.headline)
                     .foregroundStyle(.primary)
@@ -159,8 +154,6 @@ struct ModernMenuBarView: View {
                 }
 
                 CostCalculationSection(payload: payload)
-
-                BestTimeCard(buckets: payload.day.buckets)
             }
         }
     }

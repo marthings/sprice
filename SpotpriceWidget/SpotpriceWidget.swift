@@ -319,6 +319,34 @@ struct SpotpriceWidgetEntryView: View {
         if let price = entry.currentPrice, let _ = entry.priceCategory {
             VStack(alignment: .leading, spacing: 8) {
                 
+                // Monthly stats with month label
+                HStack(alignment: .center, spacing: DS.Spacing.xxs) {
+                    
+                    Image("Logo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 24, height: 24)
+                    
+                    Spacer()
+                    HStack(spacing: DS.Spacing.xxs) {
+                        Text("\(Int(entry.monthlyKWh.rounded()))")
+                            .font(DS.Font.semibold(11).monospacedDigit())
+                        Text("kWh")
+                            .font(DS.Font.regular(9))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    HStack(spacing: DS.Spacing.xxs) {
+                        Text("\(Int(entry.monthlyCostKr.rounded()))")
+                            .font(DS.Font.semibold(11).monospacedDigit())
+                        Text("kr")
+                            .font(DS.Font.regular(9))
+                            .foregroundStyle(.secondary)
+                    }
+                    
+                }
+                .widgetAccentable()
+            
                 priceView(price: price)
                     .padding(.bottom, DS.Spacing.sm)
 
@@ -329,35 +357,7 @@ struct SpotpriceWidgetEntryView: View {
                 } else {
                     Spacer()
                 }
-                
 
-
-                // Monthly stats with month label
-                HStack(alignment: .top, spacing: DS.Spacing.xxs) {
-                    
-
-                    HStack(spacing: DS.Spacing.xxs) {
-                        Text("\(Int(entry.monthlyKWh.rounded()))")
-                            .font(DS.Font.semibold(10).monospacedDigit())
-                        Text("kWh")
-                            .font(DS.Font.micro)
-                    }
-                    .foregroundStyle(.secondary)
-                    
-                    Spacer()
-
-                    HStack(spacing: DS.Spacing.xxs) {
-                        Text("\(Int(entry.monthlyCostKr.rounded()))")
-                            .font(DS.Font.semibold(10).monospacedDigit())
-                        Text("kr")
-                            .font(DS.Font.micro)
-                    }
-                    .foregroundStyle(.secondary)
-                }
-                .widgetAccentable()
-                .padding(.vertical, 4)
-                .padding(.horizontal, 8)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
             }
 
         } else {
