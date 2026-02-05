@@ -58,25 +58,40 @@ struct SpotPriceService: Sendable {
     
     /// Creates display text for the current price
     func makeDisplayText(
-        from items: [SpotPriceItem], 
-        now: Date = Date(), 
+        from items: [SpotPriceItem],
+        now: Date = Date(),
         formatter: NumberFormatter
     ) throws -> String {
         let todayItems = items.filter { calendar.isDate($0.timeStart, inSameDayAs: now) || calendar.isDate($0.timeEnd, inSameDayAs: now) }
-        
+
         guard !todayItems.isEmpty else {
             throw DisplayableError("Inga prisdata hittades för idag.")
         }
-        
+
         // Prefer the interval that contains 'now'; else latest past; else last today
         let containingNow = todayItems.first(where: { $0.timeStart <= now && now < $0.timeEnd })
         let latestPast = todayItems.filter { $0.timeEnd <= now }.max(by: { $0.timeEnd < $1.timeEnd })
         let chosen = containingNow ?? latestPast ?? todayItems.max(by: { $0.timeEnd < $1.timeEnd })
-        
+
         guard let current = chosen else {
             throw DisplayableError("Kunde inte välja ett relevant prisintervall.")
         }
-        
+
+        // Debug logging
+        let df = DateFormatter()
+        df.dateFormat = "HH:mm:ss"
+        df.timeZone = timeZone
+        print("⚡️ Now: \(df.string(from: now))")
+        print("⚡️ Chosen interval: \(df.string(from: current.timeStart)) - \(df.string(from: current.timeEnd))")
+        print("⚡️ Price: \(current.sekPerKWh) SEK/kWh = \(current.sekPerKWh * 100) öre")
+        if containingNow != nil {
+            print("⚡️ Match type: containingNow ✓")
+        } else if latestPast != nil {
+            print("⚡️ Match type: latestPast (fallback)")
+        } else {
+            print("⚡️ Match type: last today (fallback)")
+        }
+
         let ore = current.sekPerKWh * 100.0
         let formatted = formatter.string(from: NSNumber(value: ore)) ?? String(format: "%.1f", ore)
         return "\(formatted)"
