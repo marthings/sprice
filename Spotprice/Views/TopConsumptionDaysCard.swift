@@ -40,7 +40,6 @@ struct TopConsumptionDaysCard: View {
                     }
                 }
             }
-            .padding(.bottom, DS.Spacing.md)
 
             if hasData {
                 Chart(topPeaks) { peak in
@@ -83,7 +82,8 @@ struct TopConsumptionDaysCard: View {
                 .frame(height: 70)
             }
         }
-        .padding(DS.Spacing.md)
+        .padding(.horizontal, DS.Spacing.lg)
+        .padding(.vertical, DS.Spacing.md)
         .frame(maxWidth: .infinity)
         .glassCard(cornerRadius: DS.Radius.md)
     }

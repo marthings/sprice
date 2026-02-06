@@ -2,7 +2,7 @@
 //  ConsumptionService.swift
 //  Spotprice
 //
-//  Fetches energy consumption data from Vaggeryds Energi API
+//  Facade for fetching energy consumption data from the selected provider
 //
 
 import Foundation
@@ -14,28 +14,50 @@ private let logger = Logger(subsystem: "se.spotprice", category: "ConsumptionSer
 
 struct ConsumptionService: Sendable {
     private let session: URLSession
-    private let baseURL = "https://api-minasidor.vaggerydsenergi.se"
     private var settings: ConsumptionSettings { ConsumptionSettings.shared }
 
     init(session: URLSession = NetworkSession.shared) {
         self.session = session
     }
 
-    /// Tests the connection to Vaggeryds Energi API
-    func testConnection() async throws {
+    // MARK: - Provider Access
+
+    /// Creates the current provider instance
+    private func currentProvider() throws -> any ElectricityProvider {
         guard settings.isConfigured else {
             throw ConsumptionError.missingCredentials
         }
-        // Försök hämta data för att verifiera credentials
-        _ = try await fetchCurrentMonthConsumption()
+
+        let providerId = settings.selectedProviderId
+        let credentials = settings.getCredentials(for: providerId)
+
+        guard let provider = ProviderRegistry.shared.createProvider(
+            identifier: providerId,
+            credentials: credentials,
+            session: session
+        ) else {
+            throw ConsumptionError.missingCredentials
+        }
+
+        return provider
     }
+
+    // MARK: - Connection Test
+
+    /// Tests the connection to the current provider's API
+    func testConnection() async throws {
+        let provider = try currentProvider()
+        do {
+            try await provider.testConnection()
+        } catch let error as ProviderError {
+            throw error.toConsumptionError()
+        }
+    }
+
+    // MARK: - Fetch Methods
 
     /// Fetches consumption data for the current month
     func fetchCurrentMonthConsumption() async throws -> ConsumptionData {
-        guard settings.isConfigured else {
-            throw ConsumptionError.missingCredentials
-        }
-
         let now = Date()
         let calendar = Calendar.current
         let year = calendar.component(.year, from: now)
@@ -44,12 +66,18 @@ struct ConsumptionService: Sendable {
         return try await fetchConsumption(year: year, month: month)
     }
 
+    /// Fetches consumption data for a specific month
+    func fetchConsumption(year: Int, month: Int) async throws -> ConsumptionData {
+        let provider = try currentProvider()
+        do {
+            return try await provider.fetchConsumption(year: year, month: month)
+        } catch let error as ProviderError {
+            throw error.toConsumptionError()
+        }
+    }
+
     /// Fetches daily consumption data for the current month
     func fetchCurrentMonthDailyConsumption() async throws -> [DailyConsumption] {
-        guard settings.isConfigured else {
-            throw ConsumptionError.missingCredentials
-        }
-
         let now = Date()
         let calendar = Calendar.current
         let year = calendar.component(.year, from: now)
@@ -57,6 +85,43 @@ struct ConsumptionService: Sendable {
 
         return try await fetchDailyConsumption(year: year, month: month)
     }
+
+    /// Fetches daily consumption data for a specific month
+    func fetchDailyConsumption(year: Int, month: Int) async throws -> [DailyConsumption] {
+        let provider = try currentProvider()
+        do {
+            return try await provider.fetchDailyConsumption(year: year, month: month)
+        } catch let error as ProviderError {
+            throw error.toConsumptionError()
+        }
+    }
+
+    /// Fetches hourly consumption data for a date range
+    func fetchHourlyConsumption(startDate: Date, endDate: Date) async throws -> [HourlyConsumption] {
+        let provider = try currentProvider()
+        do {
+            return try await provider.fetchHourlyConsumption(startDate: startDate, endDate: endDate)
+        } catch let error as ProviderError {
+            throw error.toConsumptionError()
+        }
+    }
+
+    /// Fetches 15-min interval consumption data for a date range (if provider supports it)
+    func fetchQuarterlyConsumption(startDate: Date, endDate: Date) async throws -> [QuarterlyConsumption] {
+        let provider = try currentProvider()
+
+        guard let quarterlyProvider = provider as? QuarterlyConsumptionProvider else {
+            throw ConsumptionError.notFound
+        }
+
+        do {
+            return try await quarterlyProvider.fetchQuarterlyConsumption(startDate: startDate, endDate: endDate)
+        } catch let error as ProviderError {
+            throw error.toConsumptionError()
+        }
+    }
+
+    // MARK: - Monthly Comparison
 
     /// Fetches consumption comparison between current and previous month
     func fetchMonthlyComparison(spotPriceService: SpotPriceService) async throws -> MonthlyComparison {
@@ -104,204 +169,10 @@ struct ConsumptionService: Sendable {
         )
     }
 
-    /// Fetches average spot price for a given month (öre/kWh)
-    private func fetchAveragePrice(for year: Int, month: Int, spotPriceService: SpotPriceService) async throws -> Double {
-        let calendar = Calendar.current
-
-        // Get all days in the month up to today (or entire month if past)
-        let monthStart = calendar.date(from: DateComponents(year: year, month: month, day: 1))!
-        let now = Date()
-
-        // Determine end date: either end of month or today
-        var endDate: Date
-        let isCurrentMonth = calendar.component(.year, from: now) == year && calendar.component(.month, from: now) == month
-        if isCurrentMonth {
-            endDate = now
-        } else {
-            // Get last day of month
-            let nextMonth = calendar.date(byAdding: .month, value: 1, to: monthStart)!
-            endDate = calendar.date(byAdding: .day, value: -1, to: nextMonth)!
-        }
-
-        // For simplicity, sample a few days to get average
-        var allPrices: [Double] = []
-        var currentDate = monthStart
-
-        // Sample every 3rd day for efficiency
-        while currentDate <= endDate {
-            do {
-                let items = try await spotPriceService.fetchSpotPrices(for: currentDate)
-                let dayPrices = items.map { $0.sekPerKWh * 100.0 } // Convert to öre
-                allPrices.append(contentsOf: dayPrices)
-            } catch {
-                logger.debug("Could not fetch prices for \(currentDate): \(error.localizedDescription)")
-            }
-            currentDate = calendar.date(byAdding: .day, value: 3, to: currentDate)!
-        }
-
-        guard !allPrices.isEmpty else {
-            throw ConsumptionError.notFound
-        }
-
-        return allPrices.reduce(0, +) / Double(allPrices.count)
-    }
-
-    /// Fetches daily consumption data for a specific month
-    func fetchDailyConsumption(year: Int, month: Int) async throws -> [DailyConsumption] {
-        let url = try buildDailyConsumptionURL(year: year, month: month)
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("application/json, text/plain, */*", forHTTPHeaderField: "Accept")
-        request.setValue(basicAuthHeader(), forHTTPHeaderField: "Authorization")
-        request.setValue("https://minasidor.vaggerydsenergi.se", forHTTPHeaderField: "Origin")
-        request.setValue("https://minasidor.vaggerydsenergi.se/", forHTTPHeaderField: "Referer")
-
-        logger.info("Fetching daily consumption for \(year)/\(month)...")
-
-        let (data, response) = try await session.data(for: request)
-
-        if let http = response as? HTTPURLResponse {
-            logger.info("Daily HTTP Status: \(http.statusCode)")
-        }
-
-        try validateResponse(response)
-
-        let decoder = JSONDecoder()
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
-        dateFormatter.timeZone = TimeZone(identifier: "Europe/Stockholm")
-        decoder.dateDecodingStrategy = .formatted(dateFormatter)
-
-        let apiResponse = try decoder.decode(ConsumptionAPIResponse.self, from: data)
-        logger.info("Daily: Got \(apiResponse.consumptionValues.count) values")
-
-        // Convert to DailyConsumption, filtering out zero values
-        return apiResponse.consumptionValues
-            .map { DailyConsumption(date: $0.date, kWh: $0.consumption) }
-            .filter { $0.kWh > 0 }
-            .sorted { $0.date < $1.date }
-    }
-
-    /// Fetches consumption data for a specific month
-    func fetchConsumption(year: Int, month: Int) async throws -> ConsumptionData {
-        let url = try buildConsumptionURL(year: year, month: month)
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("application/json, text/plain, */*", forHTTPHeaderField: "Accept")
-        request.setValue(basicAuthHeader(), forHTTPHeaderField: "Authorization")
-        request.setValue("https://minasidor.vaggerydsenergi.se", forHTTPHeaderField: "Origin")
-        request.setValue("https://minasidor.vaggerydsenergi.se/", forHTTPHeaderField: "Referer")
-
-        logger.info("Fetching consumption for \(year)/\(month)...")
-
-        do {
-            let (data, response) = try await session.data(for: request)
-
-            if let http = response as? HTTPURLResponse {
-                logger.info("HTTP Status: \(http.statusCode)")
-                if http.statusCode != 200 {
-                    let body = String(data: data, encoding: .utf8) ?? "nil"
-                    logger.error("Response body: \(body)")
-                }
-            }
-
-            try validateResponse(response)
-
-            let decoder = JSONDecoder()
-            let dateFormatter = DateFormatter()
-            dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
-            dateFormatter.timeZone = TimeZone(identifier: "Europe/Stockholm")
-            decoder.dateDecodingStrategy = .formatted(dateFormatter)
-
-            let apiResponse = try decoder.decode(ConsumptionAPIResponse.self, from: data)
-            logger.info("Success! Got \(apiResponse.consumptionValues.count) values")
-
-            // Debug: Log all values
-            for value in apiResponse.consumptionValues {
-                logger.info("📊 Value: \(value.date) -> \(value.consumption) kWh")
-            }
-
-            // Filter to only the requested month
-            // Note: API returns dates at end of PREVIOUS month, so 2025-12-31 = January 2026 data
-            let calendar = Calendar.current
-
-            func findValue(for targetYear: Int, targetMonth: Int) -> ConsumptionValueAPI? {
-                apiResponse.consumptionValues.first { value in
-                    guard let nextDay = calendar.date(byAdding: .day, value: 1, to: value.date) else { return false }
-                    return calendar.component(.year, from: nextDay) == targetYear &&
-                           calendar.component(.month, from: nextDay) == targetMonth
-                }
-            }
-
-            // Find value for requested month
-            let currentMonthValue = findValue(for: year, targetMonth: month)
-
-            logger.info("📊 Looking for year=\(year), month=\(month)")
-            logger.info("📊 Found value: \(currentMonthValue?.consumption ?? 0) kWh")
-
-            let totalKWh = currentMonthValue?.consumption ?? 0
-            let monthDate = calendar.date(from: DateComponents(year: year, month: month, day: 1))!
-
-            return ConsumptionData(
-                totalKWh: totalKWh,
-                values: apiResponse.consumptionValues.map { value in
-                    ConsumptionValue(
-                        date: value.date,
-                        kWh: value.consumption,
-                        price: value.price ?? 0
-                    )
-                },
-                meterName: apiResponse.utility.name,
-                meterId: apiResponse.utility.meterid ?? "",
-                monthDate: monthDate
-            )
-        } catch {
-            logger.error("Error: \(error.localizedDescription)")
-            throw error
-        }
-    }
-
-    /// Fetches hourly consumption data for a date range
-    func fetchHourlyConsumption(startDate: Date, endDate: Date) async throws -> [HourlyConsumption] {
-        guard settings.isConfigured else {
-            throw ConsumptionError.missingCredentials
-        }
-
-        let url = try buildHourlyConsumptionURL(startDate: startDate, endDate: endDate)
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("application/json, text/plain, */*", forHTTPHeaderField: "Accept")
-        request.setValue(basicAuthHeader(), forHTTPHeaderField: "Authorization")
-        request.setValue("https://minasidor.vaggerydsenergi.se", forHTTPHeaderField: "Origin")
-        request.setValue("https://minasidor.vaggerydsenergi.se/", forHTTPHeaderField: "Referer")
-
-        logger.info("Fetching hourly consumption...")
-
-        let (data, response) = try await session.data(for: request)
-
-        if let http = response as? HTTPURLResponse {
-            logger.info("Hourly HTTP Status: \(http.statusCode)")
-        }
-
-        try validateResponse(response)
-
-        let decoder = JSONDecoder()
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
-        dateFormatter.timeZone = TimeZone(identifier: "Europe/Stockholm")
-        decoder.dateDecodingStrategy = .formatted(dateFormatter)
-
-        let apiResponse = try decoder.decode(ConsumptionAPIResponse.self, from: data)
-        logger.info("Hourly: Got \(apiResponse.consumptionValues.count) values")
-
-        return apiResponse.consumptionValues
-            .map { HourlyConsumption(date: $0.date, kWh: $0.consumption) }
-            .filter { $0.kWh > 0 }
-            .sorted { $0.date < $1.date }
-    }
+    // MARK: - Power Peaks
 
     /// Calculates power peaks (effekttoppar) for the current month.
-    /// Returns the top 3 hourly peaks (kW) from different weekdays during high-load hours (07–18).
+    /// Returns the top 3 hourly peaks (kW) from different weekdays during high-load hours (07–20).
     func calculatePowerPeaks() async throws -> [PowerPeak] {
         let calendar = Calendar.current
         let now = Date()
@@ -314,13 +185,13 @@ struct ConsumptionService: Sendable {
         let hourlyData = try await fetchHourlyConsumption(startDate: monthStart, endDate: now)
         logger.info("Power peaks: Got \(hourlyData.count) hourly entries")
 
-        // Filter to weekdays (Mon–Fri) and high-load hours (07–18)
+        // Filter to weekdays (Mon–Fri) and high-load hours (07–20)
         let filtered = hourlyData.filter { entry in
             let weekday = calendar.component(.weekday, from: entry.date)
             let hour = calendar.component(.hour, from: entry.date)
             // weekday: 1=Sun, 2=Mon, ..., 6=Fri, 7=Sat
             let isWeekday = weekday >= 2 && weekday <= 6
-            let isHighLoad = hour >= 7 && hour <= 18
+            let isHighLoad = hour >= 7 && hour <= 19
             return isWeekday && isHighLoad
         }
 
@@ -342,51 +213,24 @@ struct ConsumptionService: Sendable {
 
         // Sort by kW descending for display
         let result = peaks.sorted { $0.kW > $1.kW }
+
+        // Debug logging
+        let df = DateFormatter()
+        df.dateFormat = "d MMM HH:mm"
+        df.locale = Locale(identifier: "sv_SE")
+        df.timeZone = TimeZone(identifier: "Europe/Stockholm")
         for peak in result {
-            logger.info("⚡ Peak: \(peak.date) → \(String(format: "%.1f", peak.kW)) kW")
+            logger.info("⚡ Peak: \(df.string(from: peak.date)) → \(String(format: "%.2f", peak.kW)) kW")
+        }
+        if !result.isEmpty {
+            let avg = result.map(\.kW).reduce(0, +) / Double(result.count)
+            logger.info("⚡ Average of \(result.count) peaks: \(String(format: "%.2f", avg)) kW")
         }
 
         return result
     }
 
-    /// Fetches 15-min interval consumption data for a date range
-    func fetchQuarterlyConsumption(startDate: Date, endDate: Date) async throws -> [QuarterlyConsumption] {
-        guard settings.isConfigured else {
-            throw ConsumptionError.missingCredentials
-        }
-
-        let url = try buildQuarterlyConsumptionURL(startDate: startDate, endDate: endDate)
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("application/json, text/plain, */*", forHTTPHeaderField: "Accept")
-        request.setValue(basicAuthHeader(), forHTTPHeaderField: "Authorization")
-        request.setValue("https://minasidor.vaggerydsenergi.se", forHTTPHeaderField: "Origin")
-        request.setValue("https://minasidor.vaggerydsenergi.se/", forHTTPHeaderField: "Referer")
-
-        logger.info("Fetching quarterly consumption...")
-
-        let (data, response) = try await session.data(for: request)
-
-        if let http = response as? HTTPURLResponse {
-            logger.info("Quarterly HTTP Status: \(http.statusCode)")
-        }
-
-        try validateResponse(response)
-
-        let decoder = JSONDecoder()
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
-        dateFormatter.timeZone = TimeZone(identifier: "Europe/Stockholm")
-        decoder.dateDecodingStrategy = .formatted(dateFormatter)
-
-        let apiResponse = try decoder.decode(ConsumptionAPIResponse.self, from: data)
-        logger.info("Quarterly: Got \(apiResponse.consumptionValues.count) values")
-
-        return apiResponse.consumptionValues
-            .map { QuarterlyConsumption(date: $0.date, kWh: $0.consumption) }
-            .filter { $0.kWh > 0 }
-            .sorted { $0.date < $1.date }
-    }
+    // MARK: - Precise Monthly Cost
 
     /// Calculates precise monthly cost by matching 15-min consumption against hourly spot prices
     func calculatePreciseMonthlyCost(spotPriceService: SpotPriceService) async throws -> PreciseMonthlyCost {
@@ -468,219 +312,46 @@ struct ConsumptionService: Sendable {
 
     // MARK: - Private Helpers
 
-    private func buildQuarterlyConsumptionURL(startDate: Date, endDate: Date) throws -> URL {
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        dateFormatter.timeZone = TimeZone(identifier: "Europe/Stockholm")
+    /// Fetches average spot price for a given month (öre/kWh)
+    private func fetchAveragePrice(for year: Int, month: Int, spotPriceService: SpotPriceService) async throws -> Double {
+        let calendar = Calendar.current
 
-        let startStr = dateFormatter.string(from: startDate)
-        let endStr = dateFormatter.string(from: endDate)
+        // Get all days in the month up to today (or entire month if past)
+        let monthStart = calendar.date(from: DateComponents(year: year, month: month, day: 1))!
+        let now = Date()
 
-        guard let encodedStart = startStr.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
-              let encodedEnd = endStr.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else {
-            throw ConsumptionError.invalidURL
+        // Determine end date: either end of month or today
+        var endDate: Date
+        let isCurrentMonth = calendar.component(.year, from: now) == year && calendar.component(.month, from: now) == month
+        if isCurrentMonth {
+            endDate = now
+        } else {
+            // Get last day of month
+            let nextMonth = calendar.date(byAdding: .month, value: 1, to: monthStart)!
+            endDate = calendar.date(byAdding: .day, value: -1, to: nextMonth)!
         }
 
-        let path = "/minasidor/v3/consumption/quarterly/\(settings.accountId)/\(settings.utilityId)/\(settings.netId)/\(settings.type)/\(encodedStart)/\(encodedEnd)/1/1"
+        // For simplicity, sample a few days to get average
+        var allPrices: [Double] = []
+        var currentDate = monthStart
 
-        guard let url = URL(string: baseURL + path) else {
-            throw ConsumptionError.invalidURL
+        // Sample every 3rd day for efficiency
+        while currentDate <= endDate {
+            do {
+                let items = try await spotPriceService.fetchSpotPrices(for: currentDate)
+                let dayPrices = items.map { $0.sekPerKWh * 100.0 } // Convert to öre
+                allPrices.append(contentsOf: dayPrices)
+            } catch {
+                logger.debug("Could not fetch prices for \(currentDate): \(error.localizedDescription)")
+            }
+            currentDate = calendar.date(byAdding: .day, value: 3, to: currentDate)!
         }
 
-        logger.debug("Quarterly URL: \(url.absoluteString)")
-        return url
-    }
-
-    private func buildHourlyConsumptionURL(startDate: Date, endDate: Date) throws -> URL {
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd"
-        dateFormatter.timeZone = TimeZone(identifier: "Europe/Stockholm")
-
-        let startStr = dateFormatter.string(from: startDate)
-        let endStr = dateFormatter.string(from: endDate)
-
-        let path = "/minasidor/v3/consumption/hourly/\(settings.accountId)/\(settings.utilityId)/\(settings.netId)/\(settings.type)/\(startStr)/\(endStr)/1/1"
-
-        guard let url = URL(string: baseURL + path) else {
-            throw ConsumptionError.invalidURL
-        }
-
-        logger.debug("Hourly URL: \(url.absoluteString)")
-        return url
-    }
-
-    private func buildConsumptionURL(year: Int, month: Int) throws -> URL {
-        // URL pattern: /minasidor/v3/consumption/monthly/{accountId}/{utilityId}/{netId}/{type}/{startYear}/{endYear}/{month}/1
-        // Note: startYear seems to be a fixed value (2024), endYear is the query year
-        let startYear = 2024
-        let path = "/minasidor/v3/consumption/monthly/\(settings.accountId)/\(settings.utilityId)/\(settings.netId)/\(settings.type)/\(startYear)/\(year)/\(month)/1"
-
-        guard let url = URL(string: baseURL + path) else {
-            throw ConsumptionError.invalidURL
-        }
-
-        logger.debug("URL: \(url.absoluteString)")
-        return url
-    }
-
-    private func buildDailyConsumptionURL(year: Int, month: Int) throws -> URL {
-        // URL pattern: /minasidor/v3/consumption/daily/{accountId}/{utilityId}/{netId}/{type}/{year}/{month}/1
-        let path = "/minasidor/v3/consumption/daily/\(settings.accountId)/\(settings.utilityId)/\(settings.netId)/\(settings.type)/\(year)/\(month)/1"
-
-        guard let url = URL(string: baseURL + path) else {
-            throw ConsumptionError.invalidURL
-        }
-
-        logger.debug("Daily URL: \(url.absoluteString)")
-        return url
-    }
-
-    private func basicAuthHeader() -> String {
-        let credentials = "\(settings.customerId):\(settings.password)"
-        guard let data = credentials.data(using: .utf8) else {
-            return ""
-        }
-        let base64 = data.base64EncodedString()
-        return "Basic \(base64)"
-    }
-
-    private func validateResponse(_ response: URLResponse) throws {
-        guard let http = response as? HTTPURLResponse else {
-            throw ConsumptionError.invalidResponse
-        }
-
-        switch http.statusCode {
-        case 200...299:
-            return
-        case 401:
-            throw ConsumptionError.unauthorized
-        case 404:
+        guard !allPrices.isEmpty else {
             throw ConsumptionError.notFound
-        default:
-            throw ConsumptionError.serverError(http.statusCode)
         }
-    }
-}
 
-// MARK: - API Response Models
-
-private struct ConsumptionAPIResponse: Decodable {
-    let utility: UtilityInfo
-    let consumptionValues: [ConsumptionValueAPI]
-}
-
-private struct UtilityInfo: Decodable {
-    let utilityId: String
-    let name: String
-    let meterid: String?
-    let netId: String
-    let type: String
-    let active: Bool
-    let isHourlyMeasured: Bool
-}
-
-private struct ConsumptionValueAPI: Decodable {
-    let date: Date
-    let consumption: Double
-    let price: Double?  // Can be null
-}
-
-// MARK: - Public Models
-
-struct ConsumptionData {
-    let totalKWh: Double
-    let values: [ConsumptionValue]
-    let meterName: String
-    let meterId: String
-    let monthDate: Date
-
-    /// Formatted total for display (e.g., "142 kWh")
-    var formattedTotal: String {
-        "\(Int(totalKWh.rounded())) kWh"
-    }
-
-    /// Month name for display (e.g., "januari 2026")
-    var monthName: String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "sv_SE")
-        formatter.dateFormat = "MMMM yyyy"
-        return formatter.string(from: monthDate)
-    }
-}
-
-struct ConsumptionValue {
-    let date: Date
-    let kWh: Double
-    let price: Double
-}
-
-struct QuarterlyConsumption: Identifiable {
-    let date: Date
-    let kWh: Double
-    var id: Date { date }
-}
-
-struct PreciseMonthlyCost {
-    let totalCostKr: Double
-    let totalKWh: Double
-    let matchedIntervals: Int
-    let totalIntervals: Int
-}
-
-struct DailyConsumption: Identifiable {
-    let date: Date
-    let kWh: Double
-
-    var id: Date { date }
-
-    /// Day of month for display (e.g., "15 jan")
-    var dayLabel: String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "sv_SE")
-        formatter.dateFormat = "d MMM"
-        return formatter.string(from: date)
-    }
-}
-
-struct HourlyConsumption {
-    let date: Date       // hour start
-    let kWh: Double      // = kW for 1h interval
-}
-
-struct PowerPeak: Identifiable {
-    let date: Date       // the hour
-    let kW: Double       // timmedeleffekt
-    var id: Date { date }
-}
-
-/// Comparison data for current and previous month
-struct MonthlyComparison {
-    let current: ConsumptionData
-    let previous: ConsumptionData?
-    let currentAvgPrice: Double  // öre/kWh
-    let previousAvgPrice: Double?
-
-    /// Price change percentage (positive = more expensive, negative = cheaper)
-    var priceChangePercent: Double? {
-        guard let prevPrice = previousAvgPrice, prevPrice > 0 else { return nil }
-        return ((currentAvgPrice - prevPrice) / prevPrice) * 100
-    }
-
-    /// Current month name (e.g., "februari")
-    var currentMonthName: String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "sv_SE")
-        formatter.dateFormat = "MMMM"
-        return formatter.string(from: current.monthDate)
-    }
-
-    /// Previous month name (e.g., "januari")
-    var previousMonthName: String? {
-        guard let prev = previous else { return nil }
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "sv_SE")
-        formatter.dateFormat = "MMMM"
-        return formatter.string(from: prev.monthDate)
+        return allPrices.reduce(0, +) / Double(allPrices.count)
     }
 }
 
@@ -708,6 +379,30 @@ enum ConsumptionError: Error, LocalizedError {
             return "Serverfel (\(code))"
         case .missingCredentials:
             return "Inloggningsuppgifter saknas"
+        }
+    }
+}
+
+// MARK: - ProviderError Extension
+
+extension ProviderError {
+    /// Converts ProviderError to ConsumptionError for backward compatibility
+    func toConsumptionError() -> ConsumptionError {
+        switch self {
+        case .invalidURL:
+            return .invalidURL
+        case .invalidResponse:
+            return .invalidResponse
+        case .unauthorized:
+            return .unauthorized
+        case .notFound:
+            return .notFound
+        case .serverError(let code):
+            return .serverError(code)
+        case .missingCredentials:
+            return .missingCredentials
+        case .networkError, .decodingError:
+            return .invalidResponse
         }
     }
 }

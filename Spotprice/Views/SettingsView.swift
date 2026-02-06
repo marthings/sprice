@@ -37,7 +37,6 @@ struct SettingsView: View {
                 .pickerStyle(.palette)
                 .onChange(of: selectedPriceArea) { _, newValue in
                     settings.priceArea = newValue
-                    // Ladda om priser direkt vid byte av område
                     NotificationCenter.default.post(name: .consumptionSettingsDidSave, object: nil)
                     WidgetCenter.shared.reloadAllTimelines()
                 }
@@ -49,80 +48,19 @@ struct SettingsView: View {
 
             Divider()
 
-            // Header
-            Text("Koppla till Vaggeryds Energi")
-                .font(DS.Font.title)
-                .foregroundStyle(.primary)
-            // Inloggning
-            VStack(alignment: .leading, spacing: DS.Spacing.md) {
-
-                SettingsField(
-                    label: "Kundnummer",
-                    text: $settings.customerId,
-                    hint: "Finns på din faktura"
-                )
-
-                SettingsField(
-                    label: "Lösenord",
-                    text: $settings.password,
-                    hint: "De fyra sista siffrorna i ditt personnummer",
-                    isSecure: true
-                )
-            }
-
-            // Anläggning
-            VStack(alignment: .leading, spacing: DS.Spacing.md) {
-                SettingsField(
-                    label: "Konto-ID",
-                    text: $settings.accountId,
-                    hint: "Format: XXXXXXXXX-X (t.ex. 354404037-3)"
-                )
-
-                SettingsField(
-                    label: "Anläggnings-ID",
-                    text: $settings.utilityId,
-                    hint: "18-siffrigt ID (t.ex. 735999252003205654)"
-                )
-            }
-
-            // Hjälpsektion
-            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                Label("Hitta Konto-ID och Anläggnings-ID", systemImage: "questionmark.circle")
-                    .font(DS.Font.semibold(12))
-                    .foregroundStyle(.primary)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("1. Öppna Mina Sidor i Chrome")
-                    Text("2. Logga in och gå till statistik")
-                    Text("3. Öppna DevTools (Cmd+Option+I)")
-                    Text("4. Gå till Network-fliken")
-                    Text("5. Ladda om sidan och klicka på en \"1\"-request")
-                    Text("6. Under Headers → :path hittar du:")
+            // Provider selection
+            ProviderPicker(selectedProviderId: $settings.selectedProviderId)
+                .onChange(of: settings.selectedProviderId) { _, _ in
+                    connectionStatus = .unknown
                 }
-                .font(DS.Font.micro)
-                .foregroundStyle(.secondary)
 
+            Divider()
 
-                Text(".../monthly/[Konto-ID]/[Anläggnings-ID]/...")
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .padding(DS.Spacing.xs)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.quaternary, in: .rect(cornerRadius: DS.Radius.sm))
-
-                Link(destination: URL(string: "https://minasidor.vaggerydsenergi.se")!) {
-                    HStack(spacing: DS.Spacing.xs) {
-                        Text("Öppna Mina Sidor")
-                            .font(DS.Font.medium(11))
-                        Image(systemName: "arrow.up.right")
-                            .font(.system(size: 10))
-                    }
-                    .foregroundStyle(.blue)
-                }
-            }
-            .padding(DS.Spacing.md)
-            .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: DS.Radius.md))
-
+            // Provider-specific credential fields
+            ProviderCredentialsSection(
+                settings: settings,
+                providerId: settings.selectedProviderId
+            )
 
             // Footer
             HStack(spacing: 8) {
