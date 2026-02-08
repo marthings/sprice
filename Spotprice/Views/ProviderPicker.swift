@@ -14,7 +14,7 @@ struct ProviderPicker: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            Text("Elnätsbolag")
+            Text("Elbolag")
                 .font(DS.Font.bold(12))
                 .foregroundStyle(.primary)
 
@@ -23,6 +23,7 @@ struct ProviderPicker: View {
                     Text(provider.displayName).tag(provider.identifier)
                 }
             }
+            .labelsHidden()
             .pickerStyle(.menu)
 
             Text("Välj din elleverantör för förbrukningsdata")

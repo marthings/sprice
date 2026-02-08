@@ -34,6 +34,7 @@ struct SettingsView: View {
                         Text(area).tag(area)
                     }
                 }
+                .labelsHidden()
                 .pickerStyle(.palette)
                 .onChange(of: selectedPriceArea) { _, newValue in
                     settings.priceArea = newValue
@@ -117,8 +118,8 @@ struct SettingsView: View {
             }
         }
         .padding(DS.Spacing.lg)
-        .frame(width: 420)
-        .background(.ultraThinMaterial)
+        .frame(width: DS.Size.settingsWidth)
+
         .onAppear {
             selectedPriceArea = settings.priceArea
         }

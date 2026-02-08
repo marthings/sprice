@@ -123,6 +123,10 @@ enum DS {
         // Menu Bar
         static let menuBarWidth: CGFloat = 360
         static let menuBarHeight: CGFloat = 720
+        
+        // Settings
+        
+        static let settingsWidth: CGFloat = 400
 
         // Charts
         static let chartHeightMenuBar: CGFloat = 180

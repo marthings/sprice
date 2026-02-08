@@ -41,6 +41,8 @@ final class SpotPriceViewModel {
     // Subscription för settings-notifikation
     @ObservationIgnored
     nonisolated(unsafe) private var settingsSubscription: AnyCancellable?
+    // Generation counter – stale loads discard their results
+    private var loadGeneration = 0
 
     init(
         service: SpotPriceService? = nil,
@@ -81,13 +83,17 @@ final class SpotPriceViewModel {
     }
     
     func load() async {
-        // Avoid redundant loads
-        if case .loading = state { return }
+        // Bump generation so any in-flight load discards its stale results
+        loadGeneration += 1
+        let myGeneration = loadGeneration
         state = .loading
 
         do {
             let now = nowProvider()
             let items = try await service.fetchSpotPrices(for: now)
+
+            // Superseded by a newer load – discard
+            guard myGeneration == loadGeneration else { return }
 
             // Build current display text
             let currentDisplay = try service.makeDisplayText(
@@ -101,12 +107,15 @@ final class SpotPriceViewModel {
 
             state = .loaded(CurrentAndDay(currentDisplay: currentDisplay, day: dayData))
         } catch let error as DisplayableError {
+            guard myGeneration == loadGeneration else { return }
             state = .failed(error.message)
         } catch {
+            guard myGeneration == loadGeneration else { return }
             state = .failed("Ett oväntat fel inträffade. Försök igen senare.")
         }
 
         // Also load consumption (don't block on errors)
+        guard myGeneration == loadGeneration else { return }
         await loadConsumption()
     }
 

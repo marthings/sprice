@@ -88,6 +88,8 @@ private struct ProviderHelpSection: View {
 
             Text(helpText)
                 .font(DS.Font.micro)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
                 .foregroundStyle(.secondary)
 
             if let url = portalURL {
