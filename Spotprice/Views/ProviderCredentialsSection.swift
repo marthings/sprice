@@ -20,7 +20,7 @@ struct ProviderCredentialsSection: View {
             VStack(alignment: .leading, spacing: DS.Spacing.lg) {
                 // Header with provider name
                 Text("Koppla till \(metadata.displayName)")
-                    .font(DS.Font.title)
+                    .font(DS.Font.headline)
                     .foregroundStyle(.primary)
 
                 // Credential fields
@@ -104,6 +104,7 @@ private struct ProviderHelpSection: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(DS.Spacing.md)
         .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: DS.Radius.md))
     }
