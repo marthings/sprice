@@ -56,6 +56,7 @@
 				"Fonts/osans-regular.otf",
 				Models/ConsumptionModels.swift,
 				Models/ConsumptionSettings.swift,
+				Models/GridTariffModels.swift,
 				Models/SpotPriceModels.swift,
 				Providers/Core/ElectricityProvider.swift,
 				Providers/Core/ProviderCredentials.swift,
@@ -63,6 +64,7 @@
 				Providers/Tibber/TibberProvider.swift,
 				Providers/Vaggeryd/VaggerydProvider.swift,
 				Services/ConsumptionService.swift,
+				Services/GridTariffService.swift,
 				Services/NetworkSession.swift,
 				Services/SpotPriceService.swift,
 			);

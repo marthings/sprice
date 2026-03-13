@@ -27,9 +27,12 @@ final class SpotPriceViewModel {
     private(set) var powerPeaks: [PowerPeak] = []
     private(set) var preciseMonthlyCost: PreciseMonthlyCost?
     private(set) var consumptionError: String?
+    private(set) var currentTariff: SimplifiedTariff?
 
     private let service: SpotPriceService
     private let consumptionService: ConsumptionService
+    private let gridTariffService: GridTariffService
+    private let settings: ConsumptionSettings
     private let numberFormatter: NumberFormatter
     private let nowProvider: () -> Date
 
@@ -47,12 +50,16 @@ final class SpotPriceViewModel {
     init(
         service: SpotPriceService? = nil,
         consumptionService: ConsumptionService? = nil,
+        gridTariffService: GridTariffService? = nil,
+        settings: ConsumptionSettings? = nil,
         numberFormatter: NumberFormatter? = nil,
         now: @escaping () -> Date = { Date() },
         refreshInterval: Duration = .seconds(900)
     ) {
         self.service = service ?? SpotPriceService()
         self.consumptionService = consumptionService ?? ConsumptionService()
+        self.gridTariffService = gridTariffService ?? GridTariffService()
+        self.settings = settings ?? .shared
         self.numberFormatter = numberFormatter ?? {
             let formatter = NumberFormatter()
             formatter.locale = .current
@@ -114,9 +121,13 @@ final class SpotPriceViewModel {
             state = .failed("Ett oväntat fel inträffade. Försök igen senare.")
         }
 
-        // Also load consumption (don't block on errors)
+        // Also load consumption and tariff (don't block on errors)
         guard myGeneration == loadGeneration else { return }
-        await loadConsumption()
+        async let consumptionLoad: Void = loadConsumption()
+        async let tariffLoad: Void = loadGridTariff()
+        
+        await consumptionLoad
+        await tariffLoad
     }
 
     func loadConsumption() async {
@@ -153,6 +164,35 @@ final class SpotPriceViewModel {
         } catch {
             print("📊 ViewModel: Precise cost unavailable - \(error.localizedDescription)")
             // Keep preciseMonthlyCost as nil — UI falls back to estimated
+        }
+    }
+    
+    func loadGridTariff() async {
+        let dsoOrgNo = settings.selectedDSOOrgNo
+        
+        guard !dsoOrgNo.isEmpty else {
+            currentTariff = nil
+            return
+        }
+        
+        // Try cache first
+        if let cached = settings.cachedTariff {
+            currentTariff = cached
+            print("📊 ViewModel: Using cached tariff for \(cached.dsoName)")
+            return
+        }
+        
+        // Fetch from API
+        do {
+            let tariff = try await gridTariffService.fetchTariff(forDSO: dsoOrgNo)
+            currentTariff = tariff
+            settings.cachedTariff = tariff
+            if let tariff = tariff {
+                print("📊 ViewModel: Loaded tariff for \(tariff.dsoName)")
+            }
+        } catch {
+            // Non-fatal - just log and continue without tariff
+            print("📊 ViewModel: Failed to load grid tariff: \(error)")
         }
     }
     

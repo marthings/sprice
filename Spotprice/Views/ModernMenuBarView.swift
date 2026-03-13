@@ -25,7 +25,8 @@ struct ModernMenuBarView: View {
                         consumptionError: viewModel.consumptionError,
                         isConfigured: ConsumptionSettings.shared.isConfigured,
                         averagePrice: loadedAveragePrice,
-                        preciseCost: viewModel.preciseMonthlyCost
+                        preciseCost: viewModel.preciseMonthlyCost,
+                        tariff: viewModel.currentTariff
                     )
                     MenuBarSummaryView(viewModel: summaryViewModel, spotPriceViewModel: viewModel)
                         .glassCard(cornerRadius: DS.Radius.lg)
@@ -153,7 +154,7 @@ struct ModernMenuBarView: View {
                     )
                 }
 
-                CostCalculationSection(payload: payload)
+                CostCalculationSection(payload: payload, tariff: viewModel.currentTariff)
             }
         }
     }

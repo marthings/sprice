@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct ProviderCredentialsSection: View {
-    @ObservedObject var settings: ConsumptionSettings
+    @Bindable var settings: ConsumptionSettings
     let providerId: String
 
     private var metadata: ProviderMetadata? {

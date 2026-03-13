@@ -15,11 +15,15 @@ enum ConnectionStatus: Equatable {
 }
 
 struct SettingsView: View {
-    @ObservedObject var settings = ConsumptionSettings.shared
+    @Bindable var settings = ConsumptionSettings.shared
     @State private var selectedPriceArea = "SE3"
     @State private var connectionStatus: ConnectionStatus = .unknown
+    @State private var availableDSOs: [DSOOption] = []
+    @State private var isLoadingDSOs = false
+    @State private var dsoLoadError: String?
 
     private let priceAreas = ["SE1", "SE2", "SE3", "SE4"]
+    private let gridTariffService = GridTariffService()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -56,6 +60,54 @@ struct SettingsView: View {
                         .onChange(of: settings.selectedProviderId) { _, _ in
                             connectionStatus = .unknown
                         }
+
+                    Divider()
+                    
+                    // Nätägare (DSO) selection
+                    VStack(alignment: .leading, spacing: DS.Spacing.md) {
+                        Text("Nätägare (DSO)")
+                            .font(DS.Font.bold(12))
+                            .foregroundStyle(.primary)
+                        
+                        if isLoadingDSOs {
+                            HStack {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                                Text("Laddar nätägare...")
+                                    .font(DS.Font.regular(11))
+                                    .foregroundStyle(.secondary)
+                            }
+                        } else if let error = dsoLoadError {
+                            Text(error)
+                                .foregroundStyle(DS.Color.danger)
+                                .font(DS.Font.regular(11))
+                        } else {
+                            Picker("Välj nätägare", selection: $settings.selectedDSOOrgNo) {
+                                Text("Ingen vald").tag("")
+                                ForEach(availableDSOs) { dso in
+                                    Text(dso.name).tag(dso.id)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .onChange(of: settings.selectedDSOOrgNo) { _, _ in
+                                NotificationCenter.default.post(name: .consumptionSettingsDidSave, object: nil)
+                            }
+                            
+                            if !settings.selectedDSOOrgNo.isEmpty,
+                               let selectedDSO = availableDSOs.first(where: { $0.id == settings.selectedDSOOrgNo }) {
+                                Text("Nätavgifter från \(selectedDSO.name) läggs till i kostnadsberäkningar")
+                                    .font(DS.Font.regular(11))
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Text("Välj din nätägare för att få fullständiga kostnadsberäkningar inklusive nätavgifter")
+                                    .font(DS.Font.regular(11))
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .task {
+                        await loadDSOs()
+                    }
 
                     Divider()
 
@@ -132,6 +184,21 @@ struct SettingsView: View {
         .onAppear {
             selectedPriceArea = settings.priceArea
         }
+    }
+    
+    // MARK: - Helper Methods
+    
+    private func loadDSOs() async {
+        isLoadingDSOs = true
+        dsoLoadError = nil
+        
+        do {
+            availableDSOs = try await gridTariffService.fetchAvailableDSOs()
+        } catch {
+            dsoLoadError = "Kunde inte ladda nätägare: \(error.localizedDescription)"
+        }
+        
+        isLoadingDSOs = false
     }
 }
 

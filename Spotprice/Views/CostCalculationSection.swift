@@ -7,6 +7,7 @@ import SwiftUI
 
 struct CostCalculationSection: View {
     let payload: SpotPriceViewModel.CurrentAndDay
+    let tariff: SimplifiedTariff?
 
     var body: some View {
         let currentPrice = getCurrentPriceOrAverage(payload)
@@ -27,28 +28,48 @@ struct CostCalculationSection: View {
             LazyVGrid(columns: [GridItem(.flexible(), spacing: DS.Spacing.sm), GridItem(.flexible(), spacing: DS.Spacing.sm)], spacing: DS.Spacing.sm) {
                 CostCardView(
                     title: "Dusch (10 min)",
-                    mainCost: CostCardView.calculateCost(kWh: 6.0, priceInOre: currentPrice),
+                    costBreakdown: CostCardView.calculateCost(
+                        kWh: 6.0,
+                        priceInOre: currentPrice,
+                        tariff: tariff,
+                        hoursInPeriod: 1.0
+                    ),
                     description: "~6 kWh",
                     color: .blue
                 )
 
                 CostCardView(
                     title: "Pizza i ugn",
-                    mainCost: CostCardView.calculateCost(kWh: 1.1, priceInOre: currentPrice),
+                    costBreakdown: CostCardView.calculateCost(
+                        kWh: 1.1,
+                        priceInOre: currentPrice,
+                        tariff: tariff,
+                        hoursInPeriod: 0.5
+                    ),
                     description: "~1,1 kWh",
                     color: DS.Color.warning
                 )
 
                 CostCardView(
                     title: "Värmepump/dag",
-                    mainCost: CostCardView.calculateCost(kWh: 24.0, priceInOre: currentPrice),
+                    costBreakdown: CostCardView.calculateCost(
+                        kWh: 24.0,
+                        priceInOre: currentPrice,
+                        tariff: tariff,
+                        hoursInPeriod: 24.0
+                    ),
                     description: "~24 kWh",
                     color: DS.Color.danger
                 )
 
                 CostCardView(
                     title: "Ladda bilen",
-                    mainCost: CostCardView.calculateCost(kWh: 45.0, priceInOre: currentPrice),
+                    costBreakdown: CostCardView.calculateCost(
+                        kWh: 45.0,
+                        priceInOre: currentPrice,
+                        tariff: tariff,
+                        hoursInPeriod: 8.0
+                    ),
                     description: "~45 kWh",
                     color: DS.Color.success
                 )

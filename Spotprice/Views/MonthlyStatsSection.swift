@@ -12,6 +12,7 @@ struct MonthlyStatsSection: View {
     let isConfigured: Bool
     let averagePrice: Double?
     let preciseCost: PreciseMonthlyCost?
+    let tariff: SimplifiedTariff?
 
     var body: some View {
         if let consumption {
@@ -29,18 +30,29 @@ struct MonthlyStatsSection: View {
                     )
 
                     if let preciseCost {
+                        let spotCost = preciseCost.totalCostKr
+                        let gridCost = calculateGridCost(kWh: preciseCost.totalKWh)
+                        let fixedCost = tariff?.monthlyFixedFee ?? 0
+                        let totalCost = spotCost + gridCost + fixedCost
+                        
                         ConsumptionStatCard(
                             title: "Faktisk kostnad",
-                            value: String(format: "%.0f", preciseCost.totalCostKr),
+                            value: String(format: "%.0f", totalCost),
                             unit: "kr",
+                            subtitle: tariff != nil ? "Spot: \(String(format: "%.0f", spotCost)) kr • Nät: \(String(format: "%.0f", gridCost + fixedCost)) kr" : nil,
                             color: .secondary
                         )
                     } else if let avgPrice = averagePrice {
-                        let estimatedCost = (avgPrice / 100.0) * consumption.totalKWh
+                        let estimatedSpotCost = (avgPrice / 100.0) * consumption.totalKWh
+                        let gridCost = calculateGridCost(kWh: consumption.totalKWh)
+                        let fixedCost = tariff?.monthlyFixedFee ?? 0
+                        let totalCost = estimatedSpotCost + gridCost + fixedCost
+                        
                         ConsumptionStatCard(
                             title: "Uppskattad kostnad",
-                            value: String(format: "%.0f", estimatedCost),
+                            value: String(format: "%.0f", totalCost),
                             unit: "kr",
+                            subtitle: tariff != nil ? "Spot: \(String(format: "%.0f", estimatedSpotCost)) kr • Nät: \(String(format: "%.0f", gridCost + fixedCost)) kr" : nil,
                             color: .secondary
                         )
                     }
@@ -90,5 +102,12 @@ struct MonthlyStatsSection: View {
             .padding(DS.Spacing.md)
             .glassCard(cornerRadius: DS.Radius.lg)
         }
+    }
+    
+    // MARK: - Helpers
+    
+    private func calculateGridCost(kWh: Double) -> Double {
+        guard let tariff = tariff else { return 0 }
+        return tariff.energyTariffPerKWh * kWh
     }
 }

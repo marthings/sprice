@@ -5,13 +5,13 @@
 //  User-configurable settings for consumption data
 
 import Foundation
-import Combine
 
 extension Notification.Name {
     static let consumptionSettingsDidSave = Notification.Name("consumptionSettingsDidSave")
 }
 
-final class ConsumptionSettings: ObservableObject {
+@Observable
+final class ConsumptionSettings {
     static let shared = ConsumptionSettings()
 
     // MARK: - Shared UserDefaults (App Group)
@@ -35,19 +35,48 @@ final class ConsumptionSettings: ObservableObject {
 
         // Shared keys
         static let priceArea = "settings_priceArea"
+        
+        // Grid tariff keys
+        static let selectedDSOOrgNo = "settings_selectedDSOOrgNo"
+        static let cachedTariff = "settings_cachedTariff"
     }
 
-    // MARK: - Published Properties
+    // MARK: - Observable Properties
 
-    @Published var selectedProviderId: String {
+    var selectedProviderId: String {
         didSet {
             Self.defaults.set(selectedProviderId, forKey: Keys.selectedProviderId)
-            objectWillChange.send()
         }
     }
 
-    @Published var priceArea: String {
+    var priceArea: String {
         didSet { Self.defaults.set(priceArea, forKey: Keys.priceArea) }
+    }
+    
+    var selectedDSOOrgNo: String {
+        didSet {
+            Self.defaults.set(selectedDSOOrgNo, forKey: Keys.selectedDSOOrgNo)
+            // Clear cached tariff when DSO changes
+            Self.defaults.removeObject(forKey: Keys.cachedTariff)
+        }
+    }
+    
+    // Cached tariff (to avoid frequent API calls)
+    var cachedTariff: SimplifiedTariff? {
+        get {
+            guard let data = Self.defaults.data(forKey: Keys.cachedTariff) else {
+                return nil
+            }
+            return try? JSONDecoder().decode(SimplifiedTariff.self, from: data)
+        }
+        set {
+            if let newValue = newValue,
+               let data = try? JSONEncoder().encode(newValue) {
+                Self.defaults.set(data, forKey: Keys.cachedTariff)
+            } else {
+                Self.defaults.removeObject(forKey: Keys.cachedTariff)
+            }
+        }
     }
 
     // MARK: - Legacy Properties (Backward Compatibility)
@@ -153,8 +182,6 @@ final class ConsumptionSettings: ObservableObject {
         var allCredentials = loadAllCredentials()
         allCredentials[providerId] = credentials
         saveAllCredentials(allCredentials)
-
-        objectWillChange.send()
     }
 
     /// Updates a single credential field for the current provider
@@ -194,6 +221,7 @@ final class ConsumptionSettings: ObservableObject {
         // Load current values
         self.selectedProviderId = Self.defaults.string(forKey: Keys.selectedProviderId) ?? "vaggeryd"
         self.priceArea = Self.defaults.string(forKey: Keys.priceArea) ?? "SE3"
+        self.selectedDSOOrgNo = Self.defaults.string(forKey: Keys.selectedDSOOrgNo) ?? ""
 
         // Migrate legacy credentials if needed
         migrateFromLegacyIfNeeded()
