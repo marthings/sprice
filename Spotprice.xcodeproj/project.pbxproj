@@ -40,6 +40,7 @@
 
 /* Begin PBXFileReference section */
 		200104F82F26582400B2F176 /* Spotprice.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Spotprice.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		206612092F65F19F00102F19 /* business-case.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "business-case.md"; sourceTree = "<group>"; };
 		206B18F82F2FFC2600E5F9E7 /* SpotpriceWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SpotpriceWidgetExtension.entitlements; sourceTree = "<group>"; };
 		206B18FA2F313EBE00E5F9E7 /* spotprice.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = spotprice.icon; sourceTree = "<group>"; };
 		20861F8D2F2E0B9A0067EDC1 /* SpotpriceWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SpotpriceWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -67,6 +68,7 @@
 				Services/GridTariffService.swift,
 				Services/NetworkSession.swift,
 				Services/SpotPriceService.swift,
+				Services/TotalCostService.swift,
 			);
 			target = 20861F8C2F2E0B9A0067EDC1 /* SpotpriceWidgetExtension */;
 		};
@@ -135,6 +137,7 @@
 				20861F8E2F2E0B9A0067EDC1 /* Frameworks */,
 				200104F92F26582400B2F176 /* Products */,
 				206B18FA2F313EBE00E5F9E7 /* spotprice.icon */,
+				206612082F65F04500102F19 /* Docs */,
 			);
 			sourceTree = "<group>";
 		};
@@ -145,6 +148,14 @@
 				20861F8D2F2E0B9A0067EDC1 /* SpotpriceWidgetExtension.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		206612082F65F04500102F19 /* Docs */ = {
+			isa = PBXGroup;
+			children = (
+				206612092F65F19F00102F19 /* business-case.md */,
+			);
+			path = Docs;
 			sourceTree = "<group>";
 		};
 		20861F8E2F2E0B9A0067EDC1 /* Frameworks */ = {

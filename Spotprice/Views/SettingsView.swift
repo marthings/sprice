@@ -116,6 +116,70 @@ struct SettingsView: View {
                         settings: settings,
                         providerId: settings.selectedProviderId
                     )
+                    
+                    Divider()
+                    
+                    // Electricity provider costs
+                    VStack(alignment: .leading, spacing: DS.Spacing.md) {
+                        Text("Elhandel")
+                            .font(DS.Font.bold(12))
+                            .foregroundStyle(.primary)
+                        
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Påslag (öre/kWh inkl. moms)")
+                                .font(DS.Font.regular(11))
+                                .foregroundStyle(.secondary)
+
+                            TextField("0", value: $settings.providerSurchargePerKWh, format: .number)
+                                .textFieldStyle(.roundedBorder)
+                                .help("T.ex. Tibber har ~8,75 öre/kWh, Greenely liknande")
+                        }
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Månadsavgift (kr)")
+                                .font(DS.Font.regular(11))
+                                .foregroundStyle(.secondary)
+
+                            TextField("0", value: $settings.providerMonthlyFee, format: .number)
+                                .textFieldStyle(.roundedBorder)
+                                .help("T.ex. Tibber 49 kr/mån, Greenely 69 kr/mån")
+                        }
+
+                        Text("Ange ditt elbolags påslag och månadsavgift. Dessa läggs till spotpriset.")
+                            .font(DS.Font.regular(11))
+                            .foregroundStyle(.secondary)
+                    }
+                    
+                    Divider()
+                    
+                    // Swedish taxes and fees (informational)
+                    VStack(alignment: .leading, spacing: DS.Spacing.md) {
+                        Text("Skatter & Avgifter")
+                            .font(DS.Font.bold(12))
+                            .foregroundStyle(.primary)
+                        
+                        HStack {
+                            Text("Energiskatt:")
+                                .font(DS.Font.regular(11))
+                            Spacer()
+                            Text("54,88 öre/kWh")
+                                .font(DS.Font.regular(11))
+                                .foregroundStyle(.secondary)
+                        }
+                        
+                        HStack {
+                            Text("Elcertifikat:")
+                                .font(DS.Font.regular(11))
+                            Spacer()
+                            Text("1,75 öre/kWh")
+                                .font(DS.Font.regular(11))
+                                .foregroundStyle(.secondary)
+                        }
+                        
+                        Text("Svenska standardvärden 2025 (ingår automatiskt i beräkningar)")
+                            .font(DS.Font.regular(11))
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 .padding(DS.Spacing.lg)
             }

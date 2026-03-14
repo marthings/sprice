@@ -41,12 +41,17 @@ struct CostCardView: View {
                 
                 if breakdown.hasGridCosts {
                     VStack(alignment: .leading, spacing: 1) {
-                        Text("Spot: \(String(format: "%.2f", breakdown.spot)) kr")
+                        Text("Elhandel: \(String(format: "%.2f", breakdown.spot)) kr")
                             .font(DS.Font.micro)
                             .foregroundStyle(.tertiary)
-                        Text("Nät: \(String(format: "%.2f", breakdown.grid + breakdown.fixed)) kr")
+                        Text("Nät: \(String(format: "%.2f", breakdown.grid)) kr")
                             .font(DS.Font.micro)
                             .foregroundStyle(.tertiary)
+                        if breakdown.fixed > 0 {
+                            Text("Övrigt: \(String(format: "%.2f", breakdown.fixed)) kr")
+                                .font(DS.Font.micro)
+                                .foregroundStyle(.tertiary)
+                        }
                     }
                 }
             }
@@ -81,23 +86,20 @@ extension CostCardView {
         tariff: SimplifiedTariff?,
         hoursInPeriod: Double = 1.0
     ) -> CostBreakdown {
-        let spotCostKr = (priceInOre / 100.0) * kWh
-
-        guard let tariff = tariff else {
-            return CostBreakdown(spot: spotCostKr, grid: 0, fixed: 0, total: spotCostKr)
-        }
-
-        let gridCostKr = tariff.energyTariffPerKWh * kWh
-
-        // Pro-rate fixed fee for the time period
-        let hoursInMonth: Double = 730
-        let fixedCostKr = (tariff.monthlyFixedFee / hoursInMonth) * hoursInPeriod
-
+        let service = TotalCostService()
+        let enhancedCost = service.calculateTotalCost(
+            kWh: kWh,
+            spotPriceOre: priceInOre,
+            tariff: tariff,
+            hoursInPeriod: hoursInPeriod
+        )
+        
+        // Return breakdown with grouped costs
         return CostBreakdown(
-            spot: spotCostKr,
-            grid: gridCostKr,
-            fixed: fixedCostKr,
-            total: spotCostKr + gridCostKr + fixedCostKr
+            spot: enhancedCost.spotCostKr,
+            grid: enhancedCost.gridTotalKr,
+            fixed: enhancedCost.taxesAndFeesKr + enhancedCost.providerSurchargeKr + enhancedCost.providerMonthlyFeeKr,
+            total: enhancedCost.totalKr
         )
     }
 }

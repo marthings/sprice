@@ -142,6 +142,10 @@ struct SimplifiedTariff: Sendable, Codable {
     let powerTariffPerKW: Double?      // SEK incl. VAT per month
     let validFrom: Date
     let validTo: Date?
+    
+    // Swedish taxes and fees (hardcoded standard values 2025)
+    let energyTaxPerKWh: Double        // Energiskatt öre/kWh incl. VAT (54.875)
+    let certificateFeePerKWh: Double   // Elcertifikat öre/kWh incl. VAT (1.75)
 }
 
 /// DSO metadata for picker
@@ -158,8 +162,29 @@ struct EnhancedCost: Sendable {
     let gridEnergyCostKr: Double
     let fixedFeeCostKr: Double
     let powerTariffCostKr: Double
+    
+    // New cost components
+    let energyTaxKr: Double             // Energiskatt
+    let certificateFeeKr: Double        // Elcertifikat
+    let providerSurchargeKr: Double     // Elhandelspåslag
+    let providerMonthlyFeeKr: Double    // Månadsavgift (pro-rated)
 
     var totalKr: Double {
-        spotCostKr + gridEnergyCostKr + fixedFeeCostKr + powerTariffCostKr
+        spotCostKr + gridEnergyCostKr + fixedFeeCostKr +
+        powerTariffCostKr + energyTaxKr + certificateFeeKr +
+        providerSurchargeKr + providerMonthlyFeeKr
+    }
+    
+    // Helper functions for grouped UI display
+    var gridTotalKr: Double {
+        gridEnergyCostKr + fixedFeeCostKr + powerTariffCostKr
+    }
+    
+    var taxesAndFeesKr: Double {
+        energyTaxKr + certificateFeeKr
+    }
+    
+    var providerTotalKr: Double {
+        spotCostKr + providerSurchargeKr + providerMonthlyFeeKr
     }
 }

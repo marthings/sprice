@@ -30,29 +30,30 @@ struct MonthlyStatsSection: View {
                     )
 
                     if let preciseCost {
-                        let spotCost = preciseCost.totalCostKr
-                        let gridCost = calculateGridCost(kWh: preciseCost.totalKWh)
-                        let fixedCost = tariff?.monthlyFixedFee ?? 0
-                        let totalCost = spotCost + gridCost + fixedCost
+                        let enhancedCost = calculateTotalMonthCost(
+                            spotCostKr: preciseCost.totalCostKr,
+                            kWh: preciseCost.totalKWh
+                        )
                         
                         ConsumptionStatCard(
                             title: "Faktisk kostnad",
-                            value: String(format: "%.0f", totalCost),
+                            value: String(format: "%.0f", enhancedCost.totalKr),
                             unit: "kr",
-                            subtitle: tariff != nil ? "Spot: \(String(format: "%.0f", spotCost)) kr • Nät: \(String(format: "%.0f", gridCost + fixedCost)) kr" : nil,
+                            subtitle: tariff != nil ? "Elhandel: \(String(format: "%.0f", enhancedCost.providerTotalKr)) kr • Nät: \(String(format: "%.0f", enhancedCost.gridTotalKr)) kr • Skatter: \(String(format: "%.0f", enhancedCost.taxesAndFeesKr)) kr" : nil,
                             color: .secondary
                         )
                     } else if let avgPrice = averagePrice {
                         let estimatedSpotCost = (avgPrice / 100.0) * consumption.totalKWh
-                        let gridCost = calculateGridCost(kWh: consumption.totalKWh)
-                        let fixedCost = tariff?.monthlyFixedFee ?? 0
-                        let totalCost = estimatedSpotCost + gridCost + fixedCost
+                        let enhancedCost = calculateTotalMonthCost(
+                            spotCostKr: estimatedSpotCost,
+                            kWh: consumption.totalKWh
+                        )
                         
                         ConsumptionStatCard(
                             title: "Uppskattad kostnad",
-                            value: String(format: "%.0f", totalCost),
+                            value: String(format: "%.0f", enhancedCost.totalKr),
                             unit: "kr",
-                            subtitle: tariff != nil ? "Spot: \(String(format: "%.0f", estimatedSpotCost)) kr • Nät: \(String(format: "%.0f", gridCost + fixedCost)) kr" : nil,
+                            subtitle: tariff != nil ? "Elhandel: \(String(format: "%.0f", enhancedCost.providerTotalKr)) kr • Nät: \(String(format: "%.0f", enhancedCost.gridTotalKr)) kr • Skatter: \(String(format: "%.0f", enhancedCost.taxesAndFeesKr)) kr" : nil,
                             color: .secondary
                         )
                     }
@@ -109,5 +110,19 @@ struct MonthlyStatsSection: View {
     private func calculateGridCost(kWh: Double) -> Double {
         guard let tariff = tariff else { return 0 }
         return tariff.energyTariffPerKWh * kWh
+    }
+    
+    private func calculateTotalMonthCost(spotCostKr: Double, kWh: Double) -> EnhancedCost {
+        let service = TotalCostService()
+        // Calculate average spot price per kWh from total spot cost
+        let avgSpotPriceOre = kWh > 0 ? (spotCostKr / kWh) * 100.0 : 0
+        
+        // Use full month hours for monthly fixed fees
+        return service.calculateTotalCost(
+            kWh: kWh,
+            spotPriceOre: avgSpotPriceOre,
+            tariff: tariff,
+            hoursInPeriod: 730  // Full month
+        )
     }
 }

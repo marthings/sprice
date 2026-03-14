@@ -88,33 +88,62 @@ final class GridTariffService: Sendable {
         kWh: Double,
         spotPriceOre: Double,
         tariff: SimplifiedTariff?,
+        settings: ConsumptionSettings = .shared,
+        powerPeakKW: Double = 0,
         hoursInPeriod: Double = 1.0
     ) -> EnhancedCost {
         let spotCostKr = (spotPriceOre / 100.0) * kWh
 
         guard let tariff = tariff else {
+            // No tariff - only spot price and provider costs
+            let providerSurchargeKr = (settings.providerSurchargePerKWh / 100.0) * kWh
+            let hoursInMonth: Double = 730
+            let providerMonthlyFeeKr = (settings.providerMonthlyFee / hoursInMonth) * hoursInPeriod
+            
             return EnhancedCost(
                 spotCostKr: spotCostKr,
                 gridEnergyCostKr: 0,
                 fixedFeeCostKr: 0,
-                powerTariffCostKr: 0
+                powerTariffCostKr: 0,
+                energyTaxKr: 0,
+                certificateFeeKr: 0,
+                providerSurchargeKr: providerSurchargeKr,
+                providerMonthlyFeeKr: providerMonthlyFeeKr
             )
         }
 
+        // Grid energy cost
         let gridEnergyCostKr = tariff.energyTariffPerKWh * kWh
 
         // Pro-rate fixed fee for the time period
         let hoursInMonth: Double = 730 // ~30.4 days × 24h
         let fixedFeeCostKr = (tariff.monthlyFixedFee / hoursInMonth) * hoursInPeriod
 
-        // Power tariff simplified (would need peak tracking for accuracy)
-        let powerTariffCostKr = 0.0
+        // Power tariff - simplified calculation
+        let powerTariffCostKr: Double
+        if let powerTariffPerKW = tariff.powerTariffPerKW {
+            powerTariffCostKr = (powerTariffPerKW / hoursInMonth) * hoursInPeriod * powerPeakKW
+        } else {
+            powerTariffCostKr = 0
+        }
+        
+        // Swedish taxes and fees
+        let energyTaxKr = (tariff.energyTaxPerKWh / 100.0) * kWh
+        let certificateFeeKr = (tariff.certificateFeePerKWh / 100.0) * kWh
+        
+        // Provider costs
+        let providerSurchargeKr = (settings.providerSurchargePerKWh / 100.0) * kWh
+        let providerMonthlyFeeKr = (settings.providerMonthlyFee / hoursInMonth) * hoursInPeriod
 
         return EnhancedCost(
             spotCostKr: spotCostKr,
             gridEnergyCostKr: gridEnergyCostKr,
             fixedFeeCostKr: fixedFeeCostKr,
-            powerTariffCostKr: powerTariffCostKr
+            powerTariffCostKr: powerTariffCostKr,
+            energyTaxKr: energyTaxKr,
+            certificateFeeKr: certificateFeeKr,
+            providerSurchargeKr: providerSurchargeKr,
+            providerMonthlyFeeKr: providerMonthlyFeeKr
         )
     }
 
@@ -161,7 +190,9 @@ final class GridTariffService: Sendable {
             energyTariffPerKWh: data.energy,
             powerTariffPerKW: data.power,
             validFrom: Date(),
-            validTo: nil
+            validTo: nil,
+            energyTaxPerKWh: 54.875,        // Swedish energy tax 2025 (öre/kWh incl. VAT)
+            certificateFeePerKWh: 1.75      // Electricity certificate fee (öre/kWh incl. VAT)
         )
     }
     
@@ -220,7 +251,9 @@ final class GridTariffService: Sendable {
             energyTariffPerKWh: energyTariffPerKWh,
             powerTariffPerKW: powerTariffPerKW,
             validFrom: validFrom,
-            validTo: validTo
+            validTo: validTo,
+            energyTaxPerKWh: 54.875,        // Swedish energy tax 2025 (öre/kWh incl. VAT)
+            certificateFeePerKWh: 1.75      // Electricity certificate fee (öre/kWh incl. VAT)
         )
     }
 }

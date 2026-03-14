@@ -39,6 +39,10 @@ final class ConsumptionSettings {
         // Grid tariff keys
         static let selectedDSOOrgNo = "settings_selectedDSOOrgNo"
         static let cachedTariff = "settings_cachedTariff"
+        
+        // Electricity provider cost keys
+        static let providerSurcharge = "settings_providerSurcharge"
+        static let providerMonthlyFee = "settings_providerMonthlyFee"
     }
 
     // MARK: - Observable Properties
@@ -76,6 +80,19 @@ final class ConsumptionSettings {
             } else {
                 Self.defaults.removeObject(forKey: Keys.cachedTariff)
             }
+        }
+    }
+    
+    // Electricity provider costs
+    var providerSurchargePerKWh: Double {
+        didSet {
+            Self.defaults.set(providerSurchargePerKWh, forKey: Keys.providerSurcharge)
+        }
+    }
+    
+    var providerMonthlyFee: Double {
+        didSet {
+            Self.defaults.set(providerMonthlyFee, forKey: Keys.providerMonthlyFee)
         }
     }
 
@@ -222,6 +239,10 @@ final class ConsumptionSettings {
         self.selectedProviderId = Self.defaults.string(forKey: Keys.selectedProviderId) ?? "vaggeryd"
         self.priceArea = Self.defaults.string(forKey: Keys.priceArea) ?? "SE3"
         self.selectedDSOOrgNo = Self.defaults.string(forKey: Keys.selectedDSOOrgNo) ?? ""
+        
+        // Load provider cost settings (default to 0 - user must configure)
+        self.providerSurchargePerKWh = Self.defaults.double(forKey: Keys.providerSurcharge)
+        self.providerMonthlyFee = Self.defaults.double(forKey: Keys.providerMonthlyFee)
 
         // Migrate legacy credentials if needed
         migrateFromLegacyIfNeeded()
