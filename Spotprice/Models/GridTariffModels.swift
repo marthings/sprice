@@ -188,3 +188,171 @@ struct EnhancedCost: Sendable {
         spotCostKr + providerSurchargeKr + providerMonthlyFeeKr
     }
 }
+
+// MARK: - Provider Cost Information Models
+
+/// Cost information from electricity provider API
+struct ProviderCostInfo: Sendable {
+    /// Spot price in öre/kWh (energy component)
+    let spotPriceOre: Double?
+
+    /// Provider surcharge in öre/kWh (påslag)
+    let surchargePerKWh: Double?
+
+    /// Monthly subscription fee in SEK
+    let monthlyFee: Double?
+
+    /// Energy tax in öre/kWh (energiskatt)
+    let energyTaxPerKWh: Double?
+
+    /// Certificate fee in öre/kWh (elcertifikat)
+    let certificateFeePerKWh: Double?
+
+    /// Total price in öre/kWh (if provider gives complete price)
+    let totalPriceOre: Double?
+
+    /// Timestamp when this data was fetched
+    let timestamp: Date
+
+    /// Whether this data is from real-time API or cached
+    let isRealTime: Bool
+
+    init(
+        spotPriceOre: Double? = nil,
+        surchargePerKWh: Double? = nil,
+        monthlyFee: Double? = nil,
+        energyTaxPerKWh: Double? = nil,
+        certificateFeePerKWh: Double? = nil,
+        totalPriceOre: Double? = nil,
+        timestamp: Date = Date(),
+        isRealTime: Bool = true
+    ) {
+        self.spotPriceOre = spotPriceOre
+        self.surchargePerKWh = surchargePerKWh
+        self.monthlyFee = monthlyFee
+        self.energyTaxPerKWh = energyTaxPerKWh
+        self.certificateFeePerKWh = certificateFeePerKWh
+        self.totalPriceOre = totalPriceOre
+        self.timestamp = timestamp
+        self.isRealTime = isRealTime
+    }
+}
+
+/// Provider cost capabilities - describes what each provider supports
+enum ProviderCostCapability {
+    case automatic      // Fetches from API automatically
+    case defaults       // Has hardcoded defaults
+    case manual         // User must configure manually
+}
+
+/// Provider cost metadata - UI hints and descriptions per provider
+struct ProviderCostMetadata: Sendable {
+    let capability: ProviderCostCapability
+    let badgeText: String?
+    let badgeIcon: String?
+    let badgeColor: String  // "green", "blue", "gray"
+    let surchargeHint: String?
+    let monthlyFeeHint: String?
+    let helpText: String
+    
+    static func forProvider(_ providerId: String) -> ProviderCostMetadata {
+        switch providerId {
+        case "tibber":
+            return ProviderCostMetadata(
+                capability: .automatic,
+                badgeText: "Automatisk för Tibber",
+                badgeIcon: "checkmark.circle.fill",
+                badgeColor: "green",
+                surchargeHint: "Tibber default: 8,75 öre",
+                monthlyFeeHint: "Tibber default: 49 kr",
+                helpText: "Tibber-kunder får automatiska kostnader från API. Du kan ange egna värden om du vill åsidosätta."
+            )
+        case "vaggeryd":
+            return ProviderCostMetadata(
+                capability: .defaults,
+                badgeText: "Defaults tillgängliga",
+                badgeIcon: "info.circle.fill",
+                badgeColor: "blue",
+                surchargeHint: "Vaggeryd default: 6 öre",
+                monthlyFeeHint: "Vaggeryd default: 39 kr",
+                helpText: "Uppskattade defaults används om du lämnar 0. Ange exakta värden från ditt avtal för bästa precision."
+            )
+        default:
+            return ProviderCostMetadata(
+                capability: .manual,
+                badgeText: nil,
+                badgeIcon: nil,
+                badgeColor: "gray",
+                surchargeHint: nil,
+                monthlyFeeHint: nil,
+                helpText: "Ange ditt elbolags påslag och månadsavgift. Dessa läggs till spotpriset."
+            )
+        }
+    }
+}
+
+/// Provider defaults - hardcoded fallback values for common providers
+enum ProviderDefaults {
+    /// Tibber default values (2025)
+    static let tibber = ProviderCostInfo(
+        surchargePerKWh: 8.75,        // ~8.75 öre/kWh påslag
+        monthlyFee: 49.0,              // 49 kr/mån
+        energyTaxPerKWh: 54.875,       // Standard svensk energiskatt
+        certificateFeePerKWh: 1.75,    // Genomsnittlig elcertifikatavgift
+        isRealTime: false
+    )
+    
+    /// Vaggeryd Energi default values (2025)
+    /// Note: Vaggeryd only provides consumption data, not pricing
+    /// These are typical values for their spot price contracts
+    static let vaggeryd = ProviderCostInfo(
+        surchargePerKWh: 6.0,          // ~6 öre/kWh påslag (estimated)
+        monthlyFee: 39.0,              // 39 kr/mån (estimated)
+        energyTaxPerKWh: 54.875,       // Standard svensk energiskatt
+        certificateFeePerKWh: 1.75,    // Genomsnittlig elcertifikatavgift
+        isRealTime: false
+    )
+
+    /// Generic Swedish provider defaults
+    static let generic = ProviderCostInfo(
+        surchargePerKWh: 0.0,          // User must configure
+        monthlyFee: 0.0,               // User must configure
+        energyTaxPerKWh: 54.875,       // Standard svensk energiskatt
+        certificateFeePerKWh: 1.75,    // Genomsnittlig elcertifikatavgift
+        isRealTime: false
+    )
+    
+    /// Get default for a specific provider ID
+    static func forProvider(_ providerId: String) -> ProviderCostInfo {
+        switch providerId {
+        case "tibber":
+            return tibber
+        case "vaggeryd":
+            return vaggeryd
+        default:
+            return generic
+        }
+    }
+}
+
+/// Daily price information with all cost components
+struct DailyProviderPrices: Sendable {
+    let date: Date
+    let hourlyPrices: [HourlyProviderPrice]
+}
+
+/// Hourly price with complete breakdown
+struct HourlyProviderPrice: Sendable {
+    let startsAt: Date
+    let endsAt: Date
+    let spotPriceOre: Double
+    let totalPriceOre: Double      // Includes everything
+    let energyPriceOre: Double?    // Just energy (spot)
+    let taxOre: Double?            // Taxes (energy + certificate)
+
+    /// Calculated surcharge (total - energy - tax)
+    var calculatedSurchargeOre: Double? {
+        guard let energy = energyPriceOre, let tax = taxOre else { return nil }
+        return totalPriceOre - energy - tax
+    }
+}

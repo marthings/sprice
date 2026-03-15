@@ -41,11 +41,23 @@ protocol ElectricityProvider: Sendable {
     func fetchHourlyConsumption(startDate: Date, endDate: Date) async throws -> [HourlyConsumption]
 }
 
-// MARK: - Optional Capability Protocol
+// MARK: - Optional Capability Protocols
 
 /// Providers that support 15-minute interval data
 protocol QuarterlyConsumptionProvider: ElectricityProvider {
     func fetchQuarterlyConsumption(startDate: Date, endDate: Date) async throws -> [QuarterlyConsumption]
+}
+
+/// Providers that can supply detailed price information
+protocol PriceInfoProvider: ElectricityProvider {
+    /// Fetches current price information including all cost components
+    func fetchCurrentPriceInfo() async throws -> ProviderCostInfo
+    
+    /// Fetches today's hourly prices (if supported)
+    func fetchTodaysPrices() async throws -> DailyProviderPrices?
+    
+    /// Provider-specific default values (fallback when API unavailable)
+    static var defaultCostInfo: ProviderCostInfo { get }
 }
 
 // MARK: - Provider Error

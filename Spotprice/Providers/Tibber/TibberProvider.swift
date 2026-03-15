@@ -10,13 +10,15 @@ import os.log
 
 private let logger = Logger(subsystem: "se.spotprice", category: "TibberProvider")
 
-struct TibberProvider: ElectricityProvider {
+struct TibberProvider: ElectricityProvider, PriceInfoProvider {
 
     // MARK: - Static Metadata
 
     static let identifier = "tibber"
     static let displayName = "Tibber"
     static let portalURL: URL? = URL(string: "https://developer.tibber.com/")
+    
+    static let defaultCostInfo = ProviderDefaults.tibber
 
     static let credentialFields: [CredentialField] = [
         CredentialField(
@@ -70,6 +72,110 @@ struct TibberProvider: ElectricityProvider {
             throw ProviderError.notFound
         }
         logger.info("Tibber: Found \(response.data.viewer.homes.count) home(s)")
+    }
+    
+    // MARK: - PriceInfoProvider Implementation
+    
+    func fetchCurrentPriceInfo() async throws -> ProviderCostInfo {
+        let homeId = try await getFirstHomeId()
+        
+        let query = """
+        {
+            viewer {
+                home(id: "\(homeId)") {
+                    currentSubscription {
+                        priceInfo {
+                            current {
+                                total
+                                energy
+                                tax
+                                startsAt
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        """
+        
+        let response: TibberPriceResponse = try await executeQuery(query)
+        guard let home = response.data.viewer.home,
+              let current = home.currentSubscription?.priceInfo?.current else {
+            logger.warning("Tibber: No current price info, using defaults")
+            return Self.defaultCostInfo
+        }
+        
+        // Tibber prices are in SEK/kWh, we need öre/kWh
+        let totalOre = current.total * 100
+        let energyOre = current.energy * 100
+        let taxOre = current.tax * 100
+        
+        // Calculate surcharge: total - energy - tax
+        let surchargeOre = totalOre - energyOre - taxOre
+        
+        logger.info("Tibber: Fetched price - total: \(totalOre) öre, energy: \(energyOre) öre, tax: \(taxOre) öre, surcharge: \(surchargeOre) öre")
+        
+        return ProviderCostInfo(
+            spotPriceOre: energyOre,
+            surchargePerKWh: surchargeOre,
+            monthlyFee: Self.defaultCostInfo.monthlyFee,  // Not available in API
+            energyTaxPerKWh: nil,  // Included in tax field
+            certificateFeePerKWh: nil,  // Included in tax field
+            totalPriceOre: totalOre,
+            timestamp: Date(),
+            isRealTime: true
+        )
+    }
+    
+    func fetchTodaysPrices() async throws -> DailyProviderPrices? {
+        let homeId = try await getFirstHomeId()
+        
+        let query = """
+        {
+            viewer {
+                home(id: "\(homeId)") {
+                    currentSubscription {
+                        priceInfo {
+                            today {
+                                total
+                                energy
+                                tax
+                                startsAt
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        """
+        
+        let response: TibberPriceResponse = try await executeQuery(query)
+        guard let home = response.data.viewer.home,
+              let todayPrices = home.currentSubscription?.priceInfo?.today else {
+            logger.warning("Tibber: No today prices available")
+            return nil
+        }
+        
+        let hourlyPrices = todayPrices.compactMap { price -> HourlyProviderPrice? in
+            guard let startsAt = price.startsAtDate else { return nil }
+            let endsAt = startsAt.addingTimeInterval(3600)  // +1 hour
+            
+            return HourlyProviderPrice(
+                startsAt: startsAt,
+                endsAt: endsAt,
+                spotPriceOre: price.energy * 100,
+                totalPriceOre: price.total * 100,
+                energyPriceOre: price.energy * 100,
+                taxOre: price.tax * 100
+            )
+        }
+        
+        logger.info("Tibber: Fetched \(hourlyPrices.count) hourly prices for today")
+        
+        return DailyProviderPrices(
+            date: Date(),
+            hourlyPrices: hourlyPrices
+        )
     }
 
     func fetchConsumption(year: Int, month: Int) async throws -> ConsumptionData {
@@ -415,6 +521,43 @@ private struct TibberHomeResponse: Decodable {
 
     struct TibberAddress: Decodable {
         let address1: String?
+    }
+}
+
+// Response for price info query
+private struct TibberPriceResponse: Decodable {
+    let data: TibberPriceData
+    
+    struct TibberPriceData: Decodable {
+        let viewer: TibberPriceViewer
+    }
+    
+    struct TibberPriceViewer: Decodable {
+        let home: TibberPriceHome?
+    }
+    
+    struct TibberPriceHome: Decodable {
+        let currentSubscription: TibberSubscription?
+    }
+    
+    struct TibberSubscription: Decodable {
+        let priceInfo: TibberPriceInfo?
+    }
+    
+    struct TibberPriceInfo: Decodable {
+        let current: TibberPrice?
+        let today: [TibberPrice]?
+    }
+    
+    struct TibberPrice: Decodable {
+        let total: Double      // SEK/kWh
+        let energy: Double     // SEK/kWh (spot)
+        let tax: Double        // SEK/kWh (energiskatt + elcertifikat)
+        let startsAt: String   // ISO8601
+        
+        var startsAtDate: Date? {
+            TibberDateParser.parse(startsAt)
+        }
     }
 }
 

@@ -90,15 +90,19 @@ final class GridTariffService: Sendable {
         tariff: SimplifiedTariff?,
         settings: ConsumptionSettings = .shared,
         powerPeakKW: Double = 0,
-        hoursInPeriod: Double = 1.0
+        hoursInPeriod: Double = 1.0,
+        providerSurchargeOverride: Double? = nil,
+        providerMonthlyFeeOverride: Double? = nil
     ) -> EnhancedCost {
         let spotCostKr = (spotPriceOre / 100.0) * kWh
 
         guard let tariff = tariff else {
             // No tariff - only spot price and provider costs
-            let providerSurchargeKr = (settings.providerSurchargePerKWh / 100.0) * kWh
+            let surcharge = providerSurchargeOverride ?? settings.providerSurchargePerKWh
+            let monthlyFee = providerMonthlyFeeOverride ?? settings.providerMonthlyFee
+            let providerSurchargeKr = (surcharge / 100.0) * kWh
             let hoursInMonth: Double = 730
-            let providerMonthlyFeeKr = (settings.providerMonthlyFee / hoursInMonth) * hoursInPeriod
+            let providerMonthlyFeeKr = (monthlyFee / hoursInMonth) * hoursInPeriod
             
             return EnhancedCost(
                 spotCostKr: spotCostKr,
@@ -131,9 +135,11 @@ final class GridTariffService: Sendable {
         let energyTaxKr = (tariff.energyTaxPerKWh / 100.0) * kWh
         let certificateFeeKr = (tariff.certificateFeePerKWh / 100.0) * kWh
         
-        // Provider costs
-        let providerSurchargeKr = (settings.providerSurchargePerKWh / 100.0) * kWh
-        let providerMonthlyFeeKr = (settings.providerMonthlyFee / hoursInMonth) * hoursInPeriod
+        // Provider costs (use override if provided, otherwise use settings)
+        let surcharge = providerSurchargeOverride ?? settings.providerSurchargePerKWh
+        let monthlyFee = providerMonthlyFeeOverride ?? settings.providerMonthlyFee
+        let providerSurchargeKr = (surcharge / 100.0) * kWh
+        let providerMonthlyFeeKr = (monthlyFee / hoursInMonth) * hoursInPeriod
 
         return EnhancedCost(
             spotCostKr: spotCostKr,
