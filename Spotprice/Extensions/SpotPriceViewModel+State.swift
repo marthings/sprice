@@ -12,6 +12,22 @@ extension SpotPriceViewModel.State {
         }
         return "--"
     }
+    
+    /// Total price per kWh including all components (spot + grid + taxes + provider)
+    func totalPriceLabel(tariff: SimplifiedTariff?) -> String {
+        guard case .loaded(let payload) = self,
+              let currentBucket = payload.day.currentBucket else {
+            return "--"
+        }
+        
+        let service = TotalCostService()
+        let totalPriceKr = service.calculatePricePerKWh(
+            spotPriceOre: currentBucket.orePerKWh,
+            tariff: tariff
+        )
+        
+        return String(format: "%.2f kr/kWh", totalPriceKr)
+    }
 
     var labelColor: Color {
         if case .loaded(let payload) = self {
