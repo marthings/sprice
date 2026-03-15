@@ -18,7 +18,13 @@ struct CostCalculationSection: View {
                     .font(DS.Font.semibold(14))
                     .foregroundStyle(.primary)
 
-                if let price = getCurrentPrice(payload) {
+                if let price = getCurrentPrice(payload), let tariff = tariff {
+                    let totalCostService = TotalCostService()
+                    let totalCost = totalCostService.calculatePricePerKWh(spotPriceOre: price, tariff: tariff)
+                    Text("(\(String(format: "%.2f", totalCost)) kr/kWh)")
+                        .font(DS.Font.medium(11))
+                        .foregroundStyle(.secondary)
+                } else if let price = getCurrentPrice(payload) {
                     Text("(\(Int(price.rounded())) öre/kWh)")
                         .font(DS.Font.medium(11))
                         .foregroundStyle(.secondary)

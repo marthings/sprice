@@ -89,7 +89,7 @@ struct ModernMenuBarView: View {
     private var chartSection: some View {
         VStack(spacing: DS.Spacing.sm) {
             if case .loaded(let payload) = viewModel.state {
-                SpotPriceBarChart(dayData: payload.day, configuration: .menuBar)
+                SpotPriceBarChart(dayData: payload.day, configuration: .menuBar, tariff: viewModel.currentTariff)
             } else {
                 loadingStateView
                     .frame(height: DS.Size.chartHeightMenuBar)
@@ -129,29 +129,60 @@ struct ModernMenuBarView: View {
         if case .loaded(let payload) = viewModel.state {
             VStack(spacing: DS.Spacing.md) {
                 HStack(spacing: DS.Spacing.sm) {
-                    StatCardView(
-                        title: "Lägsta",
-                        value: "\(Int(payload.day.minOre.rounded()))",
-                        unit: "öre",
-                        color: DS.Color.success,
-                        icon: "arrow.down.circle.fill"
-                    )
+                    if let tariff = viewModel.currentTariff {
+                        let totalCostService = TotalCostService()
+                        let minTotal = totalCostService.calculatePricePerKWh(spotPriceOre: payload.day.minOre, tariff: tariff)
+                        let maxTotal = totalCostService.calculatePricePerKWh(spotPriceOre: payload.day.maxOre, tariff: tariff)
+                        let avgTotal = totalCostService.calculatePricePerKWh(spotPriceOre: averagePrice(payload.day.buckets), tariff: tariff)
+                        
+                        StatCardView(
+                            title: "Lägsta",
+                            value: String(format: "%.2f", minTotal),
+                            unit: "kr",
+                            color: DS.Color.success,
+                            icon: "arrow.down.circle.fill"
+                        )
 
-                    StatCardView(
-                        title: "Högsta",
-                        value: "\(Int(payload.day.maxOre.rounded()))",
-                        unit: "öre",
-                        color: DS.Color.danger,
-                        icon: "arrow.up.circle.fill"
-                    )
+                        StatCardView(
+                            title: "Högsta",
+                            value: String(format: "%.2f", maxTotal),
+                            unit: "kr",
+                            color: DS.Color.danger,
+                            icon: "arrow.up.circle.fill"
+                        )
 
-                    StatCardView(
-                        title: "Snitt",
-                        value: "\(Int(averagePrice(payload.day.buckets).rounded()))",
-                        unit: "öre",
-                        color: .blue,
-                        icon: "chart.line.uptrend.xyaxis"
-                    )
+                        StatCardView(
+                            title: "Snitt",
+                            value: String(format: "%.2f", avgTotal),
+                            unit: "kr",
+                            color: .blue,
+                            icon: "chart.line.uptrend.xyaxis"
+                        )
+                    } else {
+                        StatCardView(
+                            title: "Lägsta",
+                            value: "\(Int(payload.day.minOre.rounded()))",
+                            unit: "öre",
+                            color: DS.Color.success,
+                            icon: "arrow.down.circle.fill"
+                        )
+
+                        StatCardView(
+                            title: "Högsta",
+                            value: "\(Int(payload.day.maxOre.rounded()))",
+                            unit: "öre",
+                            color: DS.Color.danger,
+                            icon: "arrow.up.circle.fill"
+                        )
+
+                        StatCardView(
+                            title: "Snitt",
+                            value: "\(Int(averagePrice(payload.day.buckets).rounded()))",
+                            unit: "öre",
+                            color: .blue,
+                            icon: "chart.line.uptrend.xyaxis"
+                        )
+                    }
                 }
 
                 CostCalculationSection(payload: payload, tariff: viewModel.currentTariff)
