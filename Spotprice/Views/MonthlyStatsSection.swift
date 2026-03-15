@@ -21,42 +21,30 @@ struct MonthlyStatsSection: View {
                     .font(DS.Font.semibold(14))
                     .foregroundStyle(.primary)
 
-                HStack(spacing: DS.Spacing.sm) {
-                    ConsumptionStatCard(
-                        title: "Förbrukning",
-                        value: "\(Int(consumption.totalKWh.rounded()))",
-                        unit: "kWh",
-                        color: .secondary
+                // Main cost card with full breakdown
+                if let preciseCost {
+                    let enhancedCost = calculateTotalMonthCost(
+                        spotCostKr: preciseCost.totalCostKr,
+                        kWh: preciseCost.totalKWh
                     )
-
-                    if let preciseCost {
-                        let enhancedCost = calculateTotalMonthCost(
-                            spotCostKr: preciseCost.totalCostKr,
-                            kWh: preciseCost.totalKWh
-                        )
-                        
-                        ConsumptionStatCard(
-                            title: "Faktisk kostnad",
-                            value: String(format: "%.0f", enhancedCost.totalKr),
-                            unit: "kr",
-                            subtitle: tariff != nil ? "Elhandel: \(String(format: "%.0f", enhancedCost.providerTotalKr)) kr • Nät: \(String(format: "%.0f", enhancedCost.gridTotalKr)) kr • Skatter: \(String(format: "%.0f", enhancedCost.taxesAndFeesKr)) kr" : nil,
-                            color: .secondary
-                        )
-                    } else if let avgPrice = averagePrice {
-                        let estimatedSpotCost = (avgPrice / 100.0) * consumption.totalKWh
-                        let enhancedCost = calculateTotalMonthCost(
-                            spotCostKr: estimatedSpotCost,
-                            kWh: consumption.totalKWh
-                        )
-                        
-                        ConsumptionStatCard(
-                            title: "Uppskattad kostnad",
-                            value: String(format: "%.0f", enhancedCost.totalKr),
-                            unit: "kr",
-                            subtitle: tariff != nil ? "Elhandel: \(String(format: "%.0f", enhancedCost.providerTotalKr)) kr • Nät: \(String(format: "%.0f", enhancedCost.gridTotalKr)) kr • Skatter: \(String(format: "%.0f", enhancedCost.taxesAndFeesKr)) kr" : nil,
-                            color: .secondary
-                        )
-                    }
+                    
+                    MonthlyCostCard(
+                        title: "Faktisk kostnad",
+                        enhancedCost: enhancedCost,
+                        kWh: preciseCost.totalKWh
+                    )
+                } else if let avgPrice = averagePrice {
+                    let estimatedSpotCost = (avgPrice / 100.0) * consumption.totalKWh
+                    let enhancedCost = calculateTotalMonthCost(
+                        spotCostKr: estimatedSpotCost,
+                        kWh: consumption.totalKWh
+                    )
+                    
+                    MonthlyCostCard(
+                        title: "Uppskattad kostnad",
+                        enhancedCost: enhancedCost,
+                        kWh: consumption.totalKWh
+                    )
                 }
 
                 // Power peaks (effekttoppar)
