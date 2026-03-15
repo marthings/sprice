@@ -13,12 +13,14 @@ import SwiftUI
 struct SpotPriceEntry: TimelineEntry {
     let date: Date
     let currentPrice: Int?
+    let currentTotalCostPerKWh: Double?  // Total cost in kr/kWh
     let priceCategory: PriceCategory?
     let dayData: DayChartData?
     let currentBucketIndex: Int
     let monthlyKWh: Double
     let monthlyCostKr: Double
     let monthDate: Date
+    let tariff: SimplifiedTariff?
 
     /// Compact month label (e.g., "feb")
     var monthLabel: String {
@@ -32,12 +34,14 @@ struct SpotPriceEntry: TimelineEntry {
         SpotPriceEntry(
             date: Date(),
             currentPrice: 42,
+            currentTotalCostPerKWh: 2.47,
             priceCategory: .medium,
             dayData: nil,
             currentBucketIndex: 48,  // Noon = 12 * 4
             monthlyKWh: 873,
             monthlyCostKr: 829,
-            monthDate: Date()
+            monthDate: Date(),
+            tariff: nil
         )
     }
 
@@ -49,12 +53,14 @@ struct SpotPriceEntry: TimelineEntry {
         return SpotPriceEntry(
             date: now,
             currentPrice: nil,
+            currentTotalCostPerKWh: nil,
             priceCategory: nil,
             dayData: nil,
             currentBucketIndex: bucketIndex,
             monthlyKWh: 0,
             monthlyCostKr: 0,
-            monthDate: now
+            monthDate: now,
+            tariff: nil
         )
     }
 }
@@ -64,6 +70,8 @@ struct SpotPriceEntry: TimelineEntry {
 struct SpotPriceProvider: TimelineProvider {
     let service = SpotPriceService()
     let consumptionService = ConsumptionService()
+    let gridTariffService = GridTariffService()
+    let totalCostService = TotalCostService()
 
     func placeholder(in context: Context) -> SpotPriceEntry {
         .placeholder
@@ -102,14 +110,29 @@ struct SpotPriceProvider: TimelineProvider {
             let items = try await service.fetchSpotPrices(for: now)
             let dayData = try service.makeDayChartData(from: items, for: now)
 
+            // Get tariff from settings or try to fetch it
+            let settings = ConsumptionSettings.shared
+            var tariff = settings.cachedTariff
+            
+            // Try to fetch fresh tariff if we have a DSO configured
+            if tariff == nil, !settings.selectedDSOOrgNo.isEmpty {
+                tariff = try? await gridTariffService.fetchTariff(forDSO: settings.selectedDSOOrgNo)
+            }
+
             // Fetch consumption (don't fail if this errors)
             let consumption = try? await consumptionService.fetchCurrentMonthConsumption()
             let monthlyKWh = consumption?.totalKWh ?? 0
             let monthDate = consumption?.monthDate ?? now
 
-            // Calculate estimated cost using average price
+            // Calculate estimated cost using average price and total cost if tariff available
             let avgPrice = dayData.buckets.map { $0.orePerKWh }.reduce(0, +) / Double(dayData.buckets.count)
-            let monthlyCostKr = (monthlyKWh * avgPrice) / 100.0
+            let monthlyCostKr: Double
+            if let tariff = tariff {
+                let avgTotalCost = totalCostService.calculatePricePerKWh(spotPriceOre: avgPrice, tariff: tariff)
+                monthlyCostKr = monthlyKWh * avgTotalCost
+            } else {
+                monthlyCostKr = (monthlyKWh * avgPrice) / 100.0
+            }
 
             // Calculate bucket index (0-95 for 15-minute intervals)
             let hour = Calendar.current.component(.hour, from: now)
@@ -117,15 +140,19 @@ struct SpotPriceProvider: TimelineProvider {
             let currentBucketIndex = hour * 4 + minute / 15
 
             if let currentBucket = dayData.buckets.first(where: { $0.start <= now && $0.end > now }) {
+                let currentTotalCost = tariff.map { totalCostService.calculatePricePerKWh(spotPriceOre: currentBucket.orePerKWh, tariff: $0) }
+                
                 return SpotPriceEntry(
                     date: now,
                     currentPrice: Int(currentBucket.orePerKWh.rounded()),
+                    currentTotalCostPerKWh: currentTotalCost,
                     priceCategory: currentBucket.category,
                     dayData: dayData,
                     currentBucketIndex: currentBucketIndex,
                     monthlyKWh: monthlyKWh,
                     monthlyCostKr: monthlyCostKr,
-                    monthDate: monthDate
+                    monthDate: monthDate,
+                    tariff: tariff
                 )
             }
 
@@ -150,15 +177,32 @@ extension Calendar {
 struct MiniPriceChart: View {
     let dayData: DayChartData
     let currentBucketIndex: Int
+    let tariff: SimplifiedTariff?
     @Environment(\.widgetRenderingMode) var renderingMode
 
+    private var priceData: (prices: [Double], minPrice: Double, maxPrice: Double) {
+        if let tariff = tariff {
+            let totalCostService = TotalCostService()
+            let prices = dayData.buckets.map { bucket in
+                totalCostService.calculatePricePerKWh(spotPriceOre: bucket.orePerKWh, tariff: tariff) * 100
+            }
+            let minPrice = prices.min() ?? 0
+            let maxPrice = prices.max() ?? 0
+            return (prices, minPrice, maxPrice)
+        } else {
+            let prices = dayData.buckets.map { $0.orePerKWh }
+            return (prices, dayData.minOre, dayData.maxOre)
+        }
+    }
+    
     var body: some View {
         GeometryReader { geo in
             let width = geo.size.width
             let height = geo.size.height
-            let prices = dayData.buckets.map { $0.orePerKWh }
-            let minPrice = dayData.minOre
-            let maxPrice = dayData.maxOre
+            let data = priceData
+            let prices = data.prices
+            let minPrice = data.minPrice
+            let maxPrice = data.maxPrice
             let range = maxPrice - minPrice
             let safeRange = range > 0 ? range : 1
 
@@ -306,13 +350,29 @@ struct SpotpriceWidgetEntryView: View {
         guard let dayData = entry.dayData else {
             return DS.Color.warning
         }
-        // Use the actual price from the current bucket to match the chart
-        let prices = dayData.buckets.map { $0.orePerKWh }
-        guard entry.currentBucketIndex >= 0 && entry.currentBucketIndex < prices.count else {
-            return DS.Color.warning
+        
+        if let tariff = entry.tariff {
+            // Use total cost for color
+            let totalCostService = TotalCostService()
+            let totalCosts = dayData.buckets.map { bucket in
+                totalCostService.calculatePricePerKWh(spotPriceOre: bucket.orePerKWh, tariff: tariff) * 100
+            }
+            guard entry.currentBucketIndex >= 0 && entry.currentBucketIndex < totalCosts.count else {
+                return DS.Color.warning
+            }
+            let minTotal = totalCosts.min() ?? 0
+            let maxTotal = totalCosts.max() ?? 0
+            let currentTotal = totalCosts[entry.currentBucketIndex]
+            return DS.Color.forPrice(currentTotal, min: minTotal, max: maxTotal)
+        } else {
+            // Fallback to spot price
+            let prices = dayData.buckets.map { $0.orePerKWh }
+            guard entry.currentBucketIndex >= 0 && entry.currentBucketIndex < prices.count else {
+                return DS.Color.warning
+            }
+            let priceAtCurrentBucket = prices[entry.currentBucketIndex]
+            return DS.Color.forPrice(priceAtCurrentBucket, min: dayData.minOre, max: dayData.maxOre)
         }
-        let priceAtCurrentBucket = prices[entry.currentBucketIndex]
-        return DS.Color.forPrice(priceAtCurrentBucket, min: dayData.minOre, max: dayData.maxOre)
     }
 
     var body: some View {
@@ -352,7 +412,7 @@ struct SpotpriceWidgetEntryView: View {
 
                 // Chart
                 if let dayData = entry.dayData {
-                    MiniPriceChart(dayData: dayData, currentBucketIndex: entry.currentBucketIndex)
+                    MiniPriceChart(dayData: dayData, currentBucketIndex: entry.currentBucketIndex, tariff: entry.tariff)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     Spacer()
@@ -379,14 +439,28 @@ struct SpotpriceWidgetEntryView: View {
     @ViewBuilder
     private func priceView(price: Int) -> some View {
         HStack(alignment: .center) {
-            HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
-                Text("\(price)")
-                    .font(DS.Font.bold(24))
-                    .monospacedDigit()
-                    .foregroundStyle(renderingMode == .accented ? .primary : currentPriceColor)
-                Text("öre")
-                    .font(DS.Font.micro)
-                    .foregroundStyle(.secondary)
+            if let totalCost = entry.currentTotalCostPerKWh {
+                // Show total cost in kr/kWh
+                HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
+                    Text(String(format: "%.2f", totalCost))
+                        .font(DS.Font.bold(24))
+                        .monospacedDigit()
+                        .foregroundStyle(renderingMode == .accented ? .primary : currentPriceColor)
+                    Text("kr")
+                        .font(DS.Font.micro)
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                // Fallback to spot price in öre/kWh
+                HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
+                    Text("\(price)")
+                        .font(DS.Font.bold(24))
+                        .monospacedDigit()
+                        .foregroundStyle(renderingMode == .accented ? .primary : currentPriceColor)
+                    Text("öre")
+                        .font(DS.Font.micro)
+                        .foregroundStyle(.secondary)
+                }
             }
             Spacer()
             // Accessible text label for price level
