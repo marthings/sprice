@@ -43,6 +43,9 @@ final class ConsumptionSettings {
         // Electricity provider cost keys
         static let providerSurcharge = "settings_providerSurcharge"
         static let providerMonthlyFee = "settings_providerMonthlyFee"
+        
+        // Fuse size (säkring)
+        static let fuseSize = "settings_fuseSize"
     }
 
     // MARK: - Observable Properties
@@ -93,6 +96,15 @@ final class ConsumptionSettings {
     var providerMonthlyFee: Double {
         didSet {
             Self.defaults.set(providerMonthlyFee, forKey: Keys.providerMonthlyFee)
+        }
+    }
+    
+    // Fuse size in amperes (default 20A, common for Swedish homes)
+    var fuseSize: Int {
+        didSet {
+            Self.defaults.set(fuseSize, forKey: Keys.fuseSize)
+            // Clear cached tariff when fuse size changes
+            Self.defaults.removeObject(forKey: Keys.cachedTariff)
         }
     }
 
@@ -243,6 +255,10 @@ final class ConsumptionSettings {
         // Load provider cost settings (default to 0 - user must configure)
         self.providerSurchargePerKWh = Self.defaults.double(forKey: Keys.providerSurcharge)
         self.providerMonthlyFee = Self.defaults.double(forKey: Keys.providerMonthlyFee)
+        
+        // Load fuse size (default 20A - common for Swedish homes)
+        let savedFuseSize = Self.defaults.integer(forKey: Keys.fuseSize)
+        self.fuseSize = savedFuseSize > 0 ? savedFuseSize : 20
 
         // Migrate legacy credentials if needed
         migrateFromLegacyIfNeeded()

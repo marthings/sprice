@@ -146,6 +146,57 @@ struct SimplifiedTariff: Sendable, Codable {
     // Swedish taxes and fees (hardcoded standard values 2025)
     let energyTaxPerKWh: Double        // Energiskatt öre/kWh incl. VAT (54.875)
     let certificateFeePerKWh: Double   // Elcertifikat öre/kWh incl. VAT (1.75)
+    
+    // Fuse size this tariff is for (in amperes)
+    let fuseSize: Int?
+}
+
+/// Multiple tariff options for different fuse sizes
+struct FusedTariffs: Sendable {
+    let dsoName: String
+    let dsoOrgNo: String
+    let tariffsByFuseSize: [Int: SimplifiedTariff]  // [fuseSize: tariff]
+    
+    /// Get tariff for specific fuse size, or closest match
+    func tariff(forFuseSize fuseSize: Int) -> SimplifiedTariff? {
+        // Try exact match first
+        if let exact = tariffsByFuseSize[fuseSize] {
+            return exact
+        }
+        
+        // Find closest fuse size
+        let sortedSizes = tariffsByFuseSize.keys.sorted()
+        guard !sortedSizes.isEmpty else { return nil }
+        
+        // If requested size is smaller than smallest, use smallest
+        if fuseSize < sortedSizes.first! {
+            return tariffsByFuseSize[sortedSizes.first!]
+        }
+        
+        // If requested size is larger than largest, use largest
+        if fuseSize > sortedSizes.last! {
+            return tariffsByFuseSize[sortedSizes.last!]
+        }
+        
+        // Find closest match
+        var closest = sortedSizes.first!
+        var minDiff = abs(fuseSize - closest)
+        
+        for size in sortedSizes {
+            let diff = abs(fuseSize - size)
+            if diff < minDiff {
+                minDiff = diff
+                closest = size
+            }
+        }
+        
+        return tariffsByFuseSize[closest]
+    }
+    
+    /// Common fuse sizes available
+    var availableFuseSizes: [Int] {
+        tariffsByFuseSize.keys.sorted()
+    }
 }
 
 /// DSO metadata for picker

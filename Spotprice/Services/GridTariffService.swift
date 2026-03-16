@@ -52,17 +52,19 @@ final class GridTariffService: Sendable {
     }
 
     /// Fetches simplified tariff for a specific DSO
-    func fetchTariff(forDSO orgNo: String) async throws -> SimplifiedTariff? {
+    func fetchTariff(forDSO orgNo: String, fuseSize: Int = 20) async throws -> SimplifiedTariff? {
+        let cacheKey = "\(orgNo)_\(fuseSize)"
+        
         // Check cache first
-        if let cached = await cache.get(orgNo) {
-            logger.info("Returning cached tariff for \(orgNo)")
+        if let cached = await cache.get(cacheKey) {
+            logger.info("Returning cached tariff for \(orgNo) @ \(fuseSize)A")
             return cached
         }
         
         if useMockData {
-            let tariff = getMockTariff(forDSO: orgNo)
+            let tariff = getMockTariff(forDSO: orgNo, fuseSize: fuseSize)
             if let tariff = tariff {
-                await cache.set(tariff, forKey: orgNo)
+                await cache.set(tariff, forKey: cacheKey)
             }
             return tariff
         }
@@ -158,6 +160,7 @@ final class GridTariffService: Sendable {
     private func getMockDSOs() -> [DSOOption] {
         [
             DSOOption(id: "vaggeryd", name: "Vaggeryds Elnät", tariffId: UUID()),
+            DSOOption(id: "jonkoping", name: "Jönköping Energi Elnät", tariffId: UUID()),
             DSOOption(id: "eon", name: "E.ON Energidistribution", tariffId: UUID()),
             DSOOption(id: "vattenfall", name: "Vattenfall Eldistribution", tariffId: UUID()),
             DSOOption(id: "ellevio", name: "Ellevio", tariffId: UUID()),
@@ -167,38 +170,97 @@ final class GridTariffService: Sendable {
         ]
     }
     
-    private func getMockTariff(forDSO orgNo: String) -> SimplifiedTariff? {
-        // Realistic Swedish grid tariff values for 2025 (incl. VAT)
-        // Based on typical residential tariffs from major Swedish DSOs
+    private func getMockTariff(forDSO orgNo: String, fuseSize: Int) -> SimplifiedTariff? {
+        // Realistic Swedish grid tariff values for 2026 (incl. VAT)
+        // Based on actual published tariffs from Swedish DSOs
         // Fixed fees are monthly, energy is per kWh, power is per kW/month
-        let mockTariffs: [String: (name: String, fixed: Double, energy: Double, power: Double?)] = [
-            "vaggeryd": ("Vaggeryds Elnät", 187.50, 0.2813, 45.00),      // Small local DSO
-            "eon": ("E.ON Energidistribution", 220.00, 0.3250, 55.00),   // Major national DSO
-            "vattenfall": ("Vattenfall Eldistribution", 210.00, 0.3100, 52.00), // Major national DSO
-            "ellevio": ("Ellevio", 230.00, 0.3375, 58.00),               // Largest DSO in Sweden
-            "goteborg": ("Göteborg Energi Nät", 195.00, 0.2950, 48.00),  // Municipal DSO
-            "fortum": ("Fortum Distribution", 215.00, 0.3200, 51.00),    // Nordic energy company
-            "skelleftea": ("Skellefteå Kraft Elnät", 175.00, 0.2625, 42.00) // Northern Sweden
+        
+        // Fuse-based tariffs (monthly fixed fee by ampere rating)
+        let fuseTariffs: [String: (name: String, fuseFees: [Int: Double], energy: Double, power: Double?, energyTax: Double)] = [
+            "vaggeryd": (
+                "Vaggeryds Elnät",
+                [16: 187.50, 20: 225.00, 25: 270.00, 35: 360.00, 50: 495.00, 63: 612.50],
+                0.2813,  // Energy tariff (SEK/kWh)
+                45.00,   // Power tariff (SEK/kW/month)
+                54.875   // Energy tax 2025
+            ),
+            "jonkoping": (
+                "Jönköping Energi Elnät",
+                [16: 328.53, 20: 393.43, 25: 474.36, 35: 636.45, 50: 879.46, 63: 1090.20],
+                0.0608,  // Energy tariff (SEK/kWh) - 6.08 öre
+                46.68,   // Power tariff average (27.70 base + 65.66 peak) / 2
+                45.0     // Energy tax 2026 (reduced)
+            ),
+            "eon": (
+                "E.ON Energidistribution",
+                [16: 220.00, 20: 264.00, 25: 318.00, 35: 424.00, 50: 584.00, 63: 722.00],
+                0.3250,
+                55.00,
+                54.875
+            ),
+            "vattenfall": (
+                "Vattenfall Eldistribution",
+                [16: 210.00, 20: 252.00, 25: 304.00, 35: 406.00, 50: 560.00, 63: 693.00],
+                0.3100,
+                52.00,
+                54.875
+            ),
+            "ellevio": (
+                "Ellevio",
+                [16: 230.00, 20: 276.00, 25: 333.00, 35: 444.00, 50: 612.00, 63: 758.00],
+                0.3375,
+                58.00,
+                54.875
+            ),
+            "goteborg": (
+                "Göteborg Energi Nät",
+                [16: 195.00, 20: 234.00, 25: 282.00, 35: 376.00, 50: 518.00, 63: 641.00],
+                0.2950,
+                48.00,
+                54.875
+            ),
+            "fortum": (
+                "Fortum Distribution",
+                [16: 215.00, 20: 258.00, 25: 311.00, 35: 415.00, 50: 572.00, 63: 708.00],
+                0.3200,
+                51.00,
+                54.875
+            ),
+            "skelleftea": (
+                "Skellefteå Kraft Elnät",
+                [16: 175.00, 20: 210.00, 25: 253.00, 35: 338.00, 50: 466.00, 63: 577.00],
+                0.2625,
+                42.00,
+                54.875
+            )
         ]
         
-        guard let data = mockTariffs[orgNo] else { return nil }
+        guard let data = fuseTariffs[orgNo] else { return nil }
         
-        // Note: These are realistic averages. Actual tariffs vary by:
-        // - Time of use (day/night rates)
-        // - Season (winter/summer)
-        // - Fuse size/subscription level
-        // - Geographic location
+        // Find the best matching fuse size
+        let availableSizes = data.fuseFees.keys.sorted()
+        let matchedSize: Int
+        
+        if data.fuseFees[fuseSize] != nil {
+            matchedSize = fuseSize
+        } else {
+            // Find closest fuse size
+            matchedSize = availableSizes.min(by: { abs($0 - fuseSize) < abs($1 - fuseSize) }) ?? 20
+        }
+        
+        let fixedFee = data.fuseFees[matchedSize] ?? data.fuseFees[20] ?? 0
         
         return SimplifiedTariff(
             dsoName: data.name,
             dsoOrgNo: orgNo,
-            monthlyFixedFee: data.fixed,
+            monthlyFixedFee: fixedFee,
             energyTariffPerKWh: data.energy,
             powerTariffPerKW: data.power,
             validFrom: Date(),
             validTo: nil,
-            energyTaxPerKWh: 54.875,        // Swedish energy tax 2025 (öre/kWh incl. VAT)
-            certificateFeePerKWh: 1.75      // Electricity certificate fee (öre/kWh incl. VAT)
+            energyTaxPerKWh: data.energyTax,
+            certificateFeePerKWh: 1.75,     // Electricity certificate fee (öre/kWh incl. VAT)
+            fuseSize: matchedSize
         )
     }
     
@@ -259,7 +321,8 @@ final class GridTariffService: Sendable {
             validFrom: validFrom,
             validTo: validTo,
             energyTaxPerKWh: 54.875,        // Swedish energy tax 2025 (öre/kWh incl. VAT)
-            certificateFeePerKWh: 1.75      // Electricity certificate fee (öre/kWh incl. VAT)
+            certificateFeePerKWh: 1.75,     // Electricity certificate fee (öre/kWh incl. VAT)
+            fuseSize: nil                   // Unknown for API tariffs
         )
     }
 }

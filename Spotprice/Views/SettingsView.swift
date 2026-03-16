@@ -110,6 +110,32 @@ struct SettingsView: View {
                     }
 
                     Divider()
+                    
+                    // Fuse size selection
+                    VStack(alignment: .leading, spacing: DS.Spacing.md) {
+                        Text("Huvudsäkring")
+                            .font(DS.Font.bold(12))
+                            .foregroundStyle(.primary)
+                        
+                        Picker("Välj säkringsstorlek", selection: $settings.fuseSize) {
+                            Text("16A").tag(16)
+                            Text("20A").tag(20)
+                            Text("25A").tag(25)
+                            Text("35A").tag(35)
+                            Text("50A").tag(50)
+                            Text("63A").tag(63)
+                        }
+                        .pickerStyle(.menu)
+                        .onChange(of: settings.fuseSize) { _, _ in
+                            NotificationCenter.default.post(name: .consumptionSettingsDidSave, object: nil)
+                        }
+                        
+                        Text("Din huvudsäkrings storlek påverkar den fasta månadsavgiften från nätägaren")
+                            .font(DS.Font.regular(11))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Divider()
 
                     // Provider-specific credential fields
                     ProviderCredentialsSection(
@@ -134,7 +160,8 @@ struct SettingsView: View {
                             Text("Energiskatt:")
                                 .font(DS.Font.regular(11))
                             Spacer()
-                            Text("54,88 öre/kWh")
+                            // Show energiskatt based on selected DSO (Jönköping has 45 öre from 2026)
+                            Text(energyTaxText)
                                 .font(DS.Font.regular(11))
                                 .foregroundStyle(.secondary)
                         }
@@ -148,7 +175,7 @@ struct SettingsView: View {
                                 .foregroundStyle(.secondary)
                         }
                         
-                        Text("Svenska standardvärden 2025 (ingår automatiskt i beräkningar)")
+                        Text(taxInfoText)
                             .font(DS.Font.regular(11))
                             .foregroundStyle(.secondary)
                     }
@@ -220,6 +247,23 @@ struct SettingsView: View {
         .onAppear {
             selectedPriceArea = settings.priceArea
         }
+    }
+    
+    // MARK: - Computed Properties
+    
+    private var energyTaxText: String {
+        // Jönköping has reduced energy tax from 2026
+        if settings.selectedDSOOrgNo == "jonkoping" {
+            return "45,0 öre/kWh"
+        }
+        return "54,88 öre/kWh"
+    }
+    
+    private var taxInfoText: String {
+        if settings.selectedDSOOrgNo == "jonkoping" {
+            return "Energiskatt sänktes till 45 öre/kWh från januari 2026"
+        }
+        return "Svenska standardvärden 2025 (ingår automatiskt i beräkningar)"
     }
     
     // MARK: - Helper Methods

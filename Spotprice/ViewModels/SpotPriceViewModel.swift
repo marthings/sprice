@@ -182,13 +182,13 @@ final class SpotPriceViewModel {
             return
         }
         
-        // Fetch from API
+        // Fetch from API with current fuse size
         do {
-            let tariff = try await gridTariffService.fetchTariff(forDSO: dsoOrgNo)
+            let tariff = try await gridTariffService.fetchTariff(forDSO: dsoOrgNo, fuseSize: settings.fuseSize)
             currentTariff = tariff
             settings.cachedTariff = tariff
             if let tariff = tariff {
-                print("📊 ViewModel: Loaded tariff for \(tariff.dsoName)")
+                print("📊 ViewModel: Loaded tariff for \(tariff.dsoName) @ \(tariff.fuseSize ?? 0)A")
             }
         } catch {
             // Non-fatal - just log and continue without tariff

@@ -116,7 +116,7 @@ struct SpotPriceProvider: TimelineProvider {
             
             // Try to fetch fresh tariff if we have a DSO configured
             if tariff == nil, !settings.selectedDSOOrgNo.isEmpty {
-                tariff = try? await gridTariffService.fetchTariff(forDSO: settings.selectedDSOOrgNo)
+                tariff = try? await gridTariffService.fetchTariff(forDSO: settings.selectedDSOOrgNo, fuseSize: settings.fuseSize)
             }
 
             // Fetch consumption (don't fail if this errors)
