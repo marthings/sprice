@@ -11,6 +11,7 @@ struct MonthlyCostCard: View {
     let title: String
     let enhancedCost: EnhancedCost
     let kWh: Double
+    var showProviderWarning: Bool = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
@@ -34,6 +35,19 @@ struct MonthlyCostCard: View {
                 Text("\(Int(kWh.rounded())) kWh • \(String(format: "%.2f", enhancedCost.totalKr / kWh)) kr/kWh")
                     .font(DS.Font.micro)
                     .foregroundStyle(.tertiary)
+            }
+            
+            // Warning when no provider/DSO configured
+            if showProviderWarning {
+                HStack(spacing: DS.Spacing.xs) {
+                    Image(systemName: "info.circle.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.blue)
+                    Text("Konfigurera elbolag och nätägare i inställningar för mer exakta beräkningar")
+                        .font(DS.Font.micro)
+                        .foregroundStyle(.blue)
+                }
+                .padding(.top, DS.Spacing.xxs)
             }
             
             Divider()

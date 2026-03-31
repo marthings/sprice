@@ -248,7 +248,8 @@ final class ConsumptionSettings {
 
     private init() {
         // Load current values
-        self.selectedProviderId = Self.defaults.string(forKey: Keys.selectedProviderId) ?? "vaggeryd"
+        // Default to empty string (no provider) instead of forcing vaggeryd
+        self.selectedProviderId = Self.defaults.string(forKey: Keys.selectedProviderId) ?? ""
         self.priceArea = Self.defaults.string(forKey: Keys.priceArea) ?? "SE3"
         self.selectedDSOOrgNo = Self.defaults.string(forKey: Keys.selectedDSOOrgNo) ?? ""
         

@@ -99,20 +99,27 @@ final class GridTariffService: Sendable {
         let spotCostKr = (spotPriceOre / 100.0) * kWh
 
         guard let tariff = tariff else {
-            // No tariff - only spot price and provider costs
+            // No tariff - use Swedish standard values for taxes
+            // Even without a DSO, we should include mandatory Swedish taxes
             let surcharge = providerSurchargeOverride ?? settings.providerSurchargePerKWh
             let monthlyFee = providerMonthlyFeeOverride ?? settings.providerMonthlyFee
             let providerSurchargeKr = (surcharge / 100.0) * kWh
             let hoursInMonth: Double = 730
             let providerMonthlyFeeKr = (monthlyFee / hoursInMonth) * hoursInPeriod
             
+            // Swedish standard taxes (2025/2026)
+            let standardEnergyTax = 54.875  // öre/kWh incl. VAT
+            let standardCertificateFee = 1.75  // öre/kWh incl. VAT
+            let energyTaxKr = (standardEnergyTax / 100.0) * kWh
+            let certificateFeeKr = (standardCertificateFee / 100.0) * kWh
+            
             return EnhancedCost(
                 spotCostKr: spotCostKr,
                 gridEnergyCostKr: 0,
                 fixedFeeCostKr: 0,
                 powerTariffCostKr: 0,
-                energyTaxKr: 0,
-                certificateFeeKr: 0,
+                energyTaxKr: energyTaxKr,
+                certificateFeeKr: certificateFeeKr,
                 providerSurchargeKr: providerSurchargeKr,
                 providerMonthlyFeeKr: providerMonthlyFeeKr
             )

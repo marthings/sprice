@@ -13,6 +13,14 @@ struct MonthlyStatsSection: View {
     let averagePrice: Double?
     let preciseCost: PreciseMonthlyCost?
     let tariff: SimplifiedTariff?
+    
+    private var settings: ConsumptionSettings {
+        ConsumptionSettings.shared
+    }
+    
+    private var shouldShowWarning: Bool {
+        settings.selectedProviderId.isEmpty || settings.selectedDSOOrgNo.isEmpty
+    }
 
     var body: some View {
         if let consumption {
@@ -31,7 +39,8 @@ struct MonthlyStatsSection: View {
                     MonthlyCostCard(
                         title: "Faktisk kostnad",
                         enhancedCost: enhancedCost,
-                        kWh: preciseCost.totalKWh
+                        kWh: preciseCost.totalKWh,
+                        showProviderWarning: shouldShowWarning
                     )
                 } else if let avgPrice = averagePrice {
                     let estimatedSpotCost = (avgPrice / 100.0) * consumption.totalKWh
@@ -43,7 +52,8 @@ struct MonthlyStatsSection: View {
                     MonthlyCostCard(
                         title: "Uppskattad kostnad",
                         enhancedCost: enhancedCost,
-                        kWh: consumption.totalKWh
+                        kWh: consumption.totalKWh,
+                        showProviderWarning: shouldShowWarning
                     )
                 }
 

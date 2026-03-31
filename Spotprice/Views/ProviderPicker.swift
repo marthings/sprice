@@ -19,6 +19,7 @@ struct ProviderPicker: View {
                 .foregroundStyle(.primary)
 
             Picker("", selection: $selectedProviderId) {
+                Text("Ingen vald").tag("")
                 ForEach(providers) { provider in
                     Text(provider.displayName).tag(provider.identifier)
                 }
@@ -26,9 +27,15 @@ struct ProviderPicker: View {
             .labelsHidden()
             .pickerStyle(.menu)
 
-            Text("Välj din elleverantör för förbrukningsdata")
-                .font(DS.Font.micro)
-                .foregroundStyle(.secondary)
+            if selectedProviderId.isEmpty {
+                Text("Välj din elleverantör för att få förbrukningsdata och mer exakta kostnadsberäkningar")
+                    .font(DS.Font.micro)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("Välj din elleverantör för förbrukningsdata")
+                    .font(DS.Font.micro)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 }
