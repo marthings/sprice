@@ -8,6 +8,7 @@ import SwiftUI
 struct ModernMenuBarView: View {
     var viewModel: SpotPriceViewModel
     var summaryViewModel: SummaryViewModel
+    private let totalCostService = TotalCostService()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -49,6 +50,7 @@ struct ModernMenuBarView: View {
                     .resizable()
                     .scaledToFit()
                     .frame(width: 32, height: 32)
+                    .accessibilityHidden(true)
                 Text("Sprice")
                     .font(DS.Font.headline)
                     .foregroundStyle(.primary)
@@ -64,18 +66,20 @@ struct ModernMenuBarView: View {
                         .foregroundStyle(.primary)
                         .background(.ultraThinMaterial, in: .circle)
                 }
+                .accessibilityLabel("Inställningar")
                 .buttonStyle(.plain)
                 .help("Inställningar")
 
-                Button(action: {
+                Button {
                     NSApplication.shared.terminate(nil)
-                }) {
+                } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: DS.Size.closeButtonIconSize, weight: .bold))
                         .frame(width: DS.Size.closeButtonSize, height: DS.Size.closeButtonSize)
                         .foregroundStyle(.primary)
                         .background(.ultraThinMaterial, in: .circle)
                 }
+                .accessibilityLabel("Avsluta")
                 .buttonStyle(.plain)
                 .help("Avsluta")
             }
@@ -130,14 +134,15 @@ struct ModernMenuBarView: View {
             VStack(spacing: DS.Spacing.md) {
                 HStack(spacing: DS.Spacing.sm) {
                     if let tariff = viewModel.currentTariff {
-                        let totalCostService = TotalCostService()
-                        let minTotal = totalCostService.calculatePricePerKWh(spotPriceOre: payload.day.minOre, tariff: tariff)
-                        let maxTotal = totalCostService.calculatePricePerKWh(spotPriceOre: payload.day.maxOre, tariff: tariff)
-                        let avgTotal = totalCostService.calculatePricePerKWh(spotPriceOre: averagePrice(payload.day.buckets), tariff: tariff)
-                        
+                        let surcharge = ConsumptionSettings.shared.effectiveSurchargePerKWh
+                        let monthlyFee = ConsumptionSettings.shared.effectiveMonthlyFee
+                        let minTotal = totalCostService.calculatePricePerKWh(spotPriceOre: payload.day.minOre, tariff: tariff, providerSurcharge: surcharge, providerMonthlyFee: monthlyFee)
+                        let maxTotal = totalCostService.calculatePricePerKWh(spotPriceOre: payload.day.maxOre, tariff: tariff, providerSurcharge: surcharge, providerMonthlyFee: monthlyFee)
+                        let avgTotal = totalCostService.calculatePricePerKWh(spotPriceOre: averagePrice(payload.day.buckets), tariff: tariff, providerSurcharge: surcharge, providerMonthlyFee: monthlyFee)
+
                         StatCardView(
                             title: "Lägsta",
-                            value: String(format: "%.2f", minTotal),
+                            value: minTotal.formatted(.number.precision(.fractionLength(2))),
                             unit: "kr",
                             color: DS.Color.success,
                             icon: "arrow.down.circle.fill"
@@ -145,7 +150,7 @@ struct ModernMenuBarView: View {
 
                         StatCardView(
                             title: "Högsta",
-                            value: String(format: "%.2f", maxTotal),
+                            value: maxTotal.formatted(.number.precision(.fractionLength(2))),
                             unit: "kr",
                             color: DS.Color.danger,
                             icon: "arrow.up.circle.fill"
@@ -153,7 +158,7 @@ struct ModernMenuBarView: View {
 
                         StatCardView(
                             title: "Snitt",
-                            value: String(format: "%.2f", avgTotal),
+                            value: avgTotal.formatted(.number.precision(.fractionLength(2))),
                             unit: "kr",
                             color: .blue,
                             icon: "chart.line.uptrend.xyaxis"

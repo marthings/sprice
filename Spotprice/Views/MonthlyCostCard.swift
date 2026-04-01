@@ -22,7 +22,7 @@ struct MonthlyCostCard: View {
             
             // Total cost - primary focus
             HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
-                Text(String(format: "%.0f", enhancedCost.totalKr))
+                Text(enhancedCost.totalKr, format: .number.precision(.fractionLength(0)))
                     .font(DS.Font.bold(28).monospacedDigit())
                     .foregroundStyle(.primary)
                 Text("kr")
@@ -32,7 +32,7 @@ struct MonthlyCostCard: View {
             
             // Consumption info
             if kWh > 0 {
-                Text("\(Int(kWh.rounded())) kWh • \(String(format: "%.2f", enhancedCost.totalKr / kWh)) kr/kWh")
+                Text("\(Int(kWh.rounded())) kWh • \((enhancedCost.totalKr / kWh).formatted(.number.precision(.fractionLength(2)))) kr/kWh")
                     .font(DS.Font.micro)
                     .foregroundStyle(.tertiary)
             }
@@ -139,48 +139,3 @@ struct MonthlyCostCard: View {
     }
 }
 
-// MARK: - Helper Views
-
-private struct CostBreakdownRow: View {
-    let label: String
-    let amount: Double
-    let color: Color
-    
-    var body: some View {
-        HStack(spacing: DS.Spacing.xs) {
-            Circle()
-                .fill(color.opacity(0.3))
-                .frame(width: 6, height: 6)
-            
-            Text(label)
-                .font(DS.Font.medium(11))
-                .foregroundStyle(.primary)
-            
-            Spacer()
-            
-            Text(String(format: "%.0f kr", amount))
-                .font(DS.Font.medium(11).monospacedDigit())
-                .foregroundStyle(.primary)
-        }
-    }
-}
-
-private struct CostBreakdownSubRow: View {
-    let label: String
-    let amount: Double
-    
-    var body: some View {
-        HStack(spacing: DS.Spacing.xs) {
-            Text(label)
-                .font(DS.Font.regular(10))
-                .foregroundStyle(.secondary)
-                .padding(.leading, 14)
-            
-            Spacer()
-            
-            Text(String(format: "%.0f kr", amount))
-                .font(DS.Font.regular(10).monospacedDigit())
-                .foregroundStyle(.secondary)
-        }
-    }
-}

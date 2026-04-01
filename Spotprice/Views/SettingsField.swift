@@ -12,7 +12,7 @@ struct OutlinedTextFieldStyle: TextFieldStyle {
             .padding(.horizontal, DS.Spacing.lg)
             .padding(.vertical, DS.Spacing.md)
             .background(.ultraThinMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.sm))
+            .clipShape(.rect(cornerRadius: DS.Radius.sm))
             .overlay {
                 RoundedRectangle(cornerRadius: DS.Radius.sm, style: .continuous)
                     .stroke(DS.Color.outline.opacity(0.4), lineWidth: 1)

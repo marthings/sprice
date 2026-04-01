@@ -14,19 +14,23 @@ extension SpotPriceViewModel.State {
     }
     
     /// Total price per kWh including all components (spot + grid + taxes + provider)
+    @MainActor
     func totalPriceLabel(tariff: SimplifiedTariff?) -> String {
         guard case .loaded(let payload) = self,
               let currentBucket = payload.day.currentBucket else {
             return "--"
         }
-        
+
         let service = TotalCostService()
+        let settings = ConsumptionSettings.shared
         let totalPriceKr = service.calculatePricePerKWh(
             spotPriceOre: currentBucket.orePerKWh,
-            tariff: tariff
+            tariff: tariff,
+            providerSurcharge: settings.effectiveSurchargePerKWh,
+            providerMonthlyFee: settings.effectiveMonthlyFee
         )
-        
-        return String(format: "%.2f kr/kWh", totalPriceKr)
+
+        return "\(totalPriceKr.formatted(.number.precision(.fractionLength(2)))) kr/kWh"
     }
 
     var labelColor: Color {
@@ -51,7 +55,7 @@ extension SpotPriceViewModel.State {
     var trendPrices: (current: Double, next: Double)? {
         guard case .loaded(let payload) = self else { return nil }
 
-        let now = Date()
+        let now = Date.now
         guard let currentBucket = payload.day.buckets.first(where: { $0.start <= now && $0.end > now }) else {
             return nil
         }
@@ -66,13 +70,3 @@ extension SpotPriceViewModel.State {
     }
 }
 
-extension SummaryViewModel.State {
-    var isLoading: Bool {
-        switch self {
-        case .loadingConsumption, .analyzing:
-            return true
-        default:
-            return false
-        }
-    }
-}

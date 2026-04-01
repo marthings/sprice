@@ -112,14 +112,17 @@ struct MonthlyStatsSection: View {
     
     private func calculateTotalMonthCost(spotCostKr: Double, kWh: Double) -> EnhancedCost {
         let service = TotalCostService()
+        let settings = ConsumptionSettings.shared
         // Calculate average spot price per kWh from total spot cost
         let avgSpotPriceOre = kWh > 0 ? (spotCostKr / kWh) * 100.0 : 0
-        
+
         // Use full month hours for monthly fixed fees
         return service.calculateTotalCost(
             kWh: kWh,
             spotPriceOre: avgSpotPriceOre,
             tariff: tariff,
+            providerSurcharge: settings.effectiveSurchargePerKWh,
+            providerMonthlyFee: settings.effectiveMonthlyFee,
             hoursInPeriod: 730  // Full month
         )
     }

@@ -14,10 +14,6 @@ struct SpotPriceService: Sendable {
     private let timeZone: TimeZone
     private let calendar: Calendar
 
-    private var area: String {
-        ConsumptionSettings.shared.priceArea
-    }
-
     private var decoder: JSONDecoder {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
@@ -40,6 +36,7 @@ struct SpotPriceService: Sendable {
     
     /// Fetches spot prices for the given date and returns raw items
     func fetchSpotPrices(for date: Date = Date()) async throws -> [SpotPriceItem] {
+        let area = await MainActor.run { ConsumptionSettings.shared.priceArea }
         let url = try endpointURL(for: date, area: area, timeZone: timeZone, calendar: calendar)
         print("⚡️ Fetching spot prices from: \(url)")
 

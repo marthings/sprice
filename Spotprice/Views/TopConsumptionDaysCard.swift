@@ -34,7 +34,7 @@ struct TopConsumptionDaysCard: View {
                         .font(DS.Font.micro)
                         .foregroundStyle(.primary)
                     if let avg = averageKW {
-                        Text("Snitt: \(String(format: "%.1f", avg)) kW")
+                        Text("Snitt: \(avg.formatted(.number.precision(.fractionLength(1)))) kW")
                             .font(DS.Font.micro)
                             .foregroundStyle(.secondary)
                     }
@@ -50,7 +50,7 @@ struct TopConsumptionDaysCard: View {
                     .foregroundStyle(Color("InfoColor"))
                     .cornerRadius(DS.Radius.sm)
                     .annotation(position: .top, spacing: DS.Spacing.xxs) {
-                        Text(String(format: "%.1f", peak.kW))
+                        Text(peak.kW, format: .number.precision(.fractionLength(1)))
                             .font(DS.Font.bold(11).monospacedDigit())
                             .foregroundStyle(.primary)
                     }

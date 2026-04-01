@@ -41,14 +41,14 @@ struct CostCardView: View {
                 
                 if breakdown.hasGridCosts {
                     VStack(alignment: .leading, spacing: 1) {
-                        Text("Elhandel: \(String(format: "%.2f", breakdown.spot)) kr")
+                        Text("Elhandel: \(breakdown.spot.formatted(.number.precision(.fractionLength(2)))) kr")
                             .font(DS.Font.micro)
                             .foregroundStyle(.tertiary)
-                        Text("Nät: \(String(format: "%.2f", breakdown.grid)) kr")
+                        Text("Nät: \(breakdown.grid.formatted(.number.precision(.fractionLength(2)))) kr")
                             .font(DS.Font.micro)
                             .foregroundStyle(.tertiary)
                         if breakdown.fixed > 0 {
-                            Text("Övrigt: \(String(format: "%.2f", breakdown.fixed)) kr")
+                            Text("Övrigt: \(breakdown.fixed.formatted(.number.precision(.fractionLength(2)))) kr")
                                 .font(DS.Font.micro)
                                 .foregroundStyle(.tertiary)
                         }
@@ -72,7 +72,7 @@ extension CostCardView {
         let total: Double
 
         var formattedTotal: String {
-            String(format: "%.2f", total)
+            total.formatted(.number.precision(.fractionLength(2)))
         }
 
         var hasGridCosts: Bool {
@@ -87,10 +87,13 @@ extension CostCardView {
         hoursInPeriod: Double = 1.0
     ) -> CostBreakdown {
         let service = TotalCostService()
+        let settings = ConsumptionSettings.shared
         let enhancedCost = service.calculateTotalCost(
             kWh: kWh,
             spotPriceOre: priceInOre,
             tariff: tariff,
+            providerSurcharge: settings.effectiveSurchargePerKWh,
+            providerMonthlyFee: settings.effectiveMonthlyFee,
             hoursInPeriod: hoursInPeriod
         )
         

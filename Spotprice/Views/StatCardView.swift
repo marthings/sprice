@@ -14,6 +14,9 @@ struct StatCardView: View {
 
     var body: some View {
         VStack(spacing: DS.Spacing.xs) {
+            Image(systemName: icon)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(color)
             VStack(spacing: DS.Spacing.xxs) {
                 Text(title)
                     .font(DS.Font.micro)

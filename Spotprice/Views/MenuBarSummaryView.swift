@@ -131,7 +131,7 @@ struct MenuBarSummaryView: View {
         let isHigher = change >= 0
         let arrow = isHigher ? "arrow.up" : "arrow.down"
         let color: Color = isHigher ? DS.Color.danger : DS.Color.success
-        let changeText = String(format: "%.0f", abs(change))
+        let changeText = abs(change).formatted(.number.precision(.fractionLength(0)))
         let comparisonText = isHigher ? "dyrare" : "billigare"
 
         return HStack(spacing: DS.Spacing.xs) {

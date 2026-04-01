@@ -53,7 +53,7 @@ final class SpotPriceViewModel {
         gridTariffService: GridTariffService? = nil,
         settings: ConsumptionSettings? = nil,
         numberFormatter: NumberFormatter? = nil,
-        now: @escaping () -> Date = { Date() },
+        now: @escaping () -> Date = { Date.now },
         refreshInterval: Duration = .seconds(900)
     ) {
         self.service = service ?? SpotPriceService()
@@ -141,6 +141,11 @@ final class SpotPriceViewModel {
             monthlyConsumption = try await monthlyData
             dailyConsumption = (try? await dailyData) ?? []
             consumptionError = nil
+            
+            // Cache consumption data for widget access
+            if let consumption = monthlyConsumption {
+                settings.cachedConsumption = consumption
+            }
 
             print("📊 ViewModel: Consumption loaded - \(monthlyConsumption?.totalKWh ?? 0) kWh, \(dailyConsumption.count) daily values")
         } catch {

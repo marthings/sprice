@@ -20,8 +20,9 @@ struct CostCalculationSection: View {
 
                 if let price = getCurrentPrice(payload), let tariff = tariff {
                     let totalCostService = TotalCostService()
-                    let totalCost = totalCostService.calculatePricePerKWh(spotPriceOre: price, tariff: tariff)
-                    Text("(\(String(format: "%.2f", totalCost)) kr/kWh)")
+                    let settings = ConsumptionSettings.shared
+                    let totalCost = totalCostService.calculatePricePerKWh(spotPriceOre: price, tariff: tariff, providerSurcharge: settings.effectiveSurchargePerKWh, providerMonthlyFee: settings.effectiveMonthlyFee)
+                    Text("(\(totalCost.formatted(.number.precision(.fractionLength(2)))) kr/kWh)")
                         .font(DS.Font.medium(11))
                         .foregroundStyle(.secondary)
                 } else if let price = getCurrentPrice(payload) {
@@ -87,7 +88,7 @@ struct CostCalculationSection: View {
     // MARK: - Helpers
 
     private func getCurrentPrice(_ payload: SpotPriceViewModel.CurrentAndDay) -> Double? {
-        let now = Date()
+        let now = Date.now
         return payload.day.buckets.first { $0.start <= now && $0.end > now }?.orePerKWh
     }
 

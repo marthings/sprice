@@ -10,7 +10,7 @@ extension Notification.Name {
     static let consumptionSettingsDidSave = Notification.Name("consumptionSettingsDidSave")
 }
 
-@Observable
+@Observable @MainActor
 final class ConsumptionSettings {
     static let shared = ConsumptionSettings()
 
@@ -46,6 +46,9 @@ final class ConsumptionSettings {
         
         // Fuse size (säkring)
         static let fuseSize = "settings_fuseSize"
+        
+        // Cached consumption data (for widget access)
+        static let cachedConsumption = "cached_consumptionData"
     }
 
     // MARK: - Observable Properties
@@ -176,6 +179,18 @@ final class ConsumptionSettings {
         }
     }
 
+    /// Effective surcharge: user value if set, otherwise provider default
+    var effectiveSurchargePerKWh: Double {
+        let defaults = ProviderDefaults.forProvider(selectedProviderId)
+        return providerSurchargePerKWh > 0 ? providerSurchargePerKWh : (defaults.surchargePerKWh ?? 0)
+    }
+
+    /// Effective monthly fee: user value if set, otherwise provider default
+    var effectiveMonthlyFee: Double {
+        let defaults = ProviderDefaults.forProvider(selectedProviderId)
+        return providerMonthlyFee > 0 ? providerMonthlyFee : (defaults.monthlyFee ?? 0)
+    }
+
     /// Checks if the current provider has all required credentials
     var isConfigured: Bool {
         guard let metadata = ProviderRegistry.shared.metadata(for: selectedProviderId) else {
@@ -183,6 +198,26 @@ final class ConsumptionSettings {
         }
         let creds = getCredentials(for: selectedProviderId)
         return creds.isComplete(for: metadata.credentialFields)
+    }
+    
+    // MARK: - Cached Consumption (for widget access)
+    
+    /// Cached consumption data (stored in shared UserDefaults for widget access)
+    var cachedConsumption: ConsumptionData? {
+        get {
+            guard let data = Self.defaults.data(forKey: Keys.cachedConsumption) else {
+                return nil
+            }
+            return try? JSONDecoder().decode(ConsumptionData.self, from: data)
+        }
+        set {
+            if let newValue = newValue,
+               let data = try? JSONEncoder().encode(newValue) {
+                Self.defaults.set(data, forKey: Keys.cachedConsumption)
+            } else {
+                Self.defaults.removeObject(forKey: Keys.cachedConsumption)
+            }
+        }
     }
 
     // MARK: - Credential Storage
@@ -222,23 +257,34 @@ final class ConsumptionSettings {
 
     // MARK: - Private Credential Persistence
 
+    private static let keychainKey = "spotprice.providerCredentials"
+
     private func loadAllCredentials() -> [String: ProviderCredentials] {
-        guard let data = Self.defaults.data(forKey: Keys.providerCredentials) else {
-            return [:]
+        // Try Keychain first
+        if let data = KeychainHelper.load(forKey: Self.keychainKey) {
+            if let decoded = try? JSONDecoder().decode([String: ProviderCredentials].self, from: data) {
+                return decoded
+            }
         }
 
-        do {
-            let decoded = try JSONDecoder().decode([String: ProviderCredentials].self, from: data)
+        // Migrate from UserDefaults if Keychain is empty
+        if let data = Self.defaults.data(forKey: Keys.providerCredentials),
+           let decoded = try? JSONDecoder().decode([String: ProviderCredentials].self, from: data) {
+            // Save to Keychain and remove from UserDefaults
+            if let migrated = try? JSONEncoder().encode(decoded) {
+                KeychainHelper.save(migrated, forKey: Self.keychainKey)
+            }
+            Self.defaults.removeObject(forKey: Keys.providerCredentials)
             return decoded
-        } catch {
-            return [:]
         }
+
+        return [:]
     }
 
     private func saveAllCredentials(_ credentials: [String: ProviderCredentials]) {
         do {
             let data = try JSONEncoder().encode(credentials)
-            Self.defaults.set(data, forKey: Keys.providerCredentials)
+            KeychainHelper.save(data, forKey: Self.keychainKey)
         } catch {
             // Silently fail - credentials won't persist
         }
@@ -304,8 +350,8 @@ final class ConsumptionSettings {
     }
 
     func resetAll() {
-        // Clear all provider credentials
-        saveAllCredentials([:])
+        // Clear all provider credentials from Keychain and cache
+        KeychainHelper.delete(forKey: Self.keychainKey)
         credentialsCache = [:]
         selectedProviderId = "vaggeryd"
         priceArea = "SE3"

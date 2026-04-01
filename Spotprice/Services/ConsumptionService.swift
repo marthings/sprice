@@ -14,7 +14,6 @@ private let logger = Logger(subsystem: "se.spotprice", category: "ConsumptionSer
 
 struct ConsumptionService: Sendable {
     private let session: URLSession
-    private var settings: ConsumptionSettings { ConsumptionSettings.shared }
 
     init(session: URLSession = NetworkSession.shared) {
         self.session = session
@@ -23,13 +22,15 @@ struct ConsumptionService: Sendable {
     // MARK: - Provider Access
 
     /// Creates the current provider instance
-    private func currentProvider() throws -> any ElectricityProvider {
-        guard settings.isConfigured else {
+    private func currentProvider() async throws -> any ElectricityProvider {
+        let (isConfigured, providerId, credentials) = await MainActor.run {
+            let settings = ConsumptionSettings.shared
+            return (settings.isConfigured, settings.selectedProviderId, settings.getCredentials(for: settings.selectedProviderId))
+        }
+        
+        guard isConfigured else {
             throw ConsumptionError.missingCredentials
         }
-
-        let providerId = settings.selectedProviderId
-        let credentials = settings.getCredentials(for: providerId)
 
         guard let provider = ProviderRegistry.shared.createProvider(
             identifier: providerId,
@@ -46,7 +47,7 @@ struct ConsumptionService: Sendable {
 
     /// Tests the connection to the current provider's API
     func testConnection() async throws {
-        let provider = try currentProvider()
+        let provider = try await currentProvider()
         do {
             try await provider.testConnection()
         } catch let error as ProviderError {
@@ -68,7 +69,7 @@ struct ConsumptionService: Sendable {
 
     /// Fetches consumption data for a specific month
     func fetchConsumption(year: Int, month: Int) async throws -> ConsumptionData {
-        let provider = try currentProvider()
+        let provider = try await currentProvider()
         do {
             return try await provider.fetchConsumption(year: year, month: month)
         } catch let error as ProviderError {
@@ -88,7 +89,7 @@ struct ConsumptionService: Sendable {
 
     /// Fetches daily consumption data for a specific month
     func fetchDailyConsumption(year: Int, month: Int) async throws -> [DailyConsumption] {
-        let provider = try currentProvider()
+        let provider = try await currentProvider()
         do {
             return try await provider.fetchDailyConsumption(year: year, month: month)
         } catch let error as ProviderError {
@@ -98,7 +99,7 @@ struct ConsumptionService: Sendable {
 
     /// Fetches hourly consumption data for a date range
     func fetchHourlyConsumption(startDate: Date, endDate: Date) async throws -> [HourlyConsumption] {
-        let provider = try currentProvider()
+        let provider = try await currentProvider()
         do {
             return try await provider.fetchHourlyConsumption(startDate: startDate, endDate: endDate)
         } catch let error as ProviderError {
@@ -108,7 +109,7 @@ struct ConsumptionService: Sendable {
 
     /// Fetches 15-min interval consumption data for a date range (if provider supports it)
     func fetchQuarterlyConsumption(startDate: Date, endDate: Date) async throws -> [QuarterlyConsumption] {
-        let provider = try currentProvider()
+        let provider = try await currentProvider()
 
         guard let quarterlyProvider = provider as? QuarterlyConsumptionProvider else {
             throw ConsumptionError.notFound
@@ -125,7 +126,8 @@ struct ConsumptionService: Sendable {
 
     /// Fetches consumption comparison between current and previous month
     func fetchMonthlyComparison(spotPriceService: SpotPriceService) async throws -> MonthlyComparison {
-        guard settings.isConfigured else {
+        let isConfigured = await MainActor.run { ConsumptionSettings.shared.isConfigured }
+        guard isConfigured else {
             throw ConsumptionError.missingCredentials
         }
 

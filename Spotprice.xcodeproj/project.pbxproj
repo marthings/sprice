@@ -66,6 +66,7 @@
 				Providers/Vaggeryd/VaggerydProvider.swift,
 				Services/ConsumptionService.swift,
 				Services/GridTariffService.swift,
+				Services/KeychainHelper.swift,
 				Services/NetworkSession.swift,
 				Services/SpotPriceService.swift,
 				Services/TotalCostService.swift,

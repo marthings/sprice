@@ -9,7 +9,7 @@ import Foundation
 
 // MARK: - Consumption Data
 
-struct ConsumptionData: Sendable {
+struct ConsumptionData: Sendable, Codable {
     let totalKWh: Double
     let values: [ConsumptionValue]
     let meterName: String
@@ -32,7 +32,7 @@ struct ConsumptionData: Sendable {
 
 // MARK: - Consumption Value
 
-struct ConsumptionValue: Sendable {
+struct ConsumptionValue: Sendable, Codable {
     let date: Date
     let kWh: Double
     let price: Double

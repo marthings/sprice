@@ -90,29 +90,25 @@ final class GridTariffService: Sendable {
         kWh: Double,
         spotPriceOre: Double,
         tariff: SimplifiedTariff?,
-        settings: ConsumptionSettings = .shared,
+        providerSurcharge: Double = 0,
+        providerMonthlyFee: Double = 0,
         powerPeakKW: Double = 0,
-        hoursInPeriod: Double = 1.0,
-        providerSurchargeOverride: Double? = nil,
-        providerMonthlyFeeOverride: Double? = nil
+        hoursInPeriod: Double = 1.0
     ) -> EnhancedCost {
         let spotCostKr = (spotPriceOre / 100.0) * kWh
 
         guard let tariff = tariff else {
             // No tariff - use Swedish standard values for taxes
-            // Even without a DSO, we should include mandatory Swedish taxes
-            let surcharge = providerSurchargeOverride ?? settings.providerSurchargePerKWh
-            let monthlyFee = providerMonthlyFeeOverride ?? settings.providerMonthlyFee
-            let providerSurchargeKr = (surcharge / 100.0) * kWh
+            let providerSurchargeKr = (providerSurcharge / 100.0) * kWh
             let hoursInMonth: Double = 730
-            let providerMonthlyFeeKr = (monthlyFee / hoursInMonth) * hoursInPeriod
-            
+            let providerMonthlyFeeKr = (providerMonthlyFee / hoursInMonth) * hoursInPeriod
+
             // Swedish standard taxes (2025/2026)
             let standardEnergyTax = 54.875  // öre/kWh incl. VAT
             let standardCertificateFee = 1.75  // öre/kWh incl. VAT
             let energyTaxKr = (standardEnergyTax / 100.0) * kWh
             let certificateFeeKr = (standardCertificateFee / 100.0) * kWh
-            
+
             return EnhancedCost(
                 spotCostKr: spotCostKr,
                 gridEnergyCostKr: 0,
@@ -139,16 +135,14 @@ final class GridTariffService: Sendable {
         } else {
             powerTariffCostKr = 0
         }
-        
+
         // Swedish taxes and fees
         let energyTaxKr = (tariff.energyTaxPerKWh / 100.0) * kWh
         let certificateFeeKr = (tariff.certificateFeePerKWh / 100.0) * kWh
-        
-        // Provider costs (use override if provided, otherwise use settings)
-        let surcharge = providerSurchargeOverride ?? settings.providerSurchargePerKWh
-        let monthlyFee = providerMonthlyFeeOverride ?? settings.providerMonthlyFee
-        let providerSurchargeKr = (surcharge / 100.0) * kWh
-        let providerMonthlyFeeKr = (monthlyFee / hoursInMonth) * hoursInPeriod
+
+        // Provider costs
+        let providerSurchargeKr = (providerSurcharge / 100.0) * kWh
+        let providerMonthlyFeeKr = (providerMonthlyFee / hoursInMonth) * hoursInPeriod
 
         return EnhancedCost(
             spotCostKr: spotCostKr,

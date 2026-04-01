@@ -21,7 +21,13 @@ struct ChartCalloutView: View {
     private var totalCostPerKWh: Double? {
         guard let tariff = tariff else { return nil }
         let service = TotalCostService()
-        return service.calculatePricePerKWh(spotPriceOre: bucket.orePerKWh, tariff: tariff)
+        let settings = ConsumptionSettings.shared
+        return service.calculatePricePerKWh(
+            spotPriceOre: bucket.orePerKWh,
+            tariff: tariff,
+            providerSurcharge: settings.effectiveSurchargePerKWh,
+            providerMonthlyFee: settings.effectiveMonthlyFee
+        )
     }
 
     var body: some View {
@@ -39,7 +45,7 @@ struct ChartCalloutView: View {
             if let totalCost = totalCostPerKWh {
                 // Show total cost as main value
                 HStack(spacing: DS.Spacing.xs) {
-                    Text(String(format: "%.2f", totalCost))
+                    Text(totalCost, format: .number.precision(.fractionLength(2)))
                         .font(DS.Font.bold(16).monospacedDigit())
                         .foregroundStyle(.blue)
                     Text("kr/kWh")

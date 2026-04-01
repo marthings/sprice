@@ -11,6 +11,11 @@ struct SpotPriceBarChart: View {
     let configuration: ChartConfiguration
     var tariff: SimplifiedTariff? = nil
     @State private var selectedDate: Date?
+    private let totalCostService = TotalCostService()
+
+    // Cached from ConsumptionSettings once per render (view is @MainActor)
+    private var providerSurcharge: Double { ConsumptionSettings.shared.effectiveSurchargePerKWh }
+    private var providerMonthlyFee: Double { ConsumptionSettings.shared.effectiveMonthlyFee }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -23,7 +28,7 @@ struct SpotPriceBarChart: View {
     // MARK: - Chart Header
 
     private var chartHeader: some View {
-        let now = Date()
+        let now = Date.now
         let currentBucket = dayData.buckets.first { $0.start <= now && $0.end > now }
         let currentPrice = currentBucket?.orePerKWh
 
@@ -36,12 +41,11 @@ struct SpotPriceBarChart: View {
             VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                 if let tariff = tariff, let price = currentPrice {
                     // Show total cost when tariff available
-                    let totalCostService = TotalCostService()
-                    let totalCost = totalCostService.calculatePricePerKWh(spotPriceOre: price, tariff: tariff)
+                    let totalCost = totalCostService.calculatePricePerKWh(spotPriceOre: price, tariff: tariff, providerSurcharge: providerSurcharge, providerMonthlyFee: providerMonthlyFee)
                     let totalCostOre = totalCost * 100
-                    
+
                     HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
-                        Text(String(format: "%.2f", totalCost))
+                        Text(totalCost, format: .number.precision(.fractionLength(2)))
                             .font(DS.Font.bold(30).monospacedDigit())
                             .foregroundStyle(totalCostColor(for: totalCostOre, tariff: tariff))
                         Text("kr/kWh")
@@ -73,13 +77,12 @@ struct SpotPriceBarChart: View {
                     .foregroundStyle(.secondary)
 
                 if let tariff = tariff, let next = nextPrice, let current = currentPrice {
-                    let totalCostService = TotalCostService()
-                    let currentTotal = totalCostService.calculatePricePerKWh(spotPriceOre: current, tariff: tariff)
-                    let nextTotal = totalCostService.calculatePricePerKWh(spotPriceOre: next, tariff: tariff)
-                    
+                    let currentTotal = totalCostService.calculatePricePerKWh(spotPriceOre: current, tariff: tariff, providerSurcharge: providerSurcharge, providerMonthlyFee: providerMonthlyFee)
+                    let nextTotal = totalCostService.calculatePricePerKWh(spotPriceOre: next, tariff: tariff, providerSurcharge: providerSurcharge, providerMonthlyFee: providerMonthlyFee)
+
                     HStack(spacing: DS.Spacing.xs) {
                         TrendIndicator(current: currentTotal, next: nextTotal)
-                        Text(String(format: "%.2f", nextTotal))
+                        Text(nextTotal, format: .number.precision(.fractionLength(2)))
                             .font(DS.Font.semibold(12).monospacedDigit())
                             .foregroundStyle(totalCostColor(for: nextTotal * 100, tariff: tariff))
                     }
@@ -91,10 +94,9 @@ struct SpotPriceBarChart: View {
                             .foregroundStyle(priceColor(for: next))
                     }
                 } else if let tariff = tariff, let next = nextPrice {
-                    let totalCostService = TotalCostService()
-                    let nextTotal = totalCostService.calculatePricePerKWh(spotPriceOre: next, tariff: tariff)
-                    
-                    Text(String(format: "%.2f", nextTotal))
+                    let nextTotal = totalCostService.calculatePricePerKWh(spotPriceOre: next, tariff: tariff, providerSurcharge: providerSurcharge, providerMonthlyFee: providerMonthlyFee)
+
+                    Text(nextTotal, format: .number.precision(.fractionLength(2)))
                         .font(DS.Font.semibold(12).monospacedDigit())
                         .foregroundStyle(totalCostColor(for: nextTotal * 100, tariff: tariff))
                 } else if let next = nextPrice {
@@ -118,32 +120,31 @@ struct SpotPriceBarChart: View {
         Chart {
             if let tariff = tariff {
                 // Show total cost when tariff is available
-                let totalCostService = TotalCostService()
-                
+
                 // Area fill for total cost
                 ForEach(dayData.buckets) { bucket in
                     AreaMark(
                         x: .value("Tid", bucket.start),
-                        y: .value("Total", totalCostService.calculatePricePerKWh(spotPriceOre: bucket.orePerKWh, tariff: tariff) * 100)
+                        y: .value("Total", totalCostService.calculatePricePerKWh(spotPriceOre: bucket.orePerKWh, tariff: tariff, providerSurcharge: providerSurcharge, providerMonthlyFee: providerMonthlyFee) * 100)
                     )
                     .foregroundStyle(totalCostGradient)
                     .opacity(selectedDate == nil || isBucketSelected(bucket, selectedDate: selectedDate) ? 1.0 : 0.3)
                 }
-                
+
                 // Total cost line
                 LineMark(
-                    x: .value("Tid", dayData.buckets.first?.start ?? Date()),
-                    y: .value("Total", totalCostService.calculatePricePerKWh(spotPriceOre: dayData.buckets.first?.orePerKWh ?? 0, tariff: tariff) * 100),
+                    x: .value("Tid", dayData.buckets.first?.start ?? Date.now),
+                    y: .value("Total", totalCostService.calculatePricePerKWh(spotPriceOre: dayData.buckets.first?.orePerKWh ?? 0, tariff: tariff, providerSurcharge: providerSurcharge, providerMonthlyFee: providerMonthlyFee) * 100),
                     series: .value("Price", "Total")
                 )
                 .foregroundStyle(totalCostLineGradient(tariff: tariff))
                 .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
                 .interpolationMethod(.catmullRom)
-                
+
                 ForEach(dayData.buckets.dropFirst()) { bucket in
                     LineMark(
                         x: .value("Tid", bucket.start),
-                        y: .value("Total", totalCostService.calculatePricePerKWh(spotPriceOre: bucket.orePerKWh, tariff: tariff) * 100),
+                        y: .value("Total", totalCostService.calculatePricePerKWh(spotPriceOre: bucket.orePerKWh, tariff: tariff, providerSurcharge: providerSurcharge, providerMonthlyFee: providerMonthlyFee) * 100),
                         series: .value("Price", "Total")
                     )
                     .foregroundStyle(totalCostLineGradient(tariff: tariff))
@@ -151,10 +152,10 @@ struct SpotPriceBarChart: View {
                     .interpolationMethod(.catmullRom)
                     .opacity(selectedDate == nil || isBucketSelected(bucket, selectedDate: selectedDate) ? 1.0 : 0.4)
                 }
-                
+
                 // Selected point for total cost
                 if let selectedDate, let bucket = findBucket(for: selectedDate, in: dayData.buckets) {
-                    let totalCost = totalCostService.calculatePricePerKWh(spotPriceOre: bucket.orePerKWh, tariff: tariff) * 100
+                    let totalCost = totalCostService.calculatePricePerKWh(spotPriceOre: bucket.orePerKWh, tariff: tariff, providerSurcharge: providerSurcharge, providerMonthlyFee: providerMonthlyFee) * 100
                     PointMark(
                         x: .value("Tid", bucket.start),
                         y: .value("Total", totalCost)
@@ -175,7 +176,7 @@ struct SpotPriceBarChart: View {
                 }
 
                 LineMark(
-                    x: .value("Tid", dayData.buckets.first?.start ?? Date()),
+                    x: .value("Tid", dayData.buckets.first?.start ?? Date.now),
                     y: .value("Pris", dayData.buckets.first?.orePerKWh ?? 0),
                     series: .value("Price", "Spot")
                 )
@@ -207,7 +208,7 @@ struct SpotPriceBarChart: View {
             }
 
             // Current time indicator
-            if let now = Calendar.current.date(bySettingHour: Calendar.current.component(.hour, from: Date()), minute: 0, second: 0, of: Date()) {
+            if let now = Calendar.current.date(bySettingHour: Calendar.current.component(.hour, from: Date.now), minute: 0, second: 0, of: Date.now) {
                 RuleMark(x: .value("Nu", now))
                     .foregroundStyle(.primary.opacity(0.6))
                     .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
@@ -311,9 +312,8 @@ struct SpotPriceBarChart: View {
     }
     
     private func totalCostLineGradient(tariff: SimplifiedTariff) -> LinearGradient {
-        let totalCostService = TotalCostService()
         let totalCosts = dayData.buckets.map { bucket in
-            totalCostService.calculatePricePerKWh(spotPriceOre: bucket.orePerKWh, tariff: tariff) * 100
+            totalCostService.calculatePricePerKWh(spotPriceOre: bucket.orePerKWh, tariff: tariff, providerSurcharge: providerSurcharge, providerMonthlyFee: providerMonthlyFee) * 100
         }
         let minTotal = totalCosts.min() ?? 0
         let maxTotal = totalCosts.max() ?? 0
@@ -332,9 +332,8 @@ struct SpotPriceBarChart: View {
     }
     
     private func totalCostColor(for totalCost: Double, tariff: SimplifiedTariff) -> Color {
-        let totalCostService = TotalCostService()
         let totalCosts = dayData.buckets.map { bucket in
-            totalCostService.calculatePricePerKWh(spotPriceOre: bucket.orePerKWh, tariff: tariff) * 100
+            totalCostService.calculatePricePerKWh(spotPriceOre: bucket.orePerKWh, tariff: tariff, providerSurcharge: providerSurcharge, providerMonthlyFee: providerMonthlyFee) * 100
         }
         let minTotal = totalCosts.min() ?? 0
         let maxTotal = totalCosts.max() ?? 0
@@ -346,8 +345,8 @@ struct SpotPriceBarChart: View {
     }
 
     private func calendarBounds(for date: Date?) -> ClosedRange<Date> {
-        let start = Calendar.current.startOfDay(for: date ?? Date())
-        let end = Calendar.current.date(byAdding: .day, value: 1, to: start)!
+        let start = Calendar.current.startOfDay(for: date ?? Date.now)
+        let end = Calendar.current.date(byAdding: .day, value: 1, to: start) ?? start
         return start...end
     }
 
@@ -365,7 +364,7 @@ struct SpotPriceBarChart: View {
     }
 
     private func updateSelection(at location: CGPoint) {
-        let now = Date()
+        let now = Date.now
         let startOfDay = Calendar.current.startOfDay(for: now)
         let hourProgress = location.x / 300
         let selectedHour = Int(hourProgress * 24)
@@ -377,9 +376,8 @@ struct SpotPriceBarChart: View {
     
     private func maxYValue() -> Double {
         if let tariff = tariff {
-            let totalCostService = TotalCostService()
             let maxTotalCost = dayData.buckets.map { bucket in
-                totalCostService.calculatePricePerKWh(spotPriceOre: bucket.orePerKWh, tariff: tariff) * 100
+                totalCostService.calculatePricePerKWh(spotPriceOre: bucket.orePerKWh, tariff: tariff, providerSurcharge: providerSurcharge, providerMonthlyFee: providerMonthlyFee) * 100
             }.max() ?? 0
             return max(maxTotalCost * 1.1, dayData.maxOre * 1.1)
         } else {
