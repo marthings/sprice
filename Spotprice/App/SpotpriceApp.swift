@@ -10,7 +10,6 @@ import WidgetKit
 struct SpotpriceApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @State private var viewModel = SpotPriceViewModel()
-    @State private var summaryViewModel = SummaryViewModel()
 
     init() {
         WidgetCenter.shared.reloadAllTimelines()
@@ -18,7 +17,7 @@ struct SpotpriceApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            ModernMenuBarView(viewModel: viewModel, summaryViewModel: summaryViewModel)
+            ModernMenuBarView(viewModel: viewModel)
         } label: {
             MenuBarLabel(state: viewModel.state, tariff: viewModel.currentTariff)
         }

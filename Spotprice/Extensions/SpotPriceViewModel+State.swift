@@ -30,7 +30,8 @@ extension SpotPriceViewModel.State {
             providerMonthlyFee: settings.effectiveMonthlyFee
         )
 
-        return "\(totalPriceKr.formatted(.number.precision(.fractionLength(2)))) kr/kWh"
+        let prefix = tariff == nil ? "" : "ca "
+        return "\(prefix)\(totalPriceKr.formatted(.number.precision(.fractionLength(2)))) kr/kWh"
     }
 
     var labelColor: Color {
@@ -69,4 +70,3 @@ extension SpotPriceViewModel.State {
         return nil
     }
 }
-

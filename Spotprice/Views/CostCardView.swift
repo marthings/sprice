@@ -44,7 +44,7 @@ struct CostCardView: View {
                         Text("Elhandel: \(breakdown.spot.formatted(.number.precision(.fractionLength(2)))) kr")
                             .font(DS.Font.micro)
                             .foregroundStyle(.tertiary)
-                        Text("Nät: \(breakdown.grid.formatted(.number.precision(.fractionLength(2)))) kr")
+                        Text("Nät uppsk.: \(breakdown.grid.formatted(.number.precision(.fractionLength(2)))) kr")
                             .font(DS.Font.micro)
                             .foregroundStyle(.tertiary)
                         if breakdown.fixed > 0 {

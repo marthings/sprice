@@ -5,7 +5,6 @@
 //  Created by Martin Berggren on 2026-01-25.
 //
 import SwiftUI
-import Combine
 
 @Observable @MainActor
 final class SpotPriceViewModel {
@@ -38,12 +37,12 @@ final class SpotPriceViewModel {
 
     // Periodisk uppdaterings-Task
     @ObservationIgnored
-    nonisolated(unsafe) private var refreshTask: Task<Void, Never>?
+    private var refreshTask: Task<Void, Never>?
     // Konfigurerbart intervall (default 15 min)
     private let refreshInterval: Duration
-    // Subscription för settings-notifikation
+    // Task för settings-notifikation
     @ObservationIgnored
-    nonisolated(unsafe) private var settingsSubscription: AnyCancellable?
+    private var settingsRefreshTask: Task<Void, Never>?
     // Generation counter – stale loads discard their results
     private var loadGeneration = 0
 
@@ -75,18 +74,12 @@ final class SpotPriceViewModel {
         startPeriodicRefresh()
 
         // Lyssna på settings-ändringar (ladda om både priser och förbrukning)
-        settingsSubscription = NotificationCenter.default
-            .publisher(for: .consumptionSettingsDidSave)
-            .sink { [weak self] _ in
-                Task { @MainActor [weak self] in
-                    await self?.load()
-                }
-            }
+        observeSettingsChanges()
     }
 
     deinit {
         refreshTask?.cancel()
-        settingsSubscription?.cancel()
+        settingsRefreshTask?.cancel()
     }
     
     func load() async {
@@ -97,7 +90,8 @@ final class SpotPriceViewModel {
 
         do {
             let now = nowProvider()
-            let items = try await service.fetchSpotPrices(for: now)
+            let priceArea = settings.priceArea
+            let items = try await service.fetchSpotPrices(for: now, area: priceArea)
 
             // Superseded by a newer load – discard
             guard myGeneration == loadGeneration else { return }
@@ -205,20 +199,31 @@ final class SpotPriceViewModel {
     
     private func startPeriodicRefresh() {
         refreshTask?.cancel()
+        let interval = refreshInterval
         refreshTask = Task { [weak self] in
-            guard let self else { return }
             // Kör en initial laddning direkt
-            await self.load()
+            await self?.load()
             // Kör därefter var 15:e minut tills Task avbryts
             while !Task.isCancelled {
                 do {
-                    try await Task.sleep(for: self.refreshInterval)
+                    try await Task.sleep(for: interval)
                 } catch {
                     // Avbruten sömn -> avsluta loopen
                     break
                 }
                 if Task.isCancelled { break }
-                await self.load()
+                await self?.load()
+            }
+        }
+    }
+
+    private func observeSettingsChanges() {
+        settingsRefreshTask?.cancel()
+        settingsRefreshTask = Task { [weak self] in
+            let notifications = NotificationCenter.default.notifications(named: .consumptionSettingsDidSave)
+            for await _ in notifications {
+                if Task.isCancelled { break }
+                await self?.load()
             }
         }
     }

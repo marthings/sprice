@@ -7,7 +7,6 @@ import SwiftUI
 
 struct ModernMenuBarView: View {
     var viewModel: SpotPriceViewModel
-    var summaryViewModel: SummaryViewModel
     private let totalCostService = TotalCostService()
 
     var body: some View {
@@ -29,8 +28,6 @@ struct ModernMenuBarView: View {
                         preciseCost: viewModel.preciseMonthlyCost,
                         tariff: viewModel.currentTariff
                     )
-                    MenuBarSummaryView(viewModel: summaryViewModel, spotPriceViewModel: viewModel)
-                        .glassCard(cornerRadius: DS.Radius.lg)
                 }
                 .padding(.horizontal, DS.Spacing.lg)
                 .padding(.vertical, DS.Spacing.md)

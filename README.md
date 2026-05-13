@@ -1,6 +1,6 @@
 # Spotprice
 
-En modern macOS-menyapplikation för att följa spotpriset på el i realtid och analysera din elförbrukning.
+En modern macOS-menyapplikation för att följa spotpriset på el i realtid och förstå din elförbrukning.
 
 ![macOS](https://img.shields.io/badge/macOS-15.0+-blue)
 ![Swift](https://img.shields.io/badge/Swift-6.0-orange)
@@ -22,12 +22,12 @@ Spotprice är en elegant macOS-applikation som bor i menyraden och ger dig snabb
 - Månatlig förbrukningsstatistik
 - Daglig förbrukningshistorik
 - Identifiering av effekttoppar för att optimera förbrukningen
-- Exakta kostnadsberäkningar baserat på faktisk förbrukning och spotpris
+- Kostnadsberäkningar baserat på faktisk förbrukning, spotpris och uppskattade avgifter
 
 **Nätavgifter**
 - Integration med svenska elnätsföretag
-- Automatisk hämtning av aktuella nättariffer
-- Beräkning av total kostnad inklusive nätavgift
+- Uppskattade nättariffer och standardvärden
+- Beräkning av uppskattad total kostnad inklusive nätavgift
 
 **Flera elleverantörer**
 - Stöd för **Tibber** (via GraphQL API)
@@ -61,14 +61,12 @@ Projektet använder Model-View-ViewModel mönstret:
 
 - **ViewModels**
   - `SpotPriceViewModel` - Huvudviewmodel med `@Observable` för automatisk UI-uppdatering
-  - `SummaryViewModel` - Hanterar sammanfattad statistik
   - Periodisk auto-refresh var 15:e minut via structured concurrency
 
 - **Services** (Business Logic Layer)
   - `SpotPriceService` - Hämtar spotpriser från elprisetjustnu.se API
   - `ConsumptionService` - Beräknar förbrukning, effekttoppar och kostnader
-  - `GridTariffService` - Hämtar nättariffer från svenska elnätsföretag
-  - `SummaryService` - Aggregerar data för sammanfattningsvy
+  - `GridTariffService` - Hanterar uppskattade nättariffer och standardvärden
 
 - **Provider System** (Plugin Architecture)
   ```
@@ -93,7 +91,7 @@ User Action → ViewModel → Service → Provider/API
 1. **Data Fetching**: ViewModels använder `async/await` för att hämta data från services
 2. **State Management**: `@Observable` macro för reaktiv UI med minimal boilerplate
 3. **Periodic Refresh**: Structured concurrency task som körs kontinuerligt
-4. **Settings Sync**: Kombinerar Combine för settings notifications med async/await för data loading
+4. **Settings Sync**: NotificationCenter och async/await för data loading när inställningar ändras
 
 #### Nyckelteknologier
 

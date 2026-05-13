@@ -107,14 +107,16 @@ struct SpotPriceProvider: TimelineProvider {
     private func fetchCurrentPrice() async -> SpotPriceEntry {
         do {
             let now = Date()
-            let items = try await service.fetchSpotPrices(for: now)
-            let dayData = try service.makeDayChartData(from: items, for: now)
 
             // Read MainActor-isolated settings safely
-            let (cachedTariff, cachedConsumption, dsoOrgNo, fuseSize) = await MainActor.run {
+            let (cachedTariff, cachedConsumption, dsoOrgNo, fuseSize, priceArea) = await MainActor.run {
                 let s = ConsumptionSettings.shared
-                return (s.cachedTariff, s.cachedConsumption, s.selectedDSOOrgNo, s.fuseSize)
+                return (s.cachedTariff, s.cachedConsumption, s.selectedDSOOrgNo, s.fuseSize, s.priceArea)
             }
+
+            let items = try await service.fetchSpotPrices(for: now, area: priceArea)
+            let dayData = try service.makeDayChartData(from: items, for: now)
+
             var tariff = cachedTariff
 
             // Try to fetch fresh tariff if we have a DSO configured

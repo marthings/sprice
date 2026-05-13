@@ -37,6 +37,11 @@ struct SpotPriceService: Sendable {
     /// Fetches spot prices for the given date and returns raw items
     func fetchSpotPrices(for date: Date = Date()) async throws -> [SpotPriceItem] {
         let area = await MainActor.run { ConsumptionSettings.shared.priceArea }
+        return try await fetchSpotPrices(for: date, area: area)
+    }
+
+    /// Fetches spot prices for the given date and price area.
+    func fetchSpotPrices(for date: Date = Date(), area: String) async throws -> [SpotPriceItem] {
         let url = try endpointURL(for: date, area: area, timeZone: timeZone, calendar: calendar)
         print("⚡️ Fetching spot prices from: \(url)")
 

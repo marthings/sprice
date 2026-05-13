@@ -28,7 +28,7 @@ struct ProviderPicker: View {
             .pickerStyle(.menu)
 
             if selectedProviderId.isEmpty {
-                Text("Välj din elleverantör för att få förbrukningsdata och mer exakta kostnadsberäkningar")
+                Text("Välj din elleverantör för att få förbrukningsdata och bättre kostnadsuppskattningar")
                     .font(DS.Font.micro)
                     .foregroundStyle(.secondary)
             } else {

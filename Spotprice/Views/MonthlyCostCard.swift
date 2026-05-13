@@ -43,11 +43,20 @@ struct MonthlyCostCard: View {
                     Image(systemName: "info.circle.fill")
                         .font(.system(size: 11))
                         .foregroundStyle(.blue)
-                    Text("Konfigurera elbolag och nätägare i inställningar för mer exakta beräkningar")
+                    Text("Konfigurera elbolag och nätägare i inställningar för bättre uppskattningar")
                         .font(DS.Font.micro)
                         .foregroundStyle(.blue)
                 }
                 .padding(.top, DS.Spacing.xxs)
+            }
+
+            HStack(spacing: DS.Spacing.xs) {
+                Image(systemName: "info.circle.fill")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                Text("Nätavgifter och fasta avgifter är uppskattade värden.")
+                    .font(DS.Font.micro)
+                    .foregroundStyle(.secondary)
             }
             
             Divider()
@@ -138,4 +147,3 @@ struct MonthlyCostCard: View {
         .glassCard(cornerRadius: DS.Radius.lg)
     }
 }
-

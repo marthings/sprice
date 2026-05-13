@@ -14,7 +14,7 @@ struct CostCalculationSection: View {
 
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
             HStack(spacing: DS.Spacing.xs) {
-                Text("Kostnad med detta pris")
+                Text(tariff == nil ? "Kostnad med detta pris" : "Uppskattad kostnad")
                     .font(DS.Font.semibold(14))
                     .foregroundStyle(.primary)
 
@@ -80,6 +80,12 @@ struct CostCalculationSection: View {
                     description: "~45 kWh",
                     color: DS.Color.success
                 )
+            }
+
+            if tariff != nil {
+                Label("Nätavgifter är uppskattade värden och kan avvika från din faktura.", systemImage: "info.circle.fill")
+                    .font(DS.Font.micro)
+                    .foregroundStyle(.secondary)
             }
         }
         .padding(.top, DS.Spacing.xs)

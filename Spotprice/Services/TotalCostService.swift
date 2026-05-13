@@ -63,7 +63,8 @@ final class TotalCostService: Sendable {
 
     /// Fetch current provider cost info from API.
     @MainActor
-    func fetchProviderCosts(settings: ConsumptionSettings = .shared) async -> ProviderCostInfo? {
+    func fetchProviderCosts(settings: ConsumptionSettings? = nil) async -> ProviderCostInfo? {
+        let settings = settings ?? .shared
         guard !settings.selectedProviderId.isEmpty else { return nil }
 
         let credentials = settings.getCredentials(for: settings.selectedProviderId)
@@ -93,10 +94,11 @@ final class TotalCostService: Sendable {
         spotPriceOre: Double,
         tariff: SimplifiedTariff?,
         providerCost: ProviderCostInfo?,
-        settings: ConsumptionSettings = .shared,
+        settings: ConsumptionSettings? = nil,
         powerPeakKW: Double = 0,
         hoursInPeriod: Double = 1.0
     ) -> EnhancedCost {
+        let settings = settings ?? .shared
         let useProviderData = providerCost.map { cost in
             cost.isRealTime && Date.now.timeIntervalSince(cost.timestamp) < 900
         } ?? false

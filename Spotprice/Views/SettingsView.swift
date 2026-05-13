@@ -88,11 +88,11 @@ struct SettingsView: View {
                             
                             if !settings.selectedDSOOrgNo.isEmpty,
                                let selectedDSO = availableDSOs.first(where: { $0.id == settings.selectedDSOOrgNo }) {
-                                Text("Nätavgifter från \(selectedDSO.name) läggs till i kostnadsberäkningar")
+                                Text("Uppskattade nätavgifter för \(selectedDSO.name) läggs till i kostnadsberäkningar")
                                     .font(DS.Font.regular(11))
                                     .foregroundStyle(.secondary)
                             } else {
-                                Text("Välj din nätägare för att få fullständiga kostnadsberäkningar inklusive nätavgifter")
+                                Text("Välj din nätägare för uppskattade kostnadsberäkningar inklusive nätavgifter")
                                     .font(DS.Font.regular(11))
                                     .foregroundStyle(.secondary)
                             }
@@ -256,7 +256,7 @@ struct SettingsView: View {
         if settings.selectedDSOOrgNo == "jonkoping" {
             return "Energiskatt sänktes till 45 öre/kWh från januari 2026"
         }
-        return "Svenska standardvärden 2025 (ingår automatiskt i beräkningar)"
+        return "Svenska standardvärden 2025 (uppskattade värden i beräkningar)"
     }
     
     // MARK: - Helper Methods
