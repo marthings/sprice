@@ -12,22 +12,43 @@ struct MonthlyStatsSection: View {
     let isConfigured: Bool
     let averagePrice: Double?
     let preciseCost: PreciseMonthlyCost?
-    let tariff: SimplifiedTariff?
     
     private var settings: ConsumptionSettings {
         ConsumptionSettings.shared
     }
     
-    private var shouldShowWarning: Bool {
-        settings.selectedProviderId.isEmpty || settings.selectedDSOOrgNo.isEmpty
+    private var shouldShowPrecisionHint: Bool {
+        settings.costProfile.confidence == .estimated
+    }
+    
+    private var providerName: String? {
+        guard !settings.selectedProviderId.isEmpty else { return nil }
+        return ProviderRegistry.shared.metadata(for: settings.selectedProviderId)?.displayName
     }
 
     var body: some View {
         if let consumption {
             VStack(alignment: .leading, spacing: DS.Spacing.md) {
-                Text("Förbrukning \(consumption.monthName)")
-                    .font(DS.Font.semibold(14))
-                    .foregroundStyle(.primary)
+                HStack(spacing: DS.Spacing.xs) {
+                    Text("Förbrukning \(consumption.monthName)")
+                        .font(DS.Font.semibold(14))
+                        .foregroundStyle(.primary)
+                    
+                    // Show provider name badge
+                    if let providerName {
+                        Text("·")
+                            .font(DS.Font.semibold(12))
+                            .foregroundStyle(.secondary)
+                        Text(providerName)
+                            .font(DS.Font.medium(11))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, DS.Spacing.xs)
+                            .padding(.vertical, DS.Spacing.xxs)
+                            .background(.quaternary.opacity(0.6), in: .capsule)
+                    }
+                    
+                    Spacer()
+                }
 
                 // Main cost card with full breakdown
                 if let preciseCost {
@@ -37,10 +58,12 @@ struct MonthlyStatsSection: View {
                     )
                     
                     MonthlyCostCard(
-                        title: "Faktisk kostnad",
+                        title: "Förbrukningsbaserad kostnad",
                         enhancedCost: enhancedCost,
                         kWh: preciseCost.totalKWh,
-                        showProviderWarning: shouldShowWarning
+                        showPrecisionHint: shouldShowPrecisionHint,
+                        costBasisNote: settings.costProfile.retailContractCostBasisText,
+                        retailEnergyLabel: settings.costProfile.retailContractDisplayName
                     )
                 } else if let avgPrice = averagePrice {
                     let estimatedSpotCost = (avgPrice / 100.0) * consumption.totalKWh
@@ -53,7 +76,9 @@ struct MonthlyStatsSection: View {
                         title: "Uppskattad kostnad",
                         enhancedCost: enhancedCost,
                         kWh: consumption.totalKWh,
-                        showProviderWarning: shouldShowWarning
+                        showPrecisionHint: shouldShowPrecisionHint,
+                        costBasisNote: settings.costProfile.retailContractCostBasisText,
+                        retailEnergyLabel: settings.costProfile.retailContractDisplayName
                     )
                 }
 
@@ -88,9 +113,15 @@ struct MonthlyStatsSection: View {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundStyle(DS.Color.warning)
                 VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
-                    Text("Kunde inte hämta förbrukning")
-                        .font(DS.Font.medium(12))
-                        .foregroundStyle(.primary)
+                    if let providerName {
+                        Text("Kunde inte hämta förbrukning från \(providerName)")
+                            .font(DS.Font.medium(12))
+                            .foregroundStyle(.primary)
+                    } else {
+                        Text("Kunde inte hämta förbrukning")
+                            .font(DS.Font.medium(12))
+                            .foregroundStyle(.primary)
+                    }
                     Text(error)
                         .font(DS.Font.micro)
                         .foregroundStyle(.secondary)
@@ -105,14 +136,8 @@ struct MonthlyStatsSection: View {
     
     // MARK: - Helpers
     
-    private func calculateGridCost(kWh: Double) -> Double {
-        guard let tariff = tariff else { return 0 }
-        return tariff.energyTariffPerKWh * kWh
-    }
-    
     private func calculateTotalMonthCost(spotCostKr: Double, kWh: Double) -> EnhancedCost {
         let service = TotalCostService()
-        let settings = ConsumptionSettings.shared
         // Calculate average spot price per kWh from total spot cost
         let avgSpotPriceOre = kWh > 0 ? (spotCostKr / kWh) * 100.0 : 0
 
@@ -120,9 +145,7 @@ struct MonthlyStatsSection: View {
         return service.calculateTotalCost(
             kWh: kWh,
             spotPriceOre: avgSpotPriceOre,
-            tariff: tariff,
-            providerSurcharge: settings.effectiveSurchargePerKWh,
-            providerMonthlyFee: settings.effectiveMonthlyFee,
+            profile: settings.costProfile,
             hoursInPeriod: 730  // Full month
         )
     }

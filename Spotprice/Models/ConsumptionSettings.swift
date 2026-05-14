@@ -5,6 +5,7 @@
 //  User-configurable settings for consumption data
 
 import Foundation
+import WidgetKit
 
 extension Notification.Name {
     static let consumptionSettingsDidSave = Notification.Name("consumptionSettingsDidSave")
@@ -49,6 +50,9 @@ final class ConsumptionSettings {
         
         // Cached consumption data (for widget access)
         static let cachedConsumption = "cached_consumptionData"
+
+        // Central cost profile
+        static let costProfile = "settings_costProfile"
     }
 
     // MARK: - Observable Properties
@@ -56,6 +60,8 @@ final class ConsumptionSettings {
     var selectedProviderId: String {
         didSet {
             Self.defaults.set(selectedProviderId, forKey: Keys.selectedProviderId)
+            // Clear cached consumption when switching providers (different home/meter)
+            Self.defaults.removeObject(forKey: Keys.cachedConsumption)
         }
     }
 
@@ -108,6 +114,21 @@ final class ConsumptionSettings {
             Self.defaults.set(fuseSize, forKey: Keys.fuseSize)
             // Clear cached tariff when fuse size changes
             Self.defaults.removeObject(forKey: Keys.cachedTariff)
+        }
+    }
+
+    var costProfile: CostProfile {
+        didSet {
+            saveCostProfile(costProfile)
+            mirrorCostProfileToLegacyDefaults(costProfile)
+            syncLegacyProperties(from: costProfile)
+            NotificationCenter.default.post(name: .consumptionSettingsDidSave, object: nil)
+            
+            // Force UserDefaults to sync before reloading widget
+            Self.defaults.synchronize()
+            
+            // Reload widgets immediately when cost profile changes
+            WidgetCenter.shared.reloadAllTimelines()
         }
     }
 
@@ -217,6 +238,9 @@ final class ConsumptionSettings {
             } else {
                 Self.defaults.removeObject(forKey: Keys.cachedConsumption)
             }
+            
+            // Reload widgets when consumption data changes
+            WidgetCenter.shared.reloadAllTimelines()
         }
     }
 
@@ -290,25 +314,141 @@ final class ConsumptionSettings {
         }
     }
 
+    // MARK: - Cost Profile Persistence
+
+    private static func loadCostProfile() -> CostProfile? {
+        guard let data = defaults.data(forKey: Keys.costProfile) else {
+            return nil
+        }
+        return (try? JSONDecoder().decode(CostProfile.self, from: data))?.normalizedGridCostSource()
+    }
+
+    private func saveCostProfile(_ profile: CostProfile) {
+        guard let data = try? JSONEncoder().encode(profile) else {
+            return
+        }
+        Self.defaults.set(data, forKey: Keys.costProfile)
+    }
+
+    private func mirrorCostProfileToLegacyDefaults(_ profile: CostProfile) {
+        Self.defaults.set(profile.priceArea, forKey: Keys.priceArea)
+        Self.defaults.set(profile.retailerMarkupOrePerKWh, forKey: Keys.providerSurcharge)
+        Self.defaults.set(profile.retailerMonthlyFee, forKey: Keys.providerMonthlyFee)
+        Self.defaults.set(profile.gridCompanyId ?? "", forKey: Keys.selectedDSOOrgNo)
+        if let fuseSize = profile.fuseSize {
+            Self.defaults.set(fuseSize, forKey: Keys.fuseSize)
+        }
+    }
+
+    private func syncLegacyProperties(from profile: CostProfile) {
+        if priceArea != profile.priceArea {
+            priceArea = profile.priceArea
+        }
+        if providerSurchargePerKWh != profile.retailerMarkupOrePerKWh {
+            providerSurchargePerKWh = profile.retailerMarkupOrePerKWh
+        }
+        if providerMonthlyFee != profile.retailerMonthlyFee {
+            providerMonthlyFee = profile.retailerMonthlyFee
+        }
+        let profileGridCompanyId = profile.gridCompanyId ?? ""
+        if selectedDSOOrgNo != profileGridCompanyId {
+            selectedDSOOrgNo = profileGridCompanyId
+        }
+        if let profileFuseSize = profile.fuseSize, fuseSize != profileFuseSize {
+            fuseSize = profileFuseSize
+        }
+    }
+
+    private static func loadCachedTariff() -> SimplifiedTariff? {
+        guard let data = defaults.data(forKey: Keys.cachedTariff) else {
+            return nil
+        }
+        return try? JSONDecoder().decode(SimplifiedTariff.self, from: data)
+    }
+
+    private static func migratedCostProfile(
+        priceArea: String,
+        providerSurchargePerKWh: Double,
+        providerMonthlyFee: Double,
+        selectedDSOOrgNo: String,
+        fuseSize: Int,
+        cachedTariff: SimplifiedTariff?
+    ) -> CostProfile {
+        let fallback = CostProfile.swedishDefaultEstimate(priceArea: priceArea)
+        let hasUserRetailerValues = providerSurchargePerKWh > 0 || providerMonthlyFee > 0
+        let hasGridValues = cachedTariff != nil || !selectedDSOOrgNo.isEmpty
+
+        let confidence: CostConfidence = (hasUserRetailerValues || hasGridValues) ? .userConfigured : .estimated
+        let source: TariffSource = hasGridValues ? .localPreset : (hasUserRetailerValues ? .userEntered : .defaultEstimate)
+
+        return CostProfile(
+            priceArea: priceArea,
+            retailContractType: .spotPriceMarkup,
+            retailerMarkupOrePerKWh: hasUserRetailerValues ? providerSurchargePerKWh : fallback.retailerMarkupOrePerKWh,
+            contractPriceOrePerKWh: nil,
+            retailerMonthlyFee: hasUserRetailerValues ? providerMonthlyFee : fallback.retailerMonthlyFee,
+            retailContractSource: hasUserRetailerValues ? .userEntered : .defaultEstimate,
+            gridCompanyId: selectedDSOOrgNo.isEmpty ? cachedTariff?.dsoOrgNo : selectedDSOOrgNo,
+            gridCompanyName: cachedTariff?.dsoName,
+            fuseSize: fuseSize,
+            gridMonthlyFee: cachedTariff?.monthlyFixedFee,
+            gridTransferOrePerKWh: cachedTariff.map { $0.energyTariffPerKWh * 100.0 },
+            gridCostSource: cachedTariff == nil ? nil : .localPreset,
+            energyTaxOrePerKWh: cachedTariff?.energyTaxPerKWh ?? fallback.energyTaxOrePerKWh,
+            certificateFeeOrePerKWh: cachedTariff?.certificateFeePerKWh ?? fallback.certificateFeeOrePerKWh,
+            vatRate: fallback.vatRate,
+            effectTariff: cachedTariff?.powerTariffPerKW.map {
+                EffectTariff(
+                    monthlyPricePerKW: $0,
+                    model: .manual,
+                    activeHours: .custom
+                )
+            },
+            confidence: confidence,
+            source: source,
+            tariffLastUpdated: cachedTariff.map { _ in Date() },
+            tariffValidUntil: cachedTariff?.validTo
+        )
+    }
+
     // MARK: - Init
 
     private init() {
         // Load current values
         // Default to empty string (no provider) instead of forcing vaggeryd
-        self.selectedProviderId = Self.defaults.string(forKey: Keys.selectedProviderId) ?? ""
-        self.priceArea = Self.defaults.string(forKey: Keys.priceArea) ?? "SE3"
-        self.selectedDSOOrgNo = Self.defaults.string(forKey: Keys.selectedDSOOrgNo) ?? ""
+        let initialSelectedProviderId = Self.defaults.string(forKey: Keys.selectedProviderId) ?? ""
+        let initialPriceArea = Self.defaults.string(forKey: Keys.priceArea) ?? "SE3"
+        let initialSelectedDSOOrgNo = Self.defaults.string(forKey: Keys.selectedDSOOrgNo) ?? ""
+        self.selectedProviderId = initialSelectedProviderId
+        self.priceArea = initialPriceArea
+        self.selectedDSOOrgNo = initialSelectedDSOOrgNo
         
         // Load provider cost settings (default to 0 - user must configure)
-        self.providerSurchargePerKWh = Self.defaults.double(forKey: Keys.providerSurcharge)
-        self.providerMonthlyFee = Self.defaults.double(forKey: Keys.providerMonthlyFee)
+        let initialProviderSurchargePerKWh = Self.defaults.double(forKey: Keys.providerSurcharge)
+        let initialProviderMonthlyFee = Self.defaults.double(forKey: Keys.providerMonthlyFee)
+        self.providerSurchargePerKWh = initialProviderSurchargePerKWh
+        self.providerMonthlyFee = initialProviderMonthlyFee
         
         // Load fuse size (default 20A - common for Swedish homes)
         let savedFuseSize = Self.defaults.integer(forKey: Keys.fuseSize)
         self.fuseSize = savedFuseSize > 0 ? savedFuseSize : 20
 
+        // Load or migrate central cost profile
+        self.costProfile = Self.loadCostProfile() ?? Self.migratedCostProfile(
+            priceArea: initialPriceArea,
+            providerSurchargePerKWh: initialProviderSurchargePerKWh,
+            providerMonthlyFee: initialProviderMonthlyFee,
+            selectedDSOOrgNo: initialSelectedDSOOrgNo,
+            fuseSize: savedFuseSize > 0 ? savedFuseSize : 20,
+            cachedTariff: Self.loadCachedTariff()
+        )
+
         // Migrate legacy credentials if needed
         migrateFromLegacyIfNeeded()
+
+        saveCostProfile(costProfile)
+        mirrorCostProfileToLegacyDefaults(costProfile)
+        syncLegacyProperties(from: costProfile)
     }
 
     // MARK: - Migration
@@ -353,7 +493,7 @@ final class ConsumptionSettings {
         // Clear all provider credentials from Keychain and cache
         KeychainHelper.delete(forKey: Self.keychainKey)
         credentialsCache = [:]
-        selectedProviderId = "vaggeryd"
+        selectedProviderId = ""
         priceArea = "SE3"
     }
 }

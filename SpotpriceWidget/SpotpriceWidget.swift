@@ -20,7 +20,7 @@ struct SpotPriceEntry: TimelineEntry {
     let monthlyKWh: Double
     let monthlyCostKr: Double
     let monthDate: Date
-    let tariff: SimplifiedTariff?
+    let costProfile: CostProfile
 
     /// Compact month label (e.g., "feb")
     var monthLabel: String {
@@ -41,7 +41,7 @@ struct SpotPriceEntry: TimelineEntry {
             monthlyKWh: 873,
             monthlyCostKr: 829,
             monthDate: Date(),
-            tariff: nil
+            costProfile: .swedishDefaultEstimate()
         )
     }
 
@@ -60,7 +60,7 @@ struct SpotPriceEntry: TimelineEntry {
             monthlyKWh: 0,
             monthlyCostKr: 0,
             monthDate: now,
-            tariff: nil
+            costProfile: .swedishDefaultEstimate()
         )
     }
 }
@@ -72,6 +72,9 @@ struct SpotPriceProvider: TimelineProvider {
     let consumptionService = ConsumptionService()
     let gridTariffService = GridTariffService()
     let totalCostService = TotalCostService()
+    
+    // Shared UserDefaults for App Group
+    private let sharedDefaults = UserDefaults(suiteName: "group.mb.Spotprice") ?? .standard
 
     func placeholder(in context: Context) -> SpotPriceEntry {
         .placeholder
@@ -108,34 +111,49 @@ struct SpotPriceProvider: TimelineProvider {
         do {
             let now = Date()
 
+            // Force UserDefaults sync before reading to ensure we have latest values
+            sharedDefaults.synchronize()
+
             // Read MainActor-isolated settings safely
-            let (cachedTariff, cachedConsumption, dsoOrgNo, fuseSize, priceArea) = await MainActor.run {
+            let (cachedConsumption, costProfile) = await MainActor.run {
                 let s = ConsumptionSettings.shared
-                return (s.cachedTariff, s.cachedConsumption, s.selectedDSOOrgNo, s.fuseSize, s.priceArea)
+                return (s.cachedConsumption, s.costProfile)
             }
+            
+            // Debug: Log what widget sees
+            print("📱 Widget: costProfile.retailerMarkupOrePerKWh = \(costProfile.retailerMarkupOrePerKWh)")
+            print("📱 Widget: costProfile.retailContractType = \(costProfile.retailContractType)")
+            print("📱 Widget: costProfile.confidence = \(costProfile.confidence)")
 
-            let items = try await service.fetchSpotPrices(for: now, area: priceArea)
+            let items = try await service.fetchSpotPrices(for: now, area: costProfile.priceArea)
             let dayData = try service.makeDayChartData(from: items, for: now)
-
-            var tariff = cachedTariff
-
-            // Try to fetch fresh tariff if we have a DSO configured
-            if tariff == nil, !dsoOrgNo.isEmpty {
-                tariff = try? await gridTariffService.fetchTariff(forDSO: dsoOrgNo, fuseSize: fuseSize)
-            }
 
             // Use cached consumption data (widget can't access Keychain for credentials)
             let monthlyKWh = cachedConsumption?.totalKWh ?? 0
             let monthDate = cachedConsumption?.monthDate ?? now
-
-            // Calculate estimated cost using average price and total cost if tariff available
-            let avgPrice = dayData.buckets.map { $0.orePerKWh }.reduce(0, +) / Double(dayData.buckets.count)
+            
+            // Calculate monthly cost if we have consumption data
+            // Widget uses today's average price as an estimate for monthly cost
+            // The app calculates precise cost using actual historical prices
             let monthlyCostKr: Double
-            if let tariff = tariff {
-                let avgTotalCost = totalCostService.calculatePricePerKWh(spotPriceOre: avgPrice, tariff: tariff, providerSurcharge: 0, providerMonthlyFee: 0)
-                monthlyCostKr = monthlyKWh * avgTotalCost
+            if monthlyKWh > 0 {
+                let avgPrice = dayData.buckets.map { $0.orePerKWh }.reduce(0, +) / Double(dayData.buckets.count)
+                
+                // Calculate energy cost (spot + taxes + grid transfer)
+                let energyCost = totalCostService.calculateTotalCost(
+                    kWh: monthlyKWh,
+                    spotPriceOre: avgPrice,
+                    profile: costProfile,
+                    hoursInPeriod: 1.0  // Don't prorate - we're calculating total monthly cost
+                )
+                
+                // Add full monthly fees (not prorated - this IS the monthly cost)
+                let monthlyFees = costProfile.retailerMonthlyFee + (costProfile.gridMonthlyFee ?? 0)
+                monthlyCostKr = energyCost.totalKr + monthlyFees
+                
+                print("📱 Widget: Monthly kWh = \(monthlyKWh), avgPrice = \(avgPrice) öre, energyCost = \(energyCost.totalKr) kr, monthlyFees = \(monthlyFees) kr, monthlyCostKr = \(monthlyCostKr) kr")
             } else {
-                monthlyCostKr = (monthlyKWh * avgPrice) / 100.0
+                monthlyCostKr = 0
             }
 
             // Calculate bucket index (0-95 for 15-minute intervals)
@@ -144,7 +162,11 @@ struct SpotPriceProvider: TimelineProvider {
             let currentBucketIndex = hour * 4 + minute / 15
 
             if let currentBucket = dayData.buckets.first(where: { $0.start <= now && $0.end > now }) {
-                let currentTotalCost = tariff.map { totalCostService.calculatePricePerKWh(spotPriceOre: currentBucket.orePerKWh, tariff: $0, providerSurcharge: 0, providerMonthlyFee: 0) }
+                let currentTotalCost = totalCostService.calculatePricePerKWh(spotPriceOre: currentBucket.orePerKWh, profile: costProfile)
+                
+                print("📱 Widget: Current spot = \(currentBucket.orePerKWh) öre, currentTotalCost = \(currentTotalCost) kr/kWh")
+                print("📱 Widget: Bucket time = \(currentBucket.start) - \(currentBucket.end)")
+                print("📱 Widget: Profile details - markup: \(costProfile.retailerMarkupOrePerKWh), contractType: \(costProfile.retailContractType), contractPrice: \(costProfile.contractPriceOrePerKWh ?? 0)")
                 
                 return SpotPriceEntry(
                     date: now,
@@ -156,12 +178,13 @@ struct SpotPriceProvider: TimelineProvider {
                     monthlyKWh: monthlyKWh,
                     monthlyCostKr: monthlyCostKr,
                     monthDate: monthDate,
-                    tariff: tariff
+                    costProfile: costProfile
                 )
             }
 
             return .error
         } catch {
+            print("📱 Widget: Error fetching price - \(error)")
             return .error
         }
     }
@@ -181,22 +204,17 @@ extension Calendar {
 struct MiniPriceChart: View {
     let dayData: DayChartData
     let currentBucketIndex: Int
-    let tariff: SimplifiedTariff?
+    let costProfile: CostProfile
     @Environment(\.widgetRenderingMode) var renderingMode
 
     private var priceData: (prices: [Double], minPrice: Double, maxPrice: Double) {
-        if let tariff = tariff {
-            let totalCostService = TotalCostService()
-            let prices = dayData.buckets.map { bucket in
-                totalCostService.calculatePricePerKWh(spotPriceOre: bucket.orePerKWh, tariff: tariff, providerSurcharge: 0, providerMonthlyFee: 0) * 100
-            }
-            let minPrice = prices.min() ?? 0
-            let maxPrice = prices.max() ?? 0
-            return (prices, minPrice, maxPrice)
-        } else {
-            let prices = dayData.buckets.map { $0.orePerKWh }
-            return (prices, dayData.minOre, dayData.maxOre)
+        let totalCostService = TotalCostService()
+        let prices = dayData.buckets.map { bucket in
+            totalCostService.calculatePricePerKWh(spotPriceOre: bucket.orePerKWh, profile: costProfile) * 100
         }
+        let minPrice = prices.min() ?? 0
+        let maxPrice = prices.max() ?? 0
+        return (prices, minPrice, maxPrice)
     }
     
     var body: some View {
@@ -354,29 +372,18 @@ struct SpotpriceWidgetEntryView: View {
         guard let dayData = entry.dayData else {
             return DS.Color.warning
         }
-        
-        if let tariff = entry.tariff {
-            // Use total cost for color
-            let totalCostService = TotalCostService()
-            let totalCosts = dayData.buckets.map { bucket in
-                totalCostService.calculatePricePerKWh(spotPriceOre: bucket.orePerKWh, tariff: tariff, providerSurcharge: 0, providerMonthlyFee: 0) * 100
-            }
-            guard entry.currentBucketIndex >= 0 && entry.currentBucketIndex < totalCosts.count else {
-                return DS.Color.warning
-            }
-            let minTotal = totalCosts.min() ?? 0
-            let maxTotal = totalCosts.max() ?? 0
-            let currentTotal = totalCosts[entry.currentBucketIndex]
-            return DS.Color.forPrice(currentTotal, min: minTotal, max: maxTotal)
-        } else {
-            // Fallback to spot price
-            let prices = dayData.buckets.map { $0.orePerKWh }
-            guard entry.currentBucketIndex >= 0 && entry.currentBucketIndex < prices.count else {
-                return DS.Color.warning
-            }
-            let priceAtCurrentBucket = prices[entry.currentBucketIndex]
-            return DS.Color.forPrice(priceAtCurrentBucket, min: dayData.minOre, max: dayData.maxOre)
+
+        let totalCostService = TotalCostService()
+        let totalCosts = dayData.buckets.map { bucket in
+            totalCostService.calculatePricePerKWh(spotPriceOre: bucket.orePerKWh, profile: entry.costProfile) * 100
         }
+        guard entry.currentBucketIndex >= 0 && entry.currentBucketIndex < totalCosts.count else {
+            return DS.Color.warning
+        }
+        let minTotal = totalCosts.min() ?? 0
+        let maxTotal = totalCosts.max() ?? 0
+        let currentTotal = totalCosts[entry.currentBucketIndex]
+        return DS.Color.forPrice(currentTotal, min: minTotal, max: maxTotal)
     }
 
     var body: some View {
@@ -420,7 +427,7 @@ struct SpotpriceWidgetEntryView: View {
 
                 // Chart
                 if let dayData = entry.dayData {
-                    MiniPriceChart(dayData: dayData, currentBucketIndex: entry.currentBucketIndex, tariff: entry.tariff)
+                    MiniPriceChart(dayData: dayData, currentBucketIndex: entry.currentBucketIndex, costProfile: entry.costProfile)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     Spacer()
@@ -449,14 +456,21 @@ struct SpotpriceWidgetEntryView: View {
         HStack(alignment: .center) {
             if let totalCost = entry.currentTotalCostPerKWh {
                 // Show total cost in kr/kWh
-                HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
-                    Text(totalCost, format: .number.precision(.fractionLength(2)))
-                        .font(DS.Font.bold(24))
-                        .monospacedDigit()
-                        .foregroundStyle(renderingMode == .accented ? .primary : currentPriceColor)
-                    Text("kr")
-                        .font(DS.Font.micro)
-                        .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
+                        Text(totalCost, format: .number.precision(.fractionLength(2)))
+                            .font(DS.Font.bold(24))
+                            .monospacedDigit()
+                            .foregroundStyle(renderingMode == .accented ? .primary : currentPriceColor)
+                        Text("kr")
+                            .font(DS.Font.micro)
+                            .foregroundStyle(.secondary)
+                    }
+                    if !entry.costProfile.isSpotFollowingRetailContract {
+                        Text(entry.costProfile.retailContractDisplayName.lowercased())
+                            .font(DS.Font.micro)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             } else {
                 // Fallback to spot price in öre/kWh
@@ -503,8 +517,8 @@ struct SpotpriceWidget: Widget {
             SpotpriceWidgetEntryView(entry: entry)
                 .containerBackground(.fill, for: .widget)
         }
-        .configurationDisplayName("Spotpris")
-        .description("Visar aktuellt elpris med dagskurva")
+        .configurationDisplayName("Sprice")
+        .description("Visar aktuellt kvartspris och uppskattad kostnad")
         .supportedFamilies([.systemSmall])
     }
 }

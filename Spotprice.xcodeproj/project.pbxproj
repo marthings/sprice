@@ -57,6 +57,7 @@
 				"Fonts/osans-regular.otf",
 				Models/ConsumptionModels.swift,
 				Models/ConsumptionSettings.swift,
+				Models/CostProfile.swift,
 				Models/GridTariffModels.swift,
 				Models/SpotPriceModels.swift,
 				Providers/Core/ElectricityProvider.swift,

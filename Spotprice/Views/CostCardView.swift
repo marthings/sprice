@@ -10,6 +10,7 @@ struct CostCardView: View {
     let costBreakdown: CostBreakdown?
     let description: String
     let color: Color
+    var retailEnergyLabel: String = "Elhandel"
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.sm) {
@@ -41,7 +42,7 @@ struct CostCardView: View {
                 
                 if breakdown.hasGridCosts {
                     VStack(alignment: .leading, spacing: 1) {
-                        Text("Elhandel: \(breakdown.spot.formatted(.number.precision(.fractionLength(2)))) kr")
+                        Text("\(retailEnergyLabel): \(breakdown.spot.formatted(.number.precision(.fractionLength(2)))) kr")
                             .font(DS.Font.micro)
                             .foregroundStyle(.tertiary)
                         Text("Nät uppsk.: \(breakdown.grid.formatted(.number.precision(.fractionLength(2)))) kr")
@@ -78,6 +79,28 @@ extension CostCardView {
         var hasGridCosts: Bool {
             grid > 0 || fixed > 0
         }
+    }
+
+    static func calculateCost(
+        kWh: Double,
+        priceInOre: Double,
+        profile: CostProfile,
+        hoursInPeriod: Double = 1.0
+    ) -> CostBreakdown {
+        let service = TotalCostService()
+        let enhancedCost = service.calculateTotalCost(
+            kWh: kWh,
+            spotPriceOre: priceInOre,
+            profile: profile,
+            hoursInPeriod: hoursInPeriod
+        )
+
+        return CostBreakdown(
+            spot: enhancedCost.spotCostKr,
+            grid: enhancedCost.gridTotalKr,
+            fixed: enhancedCost.taxesAndFeesKr + enhancedCost.providerSurchargeKr + enhancedCost.providerMonthlyFeeKr,
+            total: enhancedCost.totalKr
+        )
     }
 
     static func calculateCost(

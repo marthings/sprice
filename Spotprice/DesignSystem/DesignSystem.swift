@@ -129,7 +129,7 @@ enum DS {
         static let settingsWidth: CGFloat = 400
 
         // Charts
-        static let chartHeightMenuBar: CGFloat = 180
+        static let chartHeightMenuBar: CGFloat = 220
         static let chartHeightFull: CGFloat = 200
         static let chartHeightWidget: CGFloat = 80
 

@@ -2,7 +2,7 @@
 //  ElectricityProvider.swift
 //  Spotprice
 //
-//  Core protocol for electricity providers (elnätsbolag)
+//  Core protocol for consumption data sources.
 //
 
 import Foundation

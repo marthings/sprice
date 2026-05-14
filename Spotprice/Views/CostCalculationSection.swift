@@ -7,29 +7,30 @@ import SwiftUI
 
 struct CostCalculationSection: View {
     let payload: SpotPriceViewModel.CurrentAndDay
-    let tariff: SimplifiedTariff?
+    let profile: CostProfile
 
     var body: some View {
         let currentPrice = getCurrentPriceOrAverage(payload)
 
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
             HStack(spacing: DS.Spacing.xs) {
-                Text(tariff == nil ? "Kostnad med detta pris" : "Uppskattad kostnad")
+                Text("Kostnad med detta pris")
                     .font(DS.Font.semibold(14))
                     .foregroundStyle(.primary)
 
-                if let price = getCurrentPrice(payload), let tariff = tariff {
+                if let price = getCurrentPrice(payload) {
                     let totalCostService = TotalCostService()
-                    let settings = ConsumptionSettings.shared
-                    let totalCost = totalCostService.calculatePricePerKWh(spotPriceOre: price, tariff: tariff, providerSurcharge: settings.effectiveSurchargePerKWh, providerMonthlyFee: settings.effectiveMonthlyFee)
+                    let totalCost = totalCostService.calculatePricePerKWh(spotPriceOre: price, profile: profile)
                     Text("(\(totalCost.formatted(.number.precision(.fractionLength(2)))) kr/kWh)")
                         .font(DS.Font.medium(11))
                         .foregroundStyle(.secondary)
-                } else if let price = getCurrentPrice(payload) {
-                    Text("(\(Int(price.rounded())) öre/kWh)")
-                        .font(DS.Font.medium(11))
-                        .foregroundStyle(.secondary)
                 }
+            }
+
+            if let basisText = profile.retailContractCostBasisText {
+                Label(basisText, systemImage: "info.circle.fill")
+                    .font(DS.Font.micro)
+                    .foregroundStyle(.secondary)
             }
 
             LazyVGrid(columns: [GridItem(.flexible(), spacing: DS.Spacing.sm), GridItem(.flexible(), spacing: DS.Spacing.sm)], spacing: DS.Spacing.sm) {
@@ -38,11 +39,12 @@ struct CostCalculationSection: View {
                     costBreakdown: CostCardView.calculateCost(
                         kWh: 6.0,
                         priceInOre: currentPrice,
-                        tariff: tariff,
+                        profile: profile,
                         hoursInPeriod: 1.0
                     ),
                     description: "~6 kWh",
-                    color: .blue
+                    color: .blue,
+                    retailEnergyLabel: profile.retailContractDisplayName
                 )
 
                 CostCardView(
@@ -50,11 +52,12 @@ struct CostCalculationSection: View {
                     costBreakdown: CostCardView.calculateCost(
                         kWh: 1.1,
                         priceInOre: currentPrice,
-                        tariff: tariff,
+                        profile: profile,
                         hoursInPeriod: 0.5
                     ),
                     description: "~1,1 kWh",
-                    color: DS.Color.warning
+                    color: DS.Color.warning,
+                    retailEnergyLabel: profile.retailContractDisplayName
                 )
 
                 CostCardView(
@@ -62,11 +65,12 @@ struct CostCalculationSection: View {
                     costBreakdown: CostCardView.calculateCost(
                         kWh: 24.0,
                         priceInOre: currentPrice,
-                        tariff: tariff,
+                        profile: profile,
                         hoursInPeriod: 24.0
                     ),
                     description: "~24 kWh",
-                    color: DS.Color.danger
+                    color: DS.Color.danger,
+                    retailEnergyLabel: profile.retailContractDisplayName
                 )
 
                 CostCardView(
@@ -74,16 +78,17 @@ struct CostCalculationSection: View {
                     costBreakdown: CostCardView.calculateCost(
                         kWh: 45.0,
                         priceInOre: currentPrice,
-                        tariff: tariff,
+                        profile: profile,
                         hoursInPeriod: 8.0
                     ),
                     description: "~45 kWh",
-                    color: DS.Color.success
+                    color: DS.Color.success,
+                    retailEnergyLabel: profile.retailContractDisplayName
                 )
             }
 
-            if tariff != nil {
-                Label("Nätavgifter är uppskattade värden och kan avvika från din faktura.", systemImage: "info.circle.fill")
+            if profile.gridMonthlyFee != nil || profile.gridTransferOrePerKWh != nil {
+                Label("Elnätskostnaden baseras på dina elnätsuppgifter och kan avvika från fakturan.", systemImage: "info.circle.fill")
                     .font(DS.Font.micro)
                     .foregroundStyle(.secondary)
             }

@@ -19,7 +19,7 @@ struct SpotpriceApp: App {
         MenuBarExtra {
             ModernMenuBarView(viewModel: viewModel)
         } label: {
-            MenuBarLabel(state: viewModel.state, tariff: viewModel.currentTariff)
+            MenuBarLabel(state: viewModel.state)
         }
         .menuBarExtraStyle(.window)
 

@@ -11,7 +11,9 @@ struct MonthlyCostCard: View {
     let title: String
     let enhancedCost: EnhancedCost
     let kWh: Double
-    var showProviderWarning: Bool = false
+    var showPrecisionHint: Bool = false
+    var costBasisNote: String? = nil
+    var retailEnergyLabel: String = "Kvartspris"
     
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
@@ -37,13 +39,13 @@ struct MonthlyCostCard: View {
                     .foregroundStyle(.tertiary)
             }
             
-            // Warning when no provider/DSO configured
-            if showProviderWarning {
+            // Hint when the cost still uses first-run assumptions.
+            if showPrecisionHint {
                 HStack(spacing: DS.Spacing.xs) {
                     Image(systemName: "info.circle.fill")
                         .font(.system(size: 11))
                         .foregroundStyle(.blue)
-                    Text("Konfigurera elbolag och nätägare i inställningar för bättre uppskattningar")
+                    Text("Lägg till elhandelsavtal eller elnätsuppgifter för bättre uppskattning")
                         .font(DS.Font.micro)
                         .foregroundStyle(.blue)
                 }
@@ -54,9 +56,20 @@ struct MonthlyCostCard: View {
                 Image(systemName: "info.circle.fill")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
-                Text("Nätavgifter och fasta avgifter är uppskattade värden.")
+                Text("Kostnaden baseras på dina inställningar. Elnät ingår bara när du har lagt till elnätsuppgifter.")
                     .font(DS.Font.micro)
                     .foregroundStyle(.secondary)
+            }
+
+            if let costBasisNote {
+                HStack(spacing: DS.Spacing.xs) {
+                    Image(systemName: "info.circle.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                    Text(costBasisNote)
+                        .font(DS.Font.micro)
+                        .foregroundStyle(.secondary)
+                }
             }
             
             Divider()
@@ -77,13 +90,13 @@ struct MonthlyCostCard: View {
                 )
                 if enhancedCost.spotCostKr > 0 {
                     CostBreakdownSubRow(
-                        label: "Spotpris",
+                        label: retailEnergyLabel,
                         amount: enhancedCost.spotCostKr
                     )
                 }
                 if enhancedCost.providerSurchargeKr > 0 {
                     CostBreakdownSubRow(
-                        label: "Påslag",
+                        label: "Elhandelsavgifter",
                         amount: enhancedCost.providerSurchargeKr
                     )
                 }

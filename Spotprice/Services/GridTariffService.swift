@@ -14,8 +14,8 @@ final class GridTariffService: Sendable {
     private let session: URLSession
     private let baseURL = "https://ri-se.github.io/Eltariff-API/releases/v0.3.1"
     
-    // Use mock data until individual DSOs implement the Eltariff API
-    private let useMockData = true
+    // Local presets give immediate coverage for selected DSOs while remote tariff data evolves.
+    private let useLocalPresets = true
 
     // Cached tariff data
     private let cache: TariffCache = TariffCache()
@@ -28,8 +28,8 @@ final class GridTariffService: Sendable {
 
     /// Fetches all available DSOs and their tariffs
     func fetchAvailableDSOs() async throws -> [DSOOption] {
-        if useMockData {
-            return getMockDSOs()
+        if useLocalPresets {
+            return getLocalPresetDSOs()
         }
         
         let response = try await fetchAllTariffs()
@@ -61,8 +61,8 @@ final class GridTariffService: Sendable {
             return cached
         }
         
-        if useMockData {
-            let tariff = getMockTariff(forDSO: orgNo, fuseSize: fuseSize)
+        if useLocalPresets {
+            let tariff = getLocalPresetTariff(forDSO: orgNo, fuseSize: fuseSize)
             if let tariff = tariff {
                 await cache.set(tariff, forKey: cacheKey)
             }
@@ -156,9 +156,9 @@ final class GridTariffService: Sendable {
         )
     }
 
-    // MARK: - Mock Data (Temporary until DSOs implement Eltariff API)
+    // MARK: - Local Tariff Presets
     
-    private func getMockDSOs() -> [DSOOption] {
+    private func getLocalPresetDSOs() -> [DSOOption] {
         [
             DSOOption(id: "vaggeryd", name: "Vaggeryds Elnät", tariffId: UUID()),
             DSOOption(id: "jonkoping", name: "Jönköping Energi Elnät", tariffId: UUID()),
@@ -171,9 +171,8 @@ final class GridTariffService: Sendable {
         ]
     }
     
-    private func getMockTariff(forDSO orgNo: String, fuseSize: Int) -> SimplifiedTariff? {
-        // Realistic Swedish grid tariff values for 2026 (incl. VAT)
-        // Based on actual published tariffs from Swedish DSOs
+    private func getLocalPresetTariff(forDSO orgNo: String, fuseSize: Int) -> SimplifiedTariff? {
+        // Local preset values for 2026 (incl. VAT). User-entered values still win.
         // Fixed fees are monthly, energy is per kWh, power is per kW/month
         
         // Fuse-based tariffs (monthly fixed fee by ampere rating)

@@ -217,7 +217,7 @@ struct EnhancedCost: Sendable {
     // New cost components
     let energyTaxKr: Double             // Energiskatt
     let certificateFeeKr: Double        // Elcertifikat
-    let providerSurchargeKr: Double     // Elhandelspåslag
+    let providerSurchargeKr: Double     // Retail energy fees
     let providerMonthlyFeeKr: Double    // Månadsavgift (pro-rated)
 
     var totalKr: Double {
@@ -336,7 +336,7 @@ struct ProviderCostMetadata: Sendable {
                 badgeColor: "gray",
                 surchargeHint: nil,
                 monthlyFeeHint: nil,
-                helpText: "Ange ditt elbolags påslag och månadsavgift. Dessa läggs till spotpriset."
+                helpText: "Ange elhandelsavgifter och månadsavgift från ditt avtal. Dessa läggs till kvartspriset."
             )
         }
     }

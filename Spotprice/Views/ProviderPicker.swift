@@ -14,7 +14,7 @@ struct ProviderPicker: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            Text("Elbolag")
+            Text("Datakälla")
                 .font(DS.Font.bold(12))
                 .foregroundStyle(.primary)
 
@@ -28,11 +28,11 @@ struct ProviderPicker: View {
             .pickerStyle(.menu)
 
             if selectedProviderId.isEmpty {
-                Text("Välj din elleverantör för att få förbrukningsdata och bättre kostnadsuppskattningar")
+                Text("Valfritt. Välj en datakälla om du vill hämta förbrukning automatiskt.")
                     .font(DS.Font.micro)
                     .foregroundStyle(.secondary)
             } else {
-                Text("Välj din elleverantör för förbrukningsdata")
+                Text("Datakällan används för förbrukningsdata, inte som krav för kostnadsberäkning.")
                     .font(DS.Font.micro)
                     .foregroundStyle(.secondary)
             }

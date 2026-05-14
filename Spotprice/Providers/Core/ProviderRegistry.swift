@@ -2,7 +2,7 @@
 //  ProviderRegistry.swift
 //  Spotprice
 //
-//  Registry for available electricity providers
+//  Registry for available consumption data sources.
 //
 
 import Foundation
@@ -16,7 +16,7 @@ final class ProviderRegistry: @unchecked Sendable {
     private let lock = NSLock()
 
     private init() {
-        // Register built-in providers
+        // Register built-in consumption data sources
         register(TibberProvider.self)
         register(VaggerydProvider.self)
     }
