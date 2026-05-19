@@ -12,6 +12,7 @@
 		20861F902F2E0B9A0067EDC1 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 20861F8F2F2E0B9A0067EDC1 /* WidgetKit.framework */; };
 		20861F922F2E0B9A0067EDC1 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 20861F912F2E0B9A0067EDC1 /* SwiftUI.framework */; };
 		20861F9F2F2E0B9B0067EDC1 /* SpotpriceWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 20861F8D2F2E0B9A0067EDC1 /* SpotpriceWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		20928BE72FBCE42D00D1BD9F /* spotprice.icon in Resources */ = {isa = PBXBuildFile; fileRef = 206B18FA2F313EBE00E5F9E7 /* spotprice.icon */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -40,39 +41,176 @@
 
 /* Begin PBXFileReference section */
 		200104F82F26582400B2F176 /* Spotprice.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Spotprice.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		201EA1FD2FBCAC8C0036D7BF /* SpotpriceApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SpotpriceApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		206612092F65F19F00102F19 /* business-case.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "business-case.md"; sourceTree = "<group>"; };
 		206B18F82F2FFC2600E5F9E7 /* SpotpriceWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SpotpriceWidgetExtension.entitlements; sourceTree = "<group>"; };
 		206B18FA2F313EBE00E5F9E7 /* spotprice.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = spotprice.icon; sourceTree = "<group>"; };
 		20861F8D2F2E0B9A0067EDC1 /* SpotpriceWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SpotpriceWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		20861F8F2F2E0B9A0067EDC1 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		20861F912F2E0B9A0067EDC1 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		20928BE82FBCE5B100D1BD9F /* ios-widget-plan.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "ios-widget-plan.md"; sourceTree = "<group>"; };
+		20928BE92FBCE62800D1BD9F /* ios-app-menubar-parity-plan.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "ios-app-menubar-parity-plan.md"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		20861FC72F2E82310067EDC1 /* Exceptions for "Spotprice" folder in "SpotpriceWidgetExtension" target */ = {
+		201EA2402FBCB0C70036D7BF /* Exceptions for "Models" folder in "SpotpriceWidgetExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				DesignSystem/DesignSystem.swift,
-				"Fonts/osans-heavy.otf",
-				"Fonts/osans-regular.otf",
-				Models/ConsumptionModels.swift,
-				Models/ConsumptionSettings.swift,
-				Models/CostProfile.swift,
-				Models/GridTariffModels.swift,
-				Models/SpotPriceModels.swift,
-				Providers/Core/ElectricityProvider.swift,
-				Providers/Core/ProviderCredentials.swift,
-				Providers/Core/ProviderRegistry.swift,
-				Providers/Tibber/TibberProvider.swift,
-				Providers/Vaggeryd/VaggerydProvider.swift,
-				Services/ConsumptionService.swift,
-				Services/GridTariffService.swift,
-				Services/KeychainHelper.swift,
-				Services/NetworkSession.swift,
-				Services/SpotPriceService.swift,
-				Services/TotalCostService.swift,
+				ConsumptionModels.swift,
+				ConsumptionSettings.swift,
+				CostProfile.swift,
+				GridTariffModels.swift,
+				SpotPriceModels.swift,
 			);
 			target = 20861F8C2F2E0B9A0067EDC1 /* SpotpriceWidgetExtension */;
+		};
+		201EA2412FBCB0C70036D7BF /* Exceptions for "Models" folder in "SpotpriceApp" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				ConsumptionModels.swift,
+				ConsumptionSettings.swift,
+				CostProfile.swift,
+				GridTariffModels.swift,
+				SpotPriceModels.swift,
+			);
+			target = 201EA1FC2FBCAC8C0036D7BF /* SpotpriceApp */;
+		};
+		201EA2622FBCB0E10036D7BF /* Exceptions for "Services" folder in "Spotprice" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				ConsumptionService.swift,
+				GridTariffService.swift,
+				KeychainHelper.swift,
+				NetworkSession.swift,
+				SpotPriceService.swift,
+				TotalCostService.swift,
+			);
+			target = 200104F72F26582400B2F176 /* Spotprice */;
+		};
+		201EA2632FBCB0E10036D7BF /* Exceptions for "ViewModels" folder in "SpotpriceApp" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				SpotPriceViewModel.swift,
+			);
+			target = 201EA1FC2FBCAC8C0036D7BF /* SpotpriceApp */;
+		};
+		201EA2642FBCB0E10036D7BF /* Exceptions for "Services" folder in "SpotpriceWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				ConsumptionService.swift,
+				GridTariffService.swift,
+				KeychainHelper.swift,
+				NetworkSession.swift,
+				SpotPriceService.swift,
+				TotalCostService.swift,
+			);
+			target = 20861F8C2F2E0B9A0067EDC1 /* SpotpriceWidgetExtension */;
+		};
+		201EA2652FBCB0E10036D7BF /* Exceptions for "Services" folder in "SpotpriceApp" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				ConsumptionService.swift,
+				GridTariffService.swift,
+				KeychainHelper.swift,
+				NetworkSession.swift,
+				SpotPriceService.swift,
+				TotalCostService.swift,
+			);
+			target = 201EA1FC2FBCAC8C0036D7BF /* SpotpriceApp */;
+		};
+		201EA27F2FBCB0ED0036D7BF /* Exceptions for "Providers" folder in "SpotpriceWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Core/ElectricityProvider.swift,
+				Core/ProviderCredentials.swift,
+				Core/ProviderRegistry.swift,
+				Tibber/TibberProvider.swift,
+				Vaggeryd/VaggerydProvider.swift,
+			);
+			target = 20861F8C2F2E0B9A0067EDC1 /* SpotpriceWidgetExtension */;
+		};
+		201EA2802FBCB0ED0036D7BF /* Exceptions for "Providers" folder in "SpotpriceApp" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Core/ElectricityProvider.swift,
+				Core/ProviderCredentials.swift,
+				Core/ProviderRegistry.swift,
+				Tibber/TibberProvider.swift,
+				Vaggeryd/VaggerydProvider.swift,
+			);
+			target = 201EA1FC2FBCAC8C0036D7BF /* SpotpriceApp */;
+		};
+		201EA28E2FBCB1030036D7BF /* Exceptions for "Fonts" folder in "SpotpriceWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				"osans-heavy.otf",
+				"osans-regular.otf",
+			);
+			target = 20861F8C2F2E0B9A0067EDC1 /* SpotpriceWidgetExtension */;
+		};
+		201EA28F2FBCB1030036D7BF /* Exceptions for "Fonts" folder in "SpotpriceApp" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				"osans-heavy.otf",
+				"osans-regular.otf",
+			);
+			target = 201EA1FC2FBCAC8C0036D7BF /* SpotpriceApp */;
+		};
+		201EA2902FBCB1030036D7BF /* Exceptions for "Extensions" folder in "Spotprice" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				"SpotPriceViewModel+State.swift",
+			);
+			target = 200104F72F26582400B2F176 /* Spotprice */;
+		};
+		201EA2912FBCB1030036D7BF /* Exceptions for "Extensions" folder in "SpotpriceApp" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				"SpotPriceViewModel+State.swift",
+			);
+			target = 201EA1FC2FBCAC8C0036D7BF /* SpotpriceApp */;
+		};
+		201EA2962FBCB10A0036D7BF /* Exceptions for "Components" folder in "SpotpriceApp" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				PriceChangeIndicator.swift,
+			);
+			target = 201EA1FC2FBCAC8C0036D7BF /* SpotpriceApp */;
+		};
+		201EA2A02FBCB1110036D7BF /* Exceptions for "DesignSystem" folder in "SpotpriceWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				DesignSystem.swift,
+			);
+			target = 20861F8C2F2E0B9A0067EDC1 /* SpotpriceWidgetExtension */;
+		};
+		201EA2A12FBCB1110036D7BF /* Exceptions for "DesignSystem" folder in "SpotpriceApp" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				DesignSystem.swift,
+			);
+			target = 201EA1FC2FBCAC8C0036D7BF /* SpotpriceApp */;
+		};
+		201EA2A22FBCB1110036D7BF /* Exceptions for "Configuration" folder in "Spotprice" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				ChartConfiguration.swift,
+			);
+			target = 200104F72F26582400B2F176 /* Spotprice */;
+		};
+		201EA2A32FBCB1110036D7BF /* Exceptions for "Configuration" folder in "SpotpriceApp" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				ChartConfiguration.swift,
+			);
+			target = 201EA1FC2FBCAC8C0036D7BF /* SpotpriceApp */;
+		};
+		20928BF42FBCE8E000D1BD9F /* Exceptions for "SpotpriceApp" folder in "SpotpriceApp" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 201EA1FC2FBCAC8C0036D7BF /* SpotpriceApp */;
 		};
 		20EACE422F32A1A90022513B /* Exceptions for "SpotpriceWidget" folder in "SpotpriceWidgetExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
@@ -95,9 +233,101 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				20EACE432F32A1D90022513B /* Exceptions for "Spotprice" folder in "Spotprice" target */,
-				20861FC72F2E82310067EDC1 /* Exceptions for "Spotprice" folder in "SpotpriceWidgetExtension" target */,
 			);
 			path = Spotprice;
+			sourceTree = "<group>";
+		};
+		201EA1FE2FBCAC8C0036D7BF /* SpotpriceApp */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				20928BF42FBCE8E000D1BD9F /* Exceptions for "SpotpriceApp" folder in "SpotpriceApp" target */,
+			);
+			path = SpotpriceApp;
+			sourceTree = "<group>";
+		};
+		201EA2302FBCB0C70036D7BF /* Models */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				201EA2402FBCB0C70036D7BF /* Exceptions for "Models" folder in "SpotpriceWidgetExtension" target */,
+				201EA2412FBCB0C70036D7BF /* Exceptions for "Models" folder in "SpotpriceApp" target */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		201EA2482FBCB0E10036D7BF /* Services */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				201EA2622FBCB0E10036D7BF /* Exceptions for "Services" folder in "Spotprice" target */,
+				201EA2642FBCB0E10036D7BF /* Exceptions for "Services" folder in "SpotpriceWidgetExtension" target */,
+				201EA2652FBCB0E10036D7BF /* Exceptions for "Services" folder in "SpotpriceApp" target */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		201EA24B2FBCB0E10036D7BF /* ViewModels */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				201EA2632FBCB0E10036D7BF /* Exceptions for "ViewModels" folder in "SpotpriceApp" target */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		201EA26F2FBCB0ED0036D7BF /* Providers */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				201EA27F2FBCB0ED0036D7BF /* Exceptions for "Providers" folder in "SpotpriceWidgetExtension" target */,
+				201EA2802FBCB0ED0036D7BF /* Exceptions for "Providers" folder in "SpotpriceApp" target */,
+			);
+			path = Providers;
+			sourceTree = "<group>";
+		};
+		201EA2822FBCB1030036D7BF /* Extensions */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				201EA2902FBCB1030036D7BF /* Exceptions for "Extensions" folder in "Spotprice" target */,
+				201EA2912FBCB1030036D7BF /* Exceptions for "Extensions" folder in "SpotpriceApp" target */,
+			);
+			path = Extensions;
+			sourceTree = "<group>";
+		};
+		201EA2852FBCB1030036D7BF /* Fonts */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				201EA28E2FBCB1030036D7BF /* Exceptions for "Fonts" folder in "SpotpriceWidgetExtension" target */,
+				201EA28F2FBCB1030036D7BF /* Exceptions for "Fonts" folder in "SpotpriceApp" target */,
+			);
+			path = Fonts;
+			sourceTree = "<group>";
+		};
+		201EA2932FBCB10A0036D7BF /* Components */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				201EA2962FBCB10A0036D7BF /* Exceptions for "Components" folder in "SpotpriceApp" target */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		201EA2982FBCB1110036D7BF /* Configuration */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				201EA2A22FBCB1110036D7BF /* Exceptions for "Configuration" folder in "Spotprice" target */,
+				201EA2A32FBCB1110036D7BF /* Exceptions for "Configuration" folder in "SpotpriceApp" target */,
+			);
+			path = Configuration;
+			sourceTree = "<group>";
+		};
+		201EA29A2FBCB1110036D7BF /* DesignSystem */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				201EA2A02FBCB1110036D7BF /* Exceptions for "DesignSystem" folder in "SpotpriceWidgetExtension" target */,
+				201EA2A12FBCB1110036D7BF /* Exceptions for "DesignSystem" folder in "SpotpriceApp" target */,
+			);
+			path = DesignSystem;
+			sourceTree = "<group>";
+		};
+		201EA2A52FBCB1160036D7BF /* Docs */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Docs;
 			sourceTree = "<group>";
 		};
 		20861F932F2E0B9A0067EDC1 /* SpotpriceWidget */ = {
@@ -112,6 +342,13 @@
 
 /* Begin PBXFrameworksBuildPhase section */
 		200104F52F26582400B2F176 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		201EA1FA2FBCAC8C0036D7BF /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -133,9 +370,11 @@
 		200104EF2F26582400B2F176 = {
 			isa = PBXGroup;
 			children = (
+				201EA2272FBCAFF90036D7BF /* Shared */,
 				206B18F82F2FFC2600E5F9E7 /* SpotpriceWidgetExtension.entitlements */,
 				200104FA2F26582400B2F176 /* Spotprice */,
 				20861F932F2E0B9A0067EDC1 /* SpotpriceWidget */,
+				201EA1FE2FBCAC8C0036D7BF /* SpotpriceApp */,
 				20861F8E2F2E0B9A0067EDC1 /* Frameworks */,
 				200104F92F26582400B2F176 /* Products */,
 				206B18FA2F313EBE00E5F9E7 /* spotprice.icon */,
@@ -148,14 +387,34 @@
 			children = (
 				200104F82F26582400B2F176 /* Spotprice.app */,
 				20861F8D2F2E0B9A0067EDC1 /* SpotpriceWidgetExtension.appex */,
+				201EA1FD2FBCAC8C0036D7BF /* SpotpriceApp.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		201EA2272FBCAFF90036D7BF /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				201EA2302FBCB0C70036D7BF /* Models */,
+				201EA2482FBCB0E10036D7BF /* Services */,
+				201EA24B2FBCB0E10036D7BF /* ViewModels */,
+				201EA26F2FBCB0ED0036D7BF /* Providers */,
+				201EA2822FBCB1030036D7BF /* Extensions */,
+				201EA2852FBCB1030036D7BF /* Fonts */,
+				201EA2932FBCB10A0036D7BF /* Components */,
+				201EA2982FBCB1110036D7BF /* Configuration */,
+				201EA29A2FBCB1110036D7BF /* DesignSystem */,
+				201EA2A52FBCB1160036D7BF /* Docs */,
+			);
+			path = Shared;
 			sourceTree = "<group>";
 		};
 		206612082F65F04500102F19 /* Docs */ = {
 			isa = PBXGroup;
 			children = (
 				206612092F65F19F00102F19 /* business-case.md */,
+				20928BE82FBCE5B100D1BD9F /* ios-widget-plan.md */,
+				20928BE92FBCE62800D1BD9F /* ios-app-menubar-parity-plan.md */,
 			);
 			path = Docs;
 			sourceTree = "<group>";
@@ -188,12 +447,41 @@
 			);
 			fileSystemSynchronizedGroups = (
 				200104FA2F26582400B2F176 /* Spotprice */,
+				201EA2302FBCB0C70036D7BF /* Models */,
+				201EA24B2FBCB0E10036D7BF /* ViewModels */,
+				201EA26F2FBCB0ED0036D7BF /* Providers */,
+				201EA2852FBCB1030036D7BF /* Fonts */,
+				201EA2932FBCB10A0036D7BF /* Components */,
+				201EA29A2FBCB1110036D7BF /* DesignSystem */,
+				201EA2A52FBCB1160036D7BF /* Docs */,
 			);
 			name = Spotprice;
 			packageProductDependencies = (
 			);
 			productName = Spotprice;
 			productReference = 200104F82F26582400B2F176 /* Spotprice.app */;
+			productType = "com.apple.product-type.application";
+		};
+		201EA1FC2FBCAC8C0036D7BF /* SpotpriceApp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 201EA2092FBCAC8C0036D7BF /* Build configuration list for PBXNativeTarget "SpotpriceApp" */;
+			buildPhases = (
+				201EA1F92FBCAC8C0036D7BF /* Sources */,
+				201EA1FA2FBCAC8C0036D7BF /* Frameworks */,
+				201EA1FB2FBCAC8C0036D7BF /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				201EA1FE2FBCAC8C0036D7BF /* SpotpriceApp */,
+			);
+			name = SpotpriceApp;
+			packageProductDependencies = (
+			);
+			productName = SpotpriceApp;
+			productReference = 201EA1FD2FBCAC8C0036D7BF /* SpotpriceApp.app */;
 			productType = "com.apple.product-type.application";
 		};
 		20861F8C2F2E0B9A0067EDC1 /* SpotpriceWidgetExtension */ = {
@@ -225,11 +513,14 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 2600;
+				LastSwiftUpdateCheck = 2630;
 				LastUpgradeCheck = 2630;
 				TargetAttributes = {
 					200104F72F26582400B2F176 = {
 						CreatedOnToolsVersion = 26.0;
+					};
+					201EA1FC2FBCAC8C0036D7BF = {
+						CreatedOnToolsVersion = 26.3;
 					};
 					20861F8C2F2E0B9A0067EDC1 = {
 						CreatedOnToolsVersion = 26.0;
@@ -252,6 +543,7 @@
 			targets = (
 				200104F72F26582400B2F176 /* Spotprice */,
 				20861F8C2F2E0B9A0067EDC1 /* SpotpriceWidgetExtension */,
+				201EA1FC2FBCAC8C0036D7BF /* SpotpriceApp */,
 			);
 		};
 /* End PBXProject section */
@@ -262,6 +554,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				206B18FB2F313EBE00E5F9E7 /* spotprice.icon in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		201EA1FB2FBCAC8C0036D7BF /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				20928BE72FBCE42D00D1BD9F /* spotprice.icon in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -277,6 +577,13 @@
 
 /* Begin PBXSourcesBuildPhase section */
 		200104F42F26582400B2F176 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		201EA1F92FBCAC8C0036D7BF /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -519,6 +826,77 @@
 			};
 			name = Release;
 		};
+		201EA2072FBCAC8C0036D7BF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = spotprice;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = U8J74WVQ4D;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SpotpriceApp/Info.plist;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = mb.SpotpriceApp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		201EA2082FBCAC8C0036D7BF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = spotprice;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = U8J74WVQ4D;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SpotpriceApp/Info.plist;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = mb.SpotpriceApp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 		20861FA22F2E0B9B0067EDC1 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -630,6 +1008,15 @@
 			buildConfigurations = (
 				200105062F26582600B2F176 /* Debug */,
 				200105072F26582600B2F176 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		201EA2092FBCAC8C0036D7BF /* Build configuration list for PBXNativeTarget "SpotpriceApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				201EA2072FBCAC8C0036D7BF /* Debug */,
+				201EA2082FBCAC8C0036D7BF /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
