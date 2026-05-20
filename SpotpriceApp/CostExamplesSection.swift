@@ -37,7 +37,7 @@ struct CostExamplesSection: View {
             }
         }
         .padding(DS.Spacing.lg)
-        .background(.background, in: .rect(cornerRadius: DS.Radius.lg))
+        .iosGlassCard(cornerRadius: DS.Radius.lg)
     }
 
     private var header: some View {
@@ -131,10 +131,7 @@ private struct CostExampleCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.sm) {
             HStack(alignment: .top, spacing: DS.Spacing.sm) {
-                Image(systemName: example.icon)
-                    .font(.system(size: DS.Size.iconMedium, weight: .semibold))
-                    .foregroundStyle(example.color)
-                    .frame(width: 24)
+
 
                 VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
                     Text(example.title)
@@ -152,7 +149,7 @@ private struct CostExampleCard: View {
             HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
                 Text(cost.totalKr, format: .number.precision(.fractionLength(2)))
                     .font(DS.Font.bold(20).monospacedDigit())
-                    .foregroundStyle(example.color)
+                    .foregroundStyle(.primary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.78)
                 Text("kr")
@@ -169,8 +166,7 @@ private struct CostExampleCard: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(DS.Spacing.md)
-        .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: DS.Radius.md))
+        .padding(.vertical, DS.Spacing.sm)
     }
 
     private func breakdownRow(_ title: String, _ value: Double) -> some View {
