@@ -23,7 +23,7 @@ struct CostCardView: View {
 
                     Text(description)
                         .font(DS.Font.micro)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DS.Color.secondary)
                         .lineLimit(1)
                 }
 
@@ -37,7 +37,7 @@ struct CostCardView: View {
                         .foregroundStyle(.primary)
                     Text("kr")
                         .font(DS.Font.micro)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DS.Color.secondary)
                 }
                 
                 if breakdown.hasGridCosts {

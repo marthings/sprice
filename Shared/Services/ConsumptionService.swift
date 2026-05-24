@@ -137,7 +137,9 @@ struct ConsumptionService: Sendable {
         let currentMonth = calendar.component(.month, from: now)
 
         // Calculate previous month
-        let previousMonthDate = calendar.date(byAdding: .month, value: -1, to: now)!
+        guard let previousMonthDate = calendar.date(byAdding: .month, value: -1, to: now) else {
+            throw ConsumptionError.notFound
+        }
         let previousYear = calendar.component(.year, from: previousMonthDate)
         let previousMonth = calendar.component(.month, from: previousMonthDate)
 
@@ -178,11 +180,13 @@ struct ConsumptionService: Sendable {
     func calculatePowerPeaks() async throws -> [PowerPeak] {
         let calendar = Calendar.current
         let now = Date()
-        let monthStart = calendar.date(from: DateComponents(
+        guard let monthStart = calendar.date(from: DateComponents(
             year: calendar.component(.year, from: now),
             month: calendar.component(.month, from: now),
             day: 1
-        ))!
+        )) else {
+            throw ConsumptionError.notFound
+        }
 
         let hourlyData = try await fetchHourlyConsumption(startDate: monthStart, endDate: now)
         logger.info("Power peaks: Got \(hourlyData.count) hourly entries")
@@ -238,11 +242,13 @@ struct ConsumptionService: Sendable {
     func calculatePreciseMonthlyCost(spotPriceService: SpotPriceService) async throws -> PreciseMonthlyCost {
         let calendar = Calendar.current
         let now = Date()
-        let monthStart = calendar.date(from: DateComponents(
+        guard let monthStart = calendar.date(from: DateComponents(
             year: calendar.component(.year, from: now),
             month: calendar.component(.month, from: now),
             day: 1
-        ))!
+        )) else {
+            throw ConsumptionError.notFound
+        }
 
         // Fetch quarterly consumption for the whole month
         let quarterlyData = try await fetchQuarterlyConsumption(startDate: monthStart, endDate: now)
@@ -266,9 +272,11 @@ struct ConsumptionService: Sendable {
                 group.addTask {
                     do {
                         let items = try await spotPriceService.fetchSpotPrices(for: dayDate)
-                        return items.map { item in
+                        return items.compactMap { item in
                             // Floor to hour start for lookup key
-                            let hourStart = calendar.date(from: calendar.dateComponents([.year, .month, .day, .hour], from: item.timeStart))!
+                            guard let hourStart = calendar.date(from: calendar.dateComponents([.year, .month, .day, .hour], from: item.timeStart)) else {
+                                return nil
+                            }
                             return (hourStart, item.sekPerKWh * 100.0) // öre/kWh
                         }
                     } catch {
@@ -294,7 +302,9 @@ struct ConsumptionService: Sendable {
         var matchedIntervals = 0
 
         for entry in quarterlyData {
-            let hourStart = calendar.date(from: calendar.dateComponents([.year, .month, .day, .hour], from: entry.date))!
+            guard let hourStart = calendar.date(from: calendar.dateComponents([.year, .month, .day, .hour], from: entry.date)) else {
+                continue
+            }
             if let priceOre = spotPriceLookup[hourStart] {
                 totalCost += entry.kWh * priceOre / 100.0  // öre → kr
                 totalKWh += entry.kWh
@@ -319,7 +329,9 @@ struct ConsumptionService: Sendable {
         let calendar = Calendar.current
 
         // Get all days in the month up to today (or entire month if past)
-        let monthStart = calendar.date(from: DateComponents(year: year, month: month, day: 1))!
+        guard let monthStart = calendar.date(from: DateComponents(year: year, month: month, day: 1)) else {
+            throw ConsumptionError.notFound
+        }
         let now = Date()
 
         // Determine end date: either end of month or today
@@ -329,8 +341,11 @@ struct ConsumptionService: Sendable {
             endDate = now
         } else {
             // Get last day of month
-            let nextMonth = calendar.date(byAdding: .month, value: 1, to: monthStart)!
-            endDate = calendar.date(byAdding: .day, value: -1, to: nextMonth)!
+            guard let nextMonth = calendar.date(byAdding: .month, value: 1, to: monthStart),
+                  let lastDayOfMonth = calendar.date(byAdding: .day, value: -1, to: nextMonth) else {
+                throw ConsumptionError.notFound
+            }
+            endDate = lastDayOfMonth
         }
 
         // For simplicity, sample a few days to get average
@@ -346,7 +361,10 @@ struct ConsumptionService: Sendable {
             } catch {
                 logger.debug("Could not fetch prices for \(currentDate): \(error.localizedDescription)")
             }
-            currentDate = calendar.date(byAdding: .day, value: 3, to: currentDate)!
+            guard let nextSampleDate = calendar.date(byAdding: .day, value: 3, to: currentDate) else {
+                break
+            }
+            currentDate = nextSampleDate
         }
 
         guard !allPrices.isEmpty else {

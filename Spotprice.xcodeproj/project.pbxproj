@@ -370,8 +370,8 @@
 		200104EF2F26582400B2F176 = {
 			isa = PBXGroup;
 			children = (
-				201EA2272FBCAFF90036D7BF /* Shared */,
 				206B18F82F2FFC2600E5F9E7 /* SpotpriceWidgetExtension.entitlements */,
+				201EA2272FBCAFF90036D7BF /* Shared */,
 				200104FA2F26582400B2F176 /* Spotprice */,
 				20861F932F2E0B9A0067EDC1 /* SpotpriceWidget */,
 				201EA1FE2FBCAC8C0036D7BF /* SpotpriceApp */,

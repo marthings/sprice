@@ -166,20 +166,23 @@ struct FusedTariffs: Sendable {
         
         // Find closest fuse size
         let sortedSizes = tariffsByFuseSize.keys.sorted()
-        guard !sortedSizes.isEmpty else { return nil }
+        guard let smallestSize = sortedSizes.first,
+              let largestSize = sortedSizes.last else {
+            return nil
+        }
         
         // If requested size is smaller than smallest, use smallest
-        if fuseSize < sortedSizes.first! {
-            return tariffsByFuseSize[sortedSizes.first!]
+        if fuseSize < smallestSize {
+            return tariffsByFuseSize[smallestSize]
         }
         
         // If requested size is larger than largest, use largest
-        if fuseSize > sortedSizes.last! {
-            return tariffsByFuseSize[sortedSizes.last!]
+        if fuseSize > largestSize {
+            return tariffsByFuseSize[largestSize]
         }
         
         // Find closest match
-        var closest = sortedSizes.first!
+        var closest = smallestSize
         var minDiff = abs(fuseSize - closest)
         
         for size in sortedSizes {

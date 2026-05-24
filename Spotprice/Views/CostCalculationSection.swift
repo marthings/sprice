@@ -23,14 +23,14 @@ struct CostCalculationSection: View {
                     let totalCost = totalCostService.calculatePricePerKWh(spotPriceOre: price, profile: profile)
                     Text("(\(totalCost.formatted(.number.precision(.fractionLength(2)))) kr/kWh)")
                         .font(DS.Font.medium(11))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DS.Color.secondary)
                 }
             }
 
             if let basisText = profile.retailContractCostBasisText {
                 Label(basisText, systemImage: "info.circle.fill")
                     .font(DS.Font.micro)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DS.Color.secondary)
             }
 
             LazyVGrid(columns: [GridItem(.flexible(), spacing: DS.Spacing.sm), GridItem(.flexible(), spacing: DS.Spacing.sm)], spacing: DS.Spacing.sm) {
@@ -90,7 +90,7 @@ struct CostCalculationSection: View {
             if profile.gridMonthlyFee != nil || profile.gridTransferOrePerKWh != nil {
                 Label("Elnätskostnaden baseras på dina elnätsuppgifter och kan avvika från fakturan.", systemImage: "info.circle.fill")
                     .font(DS.Font.micro)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DS.Color.secondary)
             }
         }
         .padding(.top, DS.Spacing.xs)

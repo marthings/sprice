@@ -30,11 +30,11 @@ struct ProviderPicker: View {
             if selectedProviderId.isEmpty {
                 Text("Valfritt. Välj en datakälla om du vill hämta förbrukning automatiskt.")
                     .font(DS.Font.micro)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DS.Color.secondary)
             } else {
                 Text("Datakällan används för förbrukningsdata, inte som krav för kostnadsberäkning.")
                     .font(DS.Font.micro)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DS.Color.secondary)
             }
         }
     }

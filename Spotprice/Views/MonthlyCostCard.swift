@@ -20,7 +20,7 @@ struct MonthlyCostCard: View {
             // Header with title
             Text(title)
                 .font(DS.Font.micro)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DS.Color.secondary)
             
             // Total cost - primary focus
             HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
@@ -29,7 +29,7 @@ struct MonthlyCostCard: View {
                     .foregroundStyle(.primary)
                 Text("kr")
                     .font(DS.Font.medium(14))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DS.Color.secondary)
             }
             
             // Consumption info
@@ -55,20 +55,20 @@ struct MonthlyCostCard: View {
             HStack(spacing: DS.Spacing.xs) {
                 Image(systemName: "info.circle.fill")
                     .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DS.Color.secondary)
                 Text("Kostnaden baseras på dina inställningar. Elnät ingår bara när du har lagt till elnätsuppgifter.")
                     .font(DS.Font.micro)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DS.Color.secondary)
             }
 
             if let costBasisNote {
                 HStack(spacing: DS.Spacing.xs) {
                     Image(systemName: "info.circle.fill")
                         .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DS.Color.secondary)
                     Text(costBasisNote)
                         .font(DS.Font.micro)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DS.Color.secondary)
                 }
             }
             
@@ -79,7 +79,7 @@ struct MonthlyCostCard: View {
             VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                 Text("Nedbrytning")
                     .font(DS.Font.micro)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DS.Color.secondary)
                     .padding(.bottom, DS.Spacing.xxs)
                 
                 // Elhandel

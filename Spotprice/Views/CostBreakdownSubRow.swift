@@ -13,14 +13,14 @@ struct CostBreakdownSubRow: View {
         HStack(spacing: DS.Spacing.xs) {
             Text(label)
                 .font(DS.Font.regular(10))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DS.Color.secondary)
                 .padding(.leading, 14)
 
             Spacer()
 
             Text("\(amount.formatted(.number.precision(.fractionLength(0)))) kr")
                 .font(DS.Font.regular(10).monospacedDigit())
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DS.Color.secondary)
         }
     }
 }

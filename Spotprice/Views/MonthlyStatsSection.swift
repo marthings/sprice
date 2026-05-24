@@ -38,10 +38,10 @@ struct MonthlyStatsSection: View {
                     if let providerName {
                         Text("·")
                             .font(DS.Font.semibold(12))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(DS.Color.secondary)
                         Text(providerName)
                             .font(DS.Font.medium(11))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(DS.Color.secondary)
                             .padding(.horizontal, DS.Spacing.xs)
                             .padding(.vertical, DS.Spacing.xxs)
                             .background(.quaternary.opacity(0.6), in: .capsule)
@@ -89,20 +89,20 @@ struct MonthlyStatsSection: View {
             SettingsLink {
                 HStack(spacing: DS.Spacing.md) {
                     Image(systemName: "gearshape.fill")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DS.Color.secondary)
                     VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
                         Text("Konfigurera förbrukning")
                             .font(DS.Font.medium(12))
                             .foregroundStyle(.primary)
                         Text("Lägg till dina uppgifter för att se månadsstatistik")
                             .font(DS.Font.micro)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(DS.Color.secondary)
                             .lineLimit(2)
                     }
                     Spacer()
                     Image(systemName: "chevron.right")
                         .font(DS.Font.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DS.Color.secondary)
                 }
                 .padding(DS.Spacing.lg)
                 .glassCard(cornerRadius: DS.Radius.lg, interactive: true)
@@ -124,7 +124,7 @@ struct MonthlyStatsSection: View {
                     }
                     Text(error)
                         .font(DS.Font.micro)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DS.Color.secondary)
                         .lineLimit(2)
                 }
                 Spacer()

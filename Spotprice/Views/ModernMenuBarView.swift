@@ -144,11 +144,11 @@ struct ModernMenuBarView: View {
             if profile.isSpotFollowingRetailContract {
                 Text("Prisspann idag (kr/kWh)")
                     .font(DS.Font.semibold(12))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DS.Color.secondary)
             } else {
                 Text("Marknadens prisspann idag (kr/kWh)")
                     .font(DS.Font.semibold(12))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DS.Color.secondary)
             }
             Spacer()
         }
@@ -227,7 +227,7 @@ struct ModernMenuBarView: View {
                     ? "Marknaden är i snitt billigare än ditt avtal idag" 
                     : "Ditt avtal är billigare än marknaden i snitt idag")
                     .font(DS.Font.micro)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DS.Color.secondary)
 
                 Spacer()
             }
@@ -244,7 +244,7 @@ struct ModernMenuBarView: View {
             if let label = profile.confidence.menuBarLabel {
                 Text(label)
                     .font(DS.Font.micro)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DS.Color.secondary)
                     .padding(.horizontal, DS.Spacing.sm)
                     .padding(.vertical, DS.Spacing.xs)
                     .background(.quaternary.opacity(0.6), in: .capsule)
@@ -253,7 +253,7 @@ struct ModernMenuBarView: View {
             if profile.confidence == .estimated {
                 Text("Förbättra precisionen: lägg till elhandelsavtal eller elnätsuppgifter.")
                     .font(DS.Font.micro)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DS.Color.secondary)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
             }

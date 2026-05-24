@@ -28,7 +28,7 @@ struct StatCardView: View {
                         .foregroundStyle(color)
                     Text(unit)
                         .font(DS.Font.medium(11))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DS.Color.secondary)
                 }
             }
         }

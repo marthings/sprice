@@ -42,7 +42,7 @@ struct SettingsField: View {
 
             Text(hint)
                 .font(DS.Font.micro)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DS.Color.secondary)
         }
     }
 }

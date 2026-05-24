@@ -90,7 +90,7 @@ struct ProviderSettingsView: View {
                 case .testing:
                     Text("Testar anslutning...")
                         .font(DS.Font.micro)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DS.Color.secondary)
                 case .success:
                     Label("Anslutningen fungerar", systemImage: "checkmark.circle.fill")
                         .font(DS.Font.callout)
@@ -120,7 +120,7 @@ struct ProviderSettingsView: View {
             if !field.hint.isEmpty {
                 Text(field.hint)
                     .font(DS.Font.micro)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DS.Color.secondary)
             }
         }
         .padding(.vertical, DS.Spacing.xxs)

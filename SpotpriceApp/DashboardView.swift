@@ -15,15 +15,17 @@ struct DashboardView: View {
                     .scaledToFill()
                     .ignoresSafeArea()
 
-                ScrollView {
+                ScrollView(.vertical) {
                     VStack(alignment: .leading, spacing: DS.Spacing.xl) {
                         dashboardHeader
                         content
                     }
                     .padding(.horizontal, DS.Spacing.lg)
                     .padding(.vertical, DS.Spacing.lg)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .scrollContentBackground(.hidden)
+                .clipped()
             }
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
@@ -68,7 +70,7 @@ struct DashboardView: View {
 
             Text(settingsSummary)
                 .font(DS.Font.callout)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DS.Color.secondary)
                 .lineLimit(2)
         }
         .padding(.top, DS.Spacing.sm)
@@ -80,7 +82,7 @@ struct DashboardView: View {
                 .tint(DS.Color.warning)
             Text("Hämtar elpriser")
                 .font(DS.Font.callout)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DS.Color.secondary)
         }
         .frame(maxWidth: .infinity, minHeight: 360)
     }
@@ -89,12 +91,12 @@ struct DashboardView: View {
         VStack(spacing: DS.Spacing.md) {
             Image(systemName: "bolt.slash.fill")
                 .font(.system(size: DS.Size.iconXL, weight: .light))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DS.Color.secondary)
             Text("Kunde inte hämta priser")
                 .font(DS.Font.headline)
             Text(message)
                 .font(DS.Font.callout)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DS.Color.secondary)
                 .multilineTextAlignment(.center)
             Button {
                 Task { await viewModel.load() }
@@ -127,6 +129,7 @@ struct DashboardView: View {
                 }
             )
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func currentCostHero(_ payload: SpotPriceViewModel.CurrentAndDay) -> some View {
@@ -148,7 +151,7 @@ struct DashboardView: View {
                             .foregroundStyle(DS.Color.forCategory(category))
                         Text("kr/kWh")
                             .font(DS.Font.callout)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(DS.Color.secondary)
                     }
                 }
 
@@ -172,6 +175,7 @@ struct DashboardView: View {
                 Spacer(minLength: 0)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(DS.Spacing.lg)
         .iosGlassCard(cornerRadius: DS.Radius.lg)
     }
@@ -185,34 +189,28 @@ struct DashboardView: View {
             let yDomain = chartYDomain(for: prices)
             let areaBaseline = yDomain.lowerBound
             let selectedBucket = selectedChartDate.flatMap { nearestBucket(to: $0, in: payload.day.buckets) }
+            let areaGradient = chartAreaGradient(for: payload.day.buckets)
+            let lineGradient = chartLineGradient(for: payload.day.buckets)
 
             Chart {
                 ForEach(payload.day.buckets) { bucket in
-                    let categoryColor = DS.Color.forCategory(bucket.category)
-
                     AreaMark(
                         x: .value("Tid", bucket.start),
                         yStart: .value("Baslinje", areaBaseline),
                         yEnd: .value("öre/kWh", bucket.orePerKWh)
                     )
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [
-                                categoryColor.opacity(0.30),
-                                categoryColor.opacity(0.10),
-                                categoryColor.opacity(0.0)
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
+                    .foregroundStyle(areaGradient)
+                }
 
+                ForEach(payload.day.buckets) { bucket in
                     LineMark(
                         x: .value("Tid", bucket.start),
-                        y: .value("öre/kWh", bucket.orePerKWh)
+                        y: .value("öre/kWh", bucket.orePerKWh),
+                        series: .value("Pris", "Marknad")
                     )
-                    .foregroundStyle(categoryColor)
+                    .foregroundStyle(lineGradient)
                     .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                    .interpolationMethod(.catmullRom)
                 }
 
                 if let currentBucket = payload.day.currentBucket {
@@ -223,17 +221,21 @@ struct DashboardView: View {
 
                 if let selectedBucket {
                     RuleMark(x: .value("Vald tid", selectedBucket.start))
-                        .foregroundStyle(.secondary.opacity(0.65))
+                        .foregroundStyle(DS.Color.secondary.opacity(0.65))
                         .lineStyle(StrokeStyle(lineWidth: 1.2))
                         .annotation(position: .top, spacing: DS.Spacing.sm, overflowResolution: .init(x: .fit, y: .disabled)) {
-                            chartTooltip(for: selectedBucket)
+                            ChartCalloutView(
+                                bucket: selectedBucket,
+                                dayData: payload.day,
+                                profile: ConsumptionSettings.shared.costProfile
+                            )
                         }
 
                     PointMark(
                         x: .value("Vald tid", selectedBucket.start),
                         y: .value("öre/kWh", selectedBucket.orePerKWh)
                     )
-                    .foregroundStyle(DS.Color.forCategory(selectedBucket.category))
+                    .foregroundStyle(chartPriceColor(for: selectedBucket, in: payload.day.buckets))
                     .symbolSize(70)
                 }
             }
@@ -269,39 +271,9 @@ struct DashboardView: View {
             .zIndex(1)
             .accessibilityHint("Dra över grafen för att se pris vid en viss tid.")
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(DS.Spacing.lg)
         .iosGlassCard(cornerRadius: DS.Radius.lg)
-    }
-
-    private func chartTooltip(for bucket: PriceBucket) -> some View {
-        let profile = ConsumptionSettings.shared.costProfile
-        let totalPrice = totalCostService.calculatePricePerKWh(spotPriceOre: bucket.orePerKWh, profile: profile)
-
-        return VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
-            Text(bucket.start.formatted(.dateTime.hour().minute()))
-                .font(DS.Font.micro)
-                .foregroundStyle(.secondary)
-            HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
-                Text(totalPrice, format: .number.precision(.fractionLength(2)))
-                    .font(DS.Font.semibold(15).monospacedDigit())
-                    .foregroundStyle(DS.Color.forCategory(bucket.category))
-                Text("kr/kWh")
-                    .font(DS.Font.micro)
-                    .foregroundStyle(.secondary)
-            }
-            Text("\(Int(bucket.orePerKWh.rounded())) öre spot")
-                .font(DS.Font.micro)
-                .foregroundStyle(.secondary)
-        }
-        .padding(.horizontal, DS.Spacing.sm)
-        .padding(.vertical, DS.Spacing.xs)
-        .background(DS.Color.brand.opacity(0.18), in: .rect(cornerRadius: DS.Radius.sm))
-        .overlay(
-            RoundedRectangle(cornerRadius: DS.Radius.sm)
-                .stroke(DS.Color.outline.opacity(0.22), lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.08), radius: 8, y: 3)
-        .zIndex(10)
     }
 
     private func todayStatsSection(_ payload: SpotPriceViewModel.CurrentAndDay) -> some View {
@@ -324,9 +296,10 @@ struct DashboardView: View {
             if let basisText = profile.retailContractCostBasisText {
                 Label(basisText, systemImage: "info.circle.fill")
                     .font(DS.Font.micro)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DS.Color.secondary)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(DS.Spacing.lg)
         .iosGlassCard(cornerRadius: DS.Radius.lg)
     }
@@ -335,13 +308,13 @@ struct DashboardView: View {
         VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
             Text(title)
                 .font(DS.Font.micro)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DS.Color.secondary)
             HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
                 Text(value)
                     .font(DS.Font.semibold(15).monospacedDigit())
                 Text(unit)
                     .font(DS.Font.micro)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DS.Color.secondary)
             }
         }
     }
@@ -351,14 +324,14 @@ struct DashboardView: View {
 
             Text(title)
                 .font(DS.Font.micro)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DS.Color.secondary)
             HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
                 Text(value, format: .number.precision(.fractionLength(2)))
                     .font(DS.Font.bold(16).monospacedDigit())
                     .foregroundStyle(color)
                 Text("kr")
                     .font(DS.Font.micro)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DS.Color.secondary)
             }
         }
         .frame(maxWidth: .infinity)
@@ -393,6 +366,31 @@ struct DashboardView: View {
 
         let padding = (maxPrice - minPrice) * 0.08
         return max(0, minPrice - padding)...(maxPrice + padding)
+    }
+
+    private func chartAreaGradient(for buckets: [PriceBucket]) -> LinearGradient {
+        LinearGradient(
+            colors: buckets.map { chartPriceColor(for: $0, in: buckets).opacity(0.26) },
+            startPoint: .leading,
+            endPoint: .trailing
+        )
+    }
+
+    private func chartLineGradient(for buckets: [PriceBucket]) -> LinearGradient {
+        LinearGradient(
+            colors: buckets.map { chartPriceColor(for: $0, in: buckets) },
+            startPoint: .leading,
+            endPoint: .trailing
+        )
+    }
+
+    private func chartPriceColor(for bucket: PriceBucket, in buckets: [PriceBucket]) -> Color {
+        let prices = buckets.map { $0.orePerKWh }
+        return DS.Color.forPrice(
+            bucket.orePerKWh,
+            min: prices.min() ?? bucket.orePerKWh,
+            max: prices.max() ?? bucket.orePerKWh
+        )
     }
 
     private func nearestBucket(to date: Date, in buckets: [PriceBucket]) -> PriceBucket? {

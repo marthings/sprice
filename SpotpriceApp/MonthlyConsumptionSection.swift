@@ -40,7 +40,7 @@ struct MonthlyConsumptionSection: View {
                     icon: "gearshape.fill",
                     title: "Konfigurera förbrukning",
                     message: "Lägg till dina uppgifter för att se månadsstatistik.",
-                    color: .secondary,
+                    color: DS.Color.secondary,
                     trailingIcon: "chevron.right"
                 )
             }
@@ -50,7 +50,7 @@ struct MonthlyConsumptionSection: View {
                 icon: "hourglass",
                 title: "Förbrukning laddas",
                 message: "Månadsstatistik visas när den är tillgänglig.",
-                color: .secondary
+                color: DS.Color.secondary
             )
         }
     }
@@ -62,12 +62,12 @@ struct MonthlyConsumptionSection: View {
             HStack(alignment: .firstTextBaseline) {
                 Text(consumption.monthName.capitalized)
                     .font(DS.Font.callout)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DS.Color.secondary)
                 Spacer()
                 if let preciseCost {
                     Text("\(preciseCost.matchedIntervals)/\(preciseCost.totalIntervals) intervall")
                         .font(DS.Font.micro)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DS.Color.secondary)
                 }
             }
 
@@ -95,7 +95,7 @@ struct MonthlyConsumptionSection: View {
             } else if profile.confidence == .estimated {
                 Label("Uppskattningen förbättras när elhandelsavtal och elnätsuppgifter är ifyllda.", systemImage: "info.circle.fill")
                     .font(DS.Font.micro)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DS.Color.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -115,7 +115,7 @@ struct MonthlyConsumptionSection: View {
             VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
                 Text(title)
                     .font(DS.Font.micro)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DS.Color.secondary)
                 HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
                     Text(value)
                         .font(DS.Font.bold(20).monospacedDigit())
@@ -123,7 +123,7 @@ struct MonthlyConsumptionSection: View {
                         .minimumScaleFactor(0.8)
                     Text(unit)
                         .font(DS.Font.micro)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DS.Color.secondary)
                 }
             }
             Spacer(minLength: 0)
@@ -140,7 +140,7 @@ struct MonthlyConsumptionSection: View {
             VStack(spacing: DS.Spacing.xs) {
                 costRow("Elhandel", cost.providerTotalKr, color: DS.Color.warning)
                 costRow("Elnät", cost.gridTotalKr, color: DS.Color.info)
-                costRow("Skatt och avgifter", cost.taxesAndFeesKr, color: .secondary)
+                costRow("Skatt och avgifter", cost.taxesAndFeesKr, color: DS.Color.secondary)
             }
         }
         .padding(.vertical, DS.Spacing.sm)
@@ -158,7 +158,7 @@ struct MonthlyConsumptionSection: View {
                 .font(DS.Font.semibold(14).monospacedDigit())
             Text("kr")
                 .font(DS.Font.micro)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DS.Color.secondary)
         }
     }
 
@@ -168,7 +168,7 @@ struct MonthlyConsumptionSection: View {
 
         return Label("Beräknat från faktisk förbrukning och matchade spotpriser: \(percent).", systemImage: "checkmark.seal.fill")
             .font(DS.Font.micro)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(DS.Color.secondary)
             .fixedSize(horizontal: false, vertical: true)
     }
 
@@ -190,7 +190,7 @@ struct MonthlyConsumptionSection: View {
                         .font(DS.Font.semibold(14).monospacedDigit())
                     Text("kW")
                         .font(DS.Font.micro)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DS.Color.secondary)
                 }
             }
         }
@@ -208,14 +208,14 @@ struct MonthlyConsumptionSection: View {
                     .font(DS.Font.callout)
                 Text(message)
                     .font(DS.Font.micro)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DS.Color.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
             if let trailingIcon {
                 Image(systemName: trailingIcon)
                     .font(DS.Font.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DS.Color.secondary)
             }
         }
         .padding(.vertical, DS.Spacing.sm)

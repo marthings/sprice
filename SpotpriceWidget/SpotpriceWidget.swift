@@ -100,7 +100,7 @@ struct SpotPriceProvider: TimelineProvider {
             let now = Date()
             let minute = Calendar.current.component(.minute, from: now)
             let minutesToNextQuarter = 15 - (minute % 15)
-            let nextUpdate = Calendar.current.date(byAdding: .minute, value: minutesToNextQuarter, to: now)!
+            let nextUpdate = Calendar.current.date(byAdding: .minute, value: minutesToNextQuarter, to: now) ?? now.addingTimeInterval(15 * 60)
 
             let timeline = Timeline(entries: [entry], policy: .after(nextUpdate))
             completion(timeline)
@@ -407,7 +407,7 @@ struct SpotpriceWidgetEntryView: View {
                                 .font(DS.Font.semibold(11).monospacedDigit())
                             Text("kWh")
                                 .font(DS.Font.regular(9))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(DS.Color.secondary)
                         }
 
                         HStack(spacing: DS.Spacing.xxs) {
@@ -415,7 +415,7 @@ struct SpotpriceWidgetEntryView: View {
                                 .font(DS.Font.semibold(11).monospacedDigit())
                             Text("kr")
                                 .font(DS.Font.regular(9))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(DS.Color.secondary)
                         }
                     }
                     
@@ -464,12 +464,12 @@ struct SpotpriceWidgetEntryView: View {
                             .foregroundStyle(renderingMode == .accented ? .primary : currentPriceColor)
                         Text("kr")
                             .font(DS.Font.micro)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(DS.Color.secondary)
                     }
                     if !entry.costProfile.isSpotFollowingRetailContract {
                         Text(entry.costProfile.retailContractDisplayName.lowercased())
                             .font(DS.Font.micro)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(DS.Color.secondary)
                     }
                 }
             } else {
@@ -481,7 +481,7 @@ struct SpotpriceWidgetEntryView: View {
                         .foregroundStyle(renderingMode == .accented ? .primary : currentPriceColor)
                     Text("öre")
                         .font(DS.Font.micro)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DS.Color.secondary)
                 }
             }
             Spacer()
@@ -498,10 +498,10 @@ struct SpotpriceWidgetEntryView: View {
         VStack(spacing: DS.Spacing.sm) {
             Image(systemName: "bolt.slash.fill")
                 .font(.system(size: DS.Size.iconMedium))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DS.Color.secondary)
             Text("--")
                 .font(DS.Font.title)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DS.Color.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

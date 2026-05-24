@@ -35,7 +35,7 @@ struct ConsumptionStatCard: View {
                         .foregroundStyle(.primary)
                     Text(unit)
                         .font(DS.Font.medium(11))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DS.Color.secondary)
                 }
                 
                 if let subtitle = subtitle {

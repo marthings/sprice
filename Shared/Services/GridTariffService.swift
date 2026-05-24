@@ -267,7 +267,9 @@ final class GridTariffService: Sendable {
     // MARK: - Private Helpers
 
     private func fetchAllTariffs() async throws -> TariffsResponse {
-        let url = URL(string: "\(baseURL)/tariffs")!
+        guard let url = URL(string: "\(baseURL)/tariffs") else {
+            throw GridTariffError.invalidURL
+        }
 
         logger.info("Fetching tariffs from \(url.absoluteString)")
 
@@ -354,12 +356,15 @@ private actor TariffCache {
 // MARK: - Errors
 
 enum GridTariffError: LocalizedError {
+    case invalidURL
     case invalidResponse
     case decodingError(Error)
     case notFound
 
     var errorDescription: String? {
         switch self {
+        case .invalidURL:
+            return "Kunde inte skapa URL för Eltariff API"
         case .invalidResponse:
             return "Fel svar från Eltariff API"
         case .decodingError(let error):

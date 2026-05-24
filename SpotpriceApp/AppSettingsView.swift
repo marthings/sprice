@@ -56,7 +56,7 @@ struct AppSettingsView: View {
                             .font(DS.Font.callout)
                         Text(providerStatusText)
                             .font(DS.Font.micro)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(DS.Color.secondary)
                     }
                 }
             }
@@ -125,9 +125,9 @@ struct AppSettingsView: View {
                 }
             } label: {
                 Label(isSaving ? "Sparar" : "Spara", systemImage: "checkmark.circle.fill")
-                    .font(DS.Font.callout)
                     .frame(maxWidth: .infinity)
             }
+            .buttonStyle(DS.PrimaryButtonStyle())
             .disabled(isSaving)
         }
     }
@@ -154,7 +154,7 @@ struct AppSettingsView: View {
             } else if let gridTariffSummary {
                 Label(gridTariffSummary, systemImage: "checkmark.circle.fill")
                     .font(DS.Font.micro)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DS.Color.secondary)
             }
         } header: {
             Text("Elnät")
@@ -177,7 +177,7 @@ struct AppSettingsView: View {
                 .frame(maxWidth: 110)
             Text(unit)
                 .font(DS.Font.micro)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DS.Color.secondary)
                 .frame(width: 56, alignment: .leading)
         }
     }

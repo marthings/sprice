@@ -31,7 +31,7 @@ struct RetailContractSection: View {
             if settings.costProfile.hasCustomRetailContract {
                 Text("Anpassat")
                     .font(DS.Font.regular(9))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DS.Color.secondary)
             }
         }
     }
@@ -54,7 +54,7 @@ struct RetailContractSection: View {
 
             Text(activeContractDescription)
                 .font(DS.Font.regular(11))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DS.Color.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -107,7 +107,7 @@ struct RetailContractSection: View {
     private var helperText: some View {
         Text("Förbrukningsdata hämtas från datakällan, men elhandelskostnaden kommer från dina egna avtalsvärden.")
             .font(DS.Font.regular(11))
-            .foregroundStyle(.secondary)
+            .foregroundStyle(DS.Color.secondary)
     }
 
     private var activeContractTitle: String {
@@ -141,7 +141,7 @@ struct RetailContractSection: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
                 .font(DS.Font.regular(11))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DS.Color.secondary)
 
             TextField(placeholder, value: value, format: .number)
                 .textFieldStyle(.roundedBorder)

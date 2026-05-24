@@ -28,15 +28,30 @@ struct SpotPriceChartView: View {
                         .bold()
 
                     let prices = payload.day.buckets.map { $0.orePerKWh }
-                    let minPrice = (prices.min() ?? 0) * 0.95
-                    let maxPrice = (prices.max() ?? 0) * 1.05
+                    let rawMinPrice = prices.min() ?? 0
+                    let rawMaxPrice = prices.max() ?? 0
+                    let minPrice = rawMinPrice * 0.95
+                    let maxPrice = rawMaxPrice * 1.05
 
                     Chart {
                         ForEach(payload.day.buckets) { bucket in
+                            AreaMark(
+                                x: .value("Hour", bucket.start),
+                                yStart: .value("Baslinje", minPrice),
+                                yEnd: .value("öre/kWh", bucket.orePerKWh)
+                            )
+                            .foregroundStyle(areaGradient(for: payload.day.buckets, min: rawMinPrice, max: rawMaxPrice))
+                        }
+
+                        ForEach(payload.day.buckets) { bucket in
                             LineMark(
                                 x: .value("Hour", bucket.start),
-                                y: .value("öre/kWh", bucket.orePerKWh)
+                                y: .value("öre/kWh", bucket.orePerKWh),
+                                series: .value("Price", "Market")
                             )
+                            .foregroundStyle(lineGradient(for: payload.day.buckets, min: rawMinPrice, max: rawMaxPrice))
+                            .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                            .interpolationMethod(.catmullRom)
                         }
                     }
                     .chartXAxis {
@@ -59,6 +74,26 @@ struct SpotPriceChartView: View {
                 await viewModel.load()
             }
         }
+    }
+
+    private func areaGradient(for buckets: [PriceBucket], min: Double, max: Double) -> LinearGradient {
+        LinearGradient(
+            colors: buckets.map { priceColor(for: $0.orePerKWh, min: min, max: max).opacity(0.26) },
+            startPoint: .leading,
+            endPoint: .trailing
+        )
+    }
+
+    private func lineGradient(for buckets: [PriceBucket], min: Double, max: Double) -> LinearGradient {
+        LinearGradient(
+            colors: buckets.map { priceColor(for: $0.orePerKWh, min: min, max: max) },
+            startPoint: .leading,
+            endPoint: .trailing
+        )
+    }
+
+    private func priceColor(for price: Double, min: Double, max: Double) -> Color {
+        DS.Color.forPrice(price, min: min, max: max)
     }
 }
 

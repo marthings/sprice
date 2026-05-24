@@ -32,7 +32,7 @@ struct CostExamplesSection: View {
             if profile.gridMonthlyFee != nil || profile.gridTransferOrePerKWh != nil {
                 Label("Elnätskostnaden baseras på dina elnätsuppgifter och kan avvika från fakturan.", systemImage: "info.circle.fill")
                     .font(DS.Font.micro)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DS.Color.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -48,16 +48,16 @@ struct CostExamplesSection: View {
                 Spacer()
                 Text(totalCostService.calculatePricePerKWh(spotPriceOre: currentPrice, profile: profile), format: .number.precision(.fractionLength(2)))
                     .font(DS.Font.semibold(13).monospacedDigit())
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DS.Color.secondary)
                 Text("kr/kWh")
                     .font(DS.Font.micro)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DS.Color.secondary)
             }
 
             if let basisText = profile.retailContractCostBasisText {
                 Label(basisText, systemImage: "info.circle.fill")
                     .font(DS.Font.micro)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DS.Color.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -140,7 +140,7 @@ private struct CostExampleCard: View {
                         .lineLimit(2)
                     Text(example.subtitle)
                         .font(DS.Font.micro)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DS.Color.secondary)
                 }
 
                 Spacer(minLength: 0)
@@ -154,7 +154,7 @@ private struct CostExampleCard: View {
                     .minimumScaleFactor(0.78)
                 Text("kr")
                     .font(DS.Font.micro)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DS.Color.secondary)
             }
 
             Divider()
@@ -173,12 +173,12 @@ private struct CostExampleCard: View {
         HStack(spacing: DS.Spacing.xs) {
             Text(title)
                 .font(DS.Font.micro)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DS.Color.secondary)
                 .lineLimit(1)
             Spacer(minLength: DS.Spacing.xs)
             Text(value, format: .number.precision(.fractionLength(2)))
                 .font(DS.Font.micro.monospacedDigit())
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DS.Color.secondary)
                 .lineLimit(1)
         }
     }

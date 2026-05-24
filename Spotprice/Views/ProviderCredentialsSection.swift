@@ -90,7 +90,7 @@ private struct ProviderHelpSection: View {
                 .font(DS.Font.micro)
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DS.Color.secondary)
 
             if let url = portalURL {
                 Link(destination: url) {

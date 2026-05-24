@@ -50,7 +50,8 @@ enum DS {
         static let warning = SwiftUI.Color("WarningColor")
         static let danger = SwiftUI.Color("DangerColor")
 
-        static let outline = SwiftUI.Color.secondary
+        static let secondary = SwiftUI.Color.primary.opacity(0.72)
+        static let outline = SwiftUI.Color.primary.opacity(0.28)
 
         static func forCategory(_ category: PriceCategory) -> SwiftUI.Color {
             switch category {
@@ -147,6 +148,23 @@ enum DS {
         static let closeButtonSize: CGFloat = 32
         static let closeButtonIconSize: CGFloat = 11
     }
+
+    struct PrimaryButtonStyle: ButtonStyle {
+        @Environment(\.isEnabled) private var isEnabled
+
+        func makeBody(configuration: Configuration) -> some View {
+            configuration.label
+                .font(Font.callout)
+                .foregroundStyle(.white)
+                .padding(.horizontal, Spacing.md)
+                .padding(.vertical, Spacing.sm)
+                .background(
+                    Color.brand.opacity(isEnabled ? 1 : 0.45),
+                    in: .rect(cornerRadius: Radius.md)
+                )
+                .opacity(configuration.isPressed ? 0.82 : 1)
+        }
+    }
 }
 
 // MARK: - Reusable Price Components
@@ -185,7 +203,7 @@ struct PriceDisplay: View {
                 .foregroundStyle(useSemanticColor ? DS.Color.forCategory(category) : .primary)
             Text("öre")
                 .font(size.unitFont)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DS.Color.secondary)
         }
     }
 }
@@ -285,7 +303,7 @@ struct TrendIndicator: View {
     private var color: Color {
         if change > 0 { return DS.Color.danger }
         if change < 0 { return DS.Color.success }
-        return .secondary
+        return DS.Color.secondary
     }
 
     private var accessibilityLabel: String {

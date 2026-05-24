@@ -49,22 +49,22 @@ struct SpotPriceBarChart: View {
                                 .foregroundStyle(value.color)
                             Text(value.unit)
                                 .font(DS.Font.medium(11))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(DS.Color.secondary)
                             if let label = costProfile.confidence.menuBarLabel {
                                 Text(label)
                                     .font(DS.Font.micro)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(DS.Color.secondary)
                             }
                         }
 
                         Text(chartMeaningText)
                             .font(DS.Font.micro)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(DS.Color.secondary)
                     }
                 } else {
                     Text("–")
                         .font(DS.Font.bold(20))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DS.Color.secondary)
                 }
             }
 
@@ -73,11 +73,10 @@ struct SpotPriceBarChart: View {
             VStack(alignment: .trailing, spacing: DS.Spacing.xxs) {
                 Text("Nästa kvart")
                     .font(DS.Font.micro)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DS.Color.secondary)
 
                 if let next = nextPrice, let current = currentPrice {
                     let nextValue = nextQuarterValue(for: next)
-                    let currentValue = currentQuarterValue(for: current)
                     
                     HStack(spacing: DS.Spacing.xs) {
                         TrendIndicator(current: current, next: next)
@@ -86,7 +85,7 @@ struct SpotPriceBarChart: View {
                             .foregroundStyle(nextValue.color)
                         Text(nextValue.unit)
                             .font(DS.Font.micro)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(DS.Color.secondary)
                     }
                 } else if let next = nextPrice {
                     let nextValue = nextQuarterValue(for: next)
@@ -97,12 +96,12 @@ struct SpotPriceBarChart: View {
                             .foregroundStyle(nextValue.color)
                         Text(nextValue.unit)
                             .font(DS.Font.micro)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(DS.Color.secondary)
                     }
                 } else {
                     Text("–")
                         .font(DS.Font.semibold(12))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DS.Color.secondary)
                 }
             }
         }
@@ -197,12 +196,12 @@ struct SpotPriceBarChart: View {
                     AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
                         .foregroundStyle(.tertiary)
                     AxisTick(stroke: StrokeStyle(lineWidth: 0.5))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DS.Color.secondary)
                     if let date = value.as(Date.self) {
                         AxisValueLabel {
                             Text(date.formatted(.dateTime.hour()))
                                 .font(DS.Font.micro)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(DS.Color.secondary)
                         }
                     }
                 }
@@ -214,12 +213,12 @@ struct SpotPriceBarChart: View {
                     AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
                         .foregroundStyle(.tertiary)
                     AxisTick(stroke: StrokeStyle(lineWidth: 0.5))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DS.Color.secondary)
                     AxisValueLabel {
                         if let price = value.as(Double.self) {
                             Text("\(Int(price.rounded()))")
                                 .font(DS.Font.micro)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(DS.Color.secondary)
                         }
                     }
                 }
@@ -242,14 +241,11 @@ struct SpotPriceBarChart: View {
     // MARK: - Gradients
 
     private var areaGradient: LinearGradient {
-        LinearGradient(
-            colors: [
-                DS.Color.warning.opacity(0.3),
-                DS.Color.warning.opacity(0.1),
-                .clear
-            ],
-            startPoint: .top,
-            endPoint: .bottom
+        let colors = dayData.buckets.map { priceColor(for: $0.orePerKWh).opacity(0.26) }
+        return LinearGradient(
+            colors: colors,
+            startPoint: .leading,
+            endPoint: .trailing
         )
     }
 

@@ -41,7 +41,7 @@ extension SpotPriceViewModel.State {
                 return DS.Color.forPrice(bucket.orePerKWh, min: payload.day.minOre, max: payload.day.maxOre)
             }
         }
-        return .secondary
+        return DS.Color.secondary
     }
 
     var currentCategory: PriceCategory? {

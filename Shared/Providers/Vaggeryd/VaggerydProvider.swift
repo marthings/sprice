@@ -115,7 +115,9 @@ struct VaggerydProvider: ElectricityProvider, QuarterlyConsumptionProvider {
 
             let currentMonthValue = findValue(for: year, targetMonth: month)
             let totalKWh = currentMonthValue?.consumption ?? 0
-            let monthDate = calendar.date(from: DateComponents(year: year, month: month, day: 1))!
+            guard let monthDate = calendar.date(from: DateComponents(year: year, month: month, day: 1)) else {
+                throw ProviderError.invalidResponse
+            }
 
             return ConsumptionData(
                 totalKWh: totalKWh,

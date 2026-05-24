@@ -39,7 +39,7 @@ struct TibberProvider: ElectricityProvider, PriceInfoProvider {
 
     private let credentials: ProviderCredentials
     private let session: URLSession
-    private let graphQLEndpoint = URL(string: "https://api.tibber.com/v1-beta/gql")!
+    private let graphQLEndpointString = "https://api.tibber.com/v1-beta/gql"
 
     private var accessToken: String { credentials["accessToken"] }
 
@@ -182,7 +182,9 @@ struct TibberProvider: ElectricityProvider, PriceInfoProvider {
         let homeId = try await getFirstHomeId()
         let calendar = Calendar.current
         let now = Date()
-        let targetDate = calendar.date(from: DateComponents(year: year, month: month, day: 1))!
+        guard let targetDate = calendar.date(from: DateComponents(year: year, month: month, day: 1)) else {
+            throw ProviderError.invalidResponse
+        }
         let monthDate = targetDate
 
         // Check if this is the current month (not yet closed)
@@ -308,7 +310,9 @@ struct TibberProvider: ElectricityProvider, PriceInfoProvider {
         let calendar = Calendar.current
 
         // Calculate days in month and how far back
-        let targetDate = calendar.date(from: DateComponents(year: year, month: month, day: 1))!
+        guard let targetDate = calendar.date(from: DateComponents(year: year, month: month, day: 1)) else {
+            throw ProviderError.invalidResponse
+        }
         let now = Date()
         let daysBack = calendar.dateComponents([.day], from: targetDate, to: now).day ?? 0
 
@@ -414,6 +418,9 @@ struct TibberProvider: ElectricityProvider, PriceInfoProvider {
     }
 
     private func executeQuery<T: Decodable>(_ query: String) async throws -> T {
+        guard let graphQLEndpoint = URL(string: graphQLEndpointString) else {
+            throw ProviderError.invalidURL
+        }
         var request = URLRequest(url: graphQLEndpoint)
         request.httpMethod = "POST"
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")

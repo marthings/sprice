@@ -50,14 +50,14 @@ struct SettingsView: View {
                                     .foregroundStyle(DS.Color.warning)
                             } else {
                                 Label("Förbrukningsdata ej kopplad", systemImage: "bolt.horizontal.circle")
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(DS.Color.secondary)
                             }
                         case .testing:
                             HStack(spacing: 4) {
                                 ProgressView().scaleEffect(0.7)
                                 Text("Testar...")
                             }
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(DS.Color.secondary)
                         case .connected:
                             Label("Kopplad!", systemImage: "checkmark.circle.fill")
                                 .foregroundStyle(DS.Color.success)
@@ -141,7 +141,7 @@ struct SettingsView: View {
 
             Text("Välj ditt elområde i Sverige. Detta räcker för att visa en första kostnadsuppskattning.")
                 .font(DS.Font.micro)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DS.Color.secondary)
         }
     }
 
@@ -157,7 +157,7 @@ struct SettingsView: View {
                 if let label = settings.costProfile.confidence.menuBarLabel {
                     Text(label)
                         .font(DS.Font.micro)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DS.Color.secondary)
                         .padding(.horizontal, DS.Spacing.sm)
                         .padding(.vertical, DS.Spacing.xs)
                         .background(.quaternary.opacity(0.6), in: .capsule)
@@ -170,7 +170,7 @@ struct SettingsView: View {
 
             Text("Sprice visar ett pris baserat på tillgängliga uppgifter. Elnätskostnad ingår först när du lägger till dina elnätsuppgifter.")
                 .font(DS.Font.regular(11))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DS.Color.secondary)
         }
     }
 
@@ -186,7 +186,7 @@ struct SettingsView: View {
                         .scaleEffect(0.8)
                     Text("Laddar nätägare...")
                         .font(DS.Font.regular(11))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DS.Color.secondary)
                 }
             } else if let error = dsoLoadError {
                 Text(error)
@@ -224,7 +224,7 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Fast elnätsavgift (kr/mån)")
                         .font(DS.Font.regular(11))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DS.Color.secondary)
 
                     TextField("0", value: gridMonthlyFeeBinding, format: .number)
                         .textFieldStyle(.roundedBorder)
@@ -234,7 +234,7 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Överföringsavgift (öre/kWh)")
                         .font(DS.Font.regular(11))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DS.Color.secondary)
 
                     TextField("0", value: gridTransferFeeBinding, format: .number)
                         .textFieldStyle(.roundedBorder)
@@ -245,12 +245,12 @@ struct SettingsView: View {
                    let selectedDSO = availableDSOs.first(where: { $0.id == settings.selectedDSOOrgNo }) {
                     Text(gridCostSourceText(for: selectedDSO.name))
                         .font(DS.Font.regular(11))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DS.Color.secondary)
 
                     if let tariffFreshnessText {
                         Text(tariffFreshnessText)
                             .font(DS.Font.micro)
-                            .foregroundStyle(settings.costProfile.isTariffExpired ? DS.Color.warning : .secondary)
+                            .foregroundStyle(settings.costProfile.isTariffExpired ? DS.Color.warning : DS.Color.secondary)
                     }
 
                     if settings.costProfile.hasUserEnteredGridCosts {
@@ -266,7 +266,7 @@ struct SettingsView: View {
                 } else {
                     Text("Elnätskostnad ingår först när du väljer nätägare eller anger nätavgifter.")
                         .font(DS.Font.regular(11))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DS.Color.secondary)
                 }
             }
         }
@@ -299,7 +299,7 @@ struct SettingsView: View {
 
             Text("Detta är valfritt. Koppla en datakälla för månadstatistik, dygnsförbrukning och mer precisa insikter.")
                 .font(DS.Font.regular(11))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DS.Color.secondary)
         }
     }
 
@@ -319,7 +319,7 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Effektavgift (kr/kW/mån)")
                         .font(DS.Font.regular(11))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DS.Color.secondary)
 
                     TextField("0", value: effectTariffPriceBinding, format: .number)
                         .textFieldStyle(.roundedBorder)
@@ -329,11 +329,11 @@ struct SettingsView: View {
 
             Text("Effektavgift används bara om ditt elnätsbolag har det.")
                 .font(DS.Font.regular(11))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DS.Color.secondary)
 
             Text(taxInfoText)
                 .font(DS.Font.regular(11))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DS.Color.secondary)
         }
     }
 
@@ -367,7 +367,7 @@ struct SettingsView: View {
             Spacer()
             Text(value)
                 .font(DS.Font.regular(11))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DS.Color.secondary)
         }
     }
 

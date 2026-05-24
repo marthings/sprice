@@ -36,7 +36,7 @@ struct TopConsumptionDaysCard: View {
                     if let avg = averageKW {
                         Text("Snitt: \(avg.formatted(.number.precision(.fractionLength(1)))) kW")
                             .font(DS.Font.micro)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(DS.Color.secondary)
                     }
                 }
             }
@@ -61,7 +61,7 @@ struct TopConsumptionDaysCard: View {
                             AxisValueLabel {
                                 Text(label)
                                     .font(DS.Font.micro)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(DS.Color.secondary)
                             }
                         }
                     }
@@ -75,7 +75,7 @@ struct TopConsumptionDaysCard: View {
                     VStack(spacing: DS.Spacing.xs) {
                         Text("Väntar på data")
                             .font(DS.Font.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(DS.Color.secondary)
                     }
                     Spacer()
                 }
