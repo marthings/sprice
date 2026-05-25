@@ -42,17 +42,8 @@ struct CostExamplesSection: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("Kostnad med detta pris")
-                    .font(DS.Font.headline)
-                Spacer()
-                Text(totalCostService.calculatePricePerKWh(spotPriceOre: currentPrice, profile: profile), format: .number.precision(.fractionLength(2)))
-                    .font(DS.Font.semibold(13).monospacedDigit())
-                    .foregroundStyle(DS.Color.secondary)
-                Text("kr/kWh")
-                    .font(DS.Font.micro)
-                    .foregroundStyle(DS.Color.secondary)
-            }
+            Text("Exempel med detta pris")
+                .font(DS.Font.headline)
 
             if let basisText = profile.retailContractCostBasisText {
                 Label(basisText, systemImage: "info.circle.fill")
