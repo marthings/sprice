@@ -6,16 +6,17 @@ struct DashboardHeader: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
-            Text(title)
-                .font(DS.Font.bold(40))
-                .foregroundStyle(.primary)
-
             Text(settingsSummary)
                 .font(DS.Font.callout)
                 .foregroundStyle(DS.Color.secondary)
                 .lineLimit(2)
+            Text(title)
+                .font(DS.Font.bold(40))
+                .foregroundStyle(.primary)
+                .padding(.bottom, 16)
+
         }
-        .padding(.top, DS.Spacing.sm)
+        .padding(.top, 72)
     }
 }
 

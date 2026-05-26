@@ -36,8 +36,7 @@ struct CostExamplesSection: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(DS.Spacing.lg)
-        .iosGlassCard(cornerRadius: DS.Radius.lg)
+        
     }
 
     private var header: some View {
@@ -157,7 +156,8 @@ private struct CostExampleCard: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, DS.Spacing.sm)
+        .padding(DS.Spacing.lg)
+        .iosGlassCard(cornerRadius: DS.Radius.lg)
     }
 
     private func breakdownRow(_ title: String, _ value: Double) -> some View {

@@ -50,11 +50,6 @@ struct SpotPriceBarChart: View {
                             Text(value.unit)
                                 .font(DS.Font.medium(11))
                                 .foregroundStyle(DS.Color.secondary)
-                            if let label = costProfile.confidence.menuBarLabel {
-                                Text(label)
-                                    .font(DS.Font.micro)
-                                    .foregroundStyle(DS.Color.secondary)
-                            }
                         }
 
                         Text(chartMeaningText)
@@ -159,7 +154,7 @@ struct SpotPriceBarChart: View {
                     .foregroundStyle(.blue.opacity(0.7))
                     .lineStyle(StrokeStyle(lineWidth: 2, dash: [6, 4]))
                     .annotation(position: .top, alignment: .trailing) {
-                        Text("Ditt avtal: \(Int(contractPrice.rounded())) öre/kWh")
+                        Text("Ditt avtal: \((contractPrice / 100).formatted(.number.precision(.fractionLength(2)))) kr/kWh")
                             .font(DS.Font.micro)
                             .foregroundStyle(.blue)
                             .padding(.horizontal, DS.Spacing.xs)
@@ -216,7 +211,7 @@ struct SpotPriceBarChart: View {
                         .foregroundStyle(DS.Color.secondary)
                     AxisValueLabel {
                         if let price = value.as(Double.self) {
-                            Text("\(Int(price.rounded()))")
+                            Text((price / 100), format: .number.precision(.fractionLength(2)))
                                 .font(DS.Font.micro)
                                 .foregroundStyle(DS.Color.secondary)
                         }
@@ -296,7 +291,7 @@ struct SpotPriceBarChart: View {
             let totalCost = totalCostService.calculatePricePerKWh(spotPriceOre: marketPriceOre, profile: costProfile)
             return (totalCost, "kr/kWh", totalCostColor(for: totalCost * 100))
         }
-        return (marketPriceOre, "öre/kWh", priceColor(for: marketPriceOre))
+        return (marketPriceOre / 100, "kr/kWh", priceColor(for: marketPriceOre))
     }
     
     private func nextQuarterValue(for marketPriceOre: Double) -> (amount: Double, unit: String, color: Color, decimals: Int) {
@@ -304,7 +299,7 @@ struct SpotPriceBarChart: View {
             let totalCost = totalCostService.calculatePricePerKWh(spotPriceOre: marketPriceOre, profile: costProfile)
             return (totalCost, "kr", totalCostColor(for: totalCost * 100), 2)
         }
-        return (marketPriceOre, "öre", priceColor(for: marketPriceOre), 0)
+        return (marketPriceOre / 100, "kr", priceColor(for: marketPriceOre), 2)
     }
     
     private func currentQuarterValue(for marketPriceOre: Double) -> (amount: Double, unit: String, color: Color, decimals: Int) {

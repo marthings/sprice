@@ -1,254 +1,139 @@
 # Spotprice
 
-En modern macOS-menyapplikation för att följa spotpriset på el i realtid och förstå din elförbrukning.
+Spotprice är en SwiftUI-app för svenska elpriser och elkostnader. Projektet innehåller en macOS-app för menyraden, en iOS-app och en WidgetKit-widget som delar samma pris-, förbruknings- och kostnadslogik.
+
+Målet är att visa mer än bara spotpriset: appen kombinerar marknadens kvartspris med användarens elavtal, skatter, avgifter och valfria elnätsuppgifter för att ge en mer realistisk kostnadsbild.
 
 ![macOS](https://img.shields.io/badge/macOS-15.0+-blue)
+![iOS](https://img.shields.io/badge/iOS-app-blue)
 ![Swift](https://img.shields.io/badge/Swift-6.0-orange)
-![SwiftUI](https://img.shields.io/badge/SwiftUI-✓-green)
+![SwiftUI](https://img.shields.io/badge/SwiftUI-green)
 
-## Översikt
+## Nuvarande Funktionalitet
 
-Spotprice är en elegant macOS-applikation som bor i menyraden och ger dig snabb tillgång till aktuella elpriser, din förbrukning och kostnader. Appen är byggd för användare som vill ha koll på sina elkostnader utan att behöva logga in på olika webbportaler.
+### Prisdata
 
-### Huvudfunktioner
+- Hämtar spotpriser från `elprisetjustnu.se`.
+- Stödjer elområdena `SE1`, `SE2`, `SE3` och `SE4`.
+- Hanterar kvartsprisdata och uppdaterar på 15-minutersintervall.
+- Bygger dagsdata för diagram med låg, medel och hög prisnivå.
 
-**Realtidspriser**
-- Visar aktuellt elpris direkt i menyraden (öre/kWh)
-- Automatisk uppdatering var 15:e minut
-- Visuell graf över dagens priser med färgkodning (låg, medel, hög)
-- Stöd för alla svenska elområden (SE1-SE4)
+### Kostnadsmodell
 
-**Förbrukningsanalys**
-- Månatlig förbrukningsstatistik
-- Daglig förbrukningshistorik
-- Identifiering av effekttoppar för att optimera förbrukningen
-- Kostnadsberäkningar baserat på faktisk förbrukning, spotpris och uppskattade avgifter
+Kostnadsberäkningen utgår från `CostProfile`, som samlar de inställningar som påverkar användarens pris:
 
-**Nätavgifter**
-- Integration med svenska elnätsföretag
-- Uppskattade nättariffer och standardvärden
-- Beräkning av uppskattad total kostnad inklusive nätavgift
+- Elområde.
+- Avtalstyp:
+  - `Kvartspris`
+  - `Rörligt månadspris`
+  - `Fast pris`
+- Elhandlarens påslag och månadsavgift.
+- Avtalat pris för fast eller rörligt månadspris.
+- Valfri elnätsleverantör, säkringsstorlek, fast nätavgift och överföringsavgift.
+- Energiskatt, elcertifikatsavgift, moms och valfri effekttariff.
+- Källa och precision för kostnaden: uppskattad, användarinmatad, importerad eller provider-baserad.
 
-**Flera elleverantörer**
-- Stöd för **Tibber** (via GraphQL API)
-- Stöd för **Vaggeryd Energi**
-- Utbyggbar arkitektur för fler leverantörer
+Appen kan visa en uppskattad kostnad utan provider-anslutning. Elnätskostnader ingår först när användaren väljer nätbolag eller när tariffdata finns tillgänglig.
 
-### Perfekt för
+### Förbrukningsdata
 
-- Husägare med rörligt elpris som vill optimera sin förbrukning
-- Tibber-kunder som vill ha snabb åtkomst till sina data
-- Den som vill förstå sina elkostnader bättre
-- Användare som uppskattar minimalistiska, snygga appar
+Provider-systemet är byggt för flera datakällor. Inbyggda providers idag:
 
----
+- Tibber.
+- Vaggeryds Energi.
 
-## Teknisk beskrivning
+Providers kan hämta månadsförbrukning, dagsförbrukning, timvärden och i vissa fall kvartsvärden. Förbrukningsdata används för månadsstatistik, effekttoppar och mer precis månadskostnad när tillräcklig data finns.
 
-Spotprice är byggd med modern Swift och SwiftUI för macOS 15.0+. Projektet följer best practices för app-utveckling med tydlig separation av ansvar och en modulär arkitektur.
+### macOS-App
 
-### Arkitektur
+`Spotprice` är macOS-appen i menyraden.
 
-#### Core Components
+Den innehåller:
 
-**App Structure**
-- `SpotpriceApp` - Huvudapplikationen med MenuBarExtra för menyintegration
-- `AppDelegate` - Hanterar app lifecycle och systemhändelser
-- Widget Extension - iOS/macOS widget-stöd via WidgetKit
+- Menyradslabel med aktuellt pris/kostnad.
+- Dashboardvy i menyn.
+- Diagram för dagens priser.
+- Detaljerad callout med pris- och kostnadskomponenter.
+- Snabbstatistik för dagens prisspann.
+- Kostnadsexempel för vanliga aktiviteter.
+- Månadsförbrukning, månadskostnad och effekttoppar när förbrukningsdata finns.
+- Inställningar för elområde, elavtal, elnät och förbrukningsprovider.
 
-**MVVM Pattern**
-Projektet använder Model-View-ViewModel mönstret:
+### iOS-App
 
-- **ViewModels**
-  - `SpotPriceViewModel` - Huvudviewmodel med `@Observable` för automatisk UI-uppdatering
-  - Periodisk auto-refresh var 15:e minut via structured concurrency
+`SpotpriceApp` startar i `DashboardView` och har tre flikar:
 
-- **Services** (Business Logic Layer)
-  - `SpotPriceService` - Hämtar spotpriser från elprisetjustnu.se API
-  - `ConsumptionService` - Beräknar förbrukning, effekttoppar och kostnader
-  - `GridTariffService` - Hanterar uppskattade nättariffer och standardvärden
+- `Kostnad`: aktuell kostnad och kostnadsexempel.
+- `Dagens elpris`: dagsdiagram, prisstatistik och marknadsjämförelse.
+- `Förbrukning`: månadsförbrukning, effekttoppar och månadskostnad när provider-data är konfigurerad.
 
-- **Provider System** (Plugin Architecture)
-  ```
-  Protocol: ElectricityProvider
-  ├── TibberProvider (GraphQL API)
-  └── VaggerydProvider (REST API)
+iOS-appen har en egen settingsvy för:
 
-  ProviderRegistry - Dynamic provider registration
-  ProviderCredentials - Secure credential storage
-  ```
+- Förbrukningsprovider.
+- Elområde.
+- Elhandelsavtal.
+- Elnätsbolag och säkringsstorlek.
 
-#### Data Flow
+### Widget
 
-```
-User Action → ViewModel → Service → Provider/API
-                ↓           ↓
-              State      Transform
-                ↓           ↓
-           SwiftUI ← Formatted Data
-```
+`SpotpriceWidget` är en WidgetKit-extension som idag stödjer `.systemSmall`.
 
-1. **Data Fetching**: ViewModels använder `async/await` för att hämta data från services
-2. **State Management**: `@Observable` macro för reaktiv UI med minimal boilerplate
-3. **Periodic Refresh**: Structured concurrency task som körs kontinuerligt
-4. **Settings Sync**: NotificationCenter och async/await för data loading när inställningar ändras
+Widgeten visar:
 
-#### Nyckelteknologier
+- Aktuell uppskattad totalkostnad i kr/kWh när den kan beräknas.
+- Fallback till spotpris i öre/kWh.
+- Mini-diagram för dagen.
+- Månadsförbrukning och uppskattad månadskostnad när cachad förbrukning finns.
 
-**Swift Concurrency**
-- Modern `async/await` för asynkron kod
-- `Task` för periodisk uppdatering och cancellation
-- `MainActor` isolation för UI-säkerhet
-- `Sendable` conformance för thread-safe services
+Widgeten läser delade inställningar och cachad förbrukning via App Group `group.mb.Spotprice`. Den hämtar inte provider-credentials direkt.
 
-**SwiftUI & Observation**
-- `@Observable` macro (Swift 5.9+) istället för legacy `@Published`
-- Custom charts med SwiftUI Charts
-- Liquid Glass design system för modern UI
-- Adaptiv layout för olika skärmstorlekar
+## Projektstruktur
 
-**Networking**
-- `URLSession` med custom `NetworkSession`
-- GraphQL för Tibber API
-- REST för Vaggeryd och Spotprice APIs
-- Robust error handling med `DisplayableError` protocol
+- `Shared/Models`: modeller för spotpris, förbrukning, tariff och kostnadsprofil.
+- `Shared/Services`: nätverk, spotpriser, förbrukning, elnätstariffer och total kostnadsberäkning.
+- `Shared/ViewModels`: `SpotPriceViewModel` och gemensam laddningslogik.
+- `Shared/Providers`: provider-protokoll, registry, credentials och inbyggda providers.
+- `Shared/Components`: SwiftUI-komponenter som kan delas mellan targets.
+- `Shared/DesignSystem`: färger, typografi, spacing och återanvändbara styles.
+- `Spotprice`: macOS-menyradsappen.
+- `SpotpriceApp`: iOS-appen.
+- `SpotpriceWidget`: WidgetKit-widgeten.
+- `Docs`: produkt- och implementationsplaner.
 
-**Persistence**
-- `UserDefaults` med App Group för widget-delning
-- `ConsumptionSettings` singleton med multi-provider credential storage
-- JSON encoding/decoding för komplex data
-- Automatisk migrering från legacy settings
+## Teknik
 
-#### Design Patterns
+- Swift 6.
+- SwiftUI.
+- Observation med `@Observable`.
+- Swift Concurrency med `async`/`await`.
+- WidgetKit.
+- App Group-delning via `UserDefaults(suiteName:)`.
+- URLSession-baserade services med injicerbar session.
 
-**Protocol-Oriented Design**
-```swift
-protocol ElectricityProvider {
-    static var identifier: String { get }
-    static var displayName: String { get }
-    static var credentialFields: [CredentialField] { get }
+## Dokumentation
 
-    func testConnection() async throws
-    func fetchConsumption(year: Int, month: Int) async throws -> ConsumptionData
-    func fetchDailyConsumption(year: Int, month: Int) async throws -> [DailyConsumption]
-    func fetchHourlyConsumption(startDate: Date, endDate: Date) async throws -> [HourlyConsumption]
-}
-```
+Dokumenten i `Docs` och `Shared/Docs` är inte alla aktuella produktbeskrivningar. De ska läsas som planerings- och sprintmaterial:
 
-**Dependency Injection**
-Services accepterar dependencies via init för enkel testning:
-```swift
-init(
-    service: SpotPriceService? = nil,
-    consumptionService: ConsumptionService? = nil,
-    now: @escaping () -> Date = { Date() }
-)
-```
+- `Docs/business-case.md`: affärs- och produktcase för den bredare riktningen.
+- `Docs/ios-app-menubar-parity-plan.md`: historisk plan för att bygga iOS-paritet med menyradsappen. Flera delar är redan implementerade.
+- `Docs/ios-widget-plan.md`: plan för en separat iOS-widgetextension. Den är inte implementerad ännu.
+- `Shared/Docs/tariffs-and-costs-sprint.md`: sprintlogg för kostnadsprofil, tariff, avtalstyper, widget och copy. Den innehåller både klara punkter och kvarvarande verifiering.
 
-**Error Handling**
-Custom `DisplayableError` för användarvänliga felmeddelanden:
-```swift
-struct DisplayableError: Error {
-    let message: String
-}
-```
+## Kända Gap
 
-#### Datamodeller
+- Det finns ingen separat iOS-widgetextension ännu.
+- `SpotpriceApp` har ingen egen entitlement-fil i nuvarande projektstruktur.
+- Projektet saknar test target och automatiserade tester.
+- En del debug-loggning finns kvar i pris-, förbruknings-, menyrads- och widgetflöden.
+- `GridTariffService` använder lokala tariffpresets som standard. Stöd för fjärr-API finns förberett men är inte aktivt.
 
-**Core Models**
-- `SpotPriceItem` - Rådata från API (timeStart, timeEnd, sekPerKWh)
-- `DayChartData` - Chart-optimerad data med buckets och thresholds
-- `ConsumptionData` - Månadsdata med kWh och kostnad
-- `DailyConsumption` / `HourlyConsumption` - Granulär förbrukningsdata
-- `GridTariffModels` - Nättariffer med effekt- och energitariffer
+## Utveckling
 
-**Chart Data**
-Tertile-baserad färgkategorisering för intuitiv prisvisualisering:
-```swift
-struct PriceBucket {
-    let start: Date
-    let end: Date
-    let orePerKWh: Double
-    let category: PriceCategory  // .low, .medium, .high
-}
-```
+1. Öppna `Spotprice.xcodeproj` i Xcode.
+2. Välj relevant scheme för macOS-app, iOS-app eller widget.
+3. Bygg med `Cmd+B` eller kör med `Cmd+R`.
+4. Validera både app och widget när ändringar påverkar `Shared`, `ConsumptionSettings`, `CostProfile`, `TotalCostService` eller widgetens dataväg.
 
-#### Views & Components
+## Status
 
-**Reusable Components**
-- `StatCardView` - Återanvändbar kort-komponent
-- `PriceChangeIndicator` - Visuell indikator för prisförändringar
-- `SpotPriceBarChart` - Custom bar chart med SwiftUI Charts
-- `ProviderPicker` - Leverantörsväljare med dynamisk provider registry
-
-**Main Views**
-- `ModernMenuBarView` - Huvudvy i menyraden
-- `SettingsView` - Inställningar med provider credentials
-- `CostCalculationSection` - Detaljerad kostnadsuppdelning
-- `MonthlyStatsSection` - Månadsstatistik och toppdagar
-
-#### Configuration & Settings
-
-**ConsumptionSettings**
-- Singleton pattern med `@Observable` för automatisk UI-uppdatering
-- App Group support för widget sharing
-- Multi-provider credential storage
-- Automatic migration från legacy single-provider setup
-- NotificationCenter integration för cross-component updates
-
-**Design System**
-Centraliserad design configuration i `DesignSystem`:
-- Färgpalett (low, medium, high price colors)
-- Typografi (SF Pro, Osans custom fonts)
-- Spacing och corner radius
-- Chart configuration
-
-#### Testing & Quality
-
-**Testability**
-- Protocol-based architecture för enkel mocking
-- Dependency injection för isolerade unit tests
-- Date injection för deterministiska tester
-- Separate `NetworkSession` för mock responses
-
-**Code Quality**
-- Swift 6 strict concurrency checking
-- Sendable conformance för thread safety
-- Private access control för encapsulation
-- Comprehensive error handling
-
-### Framtida utveckling
-
-Möjliga förbättringar:
-- Fler elleverantörer (Vattenfall, E.ON, etc.)
-- Push-notifikationer vid låga priser
-- ML-baserade prisförutsägelser
-- Exportfunktion för data (CSV, PDF)
-- iOS companion app med widget
-- Energispartips baserat på förbrukningsprofil
-
-### Krav
-
-- macOS 15.0 eller senare
-- Xcode 16.0+ för utveckling
-- Swift 6.0
-- API-nyckel från din elleverantör (Tibber eller Vaggeryd)
-
-### Installation för utvecklare
-
-1. Klona repository
-2. Öppna `Spotprice.xcodeproj` i Xcode
-3. Bygg och kör med `Cmd+R`
-4. Konfigurera din elleverantör i Settings
-
-### Licens
-
-[Lägg till licensinformation här]
-
-### Kontakt
-
-[Lägg till kontaktinformation här]
-
----
-
-**Byggd med ❤️ för den svenska elmarknaden**
+README:n beskriver aktuell implementation i projektet. Vision, framtida integrationer och större produktresonemang ligger i dokumenten under `Docs`.

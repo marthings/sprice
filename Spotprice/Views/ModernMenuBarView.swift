@@ -128,7 +128,6 @@ struct ModernMenuBarView: View {
     private var quickStats: some View {
         if case .loaded(let payload) = viewModel.state {
             VStack(spacing: DS.Spacing.md) {
-                confidenceHeader
                 quickStatsCards(for: payload)
                 CostCalculationSection(payload: payload, profile: ConsumptionSettings.shared.costProfile)
             }
@@ -236,31 +235,6 @@ struct ModernMenuBarView: View {
     }
 
     // MARK: - Helpers
-
-    @ViewBuilder
-    private var confidenceHeader: some View {
-        let profile = ConsumptionSettings.shared.costProfile
-        HStack(spacing: DS.Spacing.sm) {
-            if let label = profile.confidence.menuBarLabel {
-                Text(label)
-                    .font(DS.Font.micro)
-                    .foregroundStyle(DS.Color.secondary)
-                    .padding(.horizontal, DS.Spacing.sm)
-                    .padding(.vertical, DS.Spacing.xs)
-                    .background(.quaternary.opacity(0.6), in: .capsule)
-            }
-
-            if profile.confidence == .estimated {
-                Text("Förbättra precisionen: lägg till elhandelsavtal eller elnätsuppgifter.")
-                    .font(DS.Font.micro)
-                    .foregroundStyle(DS.Color.secondary)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer(minLength: 0)
-        }
-    }
 
     private var loadedAveragePrice: Double? {
         guard case .loaded(let payload) = viewModel.state else { return nil }

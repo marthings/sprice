@@ -36,25 +36,20 @@ private struct CurrentCostHero: View {
         VStack(alignment: .leading, spacing: DS.Spacing.lg) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                    Text("Kostnad just nu")
-                        .font(DS.Font.headline)
-                        .foregroundStyle(.primary)
+                    PriceLevelBadge(category: category)
                     HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xs) {
                         Text(totalPrice, format: .number.precision(.fractionLength(2)))
-                            .font(DS.Font.bold(44).monospacedDigit())
+                            .font(DS.Font.bold(64).monospacedDigit())
                             .foregroundStyle(DS.Color.forCategory(category))
                         Text("kr/kWh")
                             .font(DS.Font.callout)
+                            .fontWeight(.bold)
                             .foregroundStyle(DS.Color.secondary)
                     }
                 }
-
-                Spacer()
-
-                PriceLevelBadge(category: category)
             }
 
-            HStack(spacing: DS.Spacing.md) {
+            HStack(spacing: DS.Spacing.lg) {
                 metricInline(title: "Spotpris", value: payload.currentDisplay, unit: "öre")
                 if let trendPrices {
                     HStack(spacing: DS.Spacing.xs) {
@@ -75,11 +70,11 @@ private struct CurrentCostHero: View {
     private func metricInline(title: String, value: String, unit: String) -> some View {
         VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
             Text(title)
-                .font(DS.Font.micro)
+                .font(DS.Font.callout)
                 .foregroundStyle(DS.Color.secondary)
             HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
                 Text(value)
-                    .font(DS.Font.semibold(15).monospacedDigit())
+                    .font(DS.Font.title.monospacedDigit())
                 Text(unit)
                     .font(DS.Font.micro)
                     .foregroundStyle(DS.Color.secondary)

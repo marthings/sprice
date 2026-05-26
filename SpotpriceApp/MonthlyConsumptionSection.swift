@@ -14,9 +14,6 @@ struct MonthlyConsumptionSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            Text("Förbrukning")
-                .font(DS.Font.headline)
-
             content
         }
         .padding(DS.Spacing.lg)
@@ -59,32 +56,22 @@ struct MonthlyConsumptionSection: View {
         let enhancedCost = monthlyCost(for: consumption)
 
         return VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(consumption.monthName.capitalized)
-                    .font(DS.Font.callout)
-                    .foregroundStyle(DS.Color.secondary)
-                Spacer()
-                if let preciseCost {
-                    Text("\(preciseCost.matchedIntervals)/\(preciseCost.totalIntervals) intervall")
-                        .font(DS.Font.micro)
-                        .foregroundStyle(DS.Color.secondary)
-                }
-            }
-
+            Text(consumption.monthName.capitalized)
+                .font(DS.Font.headline)
             HStack(spacing: DS.Spacing.sm) {
                 summaryCard(
                     title: "Förbrukning",
                     value: Int(consumption.totalKWh.rounded()).formatted(),
                     unit: "kWh",
                     icon: "bolt.fill",
-                    color: DS.Color.warning
+                    color: DS.Color.brand
                 )
                 summaryCard(
                     title: preciseCost == nil ? "Uppskattat" : "Kostnad",
                     value: Int(enhancedCost.totalKr.rounded()).formatted(),
                     unit: "kr",
-                    icon: "creditcard.fill",
-                    color: DS.Color.info
+                    icon: "wallet.bifold.fill",
+                    color: DS.Color.brand
                 )
             }
 
@@ -135,7 +122,7 @@ struct MonthlyConsumptionSection: View {
     private func costBreakdown(_ cost: EnhancedCost) -> some View {
         VStack(alignment: .leading, spacing: DS.Spacing.sm) {
             Text("Kostnadsdelar")
-                .font(DS.Font.semibold(13))
+                .font(DS.Font.headline)
 
             VStack(spacing: DS.Spacing.xs) {
                 costRow("Elhandel", cost.providerTotalKr, color: DS.Color.warning)
@@ -175,7 +162,7 @@ struct MonthlyConsumptionSection: View {
     private var powerPeaksSection: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.sm) {
             Text("Effekttoppar")
-                .font(DS.Font.semibold(13))
+                .font(DS.Font.headline)
 
             ForEach(powerPeaks.prefix(3)) { peak in
                 HStack(spacing: DS.Spacing.sm) {

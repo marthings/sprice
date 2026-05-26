@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		202E8C562FC4D8C1003E56F0 /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = 202E8C552FC4D8C1003E56F0 /* README.md */; };
+		202E8C572FC4D8C1003E56F0 /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = 202E8C552FC4D8C1003E56F0 /* README.md */; };
+		202E8C582FC4D8C1003E56F0 /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = 202E8C552FC4D8C1003E56F0 /* README.md */; };
 		206B18FB2F313EBE00E5F9E7 /* spotprice.icon in Resources */ = {isa = PBXBuildFile; fileRef = 206B18FA2F313EBE00E5F9E7 /* spotprice.icon */; };
 		206B18FC2F313EBE00E5F9E7 /* spotprice.icon in Resources */ = {isa = PBXBuildFile; fileRef = 206B18FA2F313EBE00E5F9E7 /* spotprice.icon */; };
 		20861F902F2E0B9A0067EDC1 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 20861F8F2F2E0B9A0067EDC1 /* WidgetKit.framework */; };
@@ -42,6 +45,7 @@
 /* Begin PBXFileReference section */
 		200104F82F26582400B2F176 /* Spotprice.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Spotprice.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		201EA1FD2FBCAC8C0036D7BF /* SpotpriceApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SpotpriceApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		202E8C552FC4D8C1003E56F0 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		206612092F65F19F00102F19 /* business-case.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "business-case.md"; sourceTree = "<group>"; };
 		206B18F82F2FFC2600E5F9E7 /* SpotpriceWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SpotpriceWidgetExtension.entitlements; sourceTree = "<group>"; };
 		206B18FA2F313EBE00E5F9E7 /* spotprice.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = spotprice.icon; sourceTree = "<group>"; };
@@ -379,6 +383,7 @@
 				200104F92F26582400B2F176 /* Products */,
 				206B18FA2F313EBE00E5F9E7 /* spotprice.icon */,
 				206612082F65F04500102F19 /* Docs */,
+				202E8C552FC4D8C1003E56F0 /* README.md */,
 			);
 			sourceTree = "<group>";
 		};
@@ -554,6 +559,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				206B18FB2F313EBE00E5F9E7 /* spotprice.icon in Resources */,
+				202E8C572FC4D8C1003E56F0 /* README.md in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -562,6 +568,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				20928BE72FBCE42D00D1BD9F /* spotprice.icon in Resources */,
+				202E8C582FC4D8C1003E56F0 /* README.md in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -570,6 +577,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				206B18FC2F313EBE00E5F9E7 /* spotprice.icon in Resources */,
+				202E8C562FC4D8C1003E56F0 /* README.md in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -20,12 +20,18 @@ struct AppSettingsView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                providerSection
-                priceAreaSection
-                retailContractSection
-                gridTariffSection
-                saveSection
+            VStack(spacing: 0) {
+                Form {
+                    providerSection
+                    priceAreaSection
+                    retailContractSection
+                    gridTariffSection
+                    saveButton
+                        .background(.regularMaterial)
+                        .listRowBackground(Color.clear)
+                }
+
+                
             }
             .navigationTitle("Inställningar")
             .navigationBarTitleDisplayMode(.inline)
@@ -117,19 +123,17 @@ struct AppSettingsView: View {
         }
     }
 
-    private var saveSection: some View {
-        Section {
-            Button {
-                Task {
-                    await saveSettings()
-                }
-            } label: {
-                Label(isSaving ? "Sparar" : "Spara", systemImage: "checkmark.circle.fill")
-                    .frame(maxWidth: .infinity)
+    private var saveButton: some View {
+        Button {
+            Task {
+                await saveSettings()
             }
-            .buttonStyle(DS.PrimaryButtonStyle())
-            .disabled(isSaving)
+        } label: {
+            Label(isSaving ? "Sparar" : "Spara", systemImage: "checkmark.circle.fill")
+                .frame(maxWidth: .infinity)
         }
+        .buttonStyle(BlackSaveButtonStyle())
+        .disabled(isSaving)
     }
 
     private var gridTariffSection: some View {
@@ -311,6 +315,23 @@ struct AppSettingsView: View {
         }
 
         return next
+    }
+}
+
+private struct BlackSaveButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(DS.Font.callout)
+            .foregroundStyle(.white)
+            .padding(.horizontal, DS.Spacing.lg)
+            .padding(.vertical, DS.Spacing.md)
+            .background(
+                Color.black.opacity(isEnabled ? 1 : 0.35),
+                in: .rect(cornerRadius: DS.Radius.full)
+            )
+            .opacity(configuration.isPressed ? 0.82 : 1)
     }
 }
 

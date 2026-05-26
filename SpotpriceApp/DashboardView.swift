@@ -16,11 +16,11 @@ struct DashboardView: View {
                 onRetry: reload
             )
             .tabItem {
-                Label("Kostnad", systemImage: "creditcard.fill")
+                Label("Kostnad", systemImage: "wallet.bifold.fill")
             }
             .tag(0)
             
-            // Tab 2: Dagens elpris
+            // Tab 2: Priser
             PriceTab(
                 state: viewModel.state,
                 settingsSummary: settingsSummary,
@@ -29,7 +29,7 @@ struct DashboardView: View {
                 onRetry: reload
             )
             .tabItem {
-                Label("Dagens elpris", systemImage: "chart.line.uptrend.xyaxis")
+                Label("Priser", systemImage: "chart.bar.fill")
             }
             .tag(1)
             
@@ -97,7 +97,7 @@ struct DashboardView: View {
         
         var body: some View {
             NavigationStack {
-                ContentView(title: "Dagens elpris", settingsSummary: settingsSummary) {
+                ContentView(title: "Priser", settingsSummary: settingsSummary) {
                     DailyPriceTabView(
                         state: state,
                         selectedChartDate: $selectedChartDate,
@@ -178,7 +178,8 @@ struct DashboardView: View {
                         content
                     }
                     .padding(.horizontal, DS.Spacing.lg)
-                    .padding(.vertical, DS.Spacing.lg)
+                    .padding(.top, DS.Spacing.lg)
+                    .padding(.bottom, DS.Spacing.xl * 4)
                 }
                 .scrollContentBackground(.hidden)
             }

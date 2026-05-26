@@ -83,10 +83,10 @@ struct ChartCalloutView: View {
                 // Show market quarter price for all contract types
                 HStack(spacing: DS.Spacing.xs) {
 
-                    Text("\(Int(bucket.orePerKWh.rounded()))")
+                    Text(bucket.orePerKWh / 100, format: .number.precision(.fractionLength(2)))
                         .font(DS.Font.medium(11).monospacedDigit())
                         .foregroundStyle(priceColor)
-                    Text("öre/kWh")
+                    Text("kr/kWh")
                         .font(DS.Font.micro)
                         .foregroundStyle(DS.Color.secondary)
                 }
