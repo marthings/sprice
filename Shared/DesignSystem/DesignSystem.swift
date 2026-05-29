@@ -258,18 +258,22 @@ struct GlassCardModifier: ViewModifier {
     let cornerRadius: CGFloat
     let isInteractive: Bool
 
+    private var cardShape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+    }
+
     func body(content: Content) -> some View {
         if #available(macOS 26, *) {
             if isInteractive {
                 content
-                    .glassEffect(.clear.interactive(), in: .rect(cornerRadius: cornerRadius))
+                    .glassEffect(.clear.interactive(), in: cardShape)
             } else {
                 content
-                    .glassEffect(.clear, in: .rect(cornerRadius: cornerRadius))
+                    .glassEffect(.clear, in: cardShape)
             }
         } else {
             content
-                .background(.ultraThinMaterial, in: .rect(cornerRadius: cornerRadius))
+                .background(.ultraThinMaterial, in: cardShape)
         }
     }
 }

@@ -27,11 +27,8 @@ struct AppSettingsView: View {
                     retailContractSection
                     gridTariffSection
                     saveButton
-                        .background(.regularMaterial)
                         .listRowBackground(Color.clear)
-                }
-
-                
+                }                
             }
             .navigationTitle("Inställningar")
             .navigationBarTitleDisplayMode(.inline)

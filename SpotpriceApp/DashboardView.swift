@@ -12,6 +12,8 @@ struct DashboardView: View {
             CostTab(
                 state: viewModel.state,
                 settingsSummary: settingsSummary,
+                monthlyConsumption: viewModel.monthlyConsumption,
+                preciseMonthlyCost: viewModel.preciseMonthlyCost,
                 isShowingSettings: $isShowingSettings,
                 onRetry: reload
             )
@@ -65,13 +67,20 @@ struct DashboardView: View {
     private struct CostTab: View {
         let state: SpotPriceViewModel.State
         let settingsSummary: String
+        let monthlyConsumption: ConsumptionData?
+        let preciseMonthlyCost: PreciseMonthlyCost?
         @Binding var isShowingSettings: Bool
         let onRetry: () -> Void
         
         var body: some View {
             NavigationStack {
                 ContentView(title: "Kostnad", settingsSummary: settingsSummary) {
-                    CostTabView(state: state, onRetry: onRetry)
+                    CostTabView(
+                        state: state,
+                        monthlyConsumption: monthlyConsumption,
+                        preciseMonthlyCost: preciseMonthlyCost,
+                        onRetry: onRetry
+                    )
                 }
                 .toolbarBackground(.hidden, for: .navigationBar)
                 .toolbar {
@@ -199,16 +208,6 @@ struct DashboardView: View {
 
     private func reload() {
         Task { await viewModel.load() }
-    }
-}
-
-extension View {
-    func iosGlassCard(cornerRadius: CGFloat, material: Material = .thinMaterial) -> some View {
-        background(material, in: .rect(cornerRadius: cornerRadius))
-            .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius)
-                    .stroke(.white.opacity(0.18), lineWidth: 1)
-            )
     }
 }
 

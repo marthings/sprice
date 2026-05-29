@@ -124,6 +124,7 @@ En elbolagsoberoende app som samlar ihop alla kostnadsdelar och visar totalprise
 **Kärnfunktioner:**
 
 - **Totalkostnad i realtid** – spotpris + påslag + nätavgift + effekttariff + energiskatt + moms = verkligt pris per kWh just nu, i kronor
+- **Månadsprognos** – enkel prognos för månadens elkostnad baserad på faktisk förbrukning hittills, kostnadsprofil och hur stor del av månaden som passerat
 - **Vardagsexempel** – "Tvättmaskinen kostar 4,80 kr just nu – starta kl. 02 och spara 3 kr"
 - **Tidsoptimering** – skjutreglage för att se kostnad vid annan tidpunkt, förslag på bästa tid
 - **Effekttoppsmedvetenhet** – visa hur samtidig användning av apparater påverkar effektavgiften

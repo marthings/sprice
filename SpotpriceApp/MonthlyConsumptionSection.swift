@@ -16,8 +16,6 @@ struct MonthlyConsumptionSection: View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
             content
         }
-        .padding(DS.Spacing.lg)
-        .iosGlassCard(cornerRadius: DS.Radius.lg)
     }
 
     @ViewBuilder
@@ -64,27 +62,22 @@ struct MonthlyConsumptionSection: View {
                     value: Int(consumption.totalKWh.rounded()).formatted(),
                     unit: "kWh",
                     icon: "bolt.fill",
-                    color: DS.Color.brand
+                    color: .primary
                 )
+                .padding(DS.Spacing.lg)
+                .glassCard(cornerRadius: DS.Radius.lg)
                 summaryCard(
                     title: preciseCost == nil ? "Uppskattat" : "Kostnad",
                     value: Int(enhancedCost.totalKr.rounded()).formatted(),
                     unit: "kr",
                     icon: "wallet.bifold.fill",
-                    color: DS.Color.brand
+                    color: .primary
                 )
+                .padding(DS.Spacing.lg)
+                .glassCard(cornerRadius: DS.Radius.lg)
             }
 
             costBreakdown(enhancedCost)
-
-            if let preciseCost {
-                precisionNote(preciseCost)
-            } else if profile.confidence == .estimated {
-                Label("Uppskattningen förbättras när elhandelsavtal och elnätsuppgifter är ifyllda.", systemImage: "info.circle.fill")
-                    .font(DS.Font.micro)
-                    .foregroundStyle(DS.Color.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
 
             if !powerPeaks.isEmpty {
                 powerPeaksSection
@@ -120,7 +113,7 @@ struct MonthlyConsumptionSection: View {
     }
 
     private func costBreakdown(_ cost: EnhancedCost) -> some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+        VStack(alignment: .leading, spacing: DS.Spacing.lg) {
             Text("Kostnadsdelar")
                 .font(DS.Font.headline)
 
@@ -129,8 +122,19 @@ struct MonthlyConsumptionSection: View {
                 costRow("Elnät", cost.gridTotalKr, color: DS.Color.info)
                 costRow("Skatt och avgifter", cost.taxesAndFeesKr, color: DS.Color.secondary)
             }
+            
+            if let preciseCost {
+                precisionNote(preciseCost)
+                
+            } else if profile.confidence == .estimated {
+                Label("Uppskattningen förbättras när elhandelsavtal och elnätsuppgifter är ifyllda.", systemImage: "info.circle.fill")
+                    .font(DS.Font.micro)
+                    .foregroundStyle(DS.Color.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
-        .padding(.vertical, DS.Spacing.sm)
+        .padding(DS.Spacing.lg)
+        .glassCard(cornerRadius: DS.Radius.lg)
     }
 
     private func costRow(_ title: String, _ value: Double, color: Color) -> some View {
@@ -170,7 +174,7 @@ struct MonthlyConsumptionSection: View {
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(DS.Color.danger)
                         .frame(width: 20)
-                    Text(peak.date.formatted(.dateTime.day().month(.abbreviated).hour()))
+                    Text(powerPeakDateLabel(for: peak.date))
                         .font(DS.Font.callout)
                     Spacer(minLength: DS.Spacing.sm)
                     Text(peak.kW, format: .number.precision(.fractionLength(1)))
@@ -181,7 +185,16 @@ struct MonthlyConsumptionSection: View {
                 }
             }
         }
-        .padding(.vertical, DS.Spacing.sm)
+        .padding(DS.Spacing.lg)
+        .glassCard(cornerRadius: DS.Radius.lg)
+    }
+
+    private func powerPeakDateLabel(for date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "sv_SE")
+        formatter.timeZone = TimeZone(identifier: "Europe/Stockholm")
+        formatter.setLocalizedDateFormatFromTemplate("d MMM HH")
+        return formatter.string(from: date)
     }
 
     private func statusRow(icon: String, title: String, message: String, color: Color, trailingIcon: String? = nil) -> some View {

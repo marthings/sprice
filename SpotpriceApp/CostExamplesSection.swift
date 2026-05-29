@@ -157,7 +157,7 @@ private struct CostExampleCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(DS.Spacing.lg)
-        .iosGlassCard(cornerRadius: DS.Radius.lg)
+        .glassCard(cornerRadius: DS.Radius.lg)
     }
 
     private func breakdownRow(_ title: String, _ value: Double) -> some View {

@@ -7,7 +7,6 @@ import SwiftUI
 
 struct ModernMenuBarView: View {
     var viewModel: SpotPriceViewModel
-    private let totalCostService = TotalCostService()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -128,109 +127,13 @@ struct ModernMenuBarView: View {
     private var quickStats: some View {
         if case .loaded(let payload) = viewModel.state {
             VStack(spacing: DS.Spacing.md) {
-                quickStatsCards(for: payload)
+                SharedPriceRangeSection(
+                    dayData: payload.day,
+                    profile: ConsumptionSettings.shared.costProfile,
+                    style: .compact
+                )
                 CostCalculationSection(payload: payload, profile: ConsumptionSettings.shared.costProfile)
             }
-        }
-    }
-
-    @ViewBuilder
-    private func quickStatsCards(for payload: SpotPriceViewModel.CurrentAndDay) -> some View {
-        let profile = ConsumptionSettings.shared.costProfile
-
-        // Section header explaining what the stats represent
-        HStack(spacing: DS.Spacing.xs) {
-            if profile.isSpotFollowingRetailContract {
-                Text("Prisspann idag (kr/kWh)")
-                    .font(DS.Font.semibold(12))
-                    .foregroundStyle(DS.Color.secondary)
-            } else {
-                Text("Marknadens prisspann idag (kr/kWh)")
-                    .font(DS.Font.semibold(12))
-                    .foregroundStyle(DS.Color.secondary)
-            }
-            Spacer()
-        }
-        .padding(.bottom, DS.Spacing.xxs)
-
-        HStack(spacing: DS.Spacing.sm) {
-            if profile.isSpotFollowingRetailContract {
-                // Show total cost stats for spot-following contracts
-                let minTotal = totalCostService.calculatePricePerKWh(spotPriceOre: payload.day.minOre, profile: profile)
-                let maxTotal = totalCostService.calculatePricePerKWh(spotPriceOre: payload.day.maxOre, profile: profile)
-                let avgTotal = totalCostService.calculatePricePerKWh(spotPriceOre: averagePrice(payload.day.buckets), profile: profile)
-
-                StatCardView(
-                    title: "Lägsta",
-                    value: minTotal.formatted(.number.precision(.fractionLength(2))),
-                    unit: "kr",
-                    color: DS.Color.success,
-                    icon: "arrow.down.circle.fill"
-                )
-
-                StatCardView(
-                    title: "Högsta",
-                    value: maxTotal.formatted(.number.precision(.fractionLength(2))),
-                    unit: "kr",
-                    color: DS.Color.danger,
-                    icon: "arrow.up.circle.fill"
-                )
-
-                StatCardView(
-                    title: "Snitt",
-                    value: avgTotal.formatted(.number.precision(.fractionLength(2))),
-                    unit: "kr",
-                    color: .blue,
-                    icon: "chart.line.uptrend.xyaxis"
-                )
-            } else {
-                // Show market quarter price stats for fixed/variable contracts
-                StatCardView(
-                    title: "Lägsta",
-                    value: (payload.day.minOre / 100).formatted(.number.precision(.fractionLength(2))),
-                    unit: "kr",
-                    color: DS.Color.success,
-                    icon: "arrow.down.circle.fill"
-                )
-
-                StatCardView(
-                    title: "Högsta",
-                    value: (payload.day.maxOre / 100).formatted(.number.precision(.fractionLength(2))),
-                    unit: "kr",
-                    color: DS.Color.danger,
-                    icon: "arrow.up.circle.fill"
-                )
-
-                StatCardView(
-                    title: "Snitt",
-                    value: (averagePrice(payload.day.buckets) / 100).formatted(.number.precision(.fractionLength(2))),
-                    unit: "kr",
-                    color: .blue,
-                    icon: "chart.line.uptrend.xyaxis"
-                )
-            }
-        }
-
-        // For fixed/variable contracts, add comparison to contract price
-        if !profile.isSpotFollowingRetailContract, let contractPrice = profile.contractPriceOrePerKWh {
-            let avgMarket = averagePrice(payload.day.buckets)
-            let difference = avgMarket - contractPrice
-            let isMarketCheaper = difference < 0
-
-            HStack(spacing: DS.Spacing.xs) {
-                Image(systemName: isMarketCheaper ? "arrow.down.circle.fill" : "arrow.up.circle.fill")
-                    .font(.system(size: 11))
-                    .foregroundStyle(isMarketCheaper ? DS.Color.success : DS.Color.danger)
-
-                Text(isMarketCheaper 
-                    ? "Marknaden är i snitt billigare än ditt avtal idag" 
-                    : "Ditt avtal är billigare än marknaden i snitt idag")
-                    .font(DS.Font.micro)
-                    .foregroundStyle(DS.Color.secondary)
-
-                Spacer()
-            }
-            .padding(.top, DS.Spacing.xxs)
         }
     }
 

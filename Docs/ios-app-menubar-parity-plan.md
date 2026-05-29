@@ -20,6 +20,7 @@ The iOS app should show a native full-screen dashboard with the same core conten
 - Today min, max, and average stats.
 - Cost examples for common activities.
 - Monthly consumption and estimated or precise monthly cost.
+- A lightweight monthly cost forecast in the cost hero, based on cost-to-date scaled by elapsed month progress.
 - Configuration/status messaging when consumption is not configured.
 
 The iOS version does not need to copy the menu bar window chrome. It should use iOS navigation, scrolling, toolbar/settings entry, and responsive layout.
@@ -139,6 +140,13 @@ Exit criteria:
 - Values match the macOS menu bar for the same `SpotPriceViewModel` state and `CostProfile`.
 
 ## Step 5: Bring Monthly Consumption Into iOS
+
+Cost hero forecast behavior:
+
+- Show a `Prognos` inline metric only when current-month consumption data is available.
+- Estimate cost-to-date from current-month kWh, the cost profile, and elapsed hours in the month.
+- Prefer the matched 15-minute spot average from `PreciseMonthlyCost` when available; otherwise use the current day price fallback already available to the cost tab.
+- Scale cost-to-date linearly by elapsed month progress. This is intentionally a simple first pass, not a seasonal or behavior-based forecast model.
 
 Move or add target membership for monthly-stat components:
 

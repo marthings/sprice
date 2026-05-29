@@ -15,7 +15,11 @@ struct DailyPriceTabView: View {
         case .loaded(let payload):
             VStack(alignment: .leading, spacing: DS.Spacing.xl) {
                 PriceChartSection(payload: payload, selectedChartDate: $selectedChartDate)
-                TodayPriceStatsSection(payload: payload)
+                SharedPriceRangeSection(
+                    dayData: payload.day,
+                    profile: ConsumptionSettings.shared.costProfile,
+                    style: .regular
+                )
                 
                 MarketContractExplanation(profile: ConsumptionSettings.shared.costProfile)
             }
@@ -28,30 +32,32 @@ private struct PriceChartSection: View {
     let payload: SpotPriceViewModel.CurrentAndDay
     @Binding var selectedChartDate: Date?
 
+    private let totalCostService = TotalCostService()
+
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            let prices = payload.day.buckets.map { $0.orePerKWh }
+            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                Text("Dagens totalpris")
+                    .font(DS.Font.headline)
+
+                Text("Kurvan visar priset per kWh under dagen med spotpris, skatter och dina valda avgifter inräknade.")
+                    .font(DS.Font.micro)
+                    .foregroundStyle(DS.Color.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            let profile = ConsumptionSettings.shared.costProfile
+            let prices = payload.day.buckets.map { chartPriceValue(for: $0, profile: profile) }
             let yDomain = chartYDomain(for: prices)
-            let areaBaseline = yDomain.lowerBound
             let selectedBucket = selectedChartDate.flatMap { nearestBucket(to: $0, in: payload.day.buckets) }
-            let areaGradient = chartAreaGradient(for: payload.day.buckets)
-            let lineGradient = chartLineGradient(for: payload.day.buckets)
+            let lineGradient = chartLineGradient(for: payload.day.buckets, profile: profile)
 
             Chart {
                 ForEach(payload.day.buckets) { bucket in
-                    AreaMark(
-                        x: .value("Tid", bucket.start),
-                        yStart: .value("Baslinje", areaBaseline),
-                        yEnd: .value("öre/kWh", bucket.orePerKWh)
-                    )
-                    .foregroundStyle(areaGradient)
-                }
-
-                ForEach(payload.day.buckets) { bucket in
                     LineMark(
                         x: .value("Tid", bucket.start),
-                        y: .value("öre/kWh", bucket.orePerKWh),
-                        series: .value("Pris", "Marknad")
+                        y: .value("kr/kWh", chartPriceValue(for: bucket, profile: profile)),
+                        series: .value("Pris", "Total")
                     )
                     .foregroundStyle(lineGradient)
                     .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
@@ -78,9 +84,9 @@ private struct PriceChartSection: View {
 
                     PointMark(
                         x: .value("Vald tid", selectedBucket.start),
-                        y: .value("öre/kWh", selectedBucket.orePerKWh)
+                        y: .value("kr/kWh", chartPriceValue(for: selectedBucket, profile: profile))
                     )
-                    .foregroundStyle(chartPriceColor(for: selectedBucket, in: payload.day.buckets))
+                    .foregroundStyle(chartPriceColor(for: selectedBucket, in: payload.day.buckets, profile: profile))
                     .symbolSize(70)
                 }
             }
@@ -104,7 +110,7 @@ private struct PriceChartSection: View {
                     AxisTick()
                     AxisValueLabel {
                         if let price = value.as(Double.self) {
-                            Text("\(Int(price.rounded()))")
+                            Text(price, format: .number.precision(.fractionLength(2)))
                                 .font(DS.Font.micro)
                         }
                     }
@@ -114,7 +120,7 @@ private struct PriceChartSection: View {
             .chartXSelection(value: $selectedChartDate)
             .frame(height: 260)
             .padding()
-            .iosGlassCard(cornerRadius: DS.Radius.md)
+            .glassCard(cornerRadius: DS.Radius.lg)
             .zIndex(1)
             .accessibilityHint("Dra över grafen för att se pris vid en viss tid.")
 
@@ -136,28 +142,80 @@ private struct PriceChartSection: View {
         return max(0, minPrice - padding)...(maxPrice + padding)
     }
 
-    private func chartAreaGradient(for buckets: [PriceBucket]) -> LinearGradient {
+    private func chartLineGradient(for buckets: [PriceBucket], profile: CostProfile) -> LinearGradient {
         LinearGradient(
-            colors: buckets.map { chartPriceColor(for: $0, in: buckets).opacity(0.26) },
+            gradient: Gradient(stops: chartGradientStops(for: buckets, profile: profile)),
             startPoint: .leading,
             endPoint: .trailing
         )
     }
 
-    private func chartLineGradient(for buckets: [PriceBucket]) -> LinearGradient {
-        LinearGradient(
-            colors: buckets.map { chartPriceColor(for: $0, in: buckets) },
-            startPoint: .leading,
-            endPoint: .trailing
+    private func chartGradientStops(for buckets: [PriceBucket], profile: CostProfile) -> [Gradient.Stop] {
+        guard !buckets.isEmpty else {
+            return [Gradient.Stop(color: DS.Color.warning, location: 0)]
+        }
+
+        let prices = buckets.map { chartPriceValue(for: $0, profile: profile) }
+        let minPrice = prices.min() ?? 0
+        let maxPrice = prices.max() ?? minPrice
+        let lastIndex = max(buckets.count - 1, 1)
+
+        return buckets.enumerated().map { index, bucket in
+            Gradient.Stop(
+                color: smoothPriceColor(
+                    for: chartPriceValue(for: bucket, profile: profile),
+                    min: minPrice,
+                    max: maxPrice
+                ),
+                location: Double(index) / Double(lastIndex)
+            )
+        }
+    }
+
+    private func chartPriceColor(for bucket: PriceBucket, in buckets: [PriceBucket], profile: CostProfile) -> Color {
+        let prices = buckets.map { chartPriceValue(for: $0, profile: profile) }
+        let value = chartPriceValue(for: bucket, profile: profile)
+        return smoothPriceColor(
+            for: value,
+            min: prices.min() ?? value,
+            max: prices.max() ?? value
         )
     }
 
-    private func chartPriceColor(for bucket: PriceBucket, in buckets: [PriceBucket]) -> Color {
-        let prices = buckets.map { $0.orePerKWh }
-        return DS.Color.forPrice(
-            bucket.orePerKWh,
-            min: prices.min() ?? bucket.orePerKWh,
-            max: prices.max() ?? bucket.orePerKWh
+    private func chartPriceValue(for bucket: PriceBucket, profile: CostProfile) -> Double {
+        totalCostService.calculatePricePerKWh(spotPriceOre: bucket.orePerKWh, profile: profile)
+    }
+
+    private func smoothPriceColor(for price: Double, min: Double, max: Double) -> Color {
+        let range = max - min
+        guard range > 0 else { return DS.Color.warning }
+
+        let normalized = Swift.min(Swift.max((price - min) / range, 0), 1)
+        switch normalized {
+        case ..<0.5:
+            return interpolateColor(
+                from: Color(red: 0.02, green: 0.56, blue: 0.24),
+                to: Color(red: 0.95, green: 0.38, blue: 0.02),
+                progress: normalized / 0.5
+            )
+        default:
+            return interpolateColor(
+                from: Color(red: 0.95, green: 0.38, blue: 0.02),
+                to: Color(red: 0.82, green: 0.04, blue: 0.04),
+                progress: (normalized - 0.5) / 0.5
+            )
+        }
+    }
+
+    private func interpolateColor(from start: Color, to end: Color, progress: Double) -> Color {
+        let clampedProgress = Float(Swift.min(Swift.max(progress, 0), 1))
+        let startComponents = start.resolve(in: EnvironmentValues())
+        let endComponents = end.resolve(in: EnvironmentValues())
+
+        return Color(
+            red: Double(startComponents.red + ((endComponents.red - startComponents.red) * clampedProgress)),
+            green: Double(startComponents.green + ((endComponents.green - startComponents.green) * clampedProgress)),
+            blue: Double(startComponents.blue + ((endComponents.blue - startComponents.blue) * clampedProgress))
         )
     }
 
@@ -208,7 +266,7 @@ private struct MarketContractExplanation: View {
         }
         .padding(DS.Spacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .iosGlassCard(cornerRadius: DS.Radius.lg)
+        .glassCard(cornerRadius: DS.Radius.lg)
     }
 
     private var explanationText: String {
@@ -258,61 +316,5 @@ private struct MarketContractExplanation: View {
         }
 
         return rows
-    }
-}
-
-private struct TodayPriceStatsSection: View {
-    let payload: SpotPriceViewModel.CurrentAndDay
-    private let totalCostService = TotalCostService()
-
-    var body: some View {
-        let profile = ConsumptionSettings.shared.costProfile
-        let averageSpotPrice = averagePrice(payload.day.buckets)
-        let minTotal = totalCostService.calculatePricePerKWh(spotPriceOre: payload.day.minOre, profile: profile)
-        let maxTotal = totalCostService.calculatePricePerKWh(spotPriceOre: payload.day.maxOre, profile: profile)
-        let averageTotal = totalCostService.calculatePricePerKWh(spotPriceOre: averageSpotPrice, profile: profile)
-
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            Text("Prisspann idag")
-                .font(DS.Font.headline)
-
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: DS.Spacing.sm) {
-                priceStatCard(title: "Lägsta", value: minTotal, color: DS.Color.success)
-                priceStatCard(title: "Snitt", value: averageTotal, color: DS.Color.info)
-                priceStatCard(title: "Högsta", value: maxTotal, color: DS.Color.danger)
-            }
-
-            if let basisText = profile.retailContractCostBasisText {
-                Label(basisText, systemImage: "info.circle.fill")
-                    .font(DS.Font.micro)
-                    .foregroundStyle(DS.Color.secondary)
-            }
-        }
-        
-    }
-
-    private func priceStatCard(title: String, value: Double, color: Color) -> some View {
-        VStack(spacing: DS.Spacing.xs) {
-            Text(title)
-                .font(DS.Font.micro)
-                .foregroundStyle(DS.Color.secondary)
-            HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
-                Text(value, format: .number.precision(.fractionLength(2)))
-                    .font(DS.Font.bold(16).monospacedDigit())
-                    .foregroundStyle(color)
-                Text("kr")
-                    .font(DS.Font.micro)
-                    .foregroundStyle(DS.Color.secondary)
-            }
-        }
-        .frame(maxWidth: .infinity)
-
-        .padding(DS.Spacing.lg)
-        .iosGlassCard(cornerRadius: DS.Radius.lg)
-    }
-
-    private func averagePrice(_ buckets: [PriceBucket]) -> Double {
-        guard !buckets.isEmpty else { return 0 }
-        return buckets.reduce(0) { $0 + $1.orePerKWh } / Double(buckets.count)
     }
 }
