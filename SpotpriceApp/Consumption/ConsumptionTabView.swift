@@ -22,17 +22,12 @@ struct ConsumptionTabView: View {
                 powerPeaks: powerPeaks,
                 consumptionError: consumptionError,
                 isConfigured: ConsumptionSettings.shared.isConfigured,
-                averagePrice: averagePrice(payload.day.buckets),
+                averagePrice: PriceBucketAnalytics.averageSpotPrice(payload.day.buckets),
                 preciseCost: preciseMonthlyCost,
                 profile: ConsumptionSettings.shared.costProfile,
                 historySummary: historySummary,
                 onConfigureConsumption: onConfigureConsumption
             )
         }
-    }
-
-    private func averagePrice(_ buckets: [PriceBucket]) -> Double {
-        guard !buckets.isEmpty else { return 0 }
-        return buckets.reduce(0) { $0 + $1.orePerKWh } / Double(buckets.count)
     }
 }

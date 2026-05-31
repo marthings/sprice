@@ -26,30 +26,33 @@ struct MonthlyConsumptionSection: View {
         } else if let historySummary {
             historyContent(historySummary)
         } else if let consumptionError {
-            statusRow(
+            AppStatusRow(
                 icon: "exclamationmark.triangle.fill",
                 title: "Kunde inte hämta förbrukning",
                 message: consumptionError,
                 color: DS.Color.warning
             )
+            .padding(.vertical, DS.Spacing.sm)
         } else if !isConfigured {
             Button(action: onConfigureConsumption) {
-                statusRow(
+                AppStatusRow(
                     icon: "gearshape.fill",
                     title: "Konfigurera förbrukning",
                     message: "Lägg till dina uppgifter för att se månadsstatistik.",
                     color: DS.Color.secondary,
                     trailingIcon: "chevron.right"
                 )
+                .padding(.vertical, DS.Spacing.sm)
             }
             .buttonStyle(.plain)
         } else {
-            statusRow(
+            AppStatusRow(
                 icon: "hourglass",
                 title: "Förbrukning laddas",
                 message: "Månadsstatistik visas när den är tillgänglig.",
                 color: DS.Color.secondary
             )
+            .padding(.vertical, DS.Spacing.sm)
         }
     }
 
@@ -59,18 +62,13 @@ struct MonthlyConsumptionSection: View {
                 Text("Sparad historik")
                     .font(DS.Font.headline)
                 Spacer(minLength: DS.Spacing.sm)
-                Text(coverageTitle(summary))
-                    .font(DS.Font.micro)
-                    .foregroundStyle(coverageColor(summary))
-                    .padding(.horizontal, DS.Spacing.sm)
-                    .padding(.vertical, DS.Spacing.xxs)
-                    .background(coverageColor(summary).opacity(0.12), in: Capsule())
+                HistoryCoverageBadge(coverage: summary.dataCoverage)
             }
 
             HStack(spacing: DS.Spacing.sm) {
                 summaryCard(
                     title: "Förbrukning",
-                    value: summary.totalConsumptionKWh.map { $0.formatted(.number.precision(.fractionLength(0...1))) } ?? "-",
+                    value: summary.totalConsumptionKWh.map { AppFormatters.kWhValue($0) } ?? "-",
                     unit: "kWh",
                     icon: "bolt.fill",
                     color: .primary
@@ -89,7 +87,7 @@ struct MonthlyConsumptionSection: View {
                 .glassCard(cornerRadius: DS.Radius.lg)
             }
 
-            Label(coverageText(summary), systemImage: "clock.arrow.circlepath")
+            Label(summary.coverageText(style: .brandedMonthly), systemImage: "clock.arrow.circlepath")
                 .font(DS.Font.micro)
                 .foregroundStyle(DS.Color.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -108,7 +106,7 @@ struct MonthlyConsumptionSection: View {
             HStack(spacing: DS.Spacing.sm) {
                 summaryCard(
                     title: "Förbrukning",
-                    value: Int(consumption.totalKWh.rounded()).formatted(),
+                    value: AppFormatters.wholeNumber(consumption.totalKWh),
                     unit: "kWh",
                     icon: "bolt.fill",
                     color: .primary
@@ -117,7 +115,7 @@ struct MonthlyConsumptionSection: View {
                 .glassCard(cornerRadius: DS.Radius.lg)
                 summaryCard(
                     title: preciseCost == nil ? "Uppskattat" : "Kostnad",
-                    value: Int(enhancedCost.totalKr.rounded()).formatted(),
+                    value: AppFormatters.wholeNumber(enhancedCost.totalKr),
                     unit: "kr",
                     icon: "wallet.bifold.fill",
                     color: .primary
@@ -135,29 +133,13 @@ struct MonthlyConsumptionSection: View {
     }
 
     private func summaryCard(title: String, value: String, unit: String, icon: String, color: Color) -> some View {
-        HStack(spacing: DS.Spacing.md) {
-            Image(systemName: icon)
-                .font(.system(size: DS.Size.iconMedium, weight: .semibold))
-                .foregroundStyle(color)
-                .frame(width: 28)
-
-            VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
-                Text(title)
-                    .font(DS.Font.micro)
-                    .foregroundStyle(DS.Color.secondary)
-                HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
-                    Text(value)
-                        .font(DS.Font.bold(20).monospacedDigit())
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                    Text(unit)
-                        .font(DS.Font.micro)
-                        .foregroundStyle(DS.Color.secondary)
-                }
-            }
-            Spacer(minLength: 0)
-        }
-        .frame(maxWidth: .infinity)
+        MetricCard(
+            title: title,
+            value: value,
+            unit: unit,
+            icon: icon,
+            color: color
+        )
         .padding(.vertical, DS.Spacing.sm)
     }
 
@@ -167,13 +149,28 @@ struct MonthlyConsumptionSection: View {
                 .font(DS.Font.headline)
 
             VStack(spacing: DS.Spacing.xs) {
-                costRow("Elhandel", cost.providerTotalKr, color: DS.Color.warning)
-                costRow("Elnät", cost.gridTotalKr, color: DS.Color.info)
-                costRow("Skatt och avgifter", cost.taxesAndFeesKr, color: DS.Color.secondary)
+                SharedCostBreakdownRow(
+                    label: "Elhandel",
+                    amount: cost.providerTotalKr,
+                    color: DS.Color.warning,
+                    style: .regular
+                )
+                SharedCostBreakdownRow(
+                    label: "Elnät",
+                    amount: cost.gridTotalKr,
+                    color: DS.Color.info,
+                    style: .regular
+                )
+                SharedCostBreakdownRow(
+                    label: "Skatt och avgifter",
+                    amount: cost.taxesAndFeesKr,
+                    color: DS.Color.secondary,
+                    style: .regular
+                )
             }
             
             if let preciseCost {
-                precisionNote(preciseCost)
+                CostPrecisionNote(cost: preciseCost)
                 
             } else if profile.confidence == .estimated {
                 Label("Uppskattningen förbättras när elhandelsavtal och elnätsuppgifter är ifyllda.", systemImage: "info.circle.fill")
@@ -184,32 +181,6 @@ struct MonthlyConsumptionSection: View {
         }
         .padding(DS.Spacing.lg)
         .glassCard(cornerRadius: DS.Radius.lg)
-    }
-
-    private func costRow(_ title: String, _ value: Double, color: Color) -> some View {
-        HStack(spacing: DS.Spacing.sm) {
-            Circle()
-                .fill(color)
-                .frame(width: 8, height: 8)
-            Text(title)
-                .font(DS.Font.callout)
-            Spacer(minLength: DS.Spacing.sm)
-            Text(value, format: .number.precision(.fractionLength(0)))
-                .font(DS.Font.semibold(14).monospacedDigit())
-            Text("kr")
-                .font(DS.Font.micro)
-                .foregroundStyle(DS.Color.secondary)
-        }
-    }
-
-    private func precisionNote(_ cost: PreciseMonthlyCost) -> some View {
-        let ratio = cost.totalIntervals > 0 ? Double(cost.matchedIntervals) / Double(cost.totalIntervals) : 0
-        let percent = ratio.formatted(.percent.precision(.fractionLength(0)))
-
-        return Label("Beräknat från faktisk förbrukning och matchade spotpriser: \(percent).", systemImage: "checkmark.seal.fill")
-            .font(DS.Font.micro)
-            .foregroundStyle(DS.Color.secondary)
-            .fixedSize(horizontal: false, vertical: true)
     }
 
     private var powerPeaksSection: some View {
@@ -239,35 +210,7 @@ struct MonthlyConsumptionSection: View {
     }
 
     private func powerPeakDateLabel(for date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "sv_SE")
-        formatter.timeZone = TimeZone(identifier: "Europe/Stockholm")
-        formatter.setLocalizedDateFormatFromTemplate("d MMM HH")
-        return formatter.string(from: date)
-    }
-
-    private func statusRow(icon: String, title: String, message: String, color: Color, trailingIcon: String? = nil) -> some View {
-        HStack(spacing: DS.Spacing.md) {
-            Image(systemName: icon)
-                .font(.system(size: DS.Size.iconMedium, weight: .semibold))
-                .foregroundStyle(color)
-                .frame(width: 28)
-            VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
-                Text(title)
-                    .font(DS.Font.callout)
-                Text(message)
-                    .font(DS.Font.micro)
-                    .foregroundStyle(DS.Color.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer(minLength: 0)
-            if let trailingIcon {
-                Image(systemName: trailingIcon)
-                    .font(DS.Font.caption)
-                    .foregroundStyle(DS.Color.secondary)
-            }
-        }
-        .padding(.vertical, DS.Spacing.sm)
+        AppFormatters.powerPeakHourLabel(date)
     }
 
     private func monthlyCost(for consumption: ConsumptionData) -> EnhancedCost {
@@ -290,56 +233,14 @@ struct MonthlyConsumptionSection: View {
 
     private func historyCostValue(_ summary: HistoricalEnergySummaryValue) -> String {
         if let cost = summary.totalCostSEK {
-            return Int(cost.rounded()).formatted()
+            return AppFormatters.wholeNumber(cost)
         }
         if let price = summary.averageSpotPriceOrePerKWh {
-            return Int(price.rounded()).formatted()
+            return AppFormatters.oreValue(price)
         }
         return "-"
     }
 
-    private func coverageTitle(_ summary: HistoricalEnergySummaryValue) -> String {
-        switch summary.dataCoverage {
-        case .priceOnly:
-            return "Pris"
-        case .estimatedCost:
-            return "Uppskattat"
-        case .partialConsumption:
-            return "Delvis mätt"
-        case .measuredConsumption:
-            return "Mätt"
-        }
-    }
-
-    private func coverageText(_ summary: HistoricalEnergySummaryValue) -> String {
-        switch summary.dataCoverage {
-        case .priceOnly:
-            return "Förbrukningsdata saknas. Sprice visar sparade spotpriser för månaden."
-        case .estimatedCost:
-            return "Förbrukningsdata saknas. Sprice visar sparad uppskattad kostnad för månaden."
-        case .partialConsumption:
-            if let ratio = summary.measuredCoverageRatio {
-                let percent = ratio.formatted(.percent.precision(.fractionLength(0)))
-                return "Förbrukningsdata saknas. Sparad historik har mätt förbrukning för \(percent) av intervallen."
-            }
-            return "Liveförbrukning saknas. Sprice visar delvis mätt sparad historik."
-        case .measuredConsumption:
-            return "Förbrukningsdata saknas. Sprice visar sparad mätt förbrukning och kostnad."
-        }
-    }
-
-    private func coverageColor(_ summary: HistoricalEnergySummaryValue) -> Color {
-        switch summary.dataCoverage {
-        case .priceOnly:
-            return DS.Color.secondary
-        case .estimatedCost:
-            return DS.Color.warning
-        case .partialConsumption:
-            return DS.Color.info
-        case .measuredConsumption:
-            return DS.Color.success
-        }
-    }
 }
 
 #Preview {

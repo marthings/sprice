@@ -9,6 +9,7 @@ struct HistoryMonthView: View {
 
     private let priceArea: String?
     private let calendar: Calendar
+    private let historyQuery: any EnergyHistoryQuerying
     
     // Preview support - allow injecting initial state
     private let initialState: LoadState?
@@ -16,10 +17,12 @@ struct HistoryMonthView: View {
     init(
         priceArea: String? = nil,
         calendar: Calendar = .energyHistory,
+        historyQuery: (any EnergyHistoryQuerying)? = nil,
         previewState: LoadState? = nil
     ) {
         self.priceArea = priceArea
         self.calendar = calendar
+        self.historyQuery = historyQuery ?? EnergyHistoryQueryService()
         self.initialState = previewState
     }
     
@@ -50,7 +53,7 @@ struct HistoryMonthView: View {
             case .loading:
                 DashboardLoadingView()
             case .failed(let message):
-                historyStatus(
+                AppStatusCard(
                     icon: "exclamationmark.triangle.fill",
                     title: "Kunde inte läsa historik",
                     message: message,
@@ -73,7 +76,7 @@ struct HistoryMonthView: View {
     @ViewBuilder
     private func content(_ data: HistoryData) -> some View {
         if data.months.isEmpty {
-            historyStatus(
+            AppStatusCard(
                 icon: "clock.badge",
                 title: "Ingen sparad historik än",
                 message: "Historik fylls på automatiskt efter lyckade prisuppdateringar. Förbrukning och kostnad visas när sådan data finns sparad.",
@@ -84,28 +87,32 @@ struct HistoryMonthView: View {
                 monthPicker(data.months)
 
                 if let selectedMonth = data.selectedMonth {
-                    monthSummary(selectedMonth)
+                    HistoryMonthSummaryCards(summary: selectedMonth)
                 }
 
-                topDaysSection(
+                HistoryTopDaysSection(
                     title: "Dyraste dagar",
                     emptyMessage: "Kostnadsdagar visas när historiken innehåller beräknad kostnad.",
                     days: data.topCostDays,
                     value: { summary in
-                        summary.totalCostSEK.map { (Int($0.rounded()).formatted(), "kr") }
+                        summary.totalCostSEK.map { (AppFormatters.wholeNumber($0), "kr") }
                     }
                 )
 
-                topDaysSection(
+                HistoryTopDaysSection(
                     title: "Högst förbrukning",
                     emptyMessage: "Förbrukningsdagar visas när en datakälla har levererat mätvärden.",
                     days: data.topConsumptionDays,
                     value: { summary in
-                        summary.totalConsumptionKWh.map { ($0.formatted(.number.precision(.fractionLength(0...1))), "kWh") }
+                        summary.totalConsumptionKWh.map { (AppFormatters.kWhValue($0), "kWh") }
                     }
                 )
 
-                dailyHistoryList(data.dailySummaries)
+                HistoryDailyList(
+                    days: data.dailySummaries,
+                    viewMode: $viewMode,
+                    selectedDay: $selectedDay
+                )
             }
         }
     }
@@ -124,78 +131,118 @@ struct HistoryMonthView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func monthSummary(_ summary: HistoricalEnergySummaryValue) -> some View {
+    @MainActor
+    private func loadHistory() async {
+        do {
+            let activePriceArea = priceArea ?? ConsumptionSettings.shared.priceArea
+            let history = try historyQuery.loadMonthHistory(
+                priceArea: activePriceArea,
+                selectedMonthKey: selectedMonthKey
+            )
+
+            selectedMonthKey = history.selectedMonthKey
+            state = .loaded(HistoryData(
+                months: history.months,
+                selectedMonth: history.selectedMonth,
+                dailySummaries: history.dailySummaries,
+                topCostDays: history.topCostDays,
+                topConsumptionDays: history.topConsumptionDays
+            ))
+        } catch {
+            state = .failed(error.localizedDescription)
+        }
+    }
+
+    private func monthLabel(_ date: Date) -> String {
+        AppFormatters.historyMonthLabel(date)
+    }
+}
+
+// MARK: - History Summary
+
+private struct HistoryMonthSummaryCards: View {
+    let summary: HistoricalEnergySummaryValue
+
+    var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
             HStack(spacing: DS.Spacing.sm) {
-                metricCard(
+                MetricCard(
                     title: "Kostnad",
-                    value: summary.totalCostSEK.map { Int($0.rounded()).formatted() } ?? "-",
+                    value: summary.totalCostSEK.map { AppFormatters.wholeNumber($0) } ?? "-",
                     unit: "kr",
-                    icon: "wallet.bifold.fill"
+                    icon: "wallet.bifold.fill",
+                    color: DS.Color.secondary
                 )
-                metricCard(
+                .padding(DS.Spacing.md)
+                .glassCard(cornerRadius: DS.Radius.md)
+                MetricCard(
                     title: "Förbrukning",
-                    value: summary.totalConsumptionKWh.map { $0.formatted(.number.precision(.fractionLength(0...1))) } ?? "-",
+                    value: summary.totalConsumptionKWh.map { AppFormatters.kWhValue($0) } ?? "-",
                     unit: "kWh",
-                    icon: "bolt.fill"
+                    icon: "bolt.fill",
+                    color: DS.Color.secondary
                 )
+                .padding(DS.Spacing.md)
+                .glassCard(cornerRadius: DS.Radius.md)
             }
 
             HStack(spacing: DS.Spacing.sm) {
                 let averagePriceMetric = averagePriceMetric(summary)
-                metricCard(
+                MetricCard(
                     title: averagePriceMetric.title,
                     value: averagePriceMetric.value,
                     unit: averagePriceMetric.unit,
-                    icon: "chart.line.uptrend.xyaxis"
+                    icon: "chart.line.uptrend.xyaxis",
+                    color: DS.Color.secondary
                 )
-                metricCard(
+                .padding(DS.Spacing.md)
+                .glassCard(cornerRadius: DS.Radius.md)
+                MetricCard(
                     title: "Dagar",
                     value: monthDayCount(summary).formatted(),
                     unit: "st",
-                    icon: "calendar"
+                    icon: "calendar",
+                    color: DS.Color.secondary
                 )
+                .padding(DS.Spacing.md)
+                .glassCard(cornerRadius: DS.Radius.md)
             }
         }
     }
 
-    private func metricCard(title: String, value: String, unit: String, icon: String) -> some View {
-        HStack(spacing: DS.Spacing.md) {
-            Image(systemName: icon)
-                .font(.system(size: DS.Size.iconMedium, weight: .semibold))
-                .foregroundStyle(DS.Color.secondary)
-                .frame(width: 28)
-
-            VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
-                Text(title)
-                    .font(DS.Font.micro)
-                    .foregroundStyle(DS.Color.secondary)
-                HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
-                    Text(value)
-                        .font(DS.Font.bold(20).monospacedDigit())
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.75)
-                    Text(unit)
-                        .font(DS.Font.micro)
-                        .foregroundStyle(DS.Color.secondary)
-                }
-            }
-
-            Spacer(minLength: 0)
+    private func averagePriceMetric(_ summary: HistoricalEnergySummaryValue) -> (title: String, value: String, unit: String) {
+        if let totalPrice = summary.averageTotalCostSEKPerKWh {
+            return (
+                "Snitt totalpris",
+                totalPrice.formatted(.number.precision(.fractionLength(2))),
+                "kr/kWh"
+            )
         }
-        .frame(maxWidth: .infinity)
-        .padding(DS.Spacing.md)
-        .glassCard(cornerRadius: DS.Radius.md)
+        if let spotPrice = summary.averageSpotPriceOrePerKWh {
+            return (
+                "Snitt spotpris",
+                AppFormatters.oreValue(spotPrice),
+                "öre"
+            )
+        }
+        return ("Snittpris", "-", "kr/kWh")
     }
 
-    private func topDaysSection(
-        title: String,
-        emptyMessage: String,
-        days: [HistoricalEnergySummaryValue],
-        value: @escaping (HistoricalEnergySummaryValue) -> (String, String)?
-    ) -> some View {
+    private func monthDayCount(_ summary: HistoricalEnergySummaryValue) -> Int {
+        Calendar.energyHistory.range(of: .day, in: .month, for: summary.periodStart)?.count ?? 0
+    }
+}
+
+// MARK: - History Lists
+
+private struct HistoryTopDaysSection: View {
+    let title: String
+    let emptyMessage: String
+    let days: [HistoricalEnergySummaryValue]
+    let value: (HistoricalEnergySummaryValue) -> (String, String)?
+
+    var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            
             Text(title)
                 .font(DS.Font.headline)
 
@@ -205,7 +252,7 @@ struct HistoryMonthView: View {
                     .foregroundStyle(DS.Color.secondary)
             } else {
                 ForEach(days) { day in
-                    historyRow(summary: day, value: value(day))
+                    HistorySummaryRow(summary: day, value: value(day))
                 }
             }
         }
@@ -213,20 +260,26 @@ struct HistoryMonthView: View {
         .padding(DS.Spacing.lg)
         .glassCard(cornerRadius: DS.Radius.lg)
     }
+}
 
-    private func dailyHistoryList(_ days: [HistoricalEnergySummaryValue]) -> some View {
+private struct HistoryDailyList: View {
+    let days: [HistoricalEnergySummaryValue]
+    @Binding var viewMode: HistoryMonthView.ViewMode
+    @Binding var selectedDay: HistoricalEnergySummaryValue?
+
+    var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
             HStack {
                 Text("Alla sparade dagar")
                     .font(DS.Font.headline)
-                
+
                 Spacer()
-                
+
                 Picker("Visning", selection: $viewMode) {
                     Label("Graf", systemImage: "chart.bar.fill")
-                        .tag(ViewMode.chart)
+                        .tag(HistoryMonthView.ViewMode.chart)
                     Label("Tabell", systemImage: "list.bullet")
-                        .tag(ViewMode.table)
+                        .tag(HistoryMonthView.ViewMode.table)
                 }
                 .pickerStyle(.segmented)
                 .fixedSize()
@@ -239,21 +292,30 @@ struct HistoryMonthView: View {
             } else {
                 switch viewMode {
                 case .chart:
-                    dailyHistoryChart(days)
+                    HistoryDailyChart(days: days, selectedDay: $selectedDay)
                 case .table:
-                    dailyHistoryTable(days)
+                    HistoryDailyTable(days: days)
                 }
             }
         }
         .padding(DS.Spacing.lg)
         .glassCard(cornerRadius: DS.Radius.lg)
     }
+}
 
-    @ViewBuilder
-    private func dailyHistoryChart(_ days: [HistoricalEnergySummaryValue]) -> some View {
-        let sortedDays = days.sorted { $0.periodStart < $1.periodStart }
-        let hasMultipleCoverageTypes = Set(sortedDays.map(\.dataCoverage)).count > 1
-        
+private struct HistoryDailyChart: View {
+    let days: [HistoricalEnergySummaryValue]
+    @Binding var selectedDay: HistoricalEnergySummaryValue?
+
+    private var sortedDays: [HistoricalEnergySummaryValue] {
+        days.sorted { $0.periodStart < $1.periodStart }
+    }
+
+    private var hasMultipleCoverageTypes: Bool {
+        Set(sortedDays.map(\.dataCoverage)).count > 1
+    }
+
+    var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
             Chart {
                 ForEach(sortedDays) { day in
@@ -283,8 +345,7 @@ struct HistoryMonthView: View {
                         .opacity(selectedDay == nil || selectedDay?.id == day.id ? 1.0 : 0.3)
                     }
                 }
-                
-                // Selection indicator with callout
+
                 if let selectedDay {
                     RuleMark(x: .value("Vald dag", selectedDay.periodStart))
                         .foregroundStyle(DS.Color.secondary.opacity(0.5))
@@ -323,32 +384,38 @@ struct HistoryMonthView: View {
                 }
             }
             .frame(height: 200)
-            .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { value in
-                        selectedDay = findNearestDay(at: value.location, in: sortedDays)
-                    }
-                    .onEnded { value in
-                        // If it was just a tap (minimal movement), toggle selection
-                        if value.translation.width < 5 && value.translation.height < 5 {
-                            // Tap detected - clear selection
-                            selectedDay = nil
-                        }
-                        // Otherwise keep the selection from drag
-                    }
-            )
-            
-            // Legend - bara visa om det finns variation
+            .overlay {
+                GeometryReader { geometry in
+                    Rectangle()
+                        .fill(.clear)
+                        .contentShape(Rectangle())
+                        .gesture(
+                            DragGesture(minimumDistance: 0)
+                                .onChanged { value in
+                                    selectedDay = findNearestDay(
+                                        at: value.location,
+                                        in: sortedDays,
+                                        chartWidth: geometry.size.width
+                                    )
+                                }
+                                .onEnded { value in
+                                    if value.translation.width < 5 && value.translation.height < 5 {
+                                        selectedDay = nil
+                                    }
+                                }
+                        )
+                }
+            }
+
             if hasMultipleCoverageTypes {
                 HStack(spacing: DS.Spacing.lg) {
                     ForEach(HistoricalEnergyDataCoverage.allCases, id: \.self) { coverage in
                         if sortedDays.contains(where: { $0.dataCoverage == coverage }) {
                             HStack(spacing: DS.Spacing.xs) {
                                 RoundedRectangle(cornerRadius: 3)
-                                    .fill(coverageColor(coverage))
+                                    .fill(coverage.displayColor)
                                     .frame(width: 12, height: 12)
-                                Text(coverageTitle(coverage))
+                                Text(coverage.displayTitle)
                                     .font(DS.Font.micro)
                                     .foregroundStyle(DS.Color.secondary)
                             }
@@ -358,18 +425,67 @@ struct HistoryMonthView: View {
             }
         }
     }
-    
-    @ViewBuilder
-    private func dailyHistoryTable(_ days: [HistoricalEnergySummaryValue]) -> some View {
-        ForEach(days) { day in
-            historyRow(summary: day, value: primaryValue(day))
+
+    private func coverageGradient(_ coverage: HistoricalEnergyDataCoverage) -> LinearGradient {
+        let color = coverage.displayColor
+        return LinearGradient(
+            colors: [color, color.opacity(0.7)],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    private func chartXAxisStride(for dayCount: Int) -> Int {
+        if dayCount <= 7 {
+            return 1
+        } else if dayCount <= 14 {
+            return 2
+        } else if dayCount <= 21 {
+            return 3
+        } else {
+            return 5
         }
     }
 
-    private func historyRow(
-        summary: HistoricalEnergySummaryValue,
-        value: (String, String)?
-    ) -> some View {
+    private func findNearestDay(
+        at location: CGPoint,
+        in days: [HistoricalEnergySummaryValue],
+        chartWidth: CGFloat
+    ) -> HistoricalEnergySummaryValue? {
+        guard !days.isEmpty, chartWidth > 0 else { return nil }
+
+        let dayIndex = Int((location.x / chartWidth) * Double(days.count))
+        let clampedIndex = max(0, min(dayIndex, days.count - 1))
+
+        return days[clampedIndex]
+    }
+}
+
+private struct HistoryDailyTable: View {
+    let days: [HistoricalEnergySummaryValue]
+
+    var body: some View {
+        ForEach(days) { day in
+            HistorySummaryRow(summary: day, value: primaryValue(day))
+        }
+    }
+
+    private func primaryValue(_ summary: HistoricalEnergySummaryValue) -> (String, String)? {
+        if let cost = summary.totalCostSEK {
+            return (AppFormatters.wholeNumber(cost), "kr")
+        }
+        if let consumption = summary.totalConsumptionKWh {
+            return (AppFormatters.kWhValue(consumption), "kWh")
+        }
+        return summary.averageSpotPriceOrePerKWh.map { (AppFormatters.oreValue($0), "öre") }
+    }
+}
+
+private struct HistorySummaryRow: View {
+    let summary: HistoricalEnergySummaryValue
+    let value: (String, String)?
+
+    var body: some View {
         HStack(spacing: DS.Spacing.md) {
             VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
                 Text(dayLabel(summary.periodStart))
@@ -406,232 +522,18 @@ struct HistoryMonthView: View {
         }
     }
 
-    private func coverageLabel(_ summary: HistoricalEnergySummaryValue) -> some View {
-        Text(coverageTitle(summary))
-            .font(DS.Font.micro)
-            .foregroundStyle(coverageColor(summary))
-            .padding(.horizontal, DS.Spacing.sm)
-            .padding(.vertical, DS.Spacing.xxs)
-            .background(coverageColor(summary).opacity(0.12), in: Capsule())
-    }
-
-    private func historyStatus(icon: String, title: String, message: String, color: Color) -> some View {
-        HStack(spacing: DS.Spacing.md) {
-            Image(systemName: icon)
-                .font(.system(size: DS.Size.iconMedium, weight: .semibold))
-                .foregroundStyle(color)
-                .frame(width: 28)
-            VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
-                Text(title)
-                    .font(DS.Font.callout)
-                Text(message)
-                    .font(DS.Font.micro)
-                    .foregroundStyle(DS.Color.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(DS.Spacing.lg)
-        .glassCard(cornerRadius: DS.Radius.lg)
-    }
-
-    @MainActor
-    private func loadHistory() async {
-        do {
-            let activePriceArea = priceArea ?? ConsumptionSettings.shared.priceArea
-            let store = try SwiftDataEnergyHistoryStore()
-            let months = uniqueBestMonthlySummaries(
-                try store.fetchMonthlySummaries(priceArea: activePriceArea)
-            )
-            let selectedKey = selectedMonthKey ?? months.first?.periodKey
-            let dailySummaries: [HistoricalEnergySummaryValue]
-            let topCostDays: [HistoricalEnergySummaryValue]
-            let topConsumptionDays: [HistoricalEnergySummaryValue]
-
-            if let selectedKey {
-                selectedMonthKey = selectedKey
-                dailySummaries = try store.fetchDailySummaries(monthKey: selectedKey, priceArea: activePriceArea)
-                    .sorted { $0.periodStart > $1.periodStart }
-                topCostDays = try store.fetchTopCostDays(monthKey: selectedKey, priceArea: activePriceArea, limit: 3)
-                topConsumptionDays = try store.fetchTopConsumptionDays(monthKey: selectedKey, priceArea: activePriceArea, limit: 3)
-            } else {
-                dailySummaries = []
-                topCostDays = []
-                topConsumptionDays = []
-            }
-
-            state = .loaded(HistoryData(
-                months: months,
-                selectedMonth: months.first { $0.periodKey == selectedKey },
-                dailySummaries: dailySummaries,
-                topCostDays: topCostDays,
-                topConsumptionDays: topConsumptionDays
-            ))
-        } catch {
-            state = .failed(error.localizedDescription)
-        }
-    }
-
-    private func primaryValue(_ summary: HistoricalEnergySummaryValue) -> (String, String)? {
-        if let cost = summary.totalCostSEK {
-            return (Int(cost.rounded()).formatted(), "kr")
-        }
-        if let consumption = summary.totalConsumptionKWh {
-            return (consumption.formatted(.number.precision(.fractionLength(0...1))), "kWh")
-        }
-        return summary.averageSpotPriceOrePerKWh.map { (Int($0.rounded()).formatted(), "öre") }
-    }
-
-    private func averagePriceMetric(_ summary: HistoricalEnergySummaryValue) -> (title: String, value: String, unit: String) {
-        if let totalPrice = summary.averageTotalCostSEKPerKWh {
-            return (
-                "Snitt totalpris",
-                totalPrice.formatted(.number.precision(.fractionLength(2))),
-                "kr/kWh"
-            )
-        }
-        if let spotPrice = summary.averageSpotPriceOrePerKWh {
-            return (
-                "Snitt spotpris",
-                Int(spotPrice.rounded()).formatted(),
-                "öre"
-            )
-        }
-        return ("Snittpris", "-", "kr/kWh")
-    }
-
     private func secondaryValue(for summary: HistoricalEnergySummaryValue, primaryUnit: String) -> (String, String)? {
         if primaryUnit != "kWh", let consumption = summary.totalConsumptionKWh {
-            return (consumption.formatted(.number.precision(.fractionLength(0...1))), "kWh")
+            return (AppFormatters.kWhValue(consumption), "kWh")
         }
         if primaryUnit != "kr", let cost = summary.totalCostSEK {
-            return (Int(cost.rounded()).formatted(), "kr")
+            return (AppFormatters.wholeNumber(cost), "kr")
         }
         return nil
     }
 
-    private func uniqueBestMonthlySummaries(_ summaries: [HistoricalEnergySummaryValue]) -> [HistoricalEnergySummaryValue] {
-        Dictionary(grouping: summaries, by: \.periodKey)
-            .compactMap { _, summaries in
-                summaries.sorted { lhs, rhs in
-                    let lhsRank = summaryRank(lhs)
-                    let rhsRank = summaryRank(rhs)
-                    if lhsRank == rhsRank {
-                        return lhs.intervalCount > rhs.intervalCount
-                    }
-                    return lhsRank > rhsRank
-                }
-                .first
-            }
-            .sorted { $0.periodStart > $1.periodStart }
-    }
-
-    private func summaryRank(_ summary: HistoricalEnergySummaryValue) -> Int {
-        switch summary.dataCoverage {
-        case .measuredConsumption:
-            return 4
-        case .partialConsumption:
-            return 3
-        case .estimatedCost:
-            return 2
-        case .priceOnly:
-            return 1
-        }
-    }
-
-    private func monthDayCount(_ summary: HistoricalEnergySummaryValue) -> Int {
-        Calendar.energyHistory.range(of: .day, in: .month, for: summary.periodStart)?.count ?? 0
-    }
-
-    private func coverageTitle(_ summary: HistoricalEnergySummaryValue) -> String {
-        coverageTitle(summary.dataCoverage)
-    }
-
-    private func coverageTitle(_ coverage: HistoricalEnergyDataCoverage) -> String {
-        switch coverage {
-        case .priceOnly:
-            return "Pris"
-        case .estimatedCost:
-            return "Uppskattat"
-        case .partialConsumption:
-            return "Delvis mätt"
-        case .measuredConsumption:
-            return "Mätt"
-        }
-    }
-
-    private func coverageText(_ summary: HistoricalEnergySummaryValue) -> String {
-        switch summary.dataCoverage {
-        case .priceOnly:
-            return "Spotpriser sparade"
-        case .estimatedCost:
-            return "Kostnad beräknad utan mätt förbrukning"
-        case .partialConsumption:
-            if let ratio = summary.measuredCoverageRatio {
-                let percent = ratio.formatted(.percent.precision(.fractionLength(0)))
-                return "Mätt förbrukning: \(percent)"
-            }
-            return "Delvis mätt förbrukning"
-        case .measuredConsumption:
-            return "Mätt förbrukning och kostnad"
-        }
-    }
-
-    private func coverageColor(_ summary: HistoricalEnergySummaryValue) -> Color {
-        coverageColor(summary.dataCoverage)
-    }
-
-    private func coverageColor(_ coverage: HistoricalEnergyDataCoverage) -> Color {
-        switch coverage {
-        case .priceOnly:
-            return DS.Color.secondary
-        case .estimatedCost:
-            return DS.Color.warning
-        case .partialConsumption:
-            return DS.Color.info
-        case .measuredConsumption:
-            return DS.Color.success
-        }
-    }
-
-    private func coverageGradient(_ coverage: HistoricalEnergyDataCoverage) -> LinearGradient {
-        let color = coverageColor(coverage)
-        return LinearGradient(
-            colors: [color, color.opacity(0.7)],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-    }
-
-    private func chartXAxisStride(for dayCount: Int) -> Int {
-        if dayCount <= 7 {
-            return 1 // Visa varje dag
-        } else if dayCount <= 14 {
-            return 2 // Varannan dag
-        } else if dayCount <= 21 {
-            return 3 // Var tredje dag
-        } else {
-            return 5 // Var femte dag
-        }
-    }
-
-    private func findNearestDay(at location: CGPoint, in days: [HistoricalEnergySummaryValue]) -> HistoricalEnergySummaryValue? {
-        guard !days.isEmpty else { return nil }
-        
-        // Approximate calculation - assumes chart width is proportional to screen width
-        // This is a simplified version; for production you'd want to use chartProxy
-        let dayIndex = Int((location.x / 300) * Double(days.count))
-        let clampedIndex = max(0, min(dayIndex, days.count - 1))
-        
-        return days[clampedIndex]
-    }
-
-    private func monthLabel(_ date: Date) -> String {
-        date.formatted(.dateTime.month(.wide).year().locale(Locale(identifier: "sv_SE")))
-    }
-
     private func dayLabel(_ date: Date) -> String {
-        date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).locale(Locale(identifier: "sv_SE")))
+        AppFormatters.historyDayLabel(date)
     }
 }
 
@@ -658,32 +560,6 @@ private struct HistoryDayCalloutView: View {
     private var secondaryTextColor: Color {
         primaryTextColor.opacity(0.72)
     }
-    
-    private var coverageColor: Color {
-        switch day.dataCoverage {
-        case .priceOnly:
-            return DS.Color.secondary
-        case .estimatedCost:
-            return DS.Color.warning
-        case .partialConsumption:
-            return DS.Color.info
-        case .measuredConsumption:
-            return DS.Color.success
-        }
-    }
-    
-    private var coverageLabel: String {
-        switch day.dataCoverage {
-        case .priceOnly:
-            return "Bara pris"
-        case .estimatedCost:
-            return "Uppskattat"
-        case .partialConsumption:
-            return "Delvis mätt"
-        case .measuredConsumption:
-            return "Mätt"
-        }
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.sm) {
@@ -697,12 +573,12 @@ private struct HistoryDayCalloutView: View {
                 
                 // Coverage badge - bara visa om det finns variation i datasetet
                 if showCoverageBadge {
-                    Text(coverageLabel)
+                    Text(day.dataCoverage.calloutTitle)
                         .font(DS.Font.micro)
-                        .foregroundStyle(coverageColor)
+                        .foregroundStyle(day.dataCoverage.displayColor)
                         .padding(.horizontal, DS.Spacing.xs)
                         .padding(.vertical, 2)
-                        .background(coverageColor.opacity(0.15), in: Capsule())
+                        .background(day.dataCoverage.displayColor.opacity(0.15), in: Capsule())
                 }
             }
             
@@ -715,7 +591,7 @@ private struct HistoryDayCalloutView: View {
                     metricRow(
                         icon: "wallet.bifold.fill",
                         label: "Kostnad",
-                        value: Int(cost.rounded()).formatted(),
+                        value: AppFormatters.wholeNumber(cost),
                         unit: "kr",
                         highlight: true
                     )
@@ -735,7 +611,7 @@ private struct HistoryDayCalloutView: View {
                     metricRow(
                         icon: "chart.line.uptrend.xyaxis",
                         label: "Snitt spotpris",
-                        value: Int(avgPrice.rounded()).formatted(),
+                        value: AppFormatters.oreValue(avgPrice),
                         unit: "öre/kWh",
                         highlight: false
                     )
@@ -789,7 +665,7 @@ private struct HistoryDayCalloutView: View {
     }
     
     private func dayLabel(_ date: Date) -> String {
-        date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).locale(Locale(identifier: "sv_SE")))
+        AppFormatters.historyDayLabel(date)
     }
 }
 

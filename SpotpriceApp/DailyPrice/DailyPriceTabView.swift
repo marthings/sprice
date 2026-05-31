@@ -75,7 +75,7 @@ private struct PriceChartSection: View {
                         .foregroundStyle(DS.Color.secondary.opacity(0.65))
                         .lineStyle(StrokeStyle(lineWidth: 1.2))
                         .annotation(position: .top, spacing: DS.Spacing.sm, overflowResolution: .init(x: .fit, y: .disabled)) {
-                            ChartCalloutView(
+                            IOSChartCalloutView(
                                 bucket: selectedBucket,
                                 dayData: payload.day,
                                 profile: ConsumptionSettings.shared.costProfile

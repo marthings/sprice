@@ -7,7 +7,7 @@ struct CostExamplesSection: View {
     private let totalCostService = TotalCostService()
 
     private var currentPrice: Double {
-        payload.day.currentBucket?.orePerKWh ?? averagePrice(payload.day.buckets)
+        payload.day.currentBucket?.orePerKWh ?? PriceBucketAnalytics.averageSpotPrice(payload.day.buckets)
     }
 
     var body: some View {
@@ -97,10 +97,6 @@ struct CostExamplesSection: View {
         ]
     }
 
-    private func averagePrice(_ buckets: [PriceBucket]) -> Double {
-        guard !buckets.isEmpty else { return 0 }
-        return buckets.reduce(0) { $0 + $1.orePerKWh } / Double(buckets.count)
-    }
 }
 
 private struct CostExample: Identifiable {
