@@ -18,13 +18,15 @@ struct ModernMenuBarView: View {
                     chartSection
                         .glassCard(cornerRadius: DS.Radius.md)
                     quickStats
+                    historicalSummary
                     MonthlyStatsSection(
                         consumption: viewModel.monthlyConsumption,
                         powerPeaks: viewModel.powerPeaks,
                         consumptionError: viewModel.consumptionError,
                         isConfigured: ConsumptionSettings.shared.isConfigured,
                         averagePrice: loadedAveragePrice,
-                        preciseCost: viewModel.preciseMonthlyCost
+                        preciseCost: viewModel.preciseMonthlyCost,
+                        historySummary: viewModel.currentMonthHistorySummary
                     )
                 }
                 .padding(.horizontal, DS.Spacing.lg)
@@ -34,6 +36,40 @@ struct ModernMenuBarView: View {
         }
         .frame(width: DS.Size.menuBarWidth, height: DS.Size.menuBarHeight)
         .font(DS.Font.callout)
+    }
+
+    @ViewBuilder
+    private var historicalSummary: some View {
+        if let summary = viewModel.currentMonthHistorySummary {
+            HStack(spacing: DS.Spacing.md) {
+                Image(systemName: "clock.arrow.circlepath")
+                    .font(.system(size: DS.Size.iconMedium, weight: .semibold))
+                    .foregroundStyle(coverageColor(summary))
+                    .frame(width: 24)
+
+                VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
+                    HStack(spacing: DS.Spacing.xs) {
+                        Text("Sparad månad")
+                            .font(DS.Font.medium(12))
+                            .foregroundStyle(.primary)
+                        Text(coverageTitle(summary))
+                            .font(DS.Font.micro)
+                            .foregroundStyle(coverageColor(summary))
+                            .padding(.horizontal, DS.Spacing.xs)
+                            .padding(.vertical, 2)
+                            .background(coverageColor(summary).opacity(0.12), in: .capsule)
+                    }
+                    Text(historySummaryText(summary))
+                        .font(DS.Font.micro)
+                        .foregroundStyle(DS.Color.secondary)
+                        .lineLimit(2)
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding(DS.Spacing.md)
+            .glassCard(cornerRadius: DS.Radius.lg)
+        }
     }
 
     // MARK: - Header
@@ -159,6 +195,48 @@ struct ModernMenuBarView: View {
             return message
         case .loaded:
             return ""
+        }
+    }
+
+    private func historySummaryText(_ summary: HistoricalEnergySummaryValue) -> String {
+        var parts: [String] = []
+
+        if let cost = summary.totalCostSEK {
+            parts.append("\(Int(cost.rounded()).formatted()) kr")
+        }
+        if let consumption = summary.totalConsumptionKWh {
+            parts.append("\(consumption.formatted(.number.precision(.fractionLength(0...1)))) kWh")
+        }
+        if parts.isEmpty, let averagePrice = summary.averageSpotPriceOrePerKWh {
+            parts.append("Snitt spotpris \(Int(averagePrice.rounded()).formatted()) öre/kWh")
+        }
+
+        return parts.isEmpty ? "Prishistorik sparad för aktuell månad" : parts.joined(separator: " · ")
+    }
+
+    private func coverageTitle(_ summary: HistoricalEnergySummaryValue) -> String {
+        switch summary.dataCoverage {
+        case .priceOnly:
+            return "Pris"
+        case .estimatedCost:
+            return "Uppskattat"
+        case .partialConsumption:
+            return "Delvis mätt"
+        case .measuredConsumption:
+            return "Mätt"
+        }
+    }
+
+    private func coverageColor(_ summary: HistoricalEnergySummaryValue) -> Color {
+        switch summary.dataCoverage {
+        case .priceOnly:
+            return DS.Color.secondary
+        case .estimatedCost:
+            return DS.Color.warning
+        case .partialConsumption:
+            return DS.Color.info
+        case .measuredConsumption:
+            return DS.Color.success
         }
     }
 }

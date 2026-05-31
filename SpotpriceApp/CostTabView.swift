@@ -80,7 +80,7 @@ private struct CurrentCostHero: View {
 
                 if let forecast {
                     metricInline(
-                        title: "Månadsprognos",
+                        title: "Prognos",
                         value: Int(forecast.monthTotalKr.rounded()).formatted(),
                         unit: "kr/mån"
                     )

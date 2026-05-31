@@ -12,6 +12,7 @@ struct MonthlyStatsSection: View {
     let isConfigured: Bool
     let averagePrice: Double?
     let preciseCost: PreciseMonthlyCost?
+    let historySummary: HistoricalEnergySummaryValue?
     
     private var settings: ConsumptionSettings {
         ConsumptionSettings.shared
@@ -85,6 +86,23 @@ struct MonthlyStatsSection: View {
                 // Power peaks (effekttoppar)
                 TopConsumptionDaysCard(peaks: powerPeaks)
             }
+        } else if let historySummary {
+            VStack(alignment: .leading, spacing: DS.Spacing.md) {
+                HStack(spacing: DS.Spacing.xs) {
+                    Text("Förbrukning från historik")
+                        .font(DS.Font.semibold(14))
+                        .foregroundStyle(.primary)
+                    Text(coverageTitle(historySummary))
+                        .font(DS.Font.micro)
+                        .foregroundStyle(coverageColor(historySummary))
+                        .padding(.horizontal, DS.Spacing.xs)
+                        .padding(.vertical, DS.Spacing.xxs)
+                        .background(coverageColor(historySummary).opacity(0.12), in: .capsule)
+                    Spacer()
+                }
+
+                historySummaryCard(historySummary)
+            }
         } else if !isConfigured {
             SettingsLink {
                 HStack(spacing: DS.Spacing.md) {
@@ -148,5 +166,89 @@ struct MonthlyStatsSection: View {
             profile: settings.costProfile,
             hoursInPeriod: 730  // Full month
         )
+    }
+
+    private func historySummaryCard(_ summary: HistoricalEnergySummaryValue) -> some View {
+        HStack(spacing: DS.Spacing.md) {
+            Image(systemName: "clock.arrow.circlepath")
+                .font(.system(size: DS.Size.iconMedium, weight: .semibold))
+                .foregroundStyle(coverageColor(summary))
+                .frame(width: 24)
+
+            VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
+                Text(historySummaryText(summary))
+                    .font(DS.Font.medium(12))
+                    .foregroundStyle(.primary)
+                Text(coverageText(summary))
+                    .font(DS.Font.micro)
+                    .foregroundStyle(DS.Color.secondary)
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(DS.Spacing.md)
+        .glassCard(cornerRadius: DS.Radius.lg)
+    }
+
+    private func historySummaryText(_ summary: HistoricalEnergySummaryValue) -> String {
+        var parts: [String] = []
+
+        if let cost = summary.totalCostSEK {
+            parts.append("\(Int(cost.rounded()).formatted()) kr")
+        }
+        if let consumption = summary.totalConsumptionKWh {
+            parts.append("\(consumption.formatted(.number.precision(.fractionLength(0...1)))) kWh")
+        }
+        if !parts.isEmpty {
+            return "\(parts.joined(separator: " · ")) sparat för månaden"
+        }
+        if let averagePrice = summary.averageSpotPriceOrePerKWh {
+            return "Snitt spotpris \(Int(averagePrice.rounded()).formatted()) öre/kWh sparat"
+        }
+        return "Historik sparad för månaden"
+    }
+
+    private func coverageTitle(_ summary: HistoricalEnergySummaryValue) -> String {
+        switch summary.dataCoverage {
+        case .priceOnly:
+            return "Pris"
+        case .estimatedCost:
+            return "Uppskattat"
+        case .partialConsumption:
+            return "Delvis mätt"
+        case .measuredConsumption:
+            return "Mätt"
+        }
+    }
+
+    private func coverageText(_ summary: HistoricalEnergySummaryValue) -> String {
+        switch summary.dataCoverage {
+        case .priceOnly:
+            return "Förbrukningsdata saknas. Visar sparad prishistorik."
+        case .estimatedCost:
+            return "Förbrukningsdata saknas. Visar sparad uppskattad kostnad."
+        case .partialConsumption:
+            if let ratio = summary.measuredCoverageRatio {
+                let percent = ratio.formatted(.percent.precision(.fractionLength(0)))
+                return "Förbrukningsdata saknas. Historiken täcker \(percent) av intervallen."
+            }
+            return "Förbrukningsdata saknas. Visar delvis mätt historik."
+        case .measuredConsumption:
+            return "Förbrukningsdata saknas. Visar sparad mätt förbrukning."
+        }
+    }
+
+    private func coverageColor(_ summary: HistoricalEnergySummaryValue) -> Color {
+        switch summary.dataCoverage {
+        case .priceOnly:
+            return DS.Color.secondary
+        case .estimatedCost:
+            return DS.Color.warning
+        case .partialConsumption:
+            return DS.Color.info
+        case .measuredConsumption:
+            return DS.Color.success
+        }
     }
 }

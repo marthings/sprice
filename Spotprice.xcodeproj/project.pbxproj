@@ -10,6 +10,7 @@
 		202E8C562FC4D8C1003E56F0 /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = 202E8C552FC4D8C1003E56F0 /* README.md */; };
 		202E8C572FC4D8C1003E56F0 /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = 202E8C552FC4D8C1003E56F0 /* README.md */; };
 		202E8C582FC4D8C1003E56F0 /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = 202E8C552FC4D8C1003E56F0 /* README.md */; };
+		2050F2012FCACD050077896C /* tariffs-and-costs-sprint.md in Resources */ = {isa = PBXBuildFile; fileRef = 2050F2002FCACD050077896C /* tariffs-and-costs-sprint.md */; };
 		206B18FB2F313EBE00E5F9E7 /* spotprice.icon in Resources */ = {isa = PBXBuildFile; fileRef = 206B18FA2F313EBE00E5F9E7 /* spotprice.icon */; };
 		206B18FC2F313EBE00E5F9E7 /* spotprice.icon in Resources */ = {isa = PBXBuildFile; fileRef = 206B18FA2F313EBE00E5F9E7 /* spotprice.icon */; };
 		20861F902F2E0B9A0067EDC1 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 20861F8F2F2E0B9A0067EDC1 /* WidgetKit.framework */; };
@@ -46,6 +47,7 @@
 		200104F82F26582400B2F176 /* Spotprice.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Spotprice.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		201EA1FD2FBCAC8C0036D7BF /* SpotpriceApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SpotpriceApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		202E8C552FC4D8C1003E56F0 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
+		2050F2002FCACD050077896C /* tariffs-and-costs-sprint.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "tariffs-and-costs-sprint.md"; sourceTree = "<group>"; };
 		206612092F65F19F00102F19 /* business-case.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "business-case.md"; sourceTree = "<group>"; };
 		206B18F82F2FFC2600E5F9E7 /* SpotpriceWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SpotpriceWidgetExtension.entitlements; sourceTree = "<group>"; };
 		206B18FA2F313EBE00E5F9E7 /* spotprice.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = spotprice.icon; sourceTree = "<group>"; };
@@ -54,6 +56,7 @@
 		20861F912F2E0B9A0067EDC1 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		20928BE82FBCE5B100D1BD9F /* ios-widget-plan.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "ios-widget-plan.md"; sourceTree = "<group>"; };
 		20928BE92FBCE62800D1BD9F /* ios-app-menubar-parity-plan.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "ios-app-menubar-parity-plan.md"; sourceTree = "<group>"; };
+		20E8B4C02FC9DABC0096A4F0 /* historical-cost-and-consumption-plan.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "historical-cost-and-consumption-plan.md"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -64,6 +67,7 @@
 				ConsumptionSettings.swift,
 				CostProfile.swift,
 				GridTariffModels.swift,
+				HistoricalEnergyModels.swift,
 				SpotPriceModels.swift,
 			);
 			target = 20861F8C2F2E0B9A0067EDC1 /* SpotpriceWidgetExtension */;
@@ -75,6 +79,7 @@
 				ConsumptionSettings.swift,
 				CostProfile.swift,
 				GridTariffModels.swift,
+				HistoricalEnergyModels.swift,
 				SpotPriceModels.swift,
 			);
 			target = 201EA1FC2FBCAC8C0036D7BF /* SpotpriceApp */;
@@ -83,6 +88,8 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				ConsumptionService.swift,
+				EnergyHistoryRecorder.swift,
+				EnergyHistoryStore.swift,
 				GridTariffService.swift,
 				KeychainHelper.swift,
 				NetworkSession.swift,
@@ -102,6 +109,8 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				ConsumptionService.swift,
+				EnergyHistoryRecorder.swift,
+				EnergyHistoryStore.swift,
 				GridTariffService.swift,
 				KeychainHelper.swift,
 				NetworkSession.swift,
@@ -114,6 +123,8 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				ConsumptionService.swift,
+				EnergyHistoryRecorder.swift,
+				EnergyHistoryStore.swift,
 				GridTariffService.swift,
 				KeychainHelper.swift,
 				NetworkSession.swift,
@@ -329,11 +340,6 @@
 			path = DesignSystem;
 			sourceTree = "<group>";
 		};
-		201EA2A52FBCB1160036D7BF /* Docs */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = Docs;
-			sourceTree = "<group>";
-		};
 		20861F932F2E0B9A0067EDC1 /* SpotpriceWidget */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
@@ -409,7 +415,6 @@
 				201EA2932FBCB10A0036D7BF /* Components */,
 				201EA2982FBCB1110036D7BF /* Configuration */,
 				201EA29A2FBCB1110036D7BF /* DesignSystem */,
-				201EA2A52FBCB1160036D7BF /* Docs */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -420,6 +425,8 @@
 				206612092F65F19F00102F19 /* business-case.md */,
 				20928BE82FBCE5B100D1BD9F /* ios-widget-plan.md */,
 				20928BE92FBCE62800D1BD9F /* ios-app-menubar-parity-plan.md */,
+				20E8B4C02FC9DABC0096A4F0 /* historical-cost-and-consumption-plan.md */,
+				2050F2002FCACD050077896C /* tariffs-and-costs-sprint.md */,
 			);
 			path = Docs;
 			sourceTree = "<group>";
@@ -458,7 +465,6 @@
 				201EA2852FBCB1030036D7BF /* Fonts */,
 				201EA2932FBCB10A0036D7BF /* Components */,
 				201EA29A2FBCB1110036D7BF /* DesignSystem */,
-				201EA2A52FBCB1160036D7BF /* Docs */,
 			);
 			name = Spotprice;
 			packageProductDependencies = (
@@ -558,6 +564,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2050F2012FCACD050077896C /* tariffs-and-costs-sprint.md in Resources */,
 				206B18FB2F313EBE00E5F9E7 /* spotprice.icon in Resources */,
 				202E8C572FC4D8C1003E56F0 /* README.md in Resources */,
 			);
@@ -839,6 +846,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = spotprice;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = SpotpriceApp/SpotpriceApp.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = U8J74WVQ4D;
@@ -874,6 +882,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = spotprice;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = SpotpriceApp/SpotpriceApp.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = U8J74WVQ4D;

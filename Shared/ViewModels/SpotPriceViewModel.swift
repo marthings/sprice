@@ -27,10 +27,12 @@ final class SpotPriceViewModel {
     private(set) var preciseMonthlyCost: PreciseMonthlyCost?
     private(set) var consumptionError: String?
     private(set) var currentTariff: SimplifiedTariff?
+    private(set) var currentMonthHistorySummary: HistoricalEnergySummaryValue?
 
     private let service: SpotPriceService
     private let consumptionService: ConsumptionService
     private let gridTariffService: GridTariffService
+    private let historyRecorder: EnergyHistoryRecorder?
     private let settings: ConsumptionSettings
     private let numberFormatter: NumberFormatter
     private let nowProvider: () -> Date
@@ -50,6 +52,7 @@ final class SpotPriceViewModel {
         service: SpotPriceService? = nil,
         consumptionService: ConsumptionService? = nil,
         gridTariffService: GridTariffService? = nil,
+        historyRecorder: EnergyHistoryRecorder? = nil,
         settings: ConsumptionSettings? = nil,
         numberFormatter: NumberFormatter? = nil,
         now: @escaping () -> Date = { Date.now },
@@ -58,6 +61,7 @@ final class SpotPriceViewModel {
         self.service = service ?? SpotPriceService()
         self.consumptionService = consumptionService ?? ConsumptionService()
         self.gridTariffService = gridTariffService ?? GridTariffService()
+        self.historyRecorder = historyRecorder ?? (try? EnergyHistoryRecorder())
         self.settings = settings ?? .shared
         self.numberFormatter = numberFormatter ?? {
             let formatter = NumberFormatter()
@@ -105,6 +109,9 @@ final class SpotPriceViewModel {
 
             // Build chart-ready day data
             let dayData = try service.makeDayChartData(from: items, for: now)
+
+            historyRecorder?.recordPriceHistory(dayData: dayData, priceArea: priceArea)
+            loadCurrentMonthHistorySummary()
 
             state = .loaded(CurrentAndDay(currentDisplay: currentDisplay, day: dayData))
         } catch let error as DisplayableError {
@@ -164,6 +171,18 @@ final class SpotPriceViewModel {
             print("📊 ViewModel: Precise cost unavailable - \(error.localizedDescription)")
             // Keep preciseMonthlyCost as nil — UI falls back to estimated
         }
+
+        if settings.isConfigured {
+            await historyRecorder?.recordCurrentMonthConsumptionHistory(
+                consumptionService: consumptionService,
+                spotPriceService: service,
+                priceArea: settings.priceArea,
+                providerID: settings.selectedProviderId,
+                costProfile: settings.costProfile
+            )
+        }
+
+        loadCurrentMonthHistorySummary()
     }
     
     func loadGridTariff() async {
@@ -225,6 +244,17 @@ final class SpotPriceViewModel {
                 if Task.isCancelled { break }
                 await self?.load()
             }
+        }
+    }
+
+    private func loadCurrentMonthHistorySummary() {
+        do {
+            let store = try SwiftDataEnergyHistoryStore()
+            let monthKey = EnergyHistoryKey.monthKey(for: nowProvider())
+            currentMonthHistorySummary = try store.fetchMonthlySummaries(priceArea: settings.priceArea)
+                .first { $0.periodKey == monthKey }
+        } catch {
+            print("🕘 History: Failed to load current month summary - \(error.localizedDescription)")
         }
     }
 }

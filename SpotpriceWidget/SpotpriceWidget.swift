@@ -21,6 +21,7 @@ struct SpotPriceEntry: TimelineEntry {
     let monthlyCostKr: Double
     let monthDate: Date
     let costProfile: CostProfile
+    let historySummary: WidgetHistorySummary?
 
     /// Compact month label (e.g., "feb")
     var monthLabel: String {
@@ -41,7 +42,8 @@ struct SpotPriceEntry: TimelineEntry {
             monthlyKWh: 873,
             monthlyCostKr: 829,
             monthDate: Date(),
-            costProfile: .swedishDefaultEstimate()
+            costProfile: .swedishDefaultEstimate(),
+            historySummary: nil
         )
     }
 
@@ -60,7 +62,8 @@ struct SpotPriceEntry: TimelineEntry {
             monthlyKWh: 0,
             monthlyCostKr: 0,
             monthDate: now,
-            costProfile: .swedishDefaultEstimate()
+            costProfile: .swedishDefaultEstimate(),
+            historySummary: nil
         )
     }
 }
@@ -127,16 +130,23 @@ struct SpotPriceProvider: TimelineProvider {
 
             let items = try await service.fetchSpotPrices(for: now, area: costProfile.priceArea)
             let dayData = try service.makeDayChartData(from: items, for: now)
+            let historySummary = WidgetHistorySummaryCache.summary(
+                monthKey: EnergyHistoryKey.monthKey(for: now),
+                priceArea: costProfile.priceArea
+            )
 
-            // Use cached consumption data (widget can't access Keychain for credentials)
-            let monthlyKWh = cachedConsumption?.totalKWh ?? 0
-            let monthDate = cachedConsumption?.monthDate ?? now
+            // Use local history first, then cached consumption data. The widget does not call provider APIs.
+            let monthlyKWh = historySummary?.totalConsumptionKWh ?? cachedConsumption?.totalKWh ?? 0
+            let monthDate = historySummary?.periodStart ?? cachedConsumption?.monthDate ?? now
             
             // Calculate monthly cost if we have consumption data
             // Widget uses today's average price as an estimate for monthly cost
             // The app calculates precise cost using actual historical prices
             let monthlyCostKr: Double
-            if monthlyKWh > 0 {
+            if let historyCost = historySummary?.totalCostSEK {
+                monthlyCostKr = historyCost
+                print("📱 Widget: Monthly cost from history cache = \(historyCost) kr")
+            } else if monthlyKWh > 0 {
                 let avgPrice = dayData.buckets.map { $0.orePerKWh }.reduce(0, +) / Double(dayData.buckets.count)
                 
                 // Calculate energy cost (spot + taxes + grid transfer)
@@ -178,7 +188,8 @@ struct SpotPriceProvider: TimelineProvider {
                     monthlyKWh: monthlyKWh,
                     monthlyCostKr: monthlyCostKr,
                     monthDate: monthDate,
-                    costProfile: costProfile
+                    costProfile: costProfile,
+                    historySummary: historySummary
                 )
             }
 
@@ -386,6 +397,34 @@ struct SpotpriceWidgetEntryView: View {
         return DS.Color.forPrice(currentTotal, min: minTotal, max: maxTotal)
     }
 
+    private var shouldShowMonthlyStats: Bool {
+        entry.monthlyKWh > 0 || entry.monthlyCostKr > 0
+    }
+
+    private var monthlyDataIsStale: Bool {
+        guard let historySummary = entry.historySummary else { return false }
+        return !historySummary.isCurrentMonth(at: entry.date)
+    }
+
+    private var monthlyStatusLabel: String? {
+        guard let historySummary = entry.historySummary else { return nil }
+
+        if monthlyDataIsStale {
+            return "gammal"
+        }
+
+        switch historySummary.dataCoverage {
+        case .priceOnly:
+            return "pris"
+        case .estimatedCost:
+            return "uppsk"
+        case .partialConsumption:
+            return "delvis"
+        case .measuredConsumption:
+            return "mätt"
+        }
+    }
+
     var body: some View {
         if let price = entry.currentPrice, let _ = entry.priceCategory {
             VStack(alignment: .leading, spacing: 8) {
@@ -400,8 +439,7 @@ struct SpotpriceWidgetEntryView: View {
                     
                     Spacer()
                     
-                    // Only show monthly stats if we have valid data (> 0)
-                    if entry.monthlyKWh > 0 {
+                    if shouldShowMonthlyStats {
                         HStack(spacing: DS.Spacing.xxs) {
                             Text("\(Int(entry.monthlyKWh.rounded()))")
                                 .font(DS.Font.semibold(11).monospacedDigit())
@@ -416,6 +454,12 @@ struct SpotpriceWidgetEntryView: View {
                             Text("kr")
                                 .font(DS.Font.regular(9))
                                 .foregroundStyle(DS.Color.secondary)
+                        }
+
+                        if let monthlyStatusLabel {
+                            Text(monthlyStatusLabel)
+                                .font(DS.Font.regular(8))
+                                .foregroundStyle(monthlyDataIsStale ? DS.Color.warning : DS.Color.secondary)
                         }
                     }
                     

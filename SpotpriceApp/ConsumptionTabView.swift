@@ -6,6 +6,7 @@ struct ConsumptionTabView: View {
     let powerPeaks: [PowerPeak]
     let consumptionError: String?
     let preciseMonthlyCost: PreciseMonthlyCost?
+    let historySummary: HistoricalEnergySummaryValue?
     let onConfigureConsumption: () -> Void
     let onRetry: () -> Void
 
@@ -24,6 +25,7 @@ struct ConsumptionTabView: View {
                 averagePrice: averagePrice(payload.day.buckets),
                 preciseCost: preciseMonthlyCost,
                 profile: ConsumptionSettings.shared.costProfile,
+                historySummary: historySummary,
                 onConfigureConsumption: onConfigureConsumption
             )
         }

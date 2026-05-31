@@ -43,6 +43,7 @@ struct DashboardView: View {
                 powerPeaks: viewModel.powerPeaks,
                 consumptionError: viewModel.consumptionError,
                 preciseMonthlyCost: viewModel.preciseMonthlyCost,
+                historySummary: viewModel.currentMonthHistorySummary,
                 isShowingSettings: $isShowingSettings,
                 onRetry: reload
             )
@@ -50,6 +51,15 @@ struct DashboardView: View {
                 Label("Förbrukning", systemImage: "bolt.fill")
             }
             .tag(2)
+
+            HistoryTab(
+                settingsSummary: settingsSummary,
+                isShowingSettings: $isShowingSettings
+            )
+            .tabItem {
+                Label("Historik", systemImage: "clock.arrow.circlepath")
+            }
+            .tag(3)
         }
         .toolbarBackground(.hidden, for: .tabBar)
         .sheet(isPresented: $isShowingSettings) {
@@ -135,6 +145,7 @@ struct DashboardView: View {
         let powerPeaks: [PowerPeak]
         let consumptionError: String?
         let preciseMonthlyCost: PreciseMonthlyCost?
+        let historySummary: HistoricalEnergySummaryValue?
         @Binding var isShowingSettings: Bool
         let onRetry: () -> Void
         
@@ -147,9 +158,34 @@ struct DashboardView: View {
                         powerPeaks: powerPeaks,
                         consumptionError: consumptionError,
                         preciseMonthlyCost: preciseMonthlyCost,
+                        historySummary: historySummary,
                         onConfigureConsumption: { isShowingSettings = true },
                         onRetry: onRetry
                     )
+                }
+                .toolbarBackground(.hidden, for: .navigationBar)
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            isShowingSettings = true
+                        } label: {
+                            Image(systemName: "gearshape.fill")
+                        }
+                        .accessibilityLabel("Inställningar")
+                    }
+                }
+            }
+        }
+    }
+
+    private struct HistoryTab: View {
+        let settingsSummary: String
+        @Binding var isShowingSettings: Bool
+
+        var body: some View {
+            NavigationStack {
+                ContentView(title: "Historik", settingsSummary: settingsSummary) {
+                    HistoryMonthView()
                 }
                 .toolbarBackground(.hidden, for: .navigationBar)
                 .toolbar {
