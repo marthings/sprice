@@ -7,6 +7,7 @@
 import SwiftUI
 import UniformTypeIdentifiers
 import WidgetKit
+import OSLog
 
 struct SettingsView: View {
     @Bindable var settings = ConsumptionSettings.shared
@@ -99,10 +100,10 @@ struct SettingsView: View {
                                 // Reload widgets
                                 WidgetCenter.shared.reloadAllTimelines()
                                 
-                                print("✅ Verification successful - consumption data will reload")
+                                AppLog.settings.info("Consumption provider verification succeeded")
                             } catch {
                                 connectionStatus = .failed(error.localizedDescription)
-                                print("❌ Verification failed: \(error.localizedDescription)")
+                                AppLog.settings.error("Consumption provider verification failed: \(error.localizedDescription, privacy: .public)")
                             }
                         }
                     } label: {

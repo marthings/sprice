@@ -27,10 +27,6 @@ struct CostTabView: View {
     }
 }
 
-private struct MonthlyCostForecast {
-    let monthTotalKr: Double
-}
-
 private struct CurrentCostHero: View {
     let payload: SpotPriceViewModel.CurrentAndDay
     let trendPrices: (current: Double, next: Double)?
@@ -38,11 +34,12 @@ private struct CurrentCostHero: View {
     let preciseMonthlyCost: PreciseMonthlyCost?
 
     private let totalCostService = TotalCostService()
+    private let monthlyCostEstimator = MonthlyCostEstimator()
 
     var body: some View {
         let profile = ConsumptionSettings.shared.costProfile
         let currentBucket = payload.day.currentBucket
-        let spotPrice = currentBucket?.orePerKWh ?? averagePrice(payload.day.buckets)
+        let spotPrice = currentBucket?.orePerKWh ?? PriceBucketAnalytics.averageSpotPrice(payload.day.buckets)
         let totalPrice = totalCostService.calculatePricePerKWh(spotPriceOre: spotPrice, profile: profile)
         let category = currentBucket?.category ?? DS.Color.categoryForPrice(spotPrice, min: payload.day.minOre, max: payload.day.maxOre)
         let forecast = monthlyForecast(spotPrice: spotPrice, profile: profile)
@@ -71,7 +68,7 @@ private struct CurrentCostHero: View {
                         TrendIndicator(current: trendPrices.current, next: trendPrices.next)
                         metricInline(
                             title: "Nästa kvart",
-                            value: Int(trendPrices.next.rounded()).formatted(),
+                            value: AppFormatters.oreValue(trendPrices.next),
                             unit: "öre"
                         )
                     }
@@ -81,7 +78,7 @@ private struct CurrentCostHero: View {
                 if let forecast {
                     metricInline(
                         title: "Prognos",
-                        value: Int(forecast.monthTotalKr.rounded()).formatted(),
+                        value: AppFormatters.wholeNumber(forecast),
                         unit: "kr/mån"
                     )
                 }
@@ -110,27 +107,14 @@ private struct CurrentCostHero: View {
         value.formatted(.number.precision(.fractionLength(0...2)))
     }
 
-    private func monthlyForecast(spotPrice: Double, profile: CostProfile) -> MonthlyCostForecast? {
+    private func monthlyForecast(spotPrice: Double, profile: CostProfile) -> Double? {
         guard let monthlyConsumption else { return nil }
 
-        let calendar = Calendar.current
-        let now = Date()
-        guard let monthInterval = calendar.dateInterval(of: .month, for: now) else { return nil }
-
-        let elapsedSeconds = max(now.timeIntervalSince(monthInterval.start), 1)
-        let monthSeconds = monthInterval.end.timeIntervalSince(monthInterval.start)
-        guard monthSeconds > 0 else { return nil }
-
-        let elapsedRatio = min(max(elapsedSeconds / monthSeconds, 0), 1)
-        let elapsedHours = elapsedSeconds / 3600
-        let costToDate = totalCostService.calculateTotalCost(
-            kWh: preciseMonthlyCost?.totalKWh ?? monthlyConsumption.totalKWh,
+        return monthlyCostEstimator.forecastMonthTotal(
+            consumptionKWh: preciseMonthlyCost?.totalKWh ?? monthlyConsumption.totalKWh,
             spotPriceOre: forecastSpotPrice(fallbackSpotPrice: spotPrice),
-            profile: profile,
-            hoursInPeriod: elapsedHours
+            profile: profile
         )
-
-        return MonthlyCostForecast(monthTotalKr: costToDate.totalKr / elapsedRatio)
     }
 
     private func forecastSpotPrice(fallbackSpotPrice: Double) -> Double {
@@ -142,8 +126,4 @@ private struct CurrentCostHero: View {
         return (preciseMonthlyCost.totalCostKr / preciseMonthlyCost.totalKWh) * 100
     }
 
-    private func averagePrice(_ buckets: [PriceBucket]) -> Double {
-        guard !buckets.isEmpty else { return 0 }
-        return buckets.reduce(0) { $0 + $1.orePerKWh } / Double(buckets.count)
-    }
 }

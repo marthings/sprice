@@ -2,10 +2,12 @@
 //  ChartCalloutView.swift
 //  SpotpriceApp
 //
+//  iOS-specific chart callout. The macOS menu bar uses the shared
+//  ChartCalloutView from Shared/Components with different material styling.
 
 import SwiftUI
 
-struct ChartCalloutView: View {
+struct IOSChartCalloutView: View {
     let bucket: PriceBucket
     let dayData: DayChartData
     let profile: CostProfile
@@ -98,7 +100,7 @@ struct ChartCalloutView: View {
                 }
 
                 VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
-                    ForEach(topBreakdownComponents(for: costBreakdown), id: \.label) { component in
+                    ForEach(CostBreakdownPresenter.topComponents(for: costBreakdown, profile: profile), id: \.label) { component in
                         BreakdownRow(
                             label: component.label,
                             value: component.value,
@@ -142,7 +144,7 @@ struct ChartCalloutView: View {
                 }
 
                 VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
-                    ForEach(topBreakdownComponents(for: costBreakdown), id: \.label) { component in
+                    ForEach(CostBreakdownPresenter.topComponents(for: costBreakdown, profile: profile), id: \.label) { component in
                         BreakdownRow(
                             label: component.label,
                             value: component.value,
@@ -169,69 +171,6 @@ struct ChartCalloutView: View {
         date.formatted(.dateTime.hour(.defaultDigits(amPM: .omitted)).minute(.twoDigits))
     }
 
-    private func topBreakdownComponents(for cost: EnhancedCost) -> [BreakdownComponent] {
-        var components: [BreakdownComponent] = [
-            BreakdownComponent(
-                label: profile.retailContractDisplayName,
-                value: cost.spotCostKr,
-                isMain: true
-            )
-        ]
-
-        var otherComponents: [(label: String, value: Double)] = []
-
-        if profile.retailContractType == .spotPriceMarkup && cost.providerSurchargeKr > 0 {
-            otherComponents.append(("Elhandelsavgifter", cost.providerSurchargeKr))
-        }
-        if cost.providerMonthlyFeeKr > 0 {
-            otherComponents.append(("Elhandel månadavgift", cost.providerMonthlyFeeKr))
-        }
-        if cost.gridEnergyCostKr > 0 {
-            otherComponents.append(("Elnätsavgift", cost.gridEnergyCostKr))
-        }
-        if cost.fixedFeeCostKr > 0 {
-            otherComponents.append(("Elnät månadavgift", cost.fixedFeeCostKr))
-        }
-
-        otherComponents.append(("Energiskatt", cost.energyTaxKr))
-
-        if cost.certificateFeeKr > 0 {
-            otherComponents.append(("Elcertifikat", cost.certificateFeeKr))
-        }
-        if cost.powerTariffCostKr > 0 {
-            otherComponents.append(("Effektavgift", cost.powerTariffCostKr))
-        }
-
-        otherComponents.sort { $0.value > $1.value }
-
-        let topTwo = Array(otherComponents.prefix(2))
-        let remaining = Array(otherComponents.dropFirst(2))
-
-        for component in topTwo {
-            components.append(BreakdownComponent(
-                label: component.label,
-                value: component.value,
-                isMain: false
-            ))
-        }
-
-        if !remaining.isEmpty {
-            let othersTotal = remaining.reduce(0) { $0 + $1.value }
-            components.append(BreakdownComponent(
-                label: "Övrigt",
-                value: othersTotal,
-                isMain: false
-            ))
-        }
-
-        return components
-    }
-}
-
-private struct BreakdownComponent {
-    let label: String
-    let value: Double
-    let isMain: Bool
 }
 
 private struct BreakdownRow: View {

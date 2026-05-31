@@ -25,6 +25,95 @@ protocol EnergyHistoryStore {
     func deleteAllHistory() throws
 }
 
+// MARK: - Energy History Querying
+
+struct EnergyHistoryMonthQueryResult {
+    let months: [HistoricalEnergySummaryValue]
+    let selectedMonth: HistoricalEnergySummaryValue?
+    let dailySummaries: [HistoricalEnergySummaryValue]
+    let topCostDays: [HistoricalEnergySummaryValue]
+    let topConsumptionDays: [HistoricalEnergySummaryValue]
+    let selectedMonthKey: String?
+}
+
+@MainActor
+protocol EnergyHistoryQuerying {
+    func loadMonthHistory(priceArea: String?, selectedMonthKey: String?) throws -> EnergyHistoryMonthQueryResult
+    func loadCurrentMonthSummary(priceArea: String?, monthKey: String) throws -> HistoricalEnergySummaryValue?
+}
+
+@MainActor
+final class EnergyHistoryQueryService: EnergyHistoryQuerying {
+    private let storeFactory: () throws -> any EnergyHistoryStore
+
+    init(storeFactory: (() throws -> any EnergyHistoryStore)? = nil) {
+        self.storeFactory = storeFactory ?? { try SwiftDataEnergyHistoryStore() }
+    }
+
+    func loadMonthHistory(priceArea: String?, selectedMonthKey: String?) throws -> EnergyHistoryMonthQueryResult {
+        let store = try storeFactory()
+        let months = uniqueBestMonthlySummaries(try store.fetchMonthlySummaries(priceArea: priceArea))
+        let resolvedMonthKey = selectedMonthKey ?? months.first?.periodKey
+        let dailySummaries: [HistoricalEnergySummaryValue]
+        let topCostDays: [HistoricalEnergySummaryValue]
+        let topConsumptionDays: [HistoricalEnergySummaryValue]
+
+        if let resolvedMonthKey {
+            dailySummaries = try store.fetchDailySummaries(monthKey: resolvedMonthKey, priceArea: priceArea)
+                .sorted { $0.periodStart > $1.periodStart }
+            topCostDays = try store.fetchTopCostDays(monthKey: resolvedMonthKey, priceArea: priceArea, limit: 3)
+            topConsumptionDays = try store.fetchTopConsumptionDays(monthKey: resolvedMonthKey, priceArea: priceArea, limit: 3)
+        } else {
+            dailySummaries = []
+            topCostDays = []
+            topConsumptionDays = []
+        }
+
+        return EnergyHistoryMonthQueryResult(
+            months: months,
+            selectedMonth: months.first { $0.periodKey == resolvedMonthKey },
+            dailySummaries: dailySummaries,
+            topCostDays: topCostDays,
+            topConsumptionDays: topConsumptionDays,
+            selectedMonthKey: resolvedMonthKey
+        )
+    }
+
+    func loadCurrentMonthSummary(priceArea: String?, monthKey: String) throws -> HistoricalEnergySummaryValue? {
+        let store = try storeFactory()
+        return try store.fetchMonthlySummaries(priceArea: priceArea)
+            .filter { $0.periodKey == monthKey }
+            .max { lhs, rhs in rhs.isPreferred(over: lhs) }
+    }
+
+    private func uniqueBestMonthlySummaries(_ summaries: [HistoricalEnergySummaryValue]) -> [HistoricalEnergySummaryValue] {
+        summaries.bestSummaries(groupedBy: \.periodKey)
+            .sorted { $0.periodStart > $1.periodStart }
+    }
+}
+
+@MainActor
+final class StaticEnergyHistoryQueryService: EnergyHistoryQuerying {
+    private let monthHistory: EnergyHistoryMonthQueryResult
+    private let currentMonthSummary: HistoricalEnergySummaryValue?
+
+    init(
+        monthHistory: EnergyHistoryMonthQueryResult,
+        currentMonthSummary: HistoricalEnergySummaryValue? = nil
+    ) {
+        self.monthHistory = monthHistory
+        self.currentMonthSummary = currentMonthSummary
+    }
+
+    func loadMonthHistory(priceArea: String?, selectedMonthKey: String?) throws -> EnergyHistoryMonthQueryResult {
+        monthHistory
+    }
+
+    func loadCurrentMonthSummary(priceArea: String?, monthKey: String) throws -> HistoricalEnergySummaryValue? {
+        currentMonthSummary
+    }
+}
+
 // MARK: - Errors
 
 enum EnergyHistoryStoreError: LocalizedError {
@@ -275,6 +364,7 @@ final class SwiftDataEnergyHistoryStore: EnergyHistoryStore {
             "energy_cost_sek",
             "grid_cost_sek",
             "tax_cost_sek",
+            "vat_cost_sek",
             "total_cost_sek"
         ].joined(separator: ",")]
 
@@ -293,6 +383,7 @@ final class SwiftDataEnergyHistoryStore: EnergyHistoryStore {
                 csvNumber(record.energyCostSEK),
                 csvNumber(record.gridCostSEK),
                 csvNumber(record.taxCostSEK),
+                csvNumber(record.vatCostSEK),
                 csvNumber(record.totalCostSEK)
             ]
             .map(csvEscape)
@@ -399,11 +490,11 @@ final class SwiftDataEnergyHistoryStore: EnergyHistoryStore {
 
     private func csvNumber(_ value: Double?) -> String {
         guard let value else { return "" }
-        return value.formatted(.number.locale(Locale(identifier: "en_US_POSIX")).precision(.fractionLength(0...6)))
+        return AppFormatters.csvNumber(value)
     }
 
     private func csvNumber(_ value: Double) -> String {
-        value.formatted(.number.locale(Locale(identifier: "en_US_POSIX")).precision(.fractionLength(0...6)))
+        AppFormatters.csvNumber(value)
     }
 
     private func csvEscape(_ value: String) -> String {
@@ -566,27 +657,7 @@ final class SwiftDataEnergyHistoryStore: EnergyHistoryStore {
     }
 
     private func bestWidgetSummary(from summaries: [HistoricalEnergySummaryValue]) -> HistoricalEnergySummaryValue? {
-        summaries.sorted { lhs, rhs in
-            let lhsRank = widgetSummaryRank(lhs)
-            let rhsRank = widgetSummaryRank(rhs)
-            if lhsRank == rhsRank {
-                return lhs.intervalCount > rhs.intervalCount
-            }
-            return lhsRank > rhsRank
-        }.first
-    }
-
-    private func widgetSummaryRank(_ summary: HistoricalEnergySummaryValue) -> Int {
-        switch summary.dataCoverage {
-        case .measuredConsumption:
-            return 4
-        case .partialConsumption:
-            return 3
-        case .estimatedCost:
-            return 2
-        case .priceOnly:
-            return 1
-        }
+        summaries.max { lhs, rhs in rhs.isPreferred(over: lhs) }
     }
 
     private func fetchTopDays(
@@ -614,31 +685,7 @@ final class SwiftDataEnergyHistoryStore: EnergyHistoryStore {
     }
 
     private func uniqueBestDailySummaries(_ summaries: [HistoricalEnergySummaryValue]) -> [HistoricalEnergySummaryValue] {
-        Dictionary(grouping: summaries, by: \.periodKey)
-            .compactMap { _, summaries in
-                summaries.sorted { lhs, rhs in
-                    let lhsRank = summaryDataCoverageRank(lhs)
-                    let rhsRank = summaryDataCoverageRank(rhs)
-                    if lhsRank == rhsRank {
-                        return lhs.intervalCount > rhs.intervalCount
-                    }
-                    return lhsRank > rhsRank
-                }
-                .first
-            }
-    }
-
-    private func summaryDataCoverageRank(_ summary: HistoricalEnergySummaryValue) -> Int {
-        switch summary.dataCoverage {
-        case .measuredConsumption:
-            return 4
-        case .partialConsumption:
-            return 3
-        case .estimatedCost:
-            return 2
-        case .priceOnly:
-            return 1
-        }
+        summaries.bestSummaries(groupedBy: \.periodKey)
     }
 
     private func makeSummaryStats(from records: [HistoricalEnergyRecord]) -> SummaryStats {

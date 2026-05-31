@@ -89,9 +89,6 @@ struct TopConsumptionDaysCard: View {
     }
 
     private func peakLabel(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "sv_SE")
-        formatter.dateFormat = "d MMM HH:mm"
-        return formatter.string(from: date)
+        AppFormatters.powerPeakLabel(date)
     }
 }

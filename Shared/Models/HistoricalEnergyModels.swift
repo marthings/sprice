@@ -543,6 +543,42 @@ enum HistoricalEnergyDataCoverage: String, Codable, CaseIterable, Sendable {
     case estimatedCost
     case partialConsumption
     case measuredConsumption
+
+    var qualityRank: Int {
+        switch self {
+        case .measuredConsumption:
+            return 4
+        case .partialConsumption:
+            return 3
+        case .estimatedCost:
+            return 2
+        case .priceOnly:
+            return 1
+        }
+    }
+}
+
+extension HistoricalEnergySummaryValue {
+    func isPreferred(over other: HistoricalEnergySummaryValue) -> Bool {
+        let lhsRank = dataCoverage.qualityRank
+        let rhsRank = other.dataCoverage.qualityRank
+
+        if lhsRank == rhsRank {
+            return intervalCount > other.intervalCount
+        }
+        return lhsRank > rhsRank
+    }
+}
+
+extension Sequence where Element == HistoricalEnergySummaryValue {
+    func bestSummaries<Key: Hashable>(
+        groupedBy keyPath: KeyPath<HistoricalEnergySummaryValue, Key>
+    ) -> [HistoricalEnergySummaryValue] {
+        Dictionary(grouping: self, by: { $0[keyPath: keyPath] })
+            .compactMap { _, summaries in
+                summaries.max { lhs, rhs in rhs.isPreferred(over: lhs) }
+            }
+    }
 }
 
 struct WidgetHistorySummary: Codable, Equatable, Sendable {
@@ -670,9 +706,6 @@ enum EnergyHistoryKey {
 
 extension Calendar {
     static var energyHistory: Calendar {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.locale = Locale(identifier: "sv_SE")
-        calendar.timeZone = TimeZone(identifier: "Europe/Stockholm") ?? .current
-        return calendar
+        AppFormatters.energyCalendar
     }
 }

@@ -89,19 +89,19 @@ struct VaggerydProvider: ElectricityProvider, QuarterlyConsumptionProvider {
         let url = try buildConsumptionURL(year: year, month: month)
         let request = try buildRequest(url: url)
 
-        logger.info("Fetching consumption for \(year)/\(month)...")
+        logger.info("Vaggeryd fetching monthly consumption for \(year)/\(month)")
 
         do {
             let (data, response) = try await session.data(for: request)
 
             if let http = response as? HTTPURLResponse {
-                logger.info("HTTP Status: \(http.statusCode)")
+                logger.info("Vaggeryd monthly consumption status \(http.statusCode), response bytes \(data.count)")
             }
 
             try validateResponse(response)
 
             let apiResponse = try decodeResponse(ConsumptionAPIResponse.self, from: data)
-            logger.info("Success! Got \(apiResponse.consumptionValues.count) values")
+            logger.info("Vaggeryd monthly consumption decoded \(apiResponse.consumptionValues.count) values")
 
             let calendar = Calendar.current
 
@@ -135,7 +135,7 @@ struct VaggerydProvider: ElectricityProvider, QuarterlyConsumptionProvider {
         } catch let error as ProviderError {
             throw error
         } catch {
-            logger.error("Error: \(error.localizedDescription)")
+            logger.error("Vaggeryd monthly consumption failed: \(error.localizedDescription, privacy: .public)")
             throw ProviderError.networkError(error)
         }
     }
@@ -144,18 +144,18 @@ struct VaggerydProvider: ElectricityProvider, QuarterlyConsumptionProvider {
         let url = try buildDailyConsumptionURL(year: year, month: month)
         let request = try buildRequest(url: url)
 
-        logger.info("Fetching daily consumption for \(year)/\(month)...")
+        logger.info("Vaggeryd fetching daily consumption for \(year)/\(month)")
 
         let (data, response) = try await session.data(for: request)
 
         if let http = response as? HTTPURLResponse {
-            logger.info("Daily HTTP Status: \(http.statusCode)")
+            logger.info("Vaggeryd daily consumption status \(http.statusCode), response bytes \(data.count)")
         }
 
         try validateResponse(response)
 
         let apiResponse = try decodeResponse(ConsumptionAPIResponse.self, from: data)
-        logger.info("Daily: Got \(apiResponse.consumptionValues.count) values")
+        logger.info("Vaggeryd daily consumption decoded \(apiResponse.consumptionValues.count) values")
 
         return apiResponse.consumptionValues
             .map { DailyConsumption(date: $0.date, kWh: $0.consumption) }
@@ -167,18 +167,18 @@ struct VaggerydProvider: ElectricityProvider, QuarterlyConsumptionProvider {
         let url = try buildHourlyConsumptionURL(startDate: startDate, endDate: endDate)
         let request = try buildRequest(url: url)
 
-        logger.info("Fetching hourly consumption...")
+        logger.info("Vaggeryd fetching hourly consumption")
 
         let (data, response) = try await session.data(for: request)
 
         if let http = response as? HTTPURLResponse {
-            logger.info("Hourly HTTP Status: \(http.statusCode)")
+            logger.info("Vaggeryd hourly consumption status \(http.statusCode), response bytes \(data.count)")
         }
 
         try validateResponse(response)
 
         let apiResponse = try decodeResponse(ConsumptionAPIResponse.self, from: data)
-        logger.info("Hourly: Got \(apiResponse.consumptionValues.count) values")
+        logger.info("Vaggeryd hourly consumption decoded \(apiResponse.consumptionValues.count) values")
 
         return apiResponse.consumptionValues
             .map { HourlyConsumption(date: $0.date, kWh: $0.consumption) }
@@ -190,18 +190,18 @@ struct VaggerydProvider: ElectricityProvider, QuarterlyConsumptionProvider {
         let url = try buildQuarterlyConsumptionURL(startDate: startDate, endDate: endDate)
         let request = try buildRequest(url: url)
 
-        logger.info("Fetching quarterly consumption...")
+        logger.info("Vaggeryd fetching quarterly consumption")
 
         let (data, response) = try await session.data(for: request)
 
         if let http = response as? HTTPURLResponse {
-            logger.info("Quarterly HTTP Status: \(http.statusCode)")
+            logger.info("Vaggeryd quarterly consumption status \(http.statusCode), response bytes \(data.count)")
         }
 
         try validateResponse(response)
 
         let apiResponse = try decodeResponse(ConsumptionAPIResponse.self, from: data)
-        logger.info("Quarterly: Got \(apiResponse.consumptionValues.count) values")
+        logger.info("Vaggeryd quarterly consumption decoded \(apiResponse.consumptionValues.count) values")
 
         return apiResponse.consumptionValues
             .map { QuarterlyConsumption(date: $0.date, kWh: $0.consumption) }
@@ -229,7 +229,7 @@ struct VaggerydProvider: ElectricityProvider, QuarterlyConsumptionProvider {
             throw ProviderError.invalidURL
         }
 
-        logger.debug("URL: \(url.absoluteString)")
+        logger.debug("Built Vaggeryd monthly consumption URL")
         return url
     }
 
@@ -240,17 +240,13 @@ struct VaggerydProvider: ElectricityProvider, QuarterlyConsumptionProvider {
             throw ProviderError.invalidURL
         }
 
-        logger.debug("Daily URL: \(url.absoluteString)")
+        logger.debug("Built Vaggeryd daily consumption URL")
         return url
     }
 
     private func buildHourlyConsumptionURL(startDate: Date, endDate: Date) throws -> URL {
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd"
-        dateFormatter.timeZone = TimeZone(identifier: "Europe/Stockholm")
-
-        let startStr = dateFormatter.string(from: startDate)
-        let endStr = dateFormatter.string(from: endDate)
+        let startStr = AppFormatters.apiDate(startDate)
+        let endStr = AppFormatters.apiDate(endDate)
 
         let path = "/minasidor/v3/consumption/hourly/\(accountId)/\(utilityId)/\(netId)/\(type)/\(startStr)/\(endStr)/1/1"
 
@@ -258,17 +254,13 @@ struct VaggerydProvider: ElectricityProvider, QuarterlyConsumptionProvider {
             throw ProviderError.invalidURL
         }
 
-        logger.debug("Hourly URL: \(url.absoluteString)")
+        logger.debug("Built Vaggeryd hourly consumption URL")
         return url
     }
 
     private func buildQuarterlyConsumptionURL(startDate: Date, endDate: Date) throws -> URL {
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        dateFormatter.timeZone = TimeZone(identifier: "Europe/Stockholm")
-
-        let startStr = dateFormatter.string(from: startDate)
-        let endStr = dateFormatter.string(from: endDate)
+        let startStr = AppFormatters.apiDateTime(startDate)
+        let endStr = AppFormatters.apiDateTime(endDate)
 
         guard let encodedStart = startStr.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
               let encodedEnd = endStr.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else {
@@ -281,7 +273,7 @@ struct VaggerydProvider: ElectricityProvider, QuarterlyConsumptionProvider {
             throw ProviderError.invalidURL
         }
 
-        logger.debug("Quarterly URL: \(url.absoluteString)")
+        logger.debug("Built Vaggeryd quarterly consumption URL")
         return url
     }
 
@@ -312,11 +304,7 @@ struct VaggerydProvider: ElectricityProvider, QuarterlyConsumptionProvider {
     }
 
     private func decodeResponse<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
-        let decoder = JSONDecoder()
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
-        dateFormatter.timeZone = TimeZone(identifier: "Europe/Stockholm")
-        decoder.dateDecodingStrategy = .formatted(dateFormatter)
+        let decoder = AppFormatters.vaggerydDateDecoder()
 
         do {
             return try decoder.decode(type, from: data)

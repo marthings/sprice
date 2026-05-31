@@ -7,6 +7,7 @@
 
 import WidgetKit
 import SwiftUI
+import OSLog
 
 // MARK: - Timeline Entry
 
@@ -25,10 +26,7 @@ struct SpotPriceEntry: TimelineEntry {
 
     /// Compact month label (e.g., "feb")
     var monthLabel: String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "sv_SE")
-        formatter.dateFormat = "MMM"
-        return formatter.string(from: monthDate)
+        AppFormatters.widgetMonthLabel(monthDate)
     }
 
     static var placeholder: SpotPriceEntry {
@@ -75,6 +73,7 @@ struct SpotPriceProvider: TimelineProvider {
     let consumptionService = ConsumptionService()
     let gridTariffService = GridTariffService()
     let totalCostService = TotalCostService()
+    let monthlyCostEstimator = MonthlyCostEstimator()
     
     // Shared UserDefaults for App Group
     private let sharedDefaults = UserDefaults(suiteName: "group.mb.Spotprice") ?? .standard
@@ -123,10 +122,7 @@ struct SpotPriceProvider: TimelineProvider {
                 return (s.cachedConsumption, s.costProfile)
             }
             
-            // Debug: Log what widget sees
-            print("📱 Widget: costProfile.retailerMarkupOrePerKWh = \(costProfile.retailerMarkupOrePerKWh)")
-            print("📱 Widget: costProfile.retailContractType = \(costProfile.retailContractType)")
-            print("📱 Widget: costProfile.confidence = \(costProfile.confidence)")
+            AppLog.widget.debug("Cost profile markup \(costProfile.retailerMarkupOrePerKWh, privacy: .public), contract \(costProfile.retailContractType.rawValue, privacy: .public), confidence \(costProfile.confidence.rawValue, privacy: .public)")
 
             let items = try await service.fetchSpotPrices(for: now, area: costProfile.priceArea)
             let dayData = try service.makeDayChartData(from: items, for: now)
@@ -135,36 +131,13 @@ struct SpotPriceProvider: TimelineProvider {
                 priceArea: costProfile.priceArea
             )
 
-            // Use local history first, then cached consumption data. The widget does not call provider APIs.
-            let monthlyKWh = historySummary?.totalConsumptionKWh ?? cachedConsumption?.totalKWh ?? 0
-            let monthDate = historySummary?.periodStart ?? cachedConsumption?.monthDate ?? now
-            
-            // Calculate monthly cost if we have consumption data
-            // Widget uses today's average price as an estimate for monthly cost
-            // The app calculates precise cost using actual historical prices
-            let monthlyCostKr: Double
-            if let historyCost = historySummary?.totalCostSEK {
-                monthlyCostKr = historyCost
-                print("📱 Widget: Monthly cost from history cache = \(historyCost) kr")
-            } else if monthlyKWh > 0 {
-                let avgPrice = dayData.buckets.map { $0.orePerKWh }.reduce(0, +) / Double(dayData.buckets.count)
-                
-                // Calculate energy cost (spot + taxes + grid transfer)
-                let energyCost = totalCostService.calculateTotalCost(
-                    kWh: monthlyKWh,
-                    spotPriceOre: avgPrice,
-                    profile: costProfile,
-                    hoursInPeriod: 1.0  // Don't prorate - we're calculating total monthly cost
-                )
-                
-                // Add full monthly fees (not prorated - this IS the monthly cost)
-                let monthlyFees = costProfile.retailerMonthlyFee + (costProfile.gridMonthlyFee ?? 0)
-                monthlyCostKr = energyCost.totalKr + monthlyFees
-                
-                print("📱 Widget: Monthly kWh = \(monthlyKWh), avgPrice = \(avgPrice) öre, energyCost = \(energyCost.totalKr) kr, monthlyFees = \(monthlyFees) kr, monthlyCostKr = \(monthlyCostKr) kr")
-            } else {
-                monthlyCostKr = 0
-            }
+            let monthlyEstimate = monthlyCostEstimator.widgetMonthEstimate(
+                historySummary: historySummary,
+                cachedConsumption: cachedConsumption,
+                dayData: dayData,
+                profile: costProfile,
+                now: now
+            )
 
             // Calculate bucket index (0-95 for 15-minute intervals)
             let hour = Calendar.current.component(.hour, from: now)
@@ -174,9 +147,9 @@ struct SpotPriceProvider: TimelineProvider {
             if let currentBucket = dayData.buckets.first(where: { $0.start <= now && $0.end > now }) {
                 let currentTotalCost = totalCostService.calculatePricePerKWh(spotPriceOre: currentBucket.orePerKWh, profile: costProfile)
                 
-                print("📱 Widget: Current spot = \(currentBucket.orePerKWh) öre, currentTotalCost = \(currentTotalCost) kr/kWh")
-                print("📱 Widget: Bucket time = \(currentBucket.start) - \(currentBucket.end)")
-                print("📱 Widget: Profile details - markup: \(costProfile.retailerMarkupOrePerKWh), contractType: \(costProfile.retailContractType), contractPrice: \(costProfile.contractPriceOrePerKWh ?? 0)")
+                AppLog.widget.debug("Current spot \(currentBucket.orePerKWh, privacy: .public) öre, total \(currentTotalCost, privacy: .public) kr/kWh")
+                AppLog.widget.debug("Bucket interval \(currentBucket.start, privacy: .public)-\(currentBucket.end, privacy: .public)")
+                AppLog.widget.debug("Profile markup \(costProfile.retailerMarkupOrePerKWh, privacy: .public), contract \(costProfile.retailContractType.rawValue, privacy: .public), contract price \(costProfile.contractPriceOrePerKWh ?? 0, privacy: .public)")
                 
                 return SpotPriceEntry(
                     date: now,
@@ -185,9 +158,9 @@ struct SpotPriceProvider: TimelineProvider {
                     priceCategory: currentBucket.category,
                     dayData: dayData,
                     currentBucketIndex: currentBucketIndex,
-                    monthlyKWh: monthlyKWh,
-                    monthlyCostKr: monthlyCostKr,
-                    monthDate: monthDate,
+                    monthlyKWh: monthlyEstimate.kWh,
+                    monthlyCostKr: monthlyEstimate.totalKr,
+                    monthDate: monthlyEstimate.monthDate,
                     costProfile: costProfile,
                     historySummary: historySummary
                 )
@@ -195,7 +168,7 @@ struct SpotPriceProvider: TimelineProvider {
 
             return .error
         } catch {
-            print("📱 Widget: Error fetching price - \(error)")
+            AppLog.widget.error("Error fetching price: \(error.localizedDescription, privacy: .public)")
             return .error
         }
     }

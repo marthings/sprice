@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import OSLog
 
 // MARK: - Energy History Recorder
 
@@ -50,15 +51,15 @@ final class EnergyHistoryRecorder {
         }
 
         guard !drafts.isEmpty else {
-            print("🕘 History: No price buckets to record")
+            AppLog.history.debug("No price buckets to record")
             return
         }
 
         do {
             try store.upsertRecords(drafts)
-            print("🕘 History: Recorded \(drafts.count) price intervals for \(priceArea)")
+            AppLog.history.info("Recorded \(drafts.count) price intervals for \(priceArea, privacy: .public)")
         } catch {
-            print("🕘 History: Failed to record price history - \(error.localizedDescription)")
+            AppLog.history.error("Failed to record price history: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -71,7 +72,7 @@ final class EnergyHistoryRecorder {
         now: Date = Date()
     ) async {
         guard let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: now)) else {
-            print("🕘 History: Could not calculate current month start")
+            AppLog.history.error("Could not calculate current month start")
             return
         }
 
@@ -83,7 +84,7 @@ final class EnergyHistoryRecorder {
             )
 
             guard !intervals.isEmpty else {
-                print("🕘 History: No consumption intervals to record")
+                AppLog.history.debug("No consumption intervals to record")
                 return
             }
 
@@ -129,14 +130,14 @@ final class EnergyHistoryRecorder {
             }
 
             guard !drafts.isEmpty else {
-                print("🕘 History: Consumption had no matching spot prices")
+                AppLog.history.warning("Consumption had no matching spot prices")
                 return
             }
 
             try store.upsertRecords(drafts)
-            print("🕘 History: Recorded \(drafts.count)/\(intervals.count) consumption cost intervals for \(priceArea) via \(providerID)")
+            AppLog.history.info("Recorded \(drafts.count)/\(intervals.count) consumption cost intervals for \(priceArea, privacy: .public) via \(providerID, privacy: .public)")
         } catch {
-            print("🕘 History: Failed to record consumption history - \(error.localizedDescription)")
+            AppLog.history.error("Failed to record consumption history: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -158,7 +159,7 @@ final class EnergyHistoryRecorder {
                 }
             }
         } catch {
-            print("🕘 History: Quarterly consumption unavailable, trying hourly - \(error.localizedDescription)")
+            AppLog.history.notice("Quarterly consumption unavailable, trying hourly: \(error.localizedDescription, privacy: .public)")
         }
 
         let hourly = try await consumptionService.fetchHourlyConsumption(startDate: startDate, endDate: endDate)
@@ -187,7 +188,7 @@ final class EnergyHistoryRecorder {
                     lookup[item.timeStart] = item.sekPerKWh * 100.0
                 }
             } catch {
-                print("🕘 History: Failed to fetch spot prices for \(day) - \(error.localizedDescription)")
+                AppLog.history.error("Failed to fetch spot prices for \(day, privacy: .public): \(error.localizedDescription, privacy: .public)")
             }
         }
 

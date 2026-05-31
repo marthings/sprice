@@ -9,5 +9,7 @@
 	</array>
 	<key>ATSApplicationFontsPath</key>
 	<string>.</string>
+	<key>CFBundleDisplayName</key>
+	<string>Sprice</string>
 </dict>
 </plist>
