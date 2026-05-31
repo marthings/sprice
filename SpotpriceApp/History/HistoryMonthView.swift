@@ -671,173 +671,192 @@ private struct HistoryDayCalloutView: View {
 
 // MARK: - Preview Helper
 
-#Preview("Med historik") {
-    HistoryMonthView()
-        .padding()
-        .background(Color(.systemGroupedBackground))
-}
+#if DEBUG
+private struct HistoryMonthView_Previews: PreviewProvider {
+    static var previews: some View {
+        Group {
+            previewContainer(HistoryMonthView())
+                .previewDisplayName("Med historik")
 
-#Preview("Tom historik") {
-    HistoryMonthView(previewState: .loaded(HistoryMonthView.HistoryData(
-        months: [],
-        selectedMonth: nil,
-        dailySummaries: [],
-        topCostDays: [],
-        topConsumptionDays: []
-    )))
-    .padding()
-    .background(Color(.systemGroupedBackground))
-}
+            previewContainer(emptyHistoryView)
+                .previewDisplayName("Tom historik")
 
-#Preview("Mock data - Mätt") {
-    let calendar = Calendar.energyHistory
-    let now = Date()
-    let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: now))!
-    
-    // Skapa 30 dagars mock-data
-    let dailySummaries = (0..<30).map { dayOffset -> HistoricalEnergySummaryValue in
-        let date = calendar.date(byAdding: .day, value: dayOffset, to: monthStart)!
-        let dayKey = EnergyHistoryKey.dayKey(for: date)
-        let monthKey = EnergyHistoryKey.monthKey(for: date)
-        
-        // Variera kostnad och förbrukning lite
-        let baseCost = Double.random(in: 150...350)
-        let baseConsumption = Double.random(in: 30...60)
-        
-        return HistoricalEnergySummaryValue(
+            previewContainer(measuredHistoryView)
+                .previewDisplayName("Mock data - Mätt")
+
+            previewContainer(mixedHistoryView)
+                .previewDisplayName("Mock data - Blandat")
+        }
+    }
+
+    private static var emptyHistoryView: some View {
+        HistoryMonthView(previewState: .loaded(HistoryMonthView.HistoryData(
+            months: [],
+            selectedMonth: nil,
+            dailySummaries: [],
+            topCostDays: [],
+            topConsumptionDays: []
+        )))
+    }
+
+    private static var measuredHistoryView: some View {
+        let calendar = Calendar.energyHistory
+        let now = Date()
+        let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: now))!
+        let dailySummaries = measuredDailySummaries(calendar: calendar, monthStart: monthStart)
+        let monthlySummary = HistoricalEnergySummaryValue(
             id: UUID(),
-            periodKey: dayKey,
-            periodStart: date,
+            periodKey: EnergyHistoryKey.monthKey(for: now),
+            periodStart: monthStart,
             priceArea: "SE3",
             providerID: "tibber",
-            intervalCount: 24,
-            measuredIntervalCount: 24,
-            totalConsumptionKWh: baseConsumption,
-            totalCostSEK: baseCost,
-            averageSpotPriceOrePerKWh: Double.random(in: 40...120),
-            minSpotPriceOrePerKWh: Double.random(in: 20...60),
-            maxSpotPriceOrePerKWh: Double.random(in: 80...180),
+            intervalCount: 720,
+            measuredIntervalCount: 720,
+            totalConsumptionKWh: dailySummaries.compactMap(\.totalConsumptionKWh).reduce(0, +),
+            totalCostSEK: dailySummaries.compactMap(\.totalCostSEK).reduce(0, +),
+            averageSpotPriceOrePerKWh: 75.5,
+            minSpotPriceOrePerKWh: 20.0,
+            maxSpotPriceOrePerKWh: 180.0,
             confidence: .measured
         )
-    }
-    
-    let monthlySummary = HistoricalEnergySummaryValue(
-        id: UUID(),
-        periodKey: EnergyHistoryKey.monthKey(for: now),
-        periodStart: monthStart,
-        priceArea: "SE3",
-        providerID: "tibber",
-        intervalCount: 720,
-        measuredIntervalCount: 720,
-        totalConsumptionKWh: dailySummaries.compactMap(\.totalConsumptionKWh).reduce(0, +),
-        totalCostSEK: dailySummaries.compactMap(\.totalCostSEK).reduce(0, +),
-        averageSpotPriceOrePerKWh: 75.5,
-        minSpotPriceOrePerKWh: 20.0,
-        maxSpotPriceOrePerKWh: 180.0,
-        confidence: .measured
-    )
-    
-    let topCost = Array(dailySummaries.sorted { ($0.totalCostSEK ?? 0) > ($1.totalCostSEK ?? 0) }.prefix(3))
-    let topConsumption = Array(dailySummaries.sorted { ($0.totalConsumptionKWh ?? 0) > ($1.totalConsumptionKWh ?? 0) }.prefix(3))
-    
-    HistoryMonthView(previewState: .loaded(HistoryMonthView.HistoryData(
-        months: [monthlySummary],
-        selectedMonth: monthlySummary,
-        dailySummaries: dailySummaries,
-        topCostDays: topCost,
-        topConsumptionDays: topConsumption
-    )))
-    .padding()
-    .background(Color(.systemGroupedBackground))
-}
 
-#Preview("Mock data - Blandat") {
-    let calendar = Calendar.energyHistory
-    let now = Date()
-    let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: now))!
-    
-    // Skapa 30 dagars mock-data med olika coverage-typer
-    let dailySummaries = (0..<30).map { dayOffset -> HistoricalEnergySummaryValue in
-        let date = calendar.date(byAdding: .day, value: dayOffset, to: monthStart)!
-        let dayKey = EnergyHistoryKey.dayKey(for: date)
-        
-        // Blanda olika coverage-typer
-        let coverage: HistoricalEnergyDataCoverage
-        let confidence: HistoricalEnergyConfidence
-        let measuredCount: Int
-        let hasCost: Bool
-        let hasConsumption: Bool
-        
-        switch dayOffset % 4 {
-        case 0: // Mätt
-            coverage = .measuredConsumption
-            confidence = .measured
-            measuredCount = 24
-            hasCost = true
-            hasConsumption = true
-        case 1: // Delvis mätt
-            coverage = .partialConsumption
-            confidence = .partial
-            measuredCount = 12
-            hasCost = true
-            hasConsumption = true
-        case 2: // Uppskattat
-            coverage = .estimatedCost
-            confidence = .estimated
-            measuredCount = 0
-            hasCost = true
-            hasConsumption = false
-        default: // Bara pris
-            coverage = .priceOnly
-            confidence = .priceOnly
-            measuredCount = 0
-            hasCost = false
-            hasConsumption = false
-        }
-        
-        return HistoricalEnergySummaryValue(
+        return historyView(monthlySummary: monthlySummary, dailySummaries: dailySummaries)
+    }
+
+    private static var mixedHistoryView: some View {
+        let calendar = Calendar.energyHistory
+        let now = Date()
+        let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: now))!
+        let dailySummaries = mixedDailySummaries(calendar: calendar, monthStart: monthStart)
+        let monthlySummary = HistoricalEnergySummaryValue(
             id: UUID(),
-            periodKey: dayKey,
+            periodKey: EnergyHistoryKey.monthKey(for: now),
+            periodStart: monthStart,
+            priceArea: "SE3",
+            providerID: "tibber",
+            intervalCount: 720,
+            measuredIntervalCount: 360,
+            totalConsumptionKWh: dailySummaries.compactMap(\.totalConsumptionKWh).reduce(0, +),
+            totalCostSEK: dailySummaries.compactMap(\.totalCostSEK).reduce(0, +),
+            averageSpotPriceOrePerKWh: 75.5,
+            minSpotPriceOrePerKWh: 20.0,
+            maxSpotPriceOrePerKWh: 180.0,
+            confidence: .partial
+        )
+
+        return historyView(monthlySummary: monthlySummary, dailySummaries: dailySummaries)
+    }
+
+    private static func historyView(
+        monthlySummary: HistoricalEnergySummaryValue,
+        dailySummaries: [HistoricalEnergySummaryValue]
+    ) -> some View {
+        let topCost = Array(dailySummaries
+            .filter { $0.totalCostSEK != nil }
+            .sorted { ($0.totalCostSEK ?? 0) > ($1.totalCostSEK ?? 0) }
+            .prefix(3))
+        let topConsumption = Array(dailySummaries
+            .filter { $0.totalConsumptionKWh != nil }
+            .sorted { ($0.totalConsumptionKWh ?? 0) > ($1.totalConsumptionKWh ?? 0) }
+            .prefix(3))
+
+        return HistoryMonthView(previewState: .loaded(HistoryMonthView.HistoryData(
+            months: [monthlySummary],
+            selectedMonth: monthlySummary,
+            dailySummaries: dailySummaries,
+            topCostDays: topCost,
+            topConsumptionDays: topConsumption
+        )))
+    }
+
+    private static func measuredDailySummaries(
+        calendar: Calendar,
+        monthStart: Date
+    ) -> [HistoricalEnergySummaryValue] {
+        (0..<30).map { dayOffset in
+            let date = calendar.date(byAdding: .day, value: dayOffset, to: monthStart)!
+            return dailySummary(
+                date: date,
+                measuredCount: 24,
+                consumption: Double.random(in: 30...60),
+                cost: Double.random(in: 150...350),
+                confidence: .measured
+            )
+        }
+    }
+
+    private static func mixedDailySummaries(
+        calendar: Calendar,
+        monthStart: Date
+    ) -> [HistoricalEnergySummaryValue] {
+        (0..<30).map { dayOffset in
+            let date = calendar.date(byAdding: .day, value: dayOffset, to: monthStart)!
+
+            switch dayOffset % 4 {
+            case 0:
+                return dailySummary(
+                    date: date,
+                    measuredCount: 24,
+                    consumption: Double.random(in: 30...60),
+                    cost: Double.random(in: 150...350),
+                    confidence: .measured
+                )
+            case 1:
+                return dailySummary(
+                    date: date,
+                    measuredCount: 12,
+                    consumption: Double.random(in: 30...60),
+                    cost: Double.random(in: 150...350),
+                    confidence: .partial
+                )
+            case 2:
+                return dailySummary(
+                    date: date,
+                    measuredCount: 0,
+                    consumption: nil,
+                    cost: Double.random(in: 150...350),
+                    confidence: .estimated
+                )
+            default:
+                return dailySummary(
+                    date: date,
+                    measuredCount: 0,
+                    consumption: nil,
+                    cost: nil,
+                    confidence: .priceOnly
+                )
+            }
+        }
+    }
+
+    private static func dailySummary(
+        date: Date,
+        measuredCount: Int,
+        consumption: Double?,
+        cost: Double?,
+        confidence: HistoricalEnergyConfidence
+    ) -> HistoricalEnergySummaryValue {
+        HistoricalEnergySummaryValue(
+            id: UUID(),
+            periodKey: EnergyHistoryKey.dayKey(for: date),
             periodStart: date,
             priceArea: "SE3",
             providerID: "tibber",
             intervalCount: 24,
             measuredIntervalCount: measuredCount,
-            totalConsumptionKWh: hasConsumption ? Double.random(in: 30...60) : nil,
-            totalCostSEK: hasCost ? Double.random(in: 150...350) : nil,
+            totalConsumptionKWh: consumption,
+            totalCostSEK: cost,
             averageSpotPriceOrePerKWh: Double.random(in: 40...120),
             minSpotPriceOrePerKWh: Double.random(in: 20...60),
             maxSpotPriceOrePerKWh: Double.random(in: 80...180),
             confidence: confidence
         )
     }
-    
-    let monthlySummary = HistoricalEnergySummaryValue(
-        id: UUID(),
-        periodKey: EnergyHistoryKey.monthKey(for: now),
-        periodStart: monthStart,
-        priceArea: "SE3",
-        providerID: "tibber",
-        intervalCount: 720,
-        measuredIntervalCount: 360,
-        totalConsumptionKWh: dailySummaries.compactMap(\.totalConsumptionKWh).reduce(0, +),
-        totalCostSEK: dailySummaries.compactMap(\.totalCostSEK).reduce(0, +),
-        averageSpotPriceOrePerKWh: 75.5,
-        minSpotPriceOrePerKWh: 20.0,
-        maxSpotPriceOrePerKWh: 180.0,
-        confidence: .partial
-    )
-    
-    let topCost = Array(dailySummaries.filter { $0.totalCostSEK != nil }.sorted { ($0.totalCostSEK ?? 0) > ($1.totalCostSEK ?? 0) }.prefix(3))
-    let topConsumption = Array(dailySummaries.filter { $0.totalConsumptionKWh != nil }.sorted { ($0.totalConsumptionKWh ?? 0) > ($1.totalConsumptionKWh ?? 0) }.prefix(3))
-    
-    HistoryMonthView(previewState: .loaded(HistoryMonthView.HistoryData(
-        months: [monthlySummary],
-        selectedMonth: monthlySummary,
-        dailySummaries: dailySummaries,
-        topCostDays: topCost,
-        topConsumptionDays: topConsumption
-    )))
-    .padding()
-    .background(Color(.systemGroupedBackground))
+
+    private static func previewContainer<Content: View>(_ content: Content) -> some View {
+        content
+            .padding()
+            .background(Color(.systemGroupedBackground))
+    }
 }
+#endif
