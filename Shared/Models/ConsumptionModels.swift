@@ -23,10 +23,7 @@ struct ConsumptionData: Sendable, Codable {
 
     /// Month name for display (e.g., "januari 2026")
     var monthName: String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "sv_SE")
-        formatter.dateFormat = "MMMM yyyy"
-        return formatter.string(from: monthDate)
+        AppFormatters.monthAndYear(monthDate)
     }
 }
 
@@ -48,10 +45,7 @@ struct DailyConsumption: Identifiable, Sendable {
 
     /// Day of month for display (e.g., "15 jan")
     var dayLabel: String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "sv_SE")
-        formatter.dateFormat = "d MMM"
-        return formatter.string(from: date)
+        AppFormatters.shortDayAndMonth(date)
     }
 }
 
@@ -104,18 +98,12 @@ struct MonthlyComparison: Sendable {
 
     /// Current month name (e.g., "februari")
     var currentMonthName: String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "sv_SE")
-        formatter.dateFormat = "MMMM"
-        return formatter.string(from: current.monthDate)
+        AppFormatters.monthName(current.monthDate)
     }
 
     /// Previous month name (e.g., "januari")
     var previousMonthName: String? {
         guard let prev = previous else { return nil }
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "sv_SE")
-        formatter.dateFormat = "MMMM"
-        return formatter.string(from: prev.monthDate)
+        return AppFormatters.monthName(prev.monthDate)
     }
 }

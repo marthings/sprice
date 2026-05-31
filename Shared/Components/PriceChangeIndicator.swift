@@ -117,7 +117,7 @@ struct SharedPriceRangeSection: View {
     }
 
     private var averageValue: Double {
-        let averageSpotPrice = averagePrice(dayData.buckets)
+        let averageSpotPrice = PriceBucketAnalytics.averageSpotPrice(dayData.buckets)
         return profile.isSpotFollowingRetailContract
             ? totalCostService.calculatePricePerKWh(spotPriceOre: averageSpotPrice, profile: profile)
             : averageSpotPrice / 100
@@ -129,19 +129,19 @@ struct SharedPriceRangeSection: View {
             return nil
         }
 
-        return averagePrice(dayData.buckets) < contractPrice
+        return PriceBucketAnalytics.averageSpotPrice(dayData.buckets) < contractPrice
             ? "Marknaden är i snitt billigare än ditt avtal idag."
             : "Ditt avtal är billigare än marknaden i snitt idag."
     }
 
     private var comparisonIcon: String {
         guard let contractPrice = profile.contractPriceOrePerKWh else { return "info.circle.fill" }
-        return averagePrice(dayData.buckets) < contractPrice ? "arrow.down.circle.fill" : "arrow.up.circle.fill"
+        return PriceBucketAnalytics.averageSpotPrice(dayData.buckets) < contractPrice ? "arrow.down.circle.fill" : "arrow.up.circle.fill"
     }
 
     private var comparisonColor: Color {
         guard let contractPrice = profile.contractPriceOrePerKWh else { return DS.Color.info }
-        return averagePrice(dayData.buckets) < contractPrice ? DS.Color.success : DS.Color.danger
+        return PriceBucketAnalytics.averageSpotPrice(dayData.buckets) < contractPrice ? DS.Color.success : DS.Color.danger
     }
 
     private func statCard(title: String, value: Double, color: Color, icon: String) -> some View {
@@ -174,9 +174,4 @@ struct SharedPriceRangeSection: View {
         .glassCard(cornerRadius: DS.Radius.lg)
     }
 
-    private func averagePrice(_ buckets: [PriceBucket]) -> Double {
-        guard !buckets.isEmpty else { return 0 }
-        return buckets.reduce(0) { $0 + $1.orePerKWh } / Double(buckets.count)
-    }
 }
-

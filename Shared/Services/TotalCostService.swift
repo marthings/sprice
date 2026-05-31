@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import OSLog
 
 final class TotalCostService: Sendable {
     private let gridTariffService: GridTariffService
@@ -203,5 +204,149 @@ final class TotalCostService: Sendable {
             powerPeakKW: powerPeakKW,
             hoursInPeriod: hoursInPeriod
         )
+    }
+}
+
+struct MonthlyCostEstimate: Sendable {
+    let totalKr: Double
+    let kWh: Double
+    let monthDate: Date
+}
+
+struct MonthlyCostEstimator: Sendable {
+    private let totalCostService: TotalCostService
+    private let calendar: Calendar
+
+    init(
+        totalCostService: TotalCostService = TotalCostService(),
+        calendar: Calendar = .energyHistory
+    ) {
+        self.totalCostService = totalCostService
+        self.calendar = calendar
+    }
+
+    func widgetMonthEstimate(
+        historySummary: WidgetHistorySummary?,
+        cachedConsumption: ConsumptionData?,
+        dayData: DayChartData,
+        profile: CostProfile,
+        now: Date
+    ) -> MonthlyCostEstimate {
+        let monthlyKWh = historySummary?.totalConsumptionKWh ?? cachedConsumption?.totalKWh ?? 0
+        let monthDate = historySummary?.periodStart ?? cachedConsumption?.monthDate ?? now
+
+        if let historyCost = historySummary?.totalCostSEK {
+            AppLog.widget.debug("Monthly cost from history cache: \(historyCost, privacy: .public) kr")
+            return MonthlyCostEstimate(totalKr: historyCost, kWh: monthlyKWh, monthDate: monthDate)
+        }
+
+        guard monthlyKWh > 0 else {
+            return MonthlyCostEstimate(totalKr: 0, kWh: monthlyKWh, monthDate: monthDate)
+        }
+
+        let avgPrice = averageSpotPrice(dayData.buckets)
+        let energyCost = totalCostService.calculateTotalCost(
+            kWh: monthlyKWh,
+            spotPriceOre: avgPrice,
+            profile: profile,
+            hoursInPeriod: 1.0
+        )
+        let monthlyFees = profile.retailerMonthlyFee + (profile.gridMonthlyFee ?? 0)
+        let monthlyCostKr = energyCost.totalKr + monthlyFees
+
+        AppLog.widget.debug("Estimated monthly cost: \(monthlyKWh, privacy: .public) kWh, avg \(avgPrice, privacy: .public) öre, energy \(energyCost.totalKr, privacy: .public) kr, fees \(monthlyFees, privacy: .public) kr, total \(monthlyCostKr, privacy: .public) kr")
+
+        return MonthlyCostEstimate(totalKr: monthlyCostKr, kWh: monthlyKWh, monthDate: monthDate)
+    }
+
+    func forecastMonthTotal(
+        consumptionKWh: Double,
+        spotPriceOre: Double,
+        profile: CostProfile,
+        now: Date = Date()
+    ) -> Double? {
+        guard let monthInterval = calendar.dateInterval(of: .month, for: now) else { return nil }
+
+        let elapsedSeconds = max(now.timeIntervalSince(monthInterval.start), 1)
+        let monthSeconds = monthInterval.end.timeIntervalSince(monthInterval.start)
+        guard monthSeconds > 0 else { return nil }
+
+        let elapsedRatio = min(max(elapsedSeconds / monthSeconds, 0), 1)
+        let elapsedHours = elapsedSeconds / 3600
+        let costToDate = totalCostService.calculateTotalCost(
+            kWh: consumptionKWh,
+            spotPriceOre: spotPriceOre,
+            profile: profile,
+            hoursInPeriod: elapsedHours
+        )
+
+        return costToDate.totalKr / elapsedRatio
+    }
+
+    func averageSpotPrice(_ buckets: [PriceBucket]) -> Double {
+        PriceBucketAnalytics.averageSpotPrice(buckets)
+    }
+}
+
+struct CostBreakdownComponent: Sendable {
+    let label: String
+    let value: Double
+    let isMain: Bool
+}
+
+enum CostBreakdownPresenter {
+    static func topComponents(for cost: EnhancedCost, profile: CostProfile) -> [CostBreakdownComponent] {
+        var components: [CostBreakdownComponent] = [
+            CostBreakdownComponent(
+                label: profile.retailContractDisplayName,
+                value: cost.spotCostKr,
+                isMain: true
+            )
+        ]
+
+        var otherComponents: [(label: String, value: Double)] = []
+
+        if profile.retailContractType == .spotPriceMarkup && cost.providerSurchargeKr > 0 {
+            otherComponents.append(("Elhandelsavgifter", cost.providerSurchargeKr))
+        }
+        if cost.providerMonthlyFeeKr > 0 {
+            otherComponents.append(("Elhandel månadavgift", cost.providerMonthlyFeeKr))
+        }
+        if cost.gridEnergyCostKr > 0 {
+            otherComponents.append(("Elnätsavgift", cost.gridEnergyCostKr))
+        }
+        if cost.fixedFeeCostKr > 0 {
+            otherComponents.append(("Elnät månadavgift", cost.fixedFeeCostKr))
+        }
+
+        otherComponents.append(("Energiskatt", cost.energyTaxKr))
+
+        if cost.certificateFeeKr > 0 {
+            otherComponents.append(("Elcertifikat", cost.certificateFeeKr))
+        }
+        if cost.powerTariffCostKr > 0 {
+            otherComponents.append(("Effektavgift", cost.powerTariffCostKr))
+        }
+
+        otherComponents.sort { $0.value > $1.value }
+
+        for component in otherComponents.prefix(2) {
+            components.append(CostBreakdownComponent(
+                label: component.label,
+                value: component.value,
+                isMain: false
+            ))
+        }
+
+        let remaining = otherComponents.dropFirst(2)
+        if !remaining.isEmpty {
+            components.append(CostBreakdownComponent(
+                label: "Övrigt",
+                value: remaining.reduce(0) { $0 + $1.value },
+                isMain: false
+            ))
+        }
+
+        return components
     }
 }

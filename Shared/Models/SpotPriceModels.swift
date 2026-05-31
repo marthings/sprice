@@ -82,6 +82,15 @@ struct DayChartData: Equatable, Sendable {
     }
 }
 
+// MARK: - Price Bucket Analytics
+
+enum PriceBucketAnalytics {
+    static func averageSpotPrice(_ buckets: [PriceBucket]) -> Double {
+        guard !buckets.isEmpty else { return 0 }
+        return buckets.reduce(0) { $0 + $1.orePerKWh } / Double(buckets.count)
+    }
+}
+
 // MARK: - Spot Price Item (API Response)
 
 struct SpotPriceItem: Decodable, Equatable, Sendable {

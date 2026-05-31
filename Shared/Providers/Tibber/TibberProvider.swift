@@ -67,11 +67,11 @@ struct TibberProvider: ElectricityProvider, PriceInfoProvider {
         }
         """
 
-        let response: TibberViewerResponse = try await executeQuery(query)
+        let response: TibberViewerResponse = try await executeQuery(query, operation: "testConnection")
         guard !response.data.viewer.homes.isEmpty else {
             throw ProviderError.notFound
         }
-        logger.info("Tibber: Found \(response.data.viewer.homes.count) home(s)")
+        logger.info("Tibber test connection found \(response.data.viewer.homes.count) home(s)")
     }
     
     // MARK: - PriceInfoProvider Implementation
@@ -98,10 +98,10 @@ struct TibberProvider: ElectricityProvider, PriceInfoProvider {
         }
         """
         
-        let response: TibberPriceResponse = try await executeQuery(query)
+        let response: TibberPriceResponse = try await executeQuery(query, operation: "currentPriceInfo")
         guard let home = response.data.viewer.home,
               let current = home.currentSubscription?.priceInfo?.current else {
-            logger.warning("Tibber: No current price info, using defaults")
+            logger.warning("Tibber current price info unavailable, using defaults")
             return Self.defaultCostInfo
         }
         
@@ -113,7 +113,7 @@ struct TibberProvider: ElectricityProvider, PriceInfoProvider {
         // Calculate surcharge: total - energy - tax
         let surchargeOre = totalOre - energyOre - taxOre
         
-        logger.info("Tibber: Fetched price - total: \(totalOre) öre, energy: \(energyOre) öre, tax: \(taxOre) öre, surcharge: \(surchargeOre) öre")
+        logger.info("Tibber current price info fetched")
         
         return ProviderCostInfo(
             spotPriceOre: energyOre,
@@ -149,10 +149,10 @@ struct TibberProvider: ElectricityProvider, PriceInfoProvider {
         }
         """
         
-        let response: TibberPriceResponse = try await executeQuery(query)
+        let response: TibberPriceResponse = try await executeQuery(query, operation: "todaysPrices")
         guard let home = response.data.viewer.home,
               let todayPrices = home.currentSubscription?.priceInfo?.today else {
-            logger.warning("Tibber: No today prices available")
+            logger.warning("Tibber today prices unavailable")
             return nil
         }
         
@@ -170,7 +170,7 @@ struct TibberProvider: ElectricityProvider, PriceInfoProvider {
             )
         }
         
-        logger.info("Tibber: Fetched \(hourlyPrices.count) hourly prices for today")
+        logger.info("Tibber fetched \(hourlyPrices.count) hourly prices for today")
         
         return DailyProviderPrices(
             date: Date(),
@@ -193,14 +193,14 @@ struct TibberProvider: ElectricityProvider, PriceInfoProvider {
 
         if isCurrentMonth {
             // For current month, sum up daily data instead
-            logger.info("Tibber: Current month - using daily data")
+            logger.info("Tibber current month uses daily data")
             let dailyData = try await fetchDailyConsumption(year: year, month: month)
             let totalKWh = dailyData.reduce(0) { $0 + $1.kWh }
 
             // Also fetch cost from hourly data if available
             let address = try await fetchHomeAddress(homeId: homeId)
 
-            logger.info("Tibber: Current month total from daily: \(totalKWh) kWh")
+            logger.info("Tibber current month daily consumption total loaded")
 
             return ConsumptionData(
                 totalKWh: totalKWh,
@@ -235,14 +235,14 @@ struct TibberProvider: ElectricityProvider, PriceInfoProvider {
         }
         """
 
-        let response: TibberHomeResponse = try await executeQuery(query)
+        let response: TibberHomeResponse = try await executeQuery(query, operation: "monthlyConsumption")
 
         guard let home = response.data.viewer.home else {
-            logger.error("Tibber: No home found in response")
+            logger.error("Tibber monthly consumption response did not include a home")
             throw ProviderError.notFound
         }
 
-        logger.info("Tibber: Got \(home.consumption.nodes.count) monthly nodes")
+        logger.info("Tibber fetched \(home.consumption.nodes.count) monthly consumption nodes")
 
         // Find the node matching our target month
         let targetNode = home.consumption.nodes.first { node in
@@ -253,8 +253,7 @@ struct TibberProvider: ElectricityProvider, PriceInfoProvider {
         }
 
         let totalKWh = targetNode?.consumption ?? 0
-        let totalCost = targetNode?.cost ?? 0
-        logger.info("Tibber: Month \(year)-\(month) = \(totalKWh) kWh, \(totalCost) kr")
+        logger.info("Tibber selected monthly consumption node for \(year)-\(month)")
 
         return ConsumptionData(
             totalKWh: totalKWh,
@@ -301,7 +300,7 @@ struct TibberProvider: ElectricityProvider, PriceInfoProvider {
             }
         }
 
-        let response: AddressResponse = try await executeQuery(query)
+        let response: AddressResponse = try await executeQuery(query, operation: "homeAddress")
         return response.data.viewer.home?.address?.address1 ?? "Tibber"
     }
 
@@ -335,7 +334,7 @@ struct TibberProvider: ElectricityProvider, PriceInfoProvider {
         }
         """
 
-        let response: TibberHomeResponse = try await executeQuery(query)
+        let response: TibberHomeResponse = try await executeQuery(query, operation: "dailyConsumption")
 
         guard let home = response.data.viewer.home else {
             throw ProviderError.notFound
@@ -380,7 +379,7 @@ struct TibberProvider: ElectricityProvider, PriceInfoProvider {
         }
         """
 
-        let response: TibberHomeResponse = try await executeQuery(query)
+        let response: TibberHomeResponse = try await executeQuery(query, operation: "hourlyConsumption")
 
         guard let home = response.data.viewer.home else {
             throw ProviderError.notFound
@@ -410,14 +409,14 @@ struct TibberProvider: ElectricityProvider, PriceInfoProvider {
         }
         """
 
-        let response: TibberViewerResponse = try await executeQuery(query)
+        let response: TibberViewerResponse = try await executeQuery(query, operation: "firstHome")
         guard let firstHome = response.data.viewer.homes.first else {
             throw ProviderError.notFound
         }
         return firstHome.id
     }
 
-    private func executeQuery<T: Decodable>(_ query: String) async throws -> T {
+    private func executeQuery<T: Decodable>(_ query: String, operation: String) async throws -> T {
         guard let graphQLEndpoint = URL(string: graphQLEndpointString) else {
             throw ProviderError.invalidURL
         }
@@ -429,7 +428,7 @@ struct TibberProvider: ElectricityProvider, PriceInfoProvider {
         let body = TibberGraphQLRequest(query: query)
         request.httpBody = try JSONEncoder().encode(body)
 
-        logger.debug("Tibber query: \(query)")
+        logger.debug("Tibber GraphQL operation \(operation, privacy: .public) request bytes: \(request.httpBody?.count ?? 0)")
 
         let (data, response) = try await session.data(for: request)
 
@@ -437,12 +436,7 @@ struct TibberProvider: ElectricityProvider, PriceInfoProvider {
             throw ProviderError.invalidResponse
         }
 
-        logger.info("Tibber HTTP Status: \(http.statusCode)")
-
-        // Always log raw response for debugging
-        if let responseStr = String(data: data, encoding: .utf8) {
-            logger.info("Tibber raw response: \(responseStr)")
-        }
+        logger.info("Tibber GraphQL operation \(operation, privacy: .public) status \(http.statusCode), response bytes \(data.count)")
 
         switch http.statusCode {
         case 200...299:
@@ -458,7 +452,7 @@ struct TibberProvider: ElectricityProvider, PriceInfoProvider {
         do {
             return try JSONDecoder().decode(T.self, from: data)
         } catch {
-            logger.error("Tibber decode error: \(error)")
+            logger.error("Tibber decode error for \(operation, privacy: .public): \(error.localizedDescription, privacy: .public)")
             throw ProviderError.decodingError(error)
         }
     }

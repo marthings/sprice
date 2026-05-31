@@ -2,6 +2,8 @@
 //  ChartCalloutView.swift
 //  Spotprice
 //
+//  Shared macOS menu bar chart callout. The iOS app intentionally uses
+//  IOSChartCalloutView because it needs opaque light/dark callout styling.
 
 import SwiftUI
 
@@ -116,7 +118,7 @@ struct ChartCalloutView: View {
                 
                 // Detailed breakdown - show top 3 components + "Övrigt"
                 VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
-                    ForEach(topBreakdownComponents(for: costBreakdown), id: \.label) { component in
+                    ForEach(CostBreakdownPresenter.topComponents(for: costBreakdown, profile: profile), id: \.label) { component in
                         BreakdownRow(
                             label: component.label,
                             value: component.value,
@@ -168,7 +170,7 @@ struct ChartCalloutView: View {
                 
                 // Detailed breakdown for fixed/variable contracts - show top 3 + "Övrigt"
                 VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
-                    ForEach(topBreakdownComponents(for: costBreakdown), id: \.label) { component in
+                    ForEach(CostBreakdownPresenter.topComponents(for: costBreakdown, profile: profile), id: \.label) { component in
                         BreakdownRow(
                             label: component.label,
                             value: component.value,
@@ -197,91 +199,6 @@ struct ChartCalloutView: View {
     private func timeLabel(_ date: Date) -> String {
         date.formatted(.dateTime.hour(.defaultDigits(amPM: .omitted)).minute(.twoDigits))
     }
-    
-    // MARK: - Breakdown Helpers
-    
-    private func topBreakdownComponents(for cost: EnhancedCost) -> [BreakdownComponent] {
-        var components: [BreakdownComponent] = []
-        
-        // Always include main retail energy component
-        components.append(BreakdownComponent(
-            label: profile.retailContractDisplayName,
-            value: cost.spotCostKr,
-            isMain: true
-        ))
-        
-        // Collect all other components
-        var otherComponents: [(label: String, value: Double)] = []
-        
-        // Retail markup (only for spot contracts)
-        if profile.retailContractType == .spotPriceMarkup && cost.providerSurchargeKr > 0 {
-            otherComponents.append(("Elhandelsavgifter", cost.providerSurchargeKr))
-        }
-        
-        // Retail monthly fee
-        if cost.providerMonthlyFeeKr > 0 {
-            otherComponents.append(("Elhandel månadavgift", cost.providerMonthlyFeeKr))
-        }
-        
-        // Grid transfer
-        if cost.gridEnergyCostKr > 0 {
-            otherComponents.append(("Elnätsavgift", cost.gridEnergyCostKr))
-        }
-        
-        // Grid fixed fee
-        if cost.fixedFeeCostKr > 0 {
-            otherComponents.append(("Elnät månadavgift", cost.fixedFeeCostKr))
-        }
-        
-        // Energy tax (always significant)
-        otherComponents.append(("Energiskatt", cost.energyTaxKr))
-        
-        // Certificate fee
-        if cost.certificateFeeKr > 0 {
-            otherComponents.append(("Elcertifikat", cost.certificateFeeKr))
-        }
-        
-        // Effect tariff
-        if cost.powerTariffCostKr > 0 {
-            otherComponents.append(("Effektavgift", cost.powerTariffCostKr))
-        }
-        
-        // Sort by value descending
-        otherComponents.sort { $0.value > $1.value }
-        
-        // Take top 2 (we already have 1 main component, so total will be 3 + "Övrigt")
-        let topTwo = Array(otherComponents.prefix(2))
-        let remaining = Array(otherComponents.dropFirst(2))
-        
-        // Add top 2 components
-        for component in topTwo {
-            components.append(BreakdownComponent(
-                label: component.label,
-                value: component.value,
-                isMain: false
-            ))
-        }
-        
-        // Add "Övrigt" if there are remaining components
-        if !remaining.isEmpty {
-            let othersTotal = remaining.reduce(0) { $0 + $1.value }
-            components.append(BreakdownComponent(
-                label: "Övrigt",
-                value: othersTotal,
-                isMain: false
-            ))
-        }
-        
-        return components
-    }
-}
-
-// MARK: - Breakdown Component
-
-private struct BreakdownComponent {
-    let label: String
-    let value: Double
-    let isMain: Bool
 }
 
 // MARK: - Breakdown Row

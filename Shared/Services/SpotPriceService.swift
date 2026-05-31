@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import OSLog
 
 // MARK: - SpotPriceService
 
@@ -22,12 +23,8 @@ struct SpotPriceService: Sendable {
 
     init(
         session: URLSession = NetworkSession.shared,
-        timeZone: TimeZone = TimeZone(identifier: "Europe/Stockholm") ?? .current,
-        calendar: Calendar = {
-            var cal = Calendar(identifier: .gregorian)
-            cal.timeZone = TimeZone(identifier: "Europe/Stockholm") ?? .current
-            return cal
-        }()
+        timeZone: TimeZone = AppFormatters.swedishTimeZone,
+        calendar: Calendar = AppFormatters.energyCalendar
     ) {
         self.session = session
         self.timeZone = timeZone
@@ -43,16 +40,16 @@ struct SpotPriceService: Sendable {
     /// Fetches spot prices for the given date and price area.
     func fetchSpotPrices(for date: Date = Date(), area: String) async throws -> [SpotPriceItem] {
         let url = try endpointURL(for: date, area: area, timeZone: timeZone, calendar: calendar)
-        print("⚡️ Fetching spot prices from: \(url)")
+        AppLog.spotPrice.debug("Fetching spot prices from \(url.absoluteString, privacy: .public)")
 
         let (data, response) = try await session.data(from: url)
         try validate(response: response)
 
         let items = try decoder.decode([SpotPriceItem].self, from: data)
-        print("⚡️ Got \(items.count) price items")
+        AppLog.spotPrice.info("Fetched \(items.count) price items")
 
         if let first = items.first, let last = items.last {
-            print("⚡️ First: \(first.timeStart) - Last: \(last.timeEnd)")
+            AppLog.spotPrice.debug("First interval \(first.timeStart, privacy: .public), last interval \(last.timeEnd, privacy: .public)")
         }
 
         return items
@@ -79,19 +76,15 @@ struct SpotPriceService: Sendable {
             throw DisplayableError("Kunde inte välja ett relevant prisintervall.")
         }
 
-        // Debug logging
-        let df = DateFormatter()
-        df.dateFormat = "HH:mm:ss"
-        df.timeZone = timeZone
-        print("⚡️ Now: \(df.string(from: now))")
-        print("⚡️ Chosen interval: \(df.string(from: current.timeStart)) - \(df.string(from: current.timeEnd))")
-        print("⚡️ Price: \(current.sekPerKWh) SEK/kWh = \(current.sekPerKWh * 100) öre")
+        AppLog.spotPrice.debug("Current time: \(AppFormatters.clockTime(now), privacy: .public)")
+        AppLog.spotPrice.debug("Chosen interval: \(AppFormatters.clockTime(current.timeStart), privacy: .public)-\(AppFormatters.clockTime(current.timeEnd), privacy: .public)")
+        AppLog.spotPrice.debug("Current price: \(current.sekPerKWh, privacy: .public) SEK/kWh")
         if containingNow != nil {
-            print("⚡️ Match type: containingNow ✓")
+            AppLog.spotPrice.debug("Match type: containing now")
         } else if latestPast != nil {
-            print("⚡️ Match type: latestPast (fallback)")
+            AppLog.spotPrice.debug("Match type: latest past fallback")
         } else {
-            print("⚡️ Match type: last today (fallback)")
+            AppLog.spotPrice.debug("Match type: last today fallback")
         }
 
         let ore = current.sekPerKWh * 100.0
@@ -102,14 +95,14 @@ struct SpotPriceService: Sendable {
     /// Creates chart-ready day data from spot price items
     func makeDayChartData(from items: [SpotPriceItem], for now: Date = Date()) throws -> DayChartData {
         // Filter items for the day of 'now'
-        print("⚡️ makeDayChartData - now: \(now), items count: \(items.count)")
+        AppLog.spotPrice.debug("Making day chart data for \(now, privacy: .public), item count \(items.count)")
 
         let dayItems = items.filter { calendar.isDate($0.timeStart, inSameDayAs: now) || calendar.isDate($0.timeEnd, inSameDayAs: now) }
 
-        print("⚡️ After filtering: \(dayItems.count) items for today")
+        AppLog.spotPrice.debug("Filtered \(dayItems.count) price items for selected day")
 
         guard !dayItems.isEmpty else {
-            print("⚡️ ERROR: No items match today's date!")
+            AppLog.spotPrice.error("No price items match selected day")
             throw DisplayableError("Inga prisdata hittades för idag.")
         }
         
