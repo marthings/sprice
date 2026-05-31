@@ -33,6 +33,31 @@ Known remaining hotspots:
 - `SpotPriceViewModel` owns too much orchestration: price loading, consumption, tariff, history recording, settings observation, and periodic refresh.
 - Widget monthly-cost fallback logic duplicates app cost logic.
 
+## Refactor Branch: `refactor/view-organization-and-cleanup` (Completed June 2026)
+
+This branch delivered the large-scale view reorganization that had been prepared across multiple earlier DX sprints.
+
+**Primary delivery:**
+- **Sprint 8.8: Feature View Folders** — Full execution. Views in both `SpotpriceApp` and `Spotprice` were reorganized into feature-based subdirectories while preserving all behavior and type names.
+- Significant logging hygiene (AppLog) as a continuation of Sprint 2 and the baseline work.
+- Additional targeted improvements across models, services, providers, and ViewModel integration (improved historical energy recording, cost calculation clarity, and provider handling).
+- Cleanup of Xcode project references, Info.plist files, and widget configuration as part of the reorganization.
+
+**What the branch touched:**
+- Large structural move of view files (no behavior changes).
+- Introduction and adoption of `AppLog` across all targets.
+- Incremental DRY improvements in cost, history, and provider layers.
+- Project file hygiene after the folder reorganization.
+
+**Not delivered in this branch:**
+- Sprint 6 (ViewModel orchestration split) — still considered future work.
+- Sprint 9 (Lightweight Test Coverage) — untouched.
+- Deeper architectural seams (e.g. `SpotPriceRefreshCoordinator`, `MonthlyCostEstimator` as standalone services) remain aspirational.
+
+**Notes:**
+- The branch name "view-organization-and-cleanup" primarily maps to Sprint 8.8 + supporting hygiene work.
+- Many of the smaller Sprint 8.x items (8.5–8.7) had already been incrementally completed in prior work; this branch completed the final major structural step (feature folders).
+
 ## Sprint 1: Shared Locale, Calendar, And Formatters
 
 ### Goal
@@ -446,6 +471,8 @@ Make each app target easier to navigate by grouping views by feature inside that
 - Do not share views between app targets.
 - Do not reorganize `Shared` model, service, or component folders in this sprint.
 
+**Completed in:** `refactor/view-organization-and-cleanup` branch (June 2026). This was the main structural goal of that branch.
+
 ## Sprint 9: Lightweight Test Coverage
 
 ### Goal
@@ -487,7 +514,7 @@ Candidate tests:
 9. Sprint 8.5: Small shared component and presenter cleanup.
 10. Sprint 8.6: Shared formatting and history UI polish.
 11. Sprint 8.7: Shared cost rows and consumption card cleanup.
-12. Sprint 8.8: Feature view folders.
+12. **Sprint 8.8: Feature view folders** — Completed in `refactor/view-organization-and-cleanup` (June 2026).
 13. Sprint 9: Lightweight test coverage.
 
 Reasoning:
@@ -505,3 +532,25 @@ Reasoning:
 - [ ] Xcode diagnostics checked for changed Swift files.
 - [ ] Full project build passes.
 - [ ] Sprint checklist updated in this document.
+
+---
+
+## Retrospective Note – June 2026
+
+The `refactor/view-organization-and-cleanup` branch successfully completed the major remaining structural goal of the DX track: **Sprint 8.8 (Feature View Folders)**.
+
+This branch combined:
+- The planned view reorganization (Sprint 8.8)
+- Logging hygiene follow-up (AppLog)
+- Incremental quality-of-life improvements in the surrounding model/service layer
+
+**Status after branch:**
+- The app is now significantly easier to navigate (feature-based folders in both iOS and macOS targets).
+- Logging is clean and production-ready.
+- Several of the smaller Sprint 8.x cleanups had already landed incrementally before this branch.
+
+**Remaining DX work** (still relevant):
+- Sprint 6 (ViewModel orchestration split)
+- Sprint 9 (Lightweight test coverage around the pure logic we have centralized)
+
+This branch represents a natural stopping point for the broad "view organization" phase. Future refactor work can be more targeted.
