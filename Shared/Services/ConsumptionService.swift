@@ -220,13 +220,8 @@ struct ConsumptionService: Sendable {
         // Sort by kW descending for display
         let result = peaks.sorted { $0.kW > $1.kW }
 
-        // Debug logging
-        let df = DateFormatter()
-        df.dateFormat = "d MMM HH:mm"
-        df.locale = Locale(identifier: "sv_SE")
-        df.timeZone = TimeZone(identifier: "Europe/Stockholm")
         for peak in result {
-            logger.info("⚡ Peak: \(df.string(from: peak.date)) → \(String(format: "%.2f", peak.kW)) kW")
+            logger.info("Power peak: \(AppFormatters.powerPeakLabel(peak.date), privacy: .public) -> \(peak.kW, privacy: .public) kW")
         }
         if !result.isEmpty {
             let avg = result.map(\.kW).reduce(0, +) / Double(result.count)
