@@ -104,11 +104,6 @@ struct CostCalculationSection: View {
     }
 
     private func getCurrentPriceOrAverage(_ payload: SpotPriceViewModel.CurrentAndDay) -> Double {
-        getCurrentPrice(payload) ?? averagePrice(payload.day.buckets)
-    }
-
-    func averagePrice(_ buckets: [PriceBucket]) -> Double {
-        guard !buckets.isEmpty else { return 0 }
-        return buckets.reduce(0) { $0 + $1.orePerKWh } / Double(buckets.count)
+        getCurrentPrice(payload) ?? PriceBucketAnalytics.averageSpotPrice(payload.day.buckets)
     }
 }

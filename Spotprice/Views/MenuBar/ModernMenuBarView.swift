@@ -44,7 +44,7 @@ struct ModernMenuBarView: View {
             HStack(spacing: DS.Spacing.md) {
                 Image(systemName: "clock.arrow.circlepath")
                     .font(.system(size: DS.Size.iconMedium, weight: .semibold))
-                    .foregroundStyle(coverageColor(summary))
+                    .foregroundStyle(summary.dataCoverage.displayColor)
                     .frame(width: 24)
 
                 VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
@@ -52,12 +52,10 @@ struct ModernMenuBarView: View {
                         Text("Sparad månad")
                             .font(DS.Font.medium(12))
                             .foregroundStyle(.primary)
-                        Text(coverageTitle(summary))
-                            .font(DS.Font.micro)
-                            .foregroundStyle(coverageColor(summary))
-                            .padding(.horizontal, DS.Spacing.xs)
-                            .padding(.vertical, 2)
-                            .background(coverageColor(summary).opacity(0.12), in: .capsule)
+                        HistoryCoverageBadge(
+                            coverage: summary.dataCoverage,
+                            horizontalPadding: DS.Spacing.xs
+                        )
                     }
                     Text(historySummaryText(summary))
                         .font(DS.Font.micro)
@@ -177,12 +175,7 @@ struct ModernMenuBarView: View {
 
     private var loadedAveragePrice: Double? {
         guard case .loaded(let payload) = viewModel.state else { return nil }
-        return averagePrice(payload.day.buckets)
-    }
-
-    private func averagePrice(_ buckets: [PriceBucket]) -> Double {
-        guard !buckets.isEmpty else { return 0 }
-        return buckets.reduce(0) { $0 + $1.orePerKWh } / Double(buckets.count)
+        return PriceBucketAnalytics.averageSpotPrice(payload.day.buckets)
     }
 
     private var loadingStatusText: String {
@@ -202,41 +195,16 @@ struct ModernMenuBarView: View {
         var parts: [String] = []
 
         if let cost = summary.totalCostSEK {
-            parts.append("\(Int(cost.rounded()).formatted()) kr")
+            parts.append(AppFormatters.wholeKr(cost))
         }
         if let consumption = summary.totalConsumptionKWh {
-            parts.append("\(consumption.formatted(.number.precision(.fractionLength(0...1)))) kWh")
+            parts.append(AppFormatters.kWh(consumption))
         }
         if parts.isEmpty, let averagePrice = summary.averageSpotPriceOrePerKWh {
-            parts.append("Snitt spotpris \(Int(averagePrice.rounded()).formatted()) öre/kWh")
+            parts.append("Snitt spotpris \(AppFormatters.ore(averagePrice))/kWh")
         }
 
         return parts.isEmpty ? "Prishistorik sparad för aktuell månad" : parts.joined(separator: " · ")
     }
 
-    private func coverageTitle(_ summary: HistoricalEnergySummaryValue) -> String {
-        switch summary.dataCoverage {
-        case .priceOnly:
-            return "Pris"
-        case .estimatedCost:
-            return "Uppskattat"
-        case .partialConsumption:
-            return "Delvis mätt"
-        case .measuredConsumption:
-            return "Mätt"
-        }
-    }
-
-    private func coverageColor(_ summary: HistoricalEnergySummaryValue) -> Color {
-        switch summary.dataCoverage {
-        case .priceOnly:
-            return DS.Color.secondary
-        case .estimatedCost:
-            return DS.Color.warning
-        case .partialConsumption:
-            return DS.Color.info
-        case .measuredConsumption:
-            return DS.Color.success
-        }
-    }
 }
