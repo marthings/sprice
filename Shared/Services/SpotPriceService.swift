@@ -40,17 +40,11 @@ struct SpotPriceService: Sendable {
     /// Fetches spot prices for the given date and price area.
     func fetchSpotPrices(for date: Date = Date(), area: String) async throws -> [SpotPriceItem] {
         let url = try endpointURL(for: date, area: area, timeZone: timeZone, calendar: calendar)
-        AppLog.spotPrice.debug("Fetching spot prices from \(url.absoluteString, privacy: .public)")
-
         let (data, response) = try await session.data(from: url)
         try validate(response: response)
 
         let items = try decoder.decode([SpotPriceItem].self, from: data)
         AppLog.spotPrice.info("Fetched \(items.count) price items")
-
-        if let first = items.first, let last = items.last {
-            AppLog.spotPrice.debug("First interval \(first.timeStart, privacy: .public), last interval \(last.timeEnd, privacy: .public)")
-        }
 
         return items
     }
@@ -76,17 +70,6 @@ struct SpotPriceService: Sendable {
             throw DisplayableError("Kunde inte välja ett relevant prisintervall.")
         }
 
-        AppLog.spotPrice.debug("Current time: \(AppFormatters.clockTime(now), privacy: .public)")
-        AppLog.spotPrice.debug("Chosen interval: \(AppFormatters.clockTime(current.timeStart), privacy: .public)-\(AppFormatters.clockTime(current.timeEnd), privacy: .public)")
-        AppLog.spotPrice.debug("Current price: \(current.sekPerKWh, privacy: .public) SEK/kWh")
-        if containingNow != nil {
-            AppLog.spotPrice.debug("Match type: containing now")
-        } else if latestPast != nil {
-            AppLog.spotPrice.debug("Match type: latest past fallback")
-        } else {
-            AppLog.spotPrice.debug("Match type: last today fallback")
-        }
-
         let ore = current.sekPerKWh * 100.0
         let formatted = formatter.string(from: NSNumber(value: ore)) ?? String(format: "%.1f", ore)
         return "\(formatted)"
@@ -94,12 +77,7 @@ struct SpotPriceService: Sendable {
     
     /// Creates chart-ready day data from spot price items
     func makeDayChartData(from items: [SpotPriceItem], for now: Date = Date()) throws -> DayChartData {
-        // Filter items for the day of 'now'
-        AppLog.spotPrice.debug("Making day chart data for \(now, privacy: .public), item count \(items.count)")
-
         let dayItems = items.filter { calendar.isDate($0.timeStart, inSameDayAs: now) || calendar.isDate($0.timeEnd, inSameDayAs: now) }
-
-        AppLog.spotPrice.debug("Filtered \(dayItems.count) price items for selected day")
 
         guard !dayItems.isEmpty else {
             AppLog.spotPrice.error("No price items match selected day")

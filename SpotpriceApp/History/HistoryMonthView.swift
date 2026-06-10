@@ -315,35 +315,42 @@ private struct HistoryDailyChart: View {
         Set(sortedDays.map(\.dataCoverage)).count > 1
     }
 
+    /// A day reduced to a single plottable bar value, picking the most relevant
+    /// metric available (cost, then consumption, then average price).
+    private struct PlottableDay: Identifiable {
+        let day: HistoricalEnergySummaryValue
+        let value: Double
+        let label: String
+        var id: HistoricalEnergySummaryValue.ID { day.id }
+    }
+
+    /// Flattening the per-day metric selection here keeps the `Chart` body free of
+    /// `if/else if` branches, whose `_ConditionalContent` conformance to `ChartContent`
+    /// would otherwise require iOS 27.
+    private var plottableDays: [PlottableDay] {
+        sortedDays.compactMap { day in
+            if let cost = day.totalCostSEK {
+                return PlottableDay(day: day, value: cost, label: "Kostnad")
+            } else if let consumption = day.totalConsumptionKWh {
+                return PlottableDay(day: day, value: consumption, label: "Förbrukning")
+            } else if let avgPrice = day.averageSpotPriceOrePerKWh {
+                return PlottableDay(day: day, value: avgPrice / 100, label: "Snittpris")
+            }
+            return nil
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
             Chart {
-                ForEach(sortedDays) { day in
-                    if let cost = day.totalCostSEK {
-                        BarMark(
-                            x: .value("Dag", day.periodStart, unit: .day),
-                            y: .value("Kostnad", cost)
-                        )
-                        .foregroundStyle(coverageGradient(day.dataCoverage))
-                        .cornerRadius(4)
-                        .opacity(selectedDay == nil || selectedDay?.id == day.id ? 1.0 : 0.3)
-                    } else if let consumption = day.totalConsumptionKWh {
-                        BarMark(
-                            x: .value("Dag", day.periodStart, unit: .day),
-                            y: .value("Förbrukning", consumption)
-                        )
-                        .foregroundStyle(coverageGradient(day.dataCoverage))
-                        .cornerRadius(4)
-                        .opacity(selectedDay == nil || selectedDay?.id == day.id ? 1.0 : 0.3)
-                    } else if let avgPrice = day.averageSpotPriceOrePerKWh {
-                        BarMark(
-                            x: .value("Dag", day.periodStart, unit: .day),
-                            y: .value("Snittpris", avgPrice / 100)
-                        )
-                        .foregroundStyle(coverageGradient(day.dataCoverage))
-                        .cornerRadius(4)
-                        .opacity(selectedDay == nil || selectedDay?.id == day.id ? 1.0 : 0.3)
-                    }
+                ForEach(plottableDays) { entry in
+                    BarMark(
+                        x: .value("Dag", entry.day.periodStart, unit: .day),
+                        y: .value(entry.label, entry.value)
+                    )
+                    .foregroundStyle(coverageGradient(entry.day.dataCoverage))
+                    .cornerRadius(4)
+                    .opacity(selectedDay == nil || selectedDay?.id == entry.day.id ? 1.0 : 0.3)
                 }
 
                 if let selectedDay {

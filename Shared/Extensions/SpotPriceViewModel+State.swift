@@ -4,7 +4,6 @@
 //
 
 import SwiftUI
-import OSLog
 
 extension SpotPriceViewModel.State {
     var currentPriceLabel: String {
@@ -28,10 +27,6 @@ extension SpotPriceViewModel.State {
             spotPriceOre: currentBucket.orePerKWh,
             profile: profile
         )
-
-        AppLog.menuBar.debug("Current spot \(currentBucket.orePerKWh, privacy: .public) öre, total \(totalPriceKr, privacy: .public) kr/kWh")
-        AppLog.menuBar.debug("Bucket interval \(currentBucket.start, privacy: .public)-\(currentBucket.end, privacy: .public)")
-        AppLog.menuBar.debug("Profile markup \(profile.retailerMarkupOrePerKWh, privacy: .public), contract \(profile.retailContractType.rawValue, privacy: .public), contract price \(profile.contractPriceOrePerKWh ?? 0, privacy: .public)")
 
         return "\(totalPriceKr.formatted(.number.precision(.fractionLength(2)))) kr/kWh"
     }

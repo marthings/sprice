@@ -164,7 +164,6 @@ final class SpotPriceViewModel {
         // Try cache first
         if let cached = settings.cachedTariff {
             currentTariff = cached
-            AppLog.viewModel.debug("Using cached tariff for \(cached.dsoName, privacy: .public)")
             return
         }
         
@@ -280,8 +279,6 @@ private final class ConsumptionLoadService {
     }
 
     func load() async -> ConsumptionLoadResult {
-        AppLog.viewModel.debug("Loading consumption")
-
         async let consumption = loadConsumption()
         async let powerPeaks = loadPowerPeaks()
         async let preciseMonthlyCost = loadPreciseMonthlyCost()

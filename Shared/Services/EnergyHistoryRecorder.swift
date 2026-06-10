@@ -51,7 +51,6 @@ final class EnergyHistoryRecorder {
         }
 
         guard !drafts.isEmpty else {
-            AppLog.history.debug("No price buckets to record")
             return
         }
 
@@ -84,7 +83,6 @@ final class EnergyHistoryRecorder {
             )
 
             guard !intervals.isEmpty else {
-                AppLog.history.debug("No consumption intervals to record")
                 return
             }
 

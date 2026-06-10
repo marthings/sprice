@@ -121,8 +121,6 @@ struct SpotPriceProvider: TimelineProvider {
                 let s = ConsumptionSettings.shared
                 return (s.cachedConsumption, s.costProfile)
             }
-            
-            AppLog.widget.debug("Cost profile markup \(costProfile.retailerMarkupOrePerKWh, privacy: .public), contract \(costProfile.retailContractType.rawValue, privacy: .public), confidence \(costProfile.confidence.rawValue, privacy: .public)")
 
             let items = try await service.fetchSpotPrices(for: now, area: costProfile.priceArea)
             let dayData = try service.makeDayChartData(from: items, for: now)
@@ -146,11 +144,7 @@ struct SpotPriceProvider: TimelineProvider {
 
             if let currentBucket = dayData.buckets.first(where: { $0.start <= now && $0.end > now }) {
                 let currentTotalCost = totalCostService.calculatePricePerKWh(spotPriceOre: currentBucket.orePerKWh, profile: costProfile)
-                
-                AppLog.widget.debug("Current spot \(currentBucket.orePerKWh, privacy: .public) öre, total \(currentTotalCost, privacy: .public) kr/kWh")
-                AppLog.widget.debug("Bucket interval \(currentBucket.start, privacy: .public)-\(currentBucket.end, privacy: .public)")
-                AppLog.widget.debug("Profile markup \(costProfile.retailerMarkupOrePerKWh, privacy: .public), contract \(costProfile.retailContractType.rawValue, privacy: .public), contract price \(costProfile.contractPriceOrePerKWh ?? 0, privacy: .public)")
-                
+
                 return SpotPriceEntry(
                     date: now,
                     currentPrice: Int(currentBucket.orePerKWh.rounded()),
@@ -411,7 +405,7 @@ struct SpotpriceWidgetEntryView: View {
                         .frame(width: 24, height: 24)
                     
                     Spacer()
-                    
+
                     if shouldShowMonthlyStats {
                         HStack(spacing: DS.Spacing.xxs) {
                             Text("\(Int(entry.monthlyKWh.rounded()))")

@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import OSLog
 
 final class TotalCostService: Sendable {
     private let gridTariffService: GridTariffService
@@ -236,7 +235,6 @@ struct MonthlyCostEstimator: Sendable {
         let monthDate = historySummary?.periodStart ?? cachedConsumption?.monthDate ?? now
 
         if let historyCost = historySummary?.totalCostSEK {
-            AppLog.widget.debug("Monthly cost from history cache: \(historyCost, privacy: .public) kr")
             return MonthlyCostEstimate(totalKr: historyCost, kWh: monthlyKWh, monthDate: monthDate)
         }
 
@@ -253,8 +251,6 @@ struct MonthlyCostEstimator: Sendable {
         )
         let monthlyFees = profile.retailerMonthlyFee + (profile.gridMonthlyFee ?? 0)
         let monthlyCostKr = energyCost.totalKr + monthlyFees
-
-        AppLog.widget.debug("Estimated monthly cost: \(monthlyKWh, privacy: .public) kWh, avg \(avgPrice, privacy: .public) öre, energy \(energyCost.totalKr, privacy: .public) kr, fees \(monthlyFees, privacy: .public) kr, total \(monthlyCostKr, privacy: .public) kr")
 
         return MonthlyCostEstimate(totalKr: monthlyCostKr, kWh: monthlyKWh, monthDate: monthDate)
     }
