@@ -142,8 +142,15 @@ struct SpotPriceProvider: TimelineProvider {
             let minute = Calendar.current.component(.minute, from: now)
             let currentBucketIndex = hour * 4 + minute / 15
 
-            if let currentBucket = dayData.buckets.first(where: { $0.start <= now && $0.end > now }) {
+            // Find current bucket - use more flexible matching
+            let currentBucket = dayData.buckets.first(where: { $0.start <= now && $0.end > now })
+                ?? dayData.buckets.filter({ $0.end <= now }).max(by: { $0.end < $1.end })  // Fallback to most recent past bucket
+                ?? dayData.buckets.first  // Ultimate fallback to first bucket of the day
+
+            if let currentBucket = currentBucket {
                 let currentTotalCost = totalCostService.calculatePricePerKWh(spotPriceOre: currentBucket.orePerKWh, profile: costProfile)
+
+                AppLog.widget.info("Widget loaded successfully with price: \(Int(currentBucket.orePerKWh.rounded())) öre/kWh")
 
                 return SpotPriceEntry(
                     date: now,
@@ -151,7 +158,7 @@ struct SpotPriceProvider: TimelineProvider {
                     currentTotalCostPerKWh: currentTotalCost,
                     priceCategory: currentBucket.category,
                     dayData: dayData,
-                    currentBucketIndex: currentBucketIndex,
+                    currentBucketIndex: min(currentBucketIndex, dayData.buckets.count - 1),
                     monthlyKWh: monthlyEstimate.kWh,
                     monthlyCostKr: monthlyEstimate.totalKr,
                     monthDate: monthlyEstimate.monthDate,
@@ -160,6 +167,7 @@ struct SpotPriceProvider: TimelineProvider {
                 )
             }
 
+            AppLog.widget.error("No valid bucket found in dayData with \(dayData.buckets.count) buckets")
             return .error
         } catch {
             AppLog.widget.error("Error fetching price: \(error.localizedDescription, privacy: .public)")
@@ -437,11 +445,14 @@ struct SpotpriceWidgetEntryView: View {
                     .padding(.bottom, DS.Spacing.sm)
 
                 // Chart
-                if let dayData = entry.dayData {
+                if let dayData = entry.dayData, !dayData.buckets.isEmpty {
                     MiniPriceChart(dayData: dayData, currentBucketIndex: entry.currentBucketIndex, costProfile: entry.costProfile)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     Spacer()
+                    Text("Ingen data")
+                        .font(DS.Font.micro)
+                        .foregroundStyle(DS.Color.secondary)
                 }
 
             }

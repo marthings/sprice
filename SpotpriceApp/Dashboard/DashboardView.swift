@@ -54,7 +54,9 @@ struct DashboardView: View {
 
             HistoryTab(
                 settingsSummary: settingsSummary,
-                isShowingSettings: $isShowingSettings
+                isShowingSettings: $isShowingSettings,
+                liveMonthlyConsumption: viewModel.monthlyConsumption,
+                livePreciseCost: viewModel.preciseMonthlyCost
             )
             .tabItem {
                 Label("Historik", systemImage: "clock.arrow.circlepath")
@@ -182,10 +184,18 @@ struct DashboardView: View {
         let settingsSummary: String
         @Binding var isShowingSettings: Bool
 
+        // Live current-month data so Historik can show *exactly* the same headline numbers
+        // (Kostnad + Förbrukning) as the Förbrukning tab for the open month.
+        let liveMonthlyConsumption: ConsumptionData?
+        let livePreciseCost: PreciseMonthlyCost?
+
         var body: some View {
             NavigationStack {
                 ContentView(title: "Historik", settingsSummary: settingsSummary) {
-                    HistoryMonthView()
+                    HistoryMonthView(
+                        liveMonthlyConsumption: liveMonthlyConsumption,
+                        livePreciseCost: livePreciseCost
+                    )
                 }
                 .toolbarBackground(.hidden, for: .navigationBar)
                 .toolbar {

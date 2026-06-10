@@ -14,16 +14,25 @@ struct HistoryMonthView: View {
     // Preview support - allow injecting initial state
     private let initialState: LoadState?
 
+    // Live data for the current month so that the headline numbers (Kostnad + Förbrukning for the open month)
+    // are computed *identically* to the Förbrukning tab (same precise matching + current CostProfile).
+    var liveMonthlyConsumption: ConsumptionData? = nil
+    var livePreciseCost: PreciseMonthlyCost? = nil
+
     init(
         priceArea: String? = nil,
         calendar: Calendar = .energyHistory,
         historyQuery: (any EnergyHistoryQuerying)? = nil,
-        previewState: LoadState? = nil
+        previewState: LoadState? = nil,
+        liveMonthlyConsumption: ConsumptionData? = nil,
+        livePreciseCost: PreciseMonthlyCost? = nil
     ) {
         self.priceArea = priceArea
         self.calendar = calendar
         self.historyQuery = historyQuery ?? EnergyHistoryQueryService()
         self.initialState = previewState
+        self.liveMonthlyConsumption = liveMonthlyConsumption
+        self.livePreciseCost = livePreciseCost
     }
     
     // MARK: - State Types
@@ -87,26 +96,44 @@ struct HistoryMonthView: View {
                 monthPicker(data.months)
 
                 if let selectedMonth = data.selectedMonth {
-                    HistoryMonthSummaryCards(summary: selectedMonth)
+                    let isCurrent = isCurrentMonth(selectedMonth)
+                    HistoryMonthSummaryCards(
+                        summary: selectedMonth,
+                        isCurrentMonth: isCurrent,
+                        liveMonthlyConsumption: liveMonthlyConsumption,
+                        livePreciseCost: livePreciseCost
+                    )
+
+                    HistoryTopDaysSection(
+                        title: "Dyraste dagar",
+                        emptyMessage: "Kostnadsdagar visas när historiken innehåller beräknad kostnad.",
+                        days: data.topCostDays,
+                        isCurrentMonth: isCurrent,
+                        value: { summary in
+                            if isCurrent, 
+                               let kWh = summary.totalConsumptionKWh, 
+                               kWh > 0, 
+                               let spot = summary.averageSpotPriceOrePerKWh {
+                                let profile = ConsumptionSettings.shared.costProfile
+                                let service = TotalCostService()
+                                let c = service.calculateTotalCost(kWh: kWh, spotPriceOre: spot, profile: profile, hoursInPeriod: 24)
+                                let cost = c.totalKr
+                                return (AppFormatters.wholeNumber(cost), "kr")
+                            }
+                            return summary.totalCostSEK.map { (AppFormatters.wholeNumber($0), "kr") }
+                        }
+                    )
+
+                    HistoryTopDaysSection(
+                        title: "Högst förbrukning",
+                        emptyMessage: "Förbrukningsdagar visas när en datakälla har levererat mätvärden.",
+                        days: data.topConsumptionDays,
+                        isCurrentMonth: false,
+                        value: { summary in
+                            summary.totalConsumptionKWh.map { (AppFormatters.kWhValue($0), "kWh") }
+                        }
+                    )
                 }
-
-                HistoryTopDaysSection(
-                    title: "Dyraste dagar",
-                    emptyMessage: "Kostnadsdagar visas när historiken innehåller beräknad kostnad.",
-                    days: data.topCostDays,
-                    value: { summary in
-                        summary.totalCostSEK.map { (AppFormatters.wholeNumber($0), "kr") }
-                    }
-                )
-
-                HistoryTopDaysSection(
-                    title: "Högst förbrukning",
-                    emptyMessage: "Förbrukningsdagar visas när en datakälla har levererat mätvärden.",
-                    days: data.topConsumptionDays,
-                    value: { summary in
-                        summary.totalConsumptionKWh.map { (AppFormatters.kWhValue($0), "kWh") }
-                    }
-                )
 
                 HistoryDailyList(
                     days: data.dailySummaries,
@@ -129,6 +156,16 @@ struct HistoryMonthView: View {
         }
         .pickerStyle(.menu)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func isCurrentMonth(_ summary: HistoricalEnergySummaryValue) -> Bool {
+        let calendar = Calendar.energyHistory
+        let now = Date()
+        let currentMonth = calendar.component(.month, from: now)
+        let currentYear = calendar.component(.year, from: now)
+        let summaryMonth = calendar.component(.month, from: summary.periodStart)
+        let summaryYear = calendar.component(.year, from: summary.periodStart)
+        return summaryYear == currentYear && summaryMonth == currentMonth
     }
 
     @MainActor
@@ -162,55 +199,122 @@ struct HistoryMonthView: View {
 
 private struct HistoryMonthSummaryCards: View {
     let summary: HistoricalEnergySummaryValue
+    var isCurrentMonth: Bool = false
+
+    // Live data so we can compute *exactly* the same cost as the Förbrukning tab for the current month.
+    var liveMonthlyConsumption: ConsumptionData? = nil
+    var livePreciseCost: PreciseMonthlyCost? = nil
+
+    private let totalCostService = TotalCostService()
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
             HStack(spacing: DS.Spacing.sm) {
+                let displayedConsumption = liveMonthlyConsumption?.totalKWh ?? summary.totalConsumptionKWh
+                let displayedCost = currentMonthCostUsingLiveData ?? (isCurrentMonth ? liveCostForCurrentMonth : summary.totalCostSEK)
+
                 MetricCard(
-                    title: "Kostnad",
-                    value: summary.totalCostSEK.map { AppFormatters.wholeNumber($0) } ?? "-",
+                    title: isCurrentMonth ? "Kostnad (aktuella tariffer)" : "Kostnad",
+                    value: displayedCost.map { AppFormatters.wholeNumber($0) } ?? "-",
                     unit: "kr",
                     icon: "wallet.bifold.fill",
-                    color: DS.Color.secondary
+                    color: .primary
                 )
                 .padding(DS.Spacing.md)
                 .glassCard(cornerRadius: DS.Radius.md)
                 MetricCard(
                     title: "Förbrukning",
-                    value: summary.totalConsumptionKWh.map { AppFormatters.kWhValue($0) } ?? "-",
+                    value: displayedConsumption.map { AppFormatters.kWhValue($0) } ?? "-",
                     unit: "kWh",
                     icon: "bolt.fill",
-                    color: DS.Color.secondary
+                    color: .primary
                 )
                 .padding(DS.Spacing.md)
                 .glassCard(cornerRadius: DS.Radius.md)
             }
 
             HStack(spacing: DS.Spacing.sm) {
-                let averagePriceMetric = averagePriceMetric(summary)
+                let averagePriceMetric = averagePriceMetric(summary, liveCost: currentMonthCostUsingLiveData ?? (isCurrentMonth ? liveCostForCurrentMonth : nil))
                 MetricCard(
                     title: averagePriceMetric.title,
                     value: averagePriceMetric.value,
                     unit: averagePriceMetric.unit,
                     icon: "chart.line.uptrend.xyaxis",
-                    color: DS.Color.secondary
+                    color: .primary
                 )
                 .padding(DS.Spacing.md)
                 .glassCard(cornerRadius: DS.Radius.md)
-                MetricCard(
-                    title: "Dagar",
-                    value: monthDayCount(summary).formatted(),
-                    unit: "st",
-                    icon: "calendar",
-                    color: DS.Color.secondary
-                )
-                .padding(DS.Spacing.md)
-                .glassCard(cornerRadius: DS.Radius.md)
+
+            }
+
+            if isCurrentMonth {
+                Text("Pågående månad. Använder aktuella tariffer och senaste mätdata")
+                    .font(DS.Font.micro)
+                    .foregroundStyle(DS.Color.secondary)
             }
         }
     }
 
-    private func averagePriceMetric(_ summary: HistoricalEnergySummaryValue) -> (title: String, value: String, unit: String) {
+    /// Computes the month cost using the *exact same logic* as MonthlyConsumptionSection when live data is available.
+    /// This guarantees the "Kostnad" number on Historik for the current month is identical to the one on the Förbrukning tab.
+    private var currentMonthCostUsingLiveData: Double? {
+        guard isCurrentMonth else { return nil }
+
+        let profile = ConsumptionSettings.shared.costProfile
+        let consumption = liveMonthlyConsumption
+        let preciseCost = livePreciseCost
+        let averagePrice = summary.averageSpotPriceOrePerKWh ?? 0   // fallback
+
+        if let consumption {
+            if let precise = preciseCost {
+                let effectiveSpotOre = precise.totalKWh > 0
+                    ? (precise.totalCostKr / precise.totalKWh) * 100
+                    : averagePrice
+                let enhanced = totalCostService.calculateTotalCost(
+                    kWh: precise.totalKWh,
+                    spotPriceOre: effectiveSpotOre,
+                    profile: profile,
+                    hoursInPeriod: 730
+                )
+                return enhanced.totalKr
+            } else {
+                let enhanced = totalCostService.calculateTotalCost(
+                    kWh: consumption.totalKWh,
+                    spotPriceOre: averagePrice,
+                    profile: profile,
+                    hoursInPeriod: 730
+                )
+                return enhanced.totalKr
+            }
+        }
+        return nil
+    }
+
+    private var liveCostForCurrentMonth: Double? {
+        guard isCurrentMonth,
+              let kWh = summary.totalConsumptionKWh, kWh > 0 else {
+            return summary.totalCostSEK
+        }
+        let profile = ConsumptionSettings.shared.costProfile
+        let spotOre = summary.averageSpotPriceOrePerKWh ?? 0
+        let cost = totalCostService.calculateTotalCost(
+            kWh: kWh,
+            spotPriceOre: spotOre,
+            profile: profile,
+            hoursInPeriod: 730
+        )
+        return cost.totalKr
+    }
+
+    private func averagePriceMetric(_ summary: HistoricalEnergySummaryValue, liveCost: Double?) -> (title: String, value: String, unit: String) {
+        if let cost = liveCost, let kWh = summary.totalConsumptionKWh, kWh > 0 {
+            let avg = cost / kWh
+            return (
+                "Snitt totalpris",
+                avg.formatted(.number.precision(.fractionLength(2))),
+                "kr/kWh"
+            )
+        }
         if let totalPrice = summary.averageTotalCostSEKPerKWh {
             return (
                 "Snitt totalpris",
@@ -228,9 +332,6 @@ private struct HistoryMonthSummaryCards: View {
         return ("Snittpris", "-", "kr/kWh")
     }
 
-    private func monthDayCount(_ summary: HistoricalEnergySummaryValue) -> Int {
-        Calendar.energyHistory.range(of: .day, in: .month, for: summary.periodStart)?.count ?? 0
-    }
 }
 
 // MARK: - History Lists
@@ -239,6 +340,7 @@ private struct HistoryTopDaysSection: View {
     let title: String
     let emptyMessage: String
     let days: [HistoricalEnergySummaryValue]
+    var isCurrentMonth: Bool = false
     let value: (HistoricalEnergySummaryValue) -> (String, String)?
 
     var body: some View {

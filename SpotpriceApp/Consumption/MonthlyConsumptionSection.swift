@@ -57,9 +57,21 @@ struct MonthlyConsumptionSection: View {
     }
 
     private func historyContent(_ summary: HistoricalEnergySummaryValue) -> some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
+        let calendar = Calendar.energyHistory
+        let now = Date()
+        let currentMonth = calendar.component(.month, from: now)
+        let currentYear = calendar.component(.year, from: now)
+        let summaryMonth = calendar.component(.month, from: summary.periodStart)
+        let summaryYear = calendar.component(.year, from: summary.periodStart)
+        let isCurrent = (summaryYear == currentYear && summaryMonth == currentMonth)
+
+        let displayedCost = isCurrent ? liveCostForCurrentMonth(summary) : summary.totalCostSEK
+        let costTitle = isCurrent ? "Kostnad (aktuella tariffer)" : (summary.totalCostSEK == nil ? "Snitt spotpris" : "Kostnad")
+        let costUnit = (isCurrent || summary.totalCostSEK != nil) ? "kr" : "öre"
+
+        return VStack(alignment: .leading, spacing: DS.Spacing.md) {
             HStack {
-                Text("Sparad historik")
+                Text(isCurrent ? "Pågående månad (live)" : "Sparad historik")
                     .font(DS.Font.headline)
                 Spacer(minLength: DS.Spacing.sm)
                 HistoryCoverageBadge(coverage: summary.dataCoverage)
@@ -77,9 +89,9 @@ struct MonthlyConsumptionSection: View {
                 .glassCard(cornerRadius: DS.Radius.lg)
 
                 summaryCard(
-                    title: summary.totalCostSEK == nil ? "Snitt spotpris" : "Kostnad",
-                    value: historyCostValue(summary),
-                    unit: summary.totalCostSEK == nil ? "öre" : "kr",
+                    title: costTitle,
+                    value: displayedCost.map { AppFormatters.wholeNumber($0) } ?? (summary.averageSpotPriceOrePerKWh.map { AppFormatters.oreValue($0) } ?? "-"),
+                    unit: costUnit,
                     icon: "wallet.bifold.fill",
                     color: .primary
                 )
@@ -87,7 +99,7 @@ struct MonthlyConsumptionSection: View {
                 .glassCard(cornerRadius: DS.Radius.lg)
             }
 
-            Label(summary.coverageText(style: .brandedMonthly), systemImage: "clock.arrow.circlepath")
+            Label(isCurrent ? "Uppdateras med aktuella tariffer och mätdata." : summary.coverageText(style: .brandedMonthly), systemImage: "clock.arrow.circlepath")
                 .font(DS.Font.micro)
                 .foregroundStyle(DS.Color.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -95,6 +107,20 @@ struct MonthlyConsumptionSection: View {
                 .frame(maxWidth: .infinity)
                 .glassCard(cornerRadius: DS.Radius.lg)
         }
+    }
+
+    private func liveCostForCurrentMonth(_ summary: HistoricalEnergySummaryValue) -> Double? {
+        guard let kWh = summary.totalConsumptionKWh, kWh > 0 else { return summary.totalCostSEK }
+        let profile = ConsumptionSettings.shared.costProfile
+        let service = TotalCostService()
+        let spotOre = summary.averageSpotPriceOrePerKWh ?? 0
+        let cost = service.calculateTotalCost(
+            kWh: kWh,
+            spotPriceOre: spotOre,
+            profile: profile,
+            hoursInPeriod: 730
+        )
+        return cost.totalKr
     }
 
     private func consumptionContent(_ consumption: ConsumptionData) -> some View {
