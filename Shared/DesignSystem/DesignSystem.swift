@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import CoreText
 
 // MARK: - Shared Formatters
 
@@ -143,6 +144,19 @@ enum DS {
     // MARK: - Typography
 
     enum Font {
+        /// Widget extensions don't reliably honor `UIAppFonts`/`ATSApplicationFontsPath`,
+        /// so widget entry points register the bundled fonts with CoreText explicitly.
+        static func registerBundledFonts() {
+            _ = registration
+        }
+
+        private static let registration: Void = {
+            for resource in ["osans-regular", "osans-heavy"] {
+                guard let url = Bundle.main.url(forResource: resource, withExtension: "otf") else { continue }
+                CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
+            }
+        }()
+
         static func regular(_ size: CGFloat) -> SwiftUI.Font {
             .custom("PPObjectSans-Regular", size: size)
         }

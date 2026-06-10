@@ -8,7 +8,7 @@
 		<string>osans-heavy.otf</string>
 	</array>
 	<key>ATSApplicationFontsPath</key>
-	<string>Fonts</string>
+	<string>.</string>
 	<key>CFBundleDisplayName</key>
 	<string>Sprice</string>
 	<key>NSExtension</key>
