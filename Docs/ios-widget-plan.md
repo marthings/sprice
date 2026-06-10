@@ -5,16 +5,29 @@ Goal: make the existing Spotprice widget available for the iOS app while keeping
 ## Current State
 
 - The existing `SpotpriceWidgetExtension` is embedded in the macOS menu bar app target, `Spotprice`.
-- The iOS app target, `SpotpriceApp`, does not currently embed a widget extension.
-- The widget already uses mostly platform-neutral SwiftUI and shared services.
+- The iOS app target, `SpotpriceApp`, now has a separate widget extension target: `SpotpriceAppWidgetExtension`.
+- The iOS widget product is `SpotpriceAppWidgetExtension.appex` with bundle identifier `mb.SpotpriceApp.SpotpriceWidget`.
+- The iOS widget bundle reuses the shared `SpotpriceWidget()` entry point and currently supports `.systemSmall`.
 - Shared widget data is read through `UserDefaults(suiteName: "group.mb.Spotprice")` via `ConsumptionSettings`.
-- The iOS app target needs App Group entitlement access before it can write the same shared data for an iOS widget.
+- The iOS app and iOS widget target both use the `group.mb.Spotprice` App Group entitlement.
+- Remaining readiness work is manual App Group data-flow and widget refresh verification on iOS 26.
 
 ## Recommended Approach
 
 Create a separate iOS widget extension target that reuses the existing widget source files and shared code.
 
 This is safer than trying to make the existing macOS widget extension serve both host apps, because extension bundle identifiers and embed relationships are tied to the host app target.
+
+## Implementation Status
+
+- [x] Added iOS Widget Extension target `SpotpriceAppWidgetExtension`.
+- [x] Removed the unused Live Activity template file.
+- [x] Cleaned target, product, entitlement, and scheme naming.
+- [x] Pointed the iOS widget bundle at the shared `SpotpriceWidget()`.
+- [x] Set the iOS widget scheme to run `.systemSmall`.
+- [x] Built the iOS widget target on an iOS 26 simulator.
+- [ ] Manually add the widget to the Home Screen and verify live spot price data.
+- [ ] Verify app settings changes refresh the iOS widget through the App Group data flow.
 
 ## Step-by-Step
 
@@ -57,10 +70,10 @@ This is safer than trying to make the existing macOS widget extension serve both
    - Keep `.systemSmall` first for parity.
    - Add `.systemMedium` later only after designing a proper layout.
 
-9. Build and test.
-   - Build the iOS app target.
-   - Build the iOS widget extension target.
-   - Run on iOS simulator or device.
+9. Build and manually verify on iOS 26.
+   - Build the iOS app target with deployment target iOS 26.
+   - Build the iOS widget extension target with deployment target iOS 26.
+   - Run on an iOS 26 simulator or device.
    - Add the widget to the Home Screen and verify it shows live spot price data.
 
 ## Notes

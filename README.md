@@ -118,17 +118,16 @@ Dokumenten i `Docs` och `Shared/Docs` är inte alla aktuella produktbeskrivninga
 - `Docs/ios-app-menubar-parity-plan.md`: historisk plan för att bygga iOS-paritet med menyradsappen. Flera delar är redan implementerade.
 - `Docs/ios-widget-plan.md`: plan för en separat iOS-widgetextension. Den är inte implementerad ännu.
 - `Docs/historical-cost-and-consumption-plan.md`: sprintplan för SwiftData-baserad historik, aggregeringar och möjlig framtida CloudKit-synk.
-- `Docs/test-epic-plan.md`: framtida epic för testtarget, fixtures och automatiserad coverage.
-- `Docs/testflight-readiness-plan.md`: plan för dokumentationsgenomgång och release-readiness inför TestFlight.
-- `Shared/Docs/tariffs-and-costs-sprint.md`: sprintlogg för kostnadsprofil, tariff, avtalstyper, widget och copy. Den innehåller både klara punkter och kvarvarande verifiering.
+- `Docs/trust-and-release-readiness-sprint.md`: prioriterad sprintplan för kostnadskorrekthet, tester, tarifftransparens, credential-säkerhet, historikexport och release-readiness.
+- `Docs/tariffs-and-costs-sprint.md`: sprintlogg för kostnadsprofil, tariff, avtalstyper, widget och copy. Den innehåller både klara punkter och kvarvarande verifiering.
 
 ## Kända Gap
 
-- Det finns ingen separat iOS-widgetextension ännu.
-- `SpotpriceApp` har ingen egen entitlement-fil i nuvarande projektstruktur.
-- Projektet saknar test target och automatiserade tester. Detta är flyttat till en separat framtida test-epic.
+- Projektet saknar test target och automatiserade tester för kostnadsberäkning, prisintervall, historik och provider-dekodning.
 - En del debug-loggning finns kvar i pris-, förbruknings-, menyrads- och widgetflöden.
 - `GridTariffService` använder lokala tariffpresets som standard. Stöd för fjärr-API finns förberett men är inte aktivt.
+- Lokala tariffpresets behöver tydligare källa, giltighet, confidence och användarcopy innan de bör betraktas som release-klara.
+- Historikfunktionen behöver export- och raderingskontroller innan den bör betraktas som release-klar.
 
 ## Utveckling
 

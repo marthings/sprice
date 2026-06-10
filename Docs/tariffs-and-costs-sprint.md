@@ -596,40 +596,8 @@ Fixed and variable monthly users get comparison: how their contract relates to t
 - [ ] Base monthly cost movement on kWh usage over time, not on spot variation for fixed contracts
 - [ ] Keep market price and actual cost as separate series or separate chart modes
 
-## Separate Test Sprint
+## Trust And Release Readiness Sprint
 
-This project does not currently have a test setup. Add tests as a separate sprint after the core cost-profile flow is implemented and stable.
+The release gate now lives in `Docs/trust-and-release-readiness-sprint.md`.
 
-### Test Sprint Checklist
-
-- [ ] Add a test target if one does not exist
-- [ ] Add unit tests for default estimated cost
-- [ ] Add unit tests for omitted default grid cost
-- [ ] Add unit tests for customized retailer markup
-- [ ] Add unit tests for retailer monthly fee proration
-- [ ] Add unit tests for grid monthly fee proration
-- [ ] Add unit tests for transfer fee
-- [ ] Add unit tests for disabled effect tariff
-- [ ] Add unit tests for enabled effect tariff
-- [ ] Add unit tests for user-entered values overriding imported/provider values
-- [ ] Add unit tests for confidence label rules
-- [ ] Add migration tests from legacy settings to `CostProfile`
-- [ ] Add widget calculation tests if the widget logic can be shared cleanly
-
-### Test Sprint Definition Of Done
-
-- [ ] Core cost math has deterministic unit coverage
-- [ ] Settings migration has coverage
-- [ ] Confidence label rules have coverage
-- [ ] App and widget calculation paths share testable logic
-- [ ] Tests run successfully in Xcode
-
-## Definition Of Done
-
-- [ ] A new user sees estimated total cost without provider setup
-- [ ] Settings allow the user to improve precision manually
-- [ ] Provider setup is optional and only needed for consumption data
-- [ ] App and widget use the same cost model
-- [ ] Effect tariff is optional and disabled by default
-- [ ] Manual validation for the sprint passes
-- [ ] The project builds successfully
+Use that sprint as the canonical iOS 26 readiness checklist for cost-profile trust copy, app/widget parity, local-history privacy, release logging cleanup, diagnostics, builds, and manual verification.

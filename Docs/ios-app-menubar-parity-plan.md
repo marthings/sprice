@@ -105,7 +105,7 @@ Candidate shared files:
 
 Potential blockers:
 
-- `SpotPriceBarChart` uses newer Charts APIs such as `chartXSelection`; verify iOS deployment target supports them.
+- `SpotPriceBarChart` uses newer Charts APIs such as `chartXSelection`; keep the iOS deployment target at iOS 26 for this plan.
 - The chart uses `DS` design tokens and `TotalCostService`, which are already shared.
 
 Exit criteria:

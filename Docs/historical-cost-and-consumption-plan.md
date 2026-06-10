@@ -176,7 +176,7 @@ Tasks:
 - [x] Configure SwiftData with `cloudKitDatabase: .none`; history is local to the device in this phase.
 - [x] Add application-level upsert behavior for hourly records using `deduplicationKey`.
 - [x] Add simple fetch APIs for date range, `dayKey`, and `monthKey`.
-- [x] Add unit-testable pure helpers for record keys and aggregation.
+- [x] Add pure helpers for record keys and aggregation.
 
 Exit criteria:
 
@@ -294,7 +294,7 @@ Tasks:
 - [x] Add delete history option.
 - [x] Add retention policy if storage grows too much.
 - [ ] Add manual recalculation flow for selected periods using current settings.
-- [x] Move automated tests into a separate future test epic.
+- [x] Keep verification limited to diagnostics, builds, and manual release checks.
 
 Exit criteria:
 
@@ -323,7 +323,6 @@ Build in this order:
 6. UI display.
 7. Widget and background paths.
 8. Export, delete, migration, local storage controls, and recalculation controls.
-9. Future test epic: unit coverage for cost math, persistence, aggregation, export/delete, and migration.
-10. Later separate sprint: CloudKit sync, conflict handling, and multi-device UX.
+9. Later separate sprint: CloudKit sync, conflict handling, and multi-device UX.
 
 This keeps the data foundation stable before UI depends on it, while still delivering value early through price history.
