@@ -54,22 +54,23 @@ Related docs:
 
 ---
 
-## Step 1 — Commit the current baseline
+## Step 1 — Commit the current baseline ✅ (2026-06-10)
 
 Land the in-flight work so every later step has a stable base.
 
-- [ ] Review and commit the staged/modified set (widget extension target, privacy manifests, schemes, doc updates) as one or a few clean commits on `main`.
-- [ ] Confirm all four schemes still build after commit.
+- [x] Review and commit the staged/modified set (widget extension target, privacy manifests, schemes, doc updates) as clean commits on `main`. (`cf0d1a8`, `a007a4d`; removed a stray `Text("test")` debug label from the widget before committing.)
+- [x] Confirm schemes still build after commit (SpotpriceApp, SpotpriceAppWidgetExtension, Spotprice all build).
 
-## Step 2 — Small compliance fixes (one short session)
+## Step 2 — Small compliance fixes ✅ except font licensing (2026-06-10)
 
-- [ ] Add `ITSAppUsesNonExemptEncryption = NO` to the iOS app and iOS widget Info.plists (macOS optional, not required for manual distribution).
-- [ ] Delete the four empty leftover `AppIcon.appiconset` folders, or confirm they are harmless and intentionally unused.
-- [ ] Verify all iOS-bound targets resolve the `spotprice` Icon Composer icon (check `ASSETCATALOG_COMPILER_APPICON_NAME` on the iOS widget target).
-- [ ] Confirm iOS app + widget Info.plist values are release-appropriate (display name "Sprice", fonts list, no debug keys).
-- [ ] Confirm bundled `osans` fonts are licensed for distribution.
+- [x] Add `ITSAppUsesNonExemptEncryption = NO` to the iOS app and iOS widget Info.plists. Verified present in the built bundle.
+- [x] Delete the four empty leftover `AppIcon.appiconset` folders.
+- [x] Verify the icon pipeline: `CFBundleIconName = spotprice` and compiled Icon Composer layers confirmed in the built app's `Assets.car`. Widget extensions intentionally have no own icon (gallery uses the host app icon).
+- [x] Info.plist values release-appropriate: app and iOS widget both display "Sprice" (fixed widget display name, was "SpotpriceAppWidgetExtension").
+- [x] Remove `README.md` from all targets' Resources build phases (it was shipping inside the app bundle).
+- [ ] **OPEN — font licensing**: bundled fonts are **PP Object Sans** (Pangram Pangram, © Alexander Slobzheninov, "All rights reserved"). Free for personal use only; App Store distribution requires a paid PP license (or swap to an open/system font). Decide before submission.
 
-**Exit criteria**: iOS app + widget build with icons rendering on a simulator Home Screen; export compliance key present.
+**Exit criteria**: met except the font licensing decision, which is tracked above and must be resolved before Step 6.
 
 ## Step 3 — iOS data controls + legal surfaces (the only real feature work)
 

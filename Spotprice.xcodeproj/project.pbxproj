@@ -10,9 +10,6 @@
 		2026577A2FD89ADD004BB572 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 20861F8F2F2E0B9A0067EDC1 /* WidgetKit.framework */; };
 		2026577B2FD89ADD004BB572 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 20861F912F2E0B9A0067EDC1 /* SwiftUI.framework */; };
 		202657882FD89ADE004BB572 /* SpotpriceAppWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 202657792FD89ADD004BB572 /* SpotpriceAppWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		202E8C562FC4D8C1003E56F0 /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = 202E8C552FC4D8C1003E56F0 /* README.md */; };
-		202E8C572FC4D8C1003E56F0 /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = 202E8C552FC4D8C1003E56F0 /* README.md */; };
-		202E8C582FC4D8C1003E56F0 /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = 202E8C552FC4D8C1003E56F0 /* README.md */; };
 		2050F2012FCACD050077896C /* tariffs-and-costs-sprint.md in Resources */ = {isa = PBXBuildFile; fileRef = 2050F2002FCACD050077896C /* tariffs-and-costs-sprint.md */; };
 		206B18FB2F313EBE00E5F9E7 /* spotprice.icon in Resources */ = {isa = PBXBuildFile; fileRef = 206B18FA2F313EBE00E5F9E7 /* spotprice.icon */; };
 		206B18FC2F313EBE00E5F9E7 /* spotprice.icon in Resources */ = {isa = PBXBuildFile; fileRef = 206B18FA2F313EBE00E5F9E7 /* spotprice.icon */; };
@@ -717,7 +714,6 @@
 			files = (
 				2050F2012FCACD050077896C /* tariffs-and-costs-sprint.md in Resources */,
 				206B18FB2F313EBE00E5F9E7 /* spotprice.icon in Resources */,
-				202E8C572FC4D8C1003E56F0 /* README.md in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -726,7 +722,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				20928BE72FBCE42D00D1BD9F /* spotprice.icon in Resources */,
-				202E8C582FC4D8C1003E56F0 /* README.md in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -742,7 +737,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				206B18FC2F313EBE00E5F9E7 /* spotprice.icon in Resources */,
-				202E8C562FC4D8C1003E56F0 /* README.md in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1095,7 +1089,7 @@
 				DEVELOPMENT_TEAM = U8J74WVQ4D;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = SpotpriceAppWidgetExtension/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = SpotpriceAppWidgetExtension;
+				INFOPLIST_KEY_CFBundleDisplayName = Sprice;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1130,7 +1124,7 @@
 				DEVELOPMENT_TEAM = U8J74WVQ4D;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = SpotpriceAppWidgetExtension/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = SpotpriceAppWidgetExtension;
+				INFOPLIST_KEY_CFBundleDisplayName = Sprice;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (
