@@ -252,13 +252,6 @@
 			);
 			target = 202657782FD89ADD004BB572 /* SpotpriceAppWidgetExtension */;
 		};
-		202657922FD89E98004BB572 /* Exceptions for "SpotpriceWidget" folder in "SpotpriceAppWidgetExtension" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				SpotpriceWidget.swift,
-			);
-			target = 202657782FD89ADD004BB572 /* SpotpriceAppWidgetExtension */;
-		};
 		202657992FD89EC2004BB572 /* Exceptions for "Models" folder in "SpotpriceAppWidgetExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -449,7 +442,6 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				20EACE422F32A1A90022513B /* Exceptions for "SpotpriceWidget" folder in "SpotpriceWidgetExtension" target */,
-				202657922FD89E98004BB572 /* Exceptions for "SpotpriceWidget" folder in "SpotpriceAppWidgetExtension" target */,
 			);
 			path = SpotpriceWidget;
 			sourceTree = "<group>";

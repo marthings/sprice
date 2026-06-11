@@ -15,6 +15,6 @@ struct SpotpriceAppWidgetExtensionBundle: WidgetBundle {
     }
 
     var body: some Widget {
-        SpotpriceWidget()
+        SpotpriceAppWidget()
     }
 }

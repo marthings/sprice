@@ -6,9 +6,14 @@
 //
 
 import SwiftUI
+import WidgetKit
 
 @main
 struct SpotpriceAppApp: App {
+    init() {
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+
     var body: some Scene {
         WindowGroup {
             DashboardView()
