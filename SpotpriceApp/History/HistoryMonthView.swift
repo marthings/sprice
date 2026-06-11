@@ -255,8 +255,9 @@ private struct HistoryMonthSummaryCards: View {
         }
     }
 
-    /// Computes the month cost using the *exact same logic* as MonthlyConsumptionSection when live data is available.
-    /// This guarantees the "Kostnad" number on Historik for the current month is identical to the one on the Förbrukning tab.
+    /// Computes the month cost using the same logic previously used by the (now removed) consumption tab:
+    /// prefer preciseMonthlyCost for weighted spot + current CostProfile, else fallback.
+    /// This guarantees the "Kostnad" number on Historik for the current month matches what the old tab showed.
     private var currentMonthCostUsingLiveData: Double? {
         guard isCurrentMonth else { return nil }
 

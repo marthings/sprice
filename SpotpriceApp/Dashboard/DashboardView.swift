@@ -35,23 +35,6 @@ struct DashboardView: View {
             }
             .tag(1)
             
-            // Tab 3: Förbrukning
-            ConsumptionTab(
-                state: viewModel.state,
-                settingsSummary: settingsSummary,
-                monthlyConsumption: viewModel.monthlyConsumption,
-                powerPeaks: viewModel.powerPeaks,
-                consumptionError: viewModel.consumptionError,
-                preciseMonthlyCost: viewModel.preciseMonthlyCost,
-                historySummary: viewModel.currentMonthHistorySummary,
-                isShowingSettings: $isShowingSettings,
-                onRetry: reload
-            )
-            .tabItem {
-                Label("Förbrukning", systemImage: "bolt.fill")
-            }
-            .tag(2)
-
             HistoryTab(
                 settingsSummary: settingsSummary,
                 isShowingSettings: $isShowingSettings,
@@ -61,7 +44,7 @@ struct DashboardView: View {
             .tabItem {
                 Label("Historik", systemImage: "clock.arrow.circlepath")
             }
-            .tag(3)
+            .tag(2)
         }
         .toolbarBackground(.hidden, for: .tabBar)
         .sheet(isPresented: $isShowingSettings) {
@@ -140,46 +123,6 @@ struct DashboardView: View {
         }
     }
     
-    private struct ConsumptionTab: View {
-        let state: SpotPriceViewModel.State
-        let settingsSummary: String
-        let monthlyConsumption: ConsumptionData?
-        let powerPeaks: [PowerPeak]
-        let consumptionError: String?
-        let preciseMonthlyCost: PreciseMonthlyCost?
-        let historySummary: HistoricalEnergySummaryValue?
-        @Binding var isShowingSettings: Bool
-        let onRetry: () -> Void
-        
-        var body: some View {
-            NavigationStack {
-                ContentView(title: "Förbrukning", settingsSummary: settingsSummary) {
-                    ConsumptionTabView(
-                        state: state,
-                        monthlyConsumption: monthlyConsumption,
-                        powerPeaks: powerPeaks,
-                        consumptionError: consumptionError,
-                        preciseMonthlyCost: preciseMonthlyCost,
-                        historySummary: historySummary,
-                        onConfigureConsumption: { isShowingSettings = true },
-                        onRetry: onRetry
-                    )
-                }
-                .toolbarBackground(.hidden, for: .navigationBar)
-                .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            isShowingSettings = true
-                        } label: {
-                            Image(systemName: "gearshape.fill")
-                        }
-                        .accessibilityLabel("Inställningar")
-                    }
-                }
-            }
-        }
-    }
-
     private struct HistoryTab: View {
         let settingsSummary: String
         @Binding var isShowingSettings: Bool
