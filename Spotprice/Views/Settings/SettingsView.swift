@@ -9,40 +9,24 @@ import SwiftUI
 struct SettingsView: View {
     @Bindable var settings = ConsumptionSettings.shared
     @State private var connectionStatus: ConnectionStatus = .unknown
+    @State private var selectedPane: SettingsPane = .overview
 
     var body: some View {
-        VStack(spacing: 0) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: DS.Spacing.lg) {
-                    SettingsPriceAreaSection(settings: settings)
-                    Divider()
-                    SettingsEstimateSection(settings: settings)
-                    Divider()
-                    SettingsGridSection(settings: settings)
-                    Divider()
-                    RetailContractSection(settings: settings)
-                    Divider()
-                    SettingsConsumptionDataSection(
+        TabView(selection: $selectedPane) {
+            ForEach(SettingsPane.allCases) { pane in
+                Tab(pane.title, systemImage: pane.icon, value: pane) {
+                    SettingsPaneDetail(
+                        pane: pane,
                         settings: settings,
                         connectionStatus: $connectionStatus
                     )
-                    Divider()
-                    SettingsHistoryStorageSection(settings: settings)
-                    Divider()
-                    SettingsAdvancedSection(settings: settings)
                 }
-                .padding(DS.Spacing.lg)
             }
-
-            SettingsVerificationFooter(
-                settings: settings,
-                connectionStatus: $connectionStatus
-            )
         }
-        .frame(width: DS.Size.settingsWidth, height: 520)
     }
 }
 
 #Preview {
     SettingsView()
+        .frame(width: DS.Size.settingsWidth, height: DS.Size.settingsHeight)
 }

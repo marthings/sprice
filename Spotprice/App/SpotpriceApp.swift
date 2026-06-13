@@ -34,8 +34,6 @@ struct SpotpriceApp: App {
 
         Settings {
             SettingsView()
-                .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
-                .toolbar(removing: .title)
         }
     }
 }

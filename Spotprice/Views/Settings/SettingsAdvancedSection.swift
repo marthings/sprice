@@ -9,36 +9,30 @@ struct SettingsAdvancedSection: View {
     @Bindable var settings: ConsumptionSettings
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            Text("Avancerat")
-                .font(DS.Font.bold(12))
-                .foregroundStyle(.primary)
-
+        Section {
             SettingsSummaryRow(title: "Energiskatt", value: energyTaxText)
             SettingsSummaryRow(title: "Elcertifikat", value: "1,75 öre/kWh")
 
             Toggle("Effektavgift", isOn: $settings[effectTariffEnabled: SettingsBind.effectTariffEnabled])
-                .font(DS.Font.regular(11))
 
             if settings.costProfile.effectTariff != nil {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Effektavgift (kr/kW/mån)")
-                        .font(DS.Font.regular(11))
-                        .foregroundStyle(DS.Color.secondary)
-
-                    TextField("0", value: $settings[effectTariffPrice: SettingsBind.effectTariffPrice], format: .number)
-                        .textFieldStyle(.roundedBorder)
-                        .help("Ange bara detta om ditt elnätsbolag använder effektavgift.")
+                LabeledContent("Effektpris") {
+                    HStack(spacing: DS.Spacing.xs) {
+                        TextField("0", value: $settings[effectTariffPrice: SettingsBind.effectTariffPrice], format: .number)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(maxWidth: DS.Size.settingsFieldWidth)
+                        Text("kr/kW/mån")
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
-
-            Text("Effektavgift används bara om ditt elnätsbolag har det.")
-                .font(DS.Font.regular(11))
-                .foregroundStyle(DS.Color.secondary)
-
-            Text(taxInfoText)
-                .font(DS.Font.regular(11))
-                .foregroundStyle(DS.Color.secondary)
+        } header: {
+            Text("Skatt och avgifter")
+        } footer: {
+            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                Text("Effektavgift används bara om ditt elnätsbolag har det.")
+                Text(taxInfoText)
+            }
         }
     }
 

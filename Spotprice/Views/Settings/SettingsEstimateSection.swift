@@ -9,22 +9,9 @@ struct SettingsEstimateSection: View {
     @Bindable var settings: ConsumptionSettings
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            HStack {
-                Text("Uppskattning")
-                    .font(DS.Font.bold(12))
-                    .foregroundStyle(.primary)
-
-                Spacer()
-
-                if let label = settings.costProfile.confidence.menuBarLabel {
-                    Text(label)
-                        .font(DS.Font.micro)
-                        .foregroundStyle(DS.Color.secondary)
-                        .padding(.horizontal, DS.Spacing.sm)
-                        .padding(.vertical, DS.Spacing.xs)
-                        .background(.quaternary.opacity(0.6), in: .capsule)
-                }
+        Section {
+            if let label = settings.costProfile.confidence.menuBarLabel {
+                LabeledContent("Status", value: label)
             }
 
             SettingsSummaryRow(title: retailContractSummaryTitle, value: retailContractSummaryValue)
@@ -38,10 +25,10 @@ struct SettingsEstimateSection: View {
                 title: "Effektavgift",
                 value: settings.costProfile.effectTariff == nil ? "Av" : "På"
             )
-
+        } header: {
+            Text("Uppskattning")
+        } footer: {
             Text("Sprice visar ett pris baserat på tillgängliga uppgifter. Elnätskostnad ingår först när du lägger till dina elnätsuppgifter.")
-                .font(DS.Font.regular(11))
-                .foregroundStyle(DS.Color.secondary)
         }
     }
 

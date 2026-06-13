@@ -16,98 +16,100 @@ struct SettingsGridSection: View {
     private let gridTariffService = GridTariffService()
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            Text("Elnät")
-                .font(DS.Font.bold(12))
-                .foregroundStyle(.primary)
-
+        Group {
             if isLoadingDSOs {
-                HStack {
-                    ProgressView()
-                        .scaleEffect(0.8)
-                    Text("Laddar nätägare...")
-                        .font(DS.Font.regular(11))
-                        .foregroundStyle(DS.Color.secondary)
+                Section {
+                    HStack {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Laddar nätägare...")
+                            .foregroundStyle(.secondary)
+                    }
                 }
             } else if let error = dsoLoadError {
-                Text(error)
-                    .foregroundStyle(DS.Color.danger)
-                    .font(DS.Font.regular(11))
+                Section {
+                    Text(error)
+                        .foregroundStyle(.red)
+                }
             } else {
-                Picker("Välj nätägare", selection: $settings.selectedDSOOrgNo) {
-                    Text("Ingen vald").tag("")
-                    ForEach(availableDSOs) { dso in
-                        Text(dso.name).tag(dso.id)
+                Section {
+                    Picker("Nätägare", selection: $settings.selectedDSOOrgNo) {
+                        Text("Ingen vald").tag("")
+                        ForEach(availableDSOs) { dso in
+                            Text(dso.name).tag(dso.id)
+                        }
+                    }
+                    .onChange(of: settings.selectedDSOOrgNo) { _, newValue in
+                        Task {
+                            await updateGridCompany(newValue)
+                        }
+                    }
+
+                    Picker("Säkringsstorlek", selection: $settings.fuseSize) {
+                        Text("16A").tag(16)
+                        Text("20A").tag(20)
+                        Text("25A").tag(25)
+                        Text("35A").tag(35)
+                        Text("50A").tag(50)
+                        Text("63A").tag(63)
+                    }
+                    .onChange(of: settings.fuseSize) { _, newValue in
+                        Task {
+                            await updateFuseSize(newValue)
+                        }
+                    }
+                } footer: {
+                    if settings.selectedDSOOrgNo.isEmpty {
+                        Text("Elnätskostnad ingår först när du väljer nätägare eller anger nätavgifter.")
                     }
                 }
-                .pickerStyle(.menu)
-                .onChange(of: settings.selectedDSOOrgNo) { _, newValue in
-                    Task {
-                        await updateGridCompany(newValue)
+
+                Section {
+                    LabeledContent("Fast avgift") {
+                        HStack(spacing: DS.Spacing.xs) {
+                            TextField("0", value: $settings[gridMonthlyFee: SettingsBind.gridMonthlyFee], format: .number)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(maxWidth: DS.Size.settingsFieldWidth)
+                            Text("kr/mån")
+                                .foregroundStyle(.secondary)
+                        }
                     }
-                }
 
-                Picker("Välj säkringsstorlek", selection: $settings.fuseSize) {
-                    Text("16A").tag(16)
-                    Text("20A").tag(20)
-                    Text("25A").tag(25)
-                    Text("35A").tag(35)
-                    Text("50A").tag(50)
-                    Text("63A").tag(63)
-                }
-                .pickerStyle(.menu)
-                .onChange(of: settings.fuseSize) { _, newValue in
-                    Task {
-                        await updateFuseSize(newValue)
+                    LabeledContent("Överföring") {
+                        HStack(spacing: DS.Spacing.xs) {
+                            TextField("0", value: $settings[gridTransferOre: SettingsBind.gridTransferOre], format: .number)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(maxWidth: DS.Size.settingsFieldWidth)
+                            Text("öre/kWh")
+                                .foregroundStyle(.secondary)
+                        }
                     }
-                }
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Fast elnätsavgift (kr/mån)")
-                        .font(DS.Font.regular(11))
-                        .foregroundStyle(DS.Color.secondary)
-
-                    TextField("0", value: $settings[gridMonthlyFee: SettingsBind.gridMonthlyFee], format: .number)
-                        .textFieldStyle(.roundedBorder)
-                        .help("Ange din fasta elnätsavgift per månad om tariffdata saknas eller avviker.")
-                }
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Överföringsavgift (öre/kWh)")
-                        .font(DS.Font.regular(11))
-                        .foregroundStyle(DS.Color.secondary)
-
-                    TextField("0", value: $settings[gridTransferOre: SettingsBind.gridTransferOre], format: .number)
-                        .textFieldStyle(.roundedBorder)
-                        .help("Ange rörlig nätavgift i öre/kWh om tariffdata saknas eller avviker.")
+                } header: {
+                    Text("Egna nätavgifter")
+                } footer: {
+                    Text("Ange egna värden om tariffdata saknas eller avviker från din faktura.")
                 }
 
                 if !settings.selectedDSOOrgNo.isEmpty,
                    let selectedDSO = availableDSOs.first(where: { $0.id == settings.selectedDSOOrgNo }) {
-                    Text(gridCostSourceText(for: selectedDSO.name))
-                        .font(DS.Font.regular(11))
-                        .foregroundStyle(DS.Color.secondary)
-
-                    if let tariffFreshnessText {
-                        Text(tariffFreshnessText)
-                            .font(DS.Font.micro)
-                            .foregroundStyle(settings.costProfile.isTariffExpired ? DS.Color.warning : DS.Color.secondary)
-                    }
-
-                    if settings.costProfile.hasUserEnteredGridCosts {
-                        Button("Använd tariffvärden") {
-                            Task {
-                                await updateGridCompany(settings.selectedDSOOrgNo, preferImportedValues: true)
+                    Section {
+                        if settings.costProfile.hasUserEnteredGridCosts {
+                            Button("Använd tariffvärden") {
+                                Task {
+                                    await updateGridCompany(settings.selectedDSOOrgNo, preferImportedValues: true)
+                                }
                             }
                         }
-                        .font(DS.Font.medium(11))
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.blue)
+                    } footer: {
+                        VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                            Text(gridCostSourceText(for: selectedDSO.name))
+
+                            if let tariffFreshnessText {
+                                Text(tariffFreshnessText)
+                                    .foregroundStyle(settings.costProfile.isTariffExpired ? .orange : .secondary)
+                            }
+                        }
                     }
-                } else {
-                    Text("Elnätskostnad ingår först när du väljer nätägare eller anger nätavgifter.")
-                        .font(DS.Font.regular(11))
-                        .foregroundStyle(DS.Color.secondary)
                 }
             }
         }

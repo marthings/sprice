@@ -270,8 +270,14 @@ enum DS {
         static let menuBarHeight: CGFloat = 720
         
         // Settings
-        
-        static let settingsWidth: CGFloat = 400
+        static let settingsSidebarMinWidth: CGFloat = 168
+        static let settingsSidebarWidth: CGFloat = 196
+        static let settingsSidebarMaxWidth: CGFloat = 220
+        static let settingsMinWidth: CGFloat = 560
+        static let settingsWidth: CGFloat = 640
+        static let settingsMinHeight: CGFloat = 480
+        static let settingsHeight: CGFloat = 520
+        static let settingsFieldWidth: CGFloat = 160
 
         // Charts
         static let chartHeightMenuBar: CGFloat = 220

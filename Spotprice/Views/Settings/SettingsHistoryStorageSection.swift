@@ -16,65 +16,28 @@ struct SettingsHistoryStorageSection: View {
     @State private var isConfirmingHistoryDeletion = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            Text("Lokal historik")
-                .font(DS.Font.bold(12))
-                .foregroundStyle(.primary)
+        Section {
+            LabeledContent("Status", value: historyStorageStatus)
 
-            HStack(alignment: .top, spacing: DS.Spacing.sm) {
-                Image(systemName: "internaldrive.fill")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(DS.Color.secondary)
-                    .frame(width: 20)
-
-                VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
-                    Text(historyStorageStatus)
-                        .font(DS.Font.regular(11))
-                        .foregroundStyle(.primary)
-                    Text("Historiken sparas lokalt i appgruppen och delas bara mellan appen, menyraden och widgeten på den här enheten.")
-                        .font(DS.Font.micro)
-                        .foregroundStyle(DS.Color.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-
-            Button {
+            Button("Uppdatera status") {
                 loadHistoryStorageStatus()
-            } label: {
-                Label("Uppdatera status", systemImage: "arrow.clockwise")
-                    .font(DS.Font.medium(11))
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(DS.Color.info)
-
-            HStack(spacing: DS.Spacing.md) {
-                Button {
-                    exportLocalHistory()
-                } label: {
-                    Label("Exportera CSV", systemImage: "square.and.arrow.up")
-                        .font(DS.Font.medium(11))
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(DS.Color.info)
-
-                Button(role: .destructive) {
-                    isConfirmingHistoryDeletion = true
-                } label: {
-                    Label("Radera historik", systemImage: "trash")
-                        .font(DS.Font.medium(11))
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(DS.Color.danger)
             }
 
-            Button {
+            Button("Exportera CSV") {
+                exportLocalHistory()
+            }
+
+            Button("Rensa äldre än 24 månader") {
                 pruneLocalHistory()
-            } label: {
-                Label("Rensa äldre än 24 månader", systemImage: "scissors")
-                    .font(DS.Font.medium(11))
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(DS.Color.info)
+
+            Button("Radera historik", role: .destructive) {
+                isConfirmingHistoryDeletion = true
+            }
+        } header: {
+            Text("Lokal historik")
+        } footer: {
+            Text("Historiken sparas lokalt i appgruppen och delas bara mellan appen, menyraden och widgeten på den här enheten.")
         }
         .onAppear {
             loadHistoryStorageStatus()

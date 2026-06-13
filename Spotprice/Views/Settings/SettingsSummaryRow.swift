@@ -10,13 +10,6 @@ struct SettingsSummaryRow: View {
     let value: String
 
     var body: some View {
-        HStack {
-            Text(title)
-                .font(DS.Font.regular(11))
-            Spacer()
-            Text(value)
-                .font(DS.Font.regular(11))
-                .foregroundStyle(DS.Color.secondary)
-        }
+        LabeledContent(title, value: value)
     }
 }
