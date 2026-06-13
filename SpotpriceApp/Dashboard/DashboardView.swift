@@ -32,6 +32,8 @@ struct DashboardView: View {
             Tab("Historik", systemImage: "clock.arrow.circlepath", value: 2) {
                 HistoryTab(
                     settingsSummary: settingsSummary,
+                    priceArea: settingsSummaryPriceArea,
+                    costProfile: settingsSummaryCostProfile,
                     isShowingSettings: $isShowingSettings,
                     liveMonthlyConsumption: viewModel.monthlyConsumption,
                     livePreciseCost: viewModel.preciseMonthlyCost
@@ -94,6 +96,8 @@ struct DashboardView: View {
     
     private struct HistoryTab: View {
         let settingsSummary: String
+        let priceArea: String
+        let costProfile: CostProfile
         @Binding var isShowingSettings: Bool
 
         // Live current-month data so Historik can show *exactly* the same headline numbers
@@ -108,6 +112,8 @@ struct DashboardView: View {
                 isShowingSettings: $isShowingSettings
             ) {
                 HistoryMonthView(
+                    priceArea: priceArea,
+                    costProfile: costProfile,
                     liveMonthlyConsumption: liveMonthlyConsumption,
                     livePreciseCost: livePreciseCost
                 )
@@ -155,8 +161,16 @@ struct DashboardView: View {
         }
     }
 
+    private var settingsSummaryCostProfile: CostProfile {
+        ConsumptionSettings.shared.costProfile
+    }
+
+    private var settingsSummaryPriceArea: String {
+        settingsSummaryCostProfile.priceArea
+    }
+
     private var settingsSummary: String {
-        let profile = ConsumptionSettings.shared.costProfile
+        let profile = settingsSummaryCostProfile
         var parts = [profile.priceArea, profile.retailContractDisplayName]
 
         if let gridCompanyName = profile.gridCompanyName, !gridCompanyName.isEmpty {
