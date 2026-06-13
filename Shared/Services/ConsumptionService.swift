@@ -77,16 +77,6 @@ struct ConsumptionService: Sendable {
         }
     }
 
-    /// Fetches daily consumption data for the current month
-    func fetchCurrentMonthDailyConsumption() async throws -> [DailyConsumption] {
-        let now = Date()
-        let calendar = Calendar.current
-        let year = calendar.component(.year, from: now)
-        let month = calendar.component(.month, from: now)
-
-        return try await fetchDailyConsumption(year: year, month: month)
-    }
-
     /// Fetches daily consumption data for a specific month
     func fetchDailyConsumption(year: Int, month: Int) async throws -> [DailyConsumption] {
         let provider = try await currentProvider()

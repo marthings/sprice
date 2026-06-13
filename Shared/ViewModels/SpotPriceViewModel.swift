@@ -23,7 +23,6 @@ final class SpotPriceViewModel {
 
     private(set) var state: State = .idle
     private(set) var monthlyConsumption: ConsumptionData?
-    private(set) var dailyConsumption: [DailyConsumption] = []
     private(set) var powerPeaks: [PowerPeak] = []
     private(set) var preciseMonthlyCost: PreciseMonthlyCost?
     private(set) var consumptionError: String?
@@ -133,7 +132,6 @@ final class SpotPriceViewModel {
     func loadConsumption() async {
         let result = await consumptionLoadService.load()
         monthlyConsumption = result.monthlyConsumption ?? monthlyConsumption
-        dailyConsumption = result.dailyConsumption ?? dailyConsumption
         consumptionError = result.consumptionError
         powerPeaks = result.powerPeaks ?? powerPeaks
         preciseMonthlyCost = result.preciseMonthlyCost
@@ -259,7 +257,6 @@ private final class SpotPriceRefreshCoordinator {
 
 private struct ConsumptionLoadResult {
     let monthlyConsumption: ConsumptionData?
-    let dailyConsumption: [DailyConsumption]?
     let powerPeaks: [PowerPeak]?
     let preciseMonthlyCost: PreciseMonthlyCost?
     let consumptionError: String?
@@ -286,7 +283,6 @@ private final class ConsumptionLoadService {
         let consumptionResult = await consumption
         return ConsumptionLoadResult(
             monthlyConsumption: consumptionResult.monthlyConsumption,
-            dailyConsumption: consumptionResult.dailyConsumption,
             powerPeaks: await powerPeaks,
             preciseMonthlyCost: await preciseMonthlyCost,
             consumptionError: consumptionResult.errorMessage
@@ -295,22 +291,15 @@ private final class ConsumptionLoadService {
 
     private func loadConsumption() async -> (
         monthlyConsumption: ConsumptionData?,
-        dailyConsumption: [DailyConsumption]?,
         errorMessage: String?
     ) {
         do {
-            async let monthlyData = consumptionService.fetchCurrentMonthConsumption()
-            async let dailyData = consumptionService.fetchCurrentMonthDailyConsumption()
-
-            let monthlyConsumption = try await monthlyData
-            let dailyConsumption = (try? await dailyData) ?? []
-
-            AppLog.viewModel.info("Consumption loaded: \(monthlyConsumption.totalKWh, privacy: .public) kWh, \(dailyConsumption.count) daily values")
-
-            return (monthlyConsumption, dailyConsumption, nil)
+            let monthlyConsumption = try await consumptionService.fetchCurrentMonthConsumption()
+            AppLog.viewModel.info("Consumption loaded: \(monthlyConsumption.totalKWh, privacy: .public) kWh")
+            return (monthlyConsumption, nil)
         } catch {
             AppLog.viewModel.error("Consumption error: \(error.localizedDescription, privacy: .public)")
-            return (nil, nil, error.localizedDescription)
+            return (nil, error.userFacingMessage)
         }
     }
 

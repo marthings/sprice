@@ -6,7 +6,13 @@
 import SwiftUI
 
 struct ModernMenuBarView: View {
-    var viewModel: SpotPriceViewModel
+    let state: SpotPriceViewModel.State
+    let currentTariff: SimplifiedTariff?
+    let monthlyConsumption: ConsumptionData?
+    let powerPeaks: [PowerPeak]
+    let consumptionError: String?
+    let preciseMonthlyCost: PreciseMonthlyCost?
+    let currentMonthHistorySummary: HistoricalEnergySummaryValue?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -20,13 +26,13 @@ struct ModernMenuBarView: View {
                     quickStats
                     historicalSummary
                     MonthlyStatsSection(
-                        consumption: viewModel.monthlyConsumption,
-                        powerPeaks: viewModel.powerPeaks,
-                        consumptionError: viewModel.consumptionError,
+                        consumption: monthlyConsumption,
+                        powerPeaks: powerPeaks,
+                        consumptionError: consumptionError,
                         isConfigured: ConsumptionSettings.shared.isConfigured,
                         averagePrice: loadedAveragePrice,
-                        preciseCost: viewModel.preciseMonthlyCost,
-                        historySummary: viewModel.currentMonthHistorySummary
+                        preciseCost: preciseMonthlyCost,
+                        historySummary: currentMonthHistorySummary
                     )
                 }
                 .padding(.horizontal, DS.Spacing.lg)
@@ -40,7 +46,7 @@ struct ModernMenuBarView: View {
 
     @ViewBuilder
     private var historicalSummary: some View {
-        if let summary = viewModel.currentMonthHistorySummary {
+        if let summary = currentMonthHistorySummary {
             HStack(spacing: DS.Spacing.md) {
                 Image(systemName: "clock.arrow.circlepath")
                     .font(.system(size: DS.Size.iconMedium, weight: .semibold))
@@ -121,8 +127,8 @@ struct ModernMenuBarView: View {
 
     private var chartSection: some View {
         VStack(spacing: DS.Spacing.sm) {
-            if case .loaded(let payload) = viewModel.state {
-                SpotPriceBarChart(dayData: payload.day, configuration: .menuBar, tariff: viewModel.currentTariff)
+            if case .loaded(let payload) = state {
+                SpotPriceBarChart(dayData: payload.day, configuration: .menuBar, tariff: currentTariff)
             } else {
                 loadingStateView
                     .frame(height: DS.Size.chartHeightMenuBar)
@@ -131,19 +137,18 @@ struct ModernMenuBarView: View {
         .padding(.vertical, DS.Spacing.sm)
     }
 
+    @ViewBuilder
     private var loadingStateView: some View {
         VStack(spacing: DS.Spacing.md) {
-            Group {
-                if case .loading = viewModel.state {
-                    ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle())
-                        .scaleEffect(1.0)
-                        .tint(.orange)
-                } else {
-                    Image(systemName: "bolt.slash.fill")
-                        .font(.system(size: DS.Size.iconXL, weight: .light))
-                        .foregroundStyle(.secondary.opacity(0.6))
-                }
+            if case .loading = state {
+                ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle())
+                    .scaleEffect(1.0)
+                    .tint(.orange)
+            } else {
+                Image(systemName: "bolt.slash.fill")
+                    .font(.system(size: DS.Size.iconXL, weight: .light))
+                    .foregroundStyle(.secondary.opacity(0.6))
             }
 
             Text(loadingStatusText)
@@ -159,7 +164,7 @@ struct ModernMenuBarView: View {
 
     @ViewBuilder
     private var quickStats: some View {
-        if case .loaded(let payload) = viewModel.state {
+        if case .loaded(let payload) = state {
             VStack(spacing: DS.Spacing.md) {
                 SharedPriceRangeSection(
                     dayData: payload.day,
@@ -174,12 +179,12 @@ struct ModernMenuBarView: View {
     // MARK: - Helpers
 
     private var loadedAveragePrice: Double? {
-        guard case .loaded(let payload) = viewModel.state else { return nil }
+        guard case .loaded(let payload) = state else { return nil }
         return PriceBucketAnalytics.averageSpotPrice(payload.day.buckets)
     }
 
     private var loadingStatusText: String {
-        switch viewModel.state {
+        switch state {
         case .idle:
             return "Tryck Uppdatera för att ladda dagens kvartspriser"
         case .loading:

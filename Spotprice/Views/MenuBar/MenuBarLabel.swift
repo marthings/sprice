@@ -14,8 +14,19 @@ struct MenuBarLabel: View {
                 .foregroundStyle(state.labelColor.gradient)
                 .symbolEffect(.pulse.wholeSymbol, isActive: state == .loading)
 
-            Text(state.totalPriceLabel())
+            menuBarPriceLabel
+        }
+    }
 
+    @ViewBuilder
+    private var menuBarPriceLabel: some View {
+        if let price = state.menuBarPricePerKWh {
+            HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
+                Text(price, format: .number.precision(.fractionLength(2)))
+                Text("kr/kWh")
+            }
+        } else {
+            Text("--")
         }
     }
 }

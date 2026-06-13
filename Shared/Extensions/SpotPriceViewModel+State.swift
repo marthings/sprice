@@ -6,29 +6,20 @@
 import SwiftUI
 
 extension SpotPriceViewModel.State {
-    var currentPriceLabel: String {
-        if case .loaded(let payload) = self {
-            return payload.currentDisplay + " öre"
-        }
-        return "--"
-    }
-    
-    /// Total price per kWh including all components (spot + grid + taxes + provider)
+    /// Total price per kWh including all components (spot + grid + taxes + provider).
     @MainActor
-    func totalPriceLabel() -> String {
+    var menuBarPricePerKWh: Double? {
         guard case .loaded(let payload) = self,
               let currentBucket = payload.day.currentBucket else {
-            return "--"
+            return nil
         }
 
         let service = TotalCostService()
         let profile = ConsumptionSettings.shared.costProfile
-        let totalPriceKr = service.calculatePricePerKWh(
+        return service.calculatePricePerKWh(
             spotPriceOre: currentBucket.orePerKWh,
             profile: profile
         )
-
-        return "\(totalPriceKr.formatted(.number.precision(.fractionLength(2)))) kr/kWh"
     }
 
     var labelColor: Color {
