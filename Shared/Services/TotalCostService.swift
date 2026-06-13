@@ -64,6 +64,10 @@ final class TotalCostService: Sendable {
         ).totalKr
     }
 
+    func dayTotalCostsPerKWh(from dayData: DayChartData, profile: CostProfile) -> [Double] {
+        dayData.buckets.map { calculatePricePerKWh(spotPriceOre: $0.orePerKWh, profile: profile) }
+    }
+
     /// Calculate total cost for a given consumption.
     /// Pass `providerSurcharge` and `providerMonthlyFee` from `ConsumptionSettings`
     /// at the call site (use `effectiveSurchargePerKWh` / `effectiveMonthlyFee`).
@@ -284,10 +288,12 @@ struct MonthlyCostEstimator: Sendable {
     }
 }
 
-struct CostBreakdownComponent: Sendable {
+struct CostBreakdownComponent: Identifiable, Sendable {
     let label: String
     let value: Double
     let isMain: Bool
+
+    var id: String { label }
 }
 
 enum CostBreakdownPresenter {
