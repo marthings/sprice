@@ -213,6 +213,7 @@
 		201EA2962FBCB10A0036D7BF /* Exceptions for "Components" folder in "SpotpriceApp" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				ChartCalloutView.swift,
 				PriceChangeIndicator.swift,
 			);
 			target = 201EA1FC2FBCAC8C0036D7BF /* SpotpriceApp */;

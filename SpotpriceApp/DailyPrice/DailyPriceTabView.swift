@@ -91,10 +91,11 @@ private struct PriceChartPlot: View {
                     .foregroundStyle(DS.Color.secondary.opacity(0.65))
                     .lineStyle(StrokeStyle(lineWidth: 1.2))
                     .annotation(position: .top, spacing: DS.Spacing.sm, overflowResolution: .init(x: .fit, y: .disabled)) {
-                        IOSChartCalloutView(
+                        ChartCalloutView(
                             bucket: selectedBucket,
                             dayData: day,
-                            profile: profile
+                            profile: profile,
+                            style: .opaque
                         )
                     }
 
