@@ -75,7 +75,11 @@ struct HistoryMonthView: View {
                 selectedMonthKey: selectedMonthKey
             )
 
-            selectedMonthKey = history.selectedMonthKey
+            // Only write back when the resolved key differs, so the initial
+            // .task load doesn't trip .onChange into a redundant second fetch.
+            if selectedMonthKey != history.selectedMonthKey {
+                selectedMonthKey = history.selectedMonthKey
+            }
             state = .loaded(HistoryMonthData(
                 months: history.months,
                 selectedMonth: history.selectedMonth,

@@ -6,10 +6,8 @@ struct HistorySummaryRow: View {
 
     var body: some View {
         HStack(spacing: DS.Spacing.md) {
-            VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
-                Text(AppFormatters.historyDayLabel(summary.periodStart))
-                    .font(DS.Font.callout)
-            }
+            Text(AppFormatters.historyDayLabel(summary.periodStart))
+                .font(DS.Font.callout)
 
             Spacer(minLength: DS.Spacing.sm)
 
