@@ -53,18 +53,18 @@ struct Thresholds: Equatable, Sendable {
 // MARK: - Price Bucket
 
 struct PriceBucket: Identifiable, Equatable, Sendable {
-    let id: UUID
     let start: Date
     let end: Date
     let orePerKWh: Double
     let category: PriceCategory
 
-    init(start: Date, end: Date, orePerKWh: Double, category: PriceCategory, id: UUID = UUID()) {
+    var id: Date { start }
+
+    init(start: Date, end: Date, orePerKWh: Double, category: PriceCategory) {
         self.start = start
         self.end = end
         self.orePerKWh = orePerKWh
         self.category = category
-        self.id = id
     }
 }
 
@@ -77,8 +77,33 @@ struct DayChartData: Equatable, Sendable {
     let maxOre: Double
 
     var currentBucket: PriceBucket? {
-        let now = Date()
-        return buckets.first { $0.start <= now && $0.end > now }
+        currentBucket(at: Date())
+    }
+
+    func currentBucket(at date: Date) -> PriceBucket? {
+        buckets.first { $0.start <= date && $0.end > date }
+    }
+
+    func currentBucketIndex(at date: Date = Date()) -> Int? {
+        if let index = buckets.firstIndex(where: { $0.start <= date && $0.end > date }) {
+            return index
+        }
+        if let lastPastIndex = buckets.indices.filter({ buckets[$0].end <= date }).last {
+            return lastPastIndex
+        }
+        return buckets.indices.first
+    }
+}
+
+// MARK: - Widget Timeline
+
+enum WidgetTimelineSchedule {
+    /// Next quarter-hour boundary for widget timeline refresh policy.
+    static func nextQuarterHourUpdate(from date: Date = Date(), calendar: Calendar = .current) -> Date {
+        let minute = calendar.component(.minute, from: date)
+        let minutesToNextQuarter = 15 - (minute % 15)
+        return calendar.date(byAdding: .minute, value: minutesToNextQuarter, to: date)
+            ?? date.addingTimeInterval(15 * 60)
     }
 }
 
@@ -119,4 +144,16 @@ struct DisplayableError: Error, LocalizedError {
     }
 
     var errorDescription: String? { message }
+}
+
+extension Error {
+    /// Prefer typed Swedish `LocalizedError` descriptions over raw `localizedDescription`.
+    var userFacingMessage: String {
+        if let localized = self as? LocalizedError,
+           let description = localized.errorDescription,
+           !description.isEmpty {
+            return description
+        }
+        return String(localized: "Ett oväntat fel inträffade. Försök igen senare.")
+    }
 }
