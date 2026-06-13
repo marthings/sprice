@@ -248,7 +248,8 @@ enum DS {
         static let sm: CGFloat = 8
         static let md: CGFloat = 12
         static let lg: CGFloat = 16
-        static let xl: CGFloat = 20
+        static let xl: CGFloat = 24
+        static let xxl: CGFloat = 32
         static let full: CGFloat = 999
     }
 
@@ -256,7 +257,7 @@ enum DS {
 
     enum Glass {
         /// Standard corner radius for glass cards
-        static let cardRadius: CGFloat = Radius.lg
+        static let cardRadius: CGFloat = Radius.xl
         /// Corner radius for small glass elements
         static let smallRadius: CGFloat = Radius.md
     }
@@ -483,7 +484,7 @@ struct AppStatusCard: View {
             messageLineLimit: messageLineLimit
         )
         .padding(DS.Spacing.lg)
-        .glassCard(cornerRadius: DS.Radius.lg, interactive: interactive)
+        .glassCard(interactive: interactive)
     }
 }
 
