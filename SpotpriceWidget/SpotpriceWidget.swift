@@ -185,13 +185,9 @@ private struct SpotpriceWidgetMonthlyStatsRow: View {
                         .foregroundStyle(DS.Color.secondary)
                 }
 
-                if let statusLabel {
-                    Text(statusLabel)
-                        .font(DS.Font.regular(8))
-                        .foregroundStyle(isStale ? DS.Color.warning : DS.Color.secondary)
-                }
             }
         }
+        .padding()
         .widgetAccentable()
     }
 }
@@ -236,6 +232,7 @@ private struct SpotpriceWidgetPriceRow: View {
                             .foregroundStyle(DS.Color.secondary)
                     }
                 }
+                .padding(.horizontal)
             } else if let spotPriceOre {
                 HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
                     Text("\(spotPriceOre)")
@@ -246,14 +243,7 @@ private struct SpotpriceWidgetPriceRow: View {
                         .font(DS.Font.micro)
                         .foregroundStyle(DS.Color.secondary)
                 }
-            }
-
-            Spacer()
-
-            if let priceCategory, renderingMode != .accented {
-                Text(priceCategory.label)
-                    .font(DS.Font.semibold(9))
-                    .foregroundStyle(currentPriceColor)
+                .padding()
             }
         }
     }
@@ -353,6 +343,7 @@ struct SpotpriceWidget: Widget {
         .configurationDisplayName("Sprice")
         .description("Visar aktuellt kvartspris och uppskattad kostnad")
         .supportedFamilies([.systemSmall])
+        .contentMarginsDisabled()
     }
 }
 
