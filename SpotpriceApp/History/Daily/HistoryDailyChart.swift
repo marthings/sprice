@@ -2,15 +2,13 @@ import SwiftUI
 import Charts
 
 struct HistoryDailyChart: View {
+    /// Days must be sorted ascending by `periodStart`; `findNearestDay` maps
+    /// the drag x-position to an array index assuming chronological order.
     let days: [HistoricalEnergySummaryValue]
     @Binding var selectedDay: HistoricalEnergySummaryValue?
 
-    private var sortedDays: [HistoricalEnergySummaryValue] {
-        days.sorted { $0.periodStart < $1.periodStart }
-    }
-
     private var hasMultipleCoverageTypes: Bool {
-        Set(sortedDays.map(\.dataCoverage)).count > 1
+        Set(days.map(\.dataCoverage)).count > 1
     }
 
     private struct PlottableDay: Identifiable {
@@ -21,7 +19,7 @@ struct HistoryDailyChart: View {
     }
 
     private var plottableDays: [PlottableDay] {
-        sortedDays.compactMap { day in
+        days.compactMap { day in
             if let cost = day.totalCostSEK {
                 return PlottableDay(day: day, value: cost, label: "Kostnad")
             }
@@ -58,7 +56,7 @@ struct HistoryDailyChart: View {
                 }
             }
             .chartXAxis {
-                AxisMarks(values: .stride(by: .day, count: chartXAxisStride(for: sortedDays.count))) { value in
+                AxisMarks(values: .stride(by: .day, count: chartXAxisStride(for: days.count))) { value in
                     AxisGridLine()
                         .foregroundStyle(.tertiary)
                     AxisTick()
@@ -96,12 +94,12 @@ struct HistoryDailyChart: View {
                                 .onChanged { value in
                                     selectedDay = findNearestDay(
                                         at: value.location,
-                                        in: sortedDays,
+                                        in: days,
                                         chartWidth: geometry.size.width
                                     )
                                 }
                                 .onEnded { value in
-                                    if value.translation.width < 5 && value.translation.height < 5 {
+                                    if abs(value.translation.width) < 5 && abs(value.translation.height) < 5 {
                                         selectedDay = nil
                                     }
                                 }
@@ -109,7 +107,7 @@ struct HistoryDailyChart: View {
                 }
             }
 
-            HistoryCoverageLegend(days: sortedDays)
+            HistoryCoverageLegend(days: days)
         }
     }
 

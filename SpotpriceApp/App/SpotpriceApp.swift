@@ -9,7 +9,7 @@ import SwiftUI
 import WidgetKit
 
 @main
-struct SpotpriceAppApp: App {
+struct SpotpriceApp: App {
     init() {
         WidgetCenter.shared.reloadAllTimelines()
     }
