@@ -13,54 +13,43 @@ import OSLog
 
 struct SpotPriceEntry: TimelineEntry {
     let date: Date
-    let currentPrice: Int?
-    let currentTotalCostPerKWh: Double?  // Total cost in kr/kWh
+    let currentPriceOre: Int?
+    let currentTotalCostPerKWh: Double?
     let priceCategory: PriceCategory?
-    let dayData: DayChartData?
-    let currentBucketIndex: Int
+    let dayCosts: [Double]
+    let currentBucketIndex: Int?
     let monthlyKWh: Double
     let monthlyCostKr: Double
-    let monthDate: Date
-    let costProfile: CostProfile
+    let retailContractLabel: String?
     let historySummary: WidgetHistorySummary?
 
-    /// Compact month label (e.g., "feb")
-    var monthLabel: String {
-        AppFormatters.widgetMonthLabel(monthDate)
-    }
-
     static var placeholder: SpotPriceEntry {
-        SpotPriceEntry(
+        let curve: [Double] = Array(repeating: 2.4, count: 96)
+        return SpotPriceEntry(
             date: Date(),
-            currentPrice: 42,
+            currentPriceOre: 42,
             currentTotalCostPerKWh: 2.47,
             priceCategory: .medium,
-            dayData: nil,
-            currentBucketIndex: 48,  // Noon = 12 * 4
+            dayCosts: curve,
+            currentBucketIndex: 48,
             monthlyKWh: 873,
             monthlyCostKr: 829,
-            monthDate: Date(),
-            costProfile: .swedishDefaultEstimate(),
+            retailContractLabel: nil,
             historySummary: nil
         )
     }
 
     static var error: SpotPriceEntry {
-        let now = Date()
-        let hour = Calendar.current.component(.hour, from: now)
-        let minute = Calendar.current.component(.minute, from: now)
-        let bucketIndex = hour * 4 + minute / 15
-        return SpotPriceEntry(
-            date: now,
-            currentPrice: nil,
+        SpotPriceEntry(
+            date: Date(),
+            currentPriceOre: nil,
             currentTotalCostPerKWh: nil,
             priceCategory: nil,
-            dayData: nil,
-            currentBucketIndex: bucketIndex,
+            dayCosts: [],
+            currentBucketIndex: nil,
             monthlyKWh: 0,
             monthlyCostKr: 0,
-            monthDate: now,
-            costProfile: .swedishDefaultEstimate(),
+            retailContractLabel: nil,
             historySummary: nil
         )
     }
@@ -70,13 +59,8 @@ struct SpotPriceEntry: TimelineEntry {
 
 struct SpotPriceProvider: TimelineProvider {
     let service = SpotPriceService()
-    let consumptionService = ConsumptionService()
-    let gridTariffService = GridTariffService()
     let totalCostService = TotalCostService()
     let monthlyCostEstimator = MonthlyCostEstimator()
-    
-    // Shared UserDefaults for App Group
-    private let sharedDefaults = UserDefaults(suiteName: "group.mb.Spotprice") ?? .standard
 
     func placeholder(in context: Context) -> SpotPriceEntry {
         .placeholder
@@ -89,22 +73,17 @@ struct SpotPriceProvider: TimelineProvider {
         }
 
         Task {
-            let entry = await fetchCurrentPrice()
-            completion(entry)
+            completion(await fetchCurrentPrice())
         }
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<SpotPriceEntry>) -> Void) {
         Task {
             let entry = await fetchCurrentPrice()
-
-            // Update every 15 minutes (quarter hour)
-            let now = Date()
-            let minute = Calendar.current.component(.minute, from: now)
-            let minutesToNextQuarter = 15 - (minute % 15)
-            let nextUpdate = Calendar.current.date(byAdding: .minute, value: minutesToNextQuarter, to: now) ?? now.addingTimeInterval(15 * 60)
-
-            let timeline = Timeline(entries: [entry], policy: .after(nextUpdate))
+            let timeline = Timeline(
+                entries: [entry],
+                policy: .after(WidgetTimelineSchedule.nextQuarterHourUpdate(from: entry.date))
+            )
             completion(timeline)
         }
     }
@@ -113,13 +92,9 @@ struct SpotPriceProvider: TimelineProvider {
         do {
             let now = Date()
 
-            // Force UserDefaults sync before reading to ensure we have latest values
-            sharedDefaults.synchronize()
-
-            // Read MainActor-isolated settings safely
             let (cachedConsumption, costProfile) = await MainActor.run {
-                let s = ConsumptionSettings.shared
-                return (s.cachedConsumption, s.costProfile)
+                let settings = ConsumptionSettings.shared
+                return (settings.cachedConsumption, settings.costProfile)
             }
 
             let items = try await service.fetchSpotPrices(for: now, area: costProfile.priceArea)
@@ -137,38 +112,34 @@ struct SpotPriceProvider: TimelineProvider {
                 now: now
             )
 
-            // Calculate bucket index (0-95 for 15-minute intervals)
-            let hour = Calendar.current.component(.hour, from: now)
-            let minute = Calendar.current.component(.minute, from: now)
-            let currentBucketIndex = hour * 4 + minute / 15
+            let dayCosts = totalCostService.dayTotalCostsPerKWh(from: dayData, profile: costProfile)
 
-            // Find current bucket - use more flexible matching
-            let currentBucket = dayData.buckets.first(where: { $0.start <= now && $0.end > now })
-                ?? dayData.buckets.filter({ $0.end <= now }).max(by: { $0.end < $1.end })  // Fallback to most recent past bucket
-                ?? dayData.buckets.first  // Ultimate fallback to first bucket of the day
-
-            if let currentBucket = currentBucket {
-                let currentTotalCost = totalCostService.calculatePricePerKWh(spotPriceOre: currentBucket.orePerKWh, profile: costProfile)
-
-                AppLog.widget.info("Widget loaded successfully with price: \(Int(currentBucket.orePerKWh.rounded())) öre/kWh")
-
-                return SpotPriceEntry(
-                    date: now,
-                    currentPrice: Int(currentBucket.orePerKWh.rounded()),
-                    currentTotalCostPerKWh: currentTotalCost,
-                    priceCategory: currentBucket.category,
-                    dayData: dayData,
-                    currentBucketIndex: min(currentBucketIndex, dayData.buckets.count - 1),
-                    monthlyKWh: monthlyEstimate.kWh,
-                    monthlyCostKr: monthlyEstimate.totalKr,
-                    monthDate: monthlyEstimate.monthDate,
-                    costProfile: costProfile,
-                    historySummary: historySummary
-                )
+            guard let currentBucketIndex = dayData.currentBucketIndex(at: now),
+                  dayCosts.indices.contains(currentBucketIndex) else {
+                AppLog.widget.error("No valid bucket found in dayData with \(dayData.buckets.count) buckets")
+                return .error
             }
 
-            AppLog.widget.error("No valid bucket found in dayData with \(dayData.buckets.count) buckets")
-            return .error
+            let currentBucket = dayData.buckets[currentBucketIndex]
+            let currentTotalCost = dayCosts[currentBucketIndex]
+            let retailContractLabel = costProfile.isSpotFollowingRetailContract
+                ? nil
+                : costProfile.retailContractDisplayName
+
+            AppLog.widget.info("Widget loaded successfully with price: \(Int(currentBucket.orePerKWh.rounded())) öre/kWh")
+
+            return SpotPriceEntry(
+                date: now,
+                currentPriceOre: Int(currentBucket.orePerKWh.rounded()),
+                currentTotalCostPerKWh: currentTotalCost,
+                priceCategory: currentBucket.category,
+                dayCosts: dayCosts,
+                currentBucketIndex: currentBucketIndex,
+                monthlyKWh: monthlyEstimate.kWh,
+                monthlyCostKr: monthlyEstimate.totalKr,
+                retailContractLabel: retailContractLabel,
+                historySummary: historySummary
+            )
         } catch {
             AppLog.widget.error("Error fetching price: \(error.localizedDescription, privacy: .public)")
             return .error
@@ -176,151 +147,140 @@ struct SpotPriceProvider: TimelineProvider {
     }
 }
 
-// MARK: - Calendar Extension
+// MARK: - Mini Chart View
 
-extension Calendar {
-    func startOfHour(for date: Date) -> Date {
-        let components = dateComponents([.year, .month, .day, .hour], from: date)
-        return self.date(from: components) ?? date
-    }
-}
+struct MacWidgetDayChart: View {
+    let costs: [Double]
+    let currentIndex: Int?
+    @Environment(\.widgetRenderingMode) private var renderingMode
 
-// MARK: - Mini Chart View (Adapts to rendering mode)
-
-struct MiniPriceChart: View {
-    let dayData: DayChartData
-    let currentBucketIndex: Int
-    let costProfile: CostProfile
-    @Environment(\.widgetRenderingMode) var renderingMode
-
-    private var priceData: (prices: [Double], minPrice: Double, maxPrice: Double) {
-        let totalCostService = TotalCostService()
-        let prices = dayData.buckets.map { bucket in
-            totalCostService.calculatePricePerKWh(spotPriceOre: bucket.orePerKWh, profile: costProfile) * 100
-        }
-        let minPrice = prices.min() ?? 0
-        let maxPrice = prices.max() ?? 0
-        return (prices, minPrice, maxPrice)
-    }
-    
     var body: some View {
         GeometryReader { geo in
             let width = geo.size.width
             let height = geo.size.height
-            let data = priceData
-            let prices = data.prices
-            let minPrice = data.minPrice
-            let maxPrice = data.maxPrice
-            let range = maxPrice - minPrice
-            let safeRange = range > 0 ? range : 1
+            let minCost = costs.min() ?? 0
+            let maxCost = costs.max() ?? 0
+            let safeRange = max(maxCost - minCost, 1)
 
             ZStack {
-                // Area fill
-                areaPath(prices: prices, width: width, height: height, minPrice: minPrice, safeRange: safeRange)
+                areaPath(width: width, height: height, minCost: minCost, safeRange: safeRange)
                     .fill(areaGradient)
 
-                // Line
-                linePath(prices: prices, width: width, height: height, minPrice: minPrice, safeRange: safeRange)
-                    .stroke(lineGradient(prices: prices, minPrice: minPrice, maxPrice: maxPrice),
-                            style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
+                linePath(width: width, height: height, minCost: minCost, safeRange: safeRange)
+                    .stroke(
+                        lineGradient(minCost: minCost, maxCost: maxCost),
+                        style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round)
+                    )
 
-                // Current time indicator
-                if currentBucketIndex >= 0 && currentBucketIndex < prices.count {
-                    currentTimeIndicator(prices: prices, width: width, height: height,
-                                        minPrice: minPrice, maxPrice: maxPrice, safeRange: safeRange)
+                if let currentIndex,
+                   costs.count > 1,
+                   costs.indices.contains(currentIndex) {
+                    currentTimeIndicator(
+                        width: width,
+                        height: height,
+                        index: currentIndex,
+                        minCost: minCost,
+                        maxCost: maxCost,
+                        safeRange: safeRange
+                    )
                 }
             }
         }
     }
-
-    // MARK: - Rendering Mode Adaptive Colors
 
     private var areaGradient: LinearGradient {
         switch renderingMode {
         case .accented:
             return LinearGradient(
                 colors: [.primary.opacity(0.3), .primary.opacity(0.1), .clear],
-                startPoint: .top, endPoint: .bottom
+                startPoint: .top,
+                endPoint: .bottom
             )
         default:
             return LinearGradient(
                 colors: [DS.Color.warning.opacity(0.4), DS.Color.warning.opacity(0.1), .clear],
-                startPoint: .top, endPoint: .bottom
+                startPoint: .top,
+                endPoint: .bottom
             )
         }
     }
 
-    private func lineGradient(prices: [Double], minPrice: Double, maxPrice: Double) -> LinearGradient {
+    private func lineGradient(minCost: Double, maxCost: Double) -> LinearGradient {
         switch renderingMode {
         case .accented:
             return LinearGradient(colors: [.primary], startPoint: .leading, endPoint: .trailing)
         default:
             return LinearGradient(
-                colors: prices.map { priceToColor($0, min: minPrice, max: maxPrice) },
-                startPoint: .leading, endPoint: .trailing
+                colors: costs.map { DS.Color.forPrice($0, min: minCost, max: maxCost) },
+                startPoint: .leading,
+                endPoint: .trailing
             )
         }
     }
 
-    // MARK: - Path Builders
+    private func yPosition(for cost: Double, height: CGFloat, minCost: Double, safeRange: Double) -> CGFloat {
+        let normalized = (cost - minCost) / safeRange
+        return height - (normalized * height * 0.85) - (height * 0.075)
+    }
 
-    private func areaPath(prices: [Double], width: CGFloat, height: CGFloat, minPrice: Double, safeRange: Double) -> Path {
+    private func areaPath(width: CGFloat, height: CGFloat, minCost: Double, safeRange: Double) -> Path {
         Path { path in
-            guard prices.count > 1 else { return }
-            let stepX = width / CGFloat(prices.count - 1)
+            guard costs.count > 1 else { return }
+            let stepX = width / CGFloat(costs.count - 1)
 
             path.move(to: CGPoint(x: 0, y: height))
-
-            for (index, price) in prices.enumerated() {
-                let x = CGFloat(index) * stepX
-                let normalizedY = (price - minPrice) / safeRange
-                let y = height - (normalizedY * height * 0.85) - (height * 0.075)
-                path.addLine(to: CGPoint(x: x, y: y))
+            for (index, cost) in costs.enumerated() {
+                path.addLine(to: CGPoint(
+                    x: CGFloat(index) * stepX,
+                    y: yPosition(for: cost, height: height, minCost: minCost, safeRange: safeRange)
+                ))
             }
-
             path.addLine(to: CGPoint(x: width, y: height))
             path.closeSubpath()
         }
     }
 
-    private func linePath(prices: [Double], width: CGFloat, height: CGFloat, minPrice: Double, safeRange: Double) -> Path {
+    private func linePath(width: CGFloat, height: CGFloat, minCost: Double, safeRange: Double) -> Path {
         Path { path in
-            guard prices.count > 1 else { return }
-            let stepX = width / CGFloat(prices.count - 1)
+            guard costs.count > 1 else { return }
+            let stepX = width / CGFloat(costs.count - 1)
 
-            for (index, price) in prices.enumerated() {
-                let x = CGFloat(index) * stepX
-                let normalizedY = (price - minPrice) / safeRange
-                let y = height - (normalizedY * height * 0.85) - (height * 0.075)
-
+            for (index, cost) in costs.enumerated() {
+                let point = CGPoint(
+                    x: CGFloat(index) * stepX,
+                    y: yPosition(for: cost, height: height, minCost: minCost, safeRange: safeRange)
+                )
                 if index == 0 {
-                    path.move(to: CGPoint(x: x, y: y))
+                    path.move(to: point)
                 } else {
-                    path.addLine(to: CGPoint(x: x, y: y))
+                    path.addLine(to: point)
                 }
             }
         }
     }
 
     @ViewBuilder
-    private func currentTimeIndicator(prices: [Double], width: CGFloat, height: CGFloat,
-                                      minPrice: Double, maxPrice: Double, safeRange: Double) -> some View {
-        let stepX = width / CGFloat(max(prices.count - 1, 1))
-        let x = CGFloat(currentBucketIndex) * stepX
-        let price = prices[currentBucketIndex]
-        let normalizedY = (price - minPrice) / safeRange
-        let y = height - (normalizedY * height * 0.85) - (height * 0.075)
+    private func currentTimeIndicator(
+        width: CGFloat,
+        height: CGFloat,
+        index: Int,
+        minCost: Double,
+        maxCost: Double,
+        safeRange: Double
+    ) -> some View {
+        let stepX = width / CGFloat(max(costs.count - 1, 1))
+        let x = CGFloat(index) * stepX
+        let cost = costs[index]
+        let y = yPosition(for: cost, height: height, minCost: minCost, safeRange: safeRange)
 
-        // Vertical dashed line
         Path { path in
             path.move(to: CGPoint(x: x, y: 0))
             path.addLine(to: CGPoint(x: x, y: height))
         }
         .stroke(.primary.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
 
-        // Current point - adapts to rendering mode
         Circle()
-            .fill(renderingMode == .accented ? .primary : priceToColor(price, min: minPrice, max: maxPrice))
+            .fill(renderingMode == .accented ? .primary : DS.Color.forPrice(cost, min: minCost, max: maxCost))
             .frame(width: 8, height: 8)
             .position(x: x, y: y)
             .widgetAccentable()
@@ -330,19 +290,116 @@ struct MiniPriceChart: View {
             .frame(width: 4, height: 4)
             .position(x: x, y: y)
     }
+}
 
-    private func priceToColor(_ price: Double, min: Double, max: Double) -> Color {
-        let range = max - min
-        guard range > 0 else { return DS.Color.warning }
+// MARK: - Widget Sections
 
-        let normalized = (price - min) / range
+private struct SpotpriceWidgetMonthlyStatsRow: View {
+    let monthlyKWh: Double
+    let monthlyCostKr: Double
+    let statusLabel: String?
+    let isStale: Bool
 
-        if normalized <= 0.33 {
-            return DS.Color.success
-        } else if normalized <= 0.66 {
+    private var shouldShow: Bool {
+        monthlyKWh > 0 || monthlyCostKr > 0
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: DS.Spacing.xxs) {
+            Image("Logo")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 24, height: 24)
+
+            Spacer()
+
+            if shouldShow {
+                HStack(spacing: DS.Spacing.xxs) {
+                    Text("\(Int(monthlyKWh.rounded()))")
+                        .font(DS.Font.semibold(11).monospacedDigit())
+                    Text("kWh")
+                        .font(DS.Font.regular(9))
+                        .foregroundStyle(DS.Color.secondary)
+                }
+
+                HStack(spacing: DS.Spacing.xxs) {
+                    Text("\(Int(monthlyCostKr.rounded()))")
+                        .font(DS.Font.semibold(11).monospacedDigit())
+                    Text("kr")
+                        .font(DS.Font.regular(9))
+                        .foregroundStyle(DS.Color.secondary)
+                }
+
+                if let statusLabel {
+                    Text(statusLabel)
+                        .font(DS.Font.regular(8))
+                        .foregroundStyle(isStale ? DS.Color.warning : DS.Color.secondary)
+                }
+            }
+        }
+        .widgetAccentable()
+    }
+}
+
+private struct SpotpriceWidgetPriceRow: View {
+    let totalCostPerKWh: Double?
+    let spotPriceOre: Int?
+    let retailContractLabel: String?
+    let priceCategory: PriceCategory?
+    let dayCosts: [Double]
+    let currentBucketIndex: Int?
+    let renderingMode: WidgetRenderingMode
+
+    private var currentPriceColor: Color {
+        guard let currentBucketIndex,
+              dayCosts.indices.contains(currentBucketIndex) else {
             return DS.Color.warning
-        } else {
-            return DS.Color.danger
+        }
+        return DS.Color.forPrice(
+            dayCosts[currentBucketIndex],
+            min: dayCosts.min() ?? 0,
+            max: dayCosts.max() ?? 0
+        )
+    }
+
+    var body: some View {
+        HStack(alignment: .center) {
+            if let totalCostPerKWh {
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
+                        Text(totalCostPerKWh, format: .number.precision(.fractionLength(2)))
+                            .font(DS.Font.bold(24))
+                            .monospacedDigit()
+                            .foregroundStyle(renderingMode == .accented ? .primary : currentPriceColor)
+                        Text("kr")
+                            .font(DS.Font.micro)
+                            .foregroundStyle(DS.Color.secondary)
+                    }
+                    if let retailContractLabel {
+                        Text(retailContractLabel)
+                            .font(DS.Font.micro)
+                            .foregroundStyle(DS.Color.secondary)
+                    }
+                }
+            } else if let spotPriceOre {
+                HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
+                    Text("\(spotPriceOre)")
+                        .font(DS.Font.bold(24))
+                        .monospacedDigit()
+                        .foregroundStyle(renderingMode == .accented ? .primary : currentPriceColor)
+                    Text("öre")
+                        .font(DS.Font.micro)
+                        .foregroundStyle(DS.Color.secondary)
+                }
+            }
+
+            Spacer()
+
+            if let priceCategory, renderingMode != .accented {
+                Text(priceCategory.label)
+                    .font(DS.Font.semibold(9))
+                    .foregroundStyle(currentPriceColor)
+            }
         }
     }
 }
@@ -350,31 +407,8 @@ struct MiniPriceChart: View {
 // MARK: - Widget View
 
 struct SpotpriceWidgetEntryView: View {
-    var entry: SpotPriceEntry
-    @Environment(\.widgetRenderingMode) var renderingMode
-
-    /// Color based on actual price at current bucket in the chart data
-    private var currentPriceColor: Color {
-        guard let dayData = entry.dayData else {
-            return DS.Color.warning
-        }
-
-        let totalCostService = TotalCostService()
-        let totalCosts = dayData.buckets.map { bucket in
-            totalCostService.calculatePricePerKWh(spotPriceOre: bucket.orePerKWh, profile: entry.costProfile) * 100
-        }
-        guard entry.currentBucketIndex >= 0 && entry.currentBucketIndex < totalCosts.count else {
-            return DS.Color.warning
-        }
-        let minTotal = totalCosts.min() ?? 0
-        let maxTotal = totalCosts.max() ?? 0
-        let currentTotal = totalCosts[entry.currentBucketIndex]
-        return DS.Color.forPrice(currentTotal, min: minTotal, max: maxTotal)
-    }
-
-    private var shouldShowMonthlyStats: Bool {
-        entry.monthlyKWh > 0 || entry.monthlyCostKr > 0
-    }
+    let entry: SpotPriceEntry
+    @Environment(\.widgetRenderingMode) private var renderingMode
 
     private var monthlyDataIsStale: Bool {
         guard let historySummary = entry.historySummary else { return false }
@@ -401,52 +435,28 @@ struct SpotpriceWidgetEntryView: View {
     }
 
     var body: some View {
-        if let price = entry.currentPrice, let _ = entry.priceCategory {
+        if entry.currentPriceOre != nil, entry.priceCategory != nil {
             VStack(alignment: .leading, spacing: 8) {
-                
-                // Monthly stats with month label
-                HStack(alignment: .center, spacing: DS.Spacing.xxs) {
-                    
-                    Image("Logo")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 24, height: 24)
-                    
-                    Spacer()
+                SpotpriceWidgetMonthlyStatsRow(
+                    monthlyKWh: entry.monthlyKWh,
+                    monthlyCostKr: entry.monthlyCostKr,
+                    statusLabel: monthlyStatusLabel,
+                    isStale: monthlyDataIsStale
+                )
 
-                    if shouldShowMonthlyStats {
-                        HStack(spacing: DS.Spacing.xxs) {
-                            Text("\(Int(entry.monthlyKWh.rounded()))")
-                                .font(DS.Font.semibold(11).monospacedDigit())
-                            Text("kWh")
-                                .font(DS.Font.regular(9))
-                                .foregroundStyle(DS.Color.secondary)
-                        }
+                SpotpriceWidgetPriceRow(
+                    totalCostPerKWh: entry.currentTotalCostPerKWh,
+                    spotPriceOre: entry.currentPriceOre,
+                    retailContractLabel: entry.retailContractLabel,
+                    priceCategory: entry.priceCategory,
+                    dayCosts: entry.dayCosts,
+                    currentBucketIndex: entry.currentBucketIndex,
+                    renderingMode: renderingMode
+                )
+                .padding(.bottom, DS.Spacing.sm)
 
-                        HStack(spacing: DS.Spacing.xxs) {
-                            Text("\(Int(entry.monthlyCostKr.rounded()))")
-                                .font(DS.Font.semibold(11).monospacedDigit())
-                            Text("kr")
-                                .font(DS.Font.regular(9))
-                                .foregroundStyle(DS.Color.secondary)
-                        }
-
-                        if let monthlyStatusLabel {
-                            Text(monthlyStatusLabel)
-                                .font(DS.Font.regular(8))
-                                .foregroundStyle(monthlyDataIsStale ? DS.Color.warning : DS.Color.secondary)
-                        }
-                    }
-                    
-                }
-                .widgetAccentable()
-            
-                priceView(price: price)
-                    .padding(.bottom, DS.Spacing.sm)
-
-                // Chart
-                if let dayData = entry.dayData, !dayData.buckets.isEmpty {
-                    MiniPriceChart(dayData: dayData, currentBucketIndex: entry.currentBucketIndex, costProfile: entry.costProfile)
+                if entry.dayCosts.count > 1 {
+                    MacWidgetDayChart(costs: entry.dayCosts, currentIndex: entry.currentBucketIndex)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     Spacer()
@@ -454,69 +464,15 @@ struct SpotpriceWidgetEntryView: View {
                         .font(DS.Font.micro)
                         .foregroundStyle(DS.Color.secondary)
                 }
-
             }
-
         } else {
-            errorView
+            SpotpriceWidgetErrorView()
         }
     }
+}
 
-    /// Get price category for accessibility
-    private var currentPriceCategory: PriceCategory? {
-        guard let dayData = entry.dayData else { return entry.priceCategory }
-        let prices = dayData.buckets.map { $0.orePerKWh }
-        guard entry.currentBucketIndex >= 0 && entry.currentBucketIndex < prices.count else {
-            return entry.priceCategory
-        }
-        let price = prices[entry.currentBucketIndex]
-        return DS.Color.categoryForPrice(price, min: dayData.minOre, max: dayData.maxOre)
-    }
-
-    @ViewBuilder
-    private func priceView(price: Int) -> some View {
-        HStack(alignment: .center) {
-            if let totalCost = entry.currentTotalCostPerKWh {
-                // Show total cost in kr/kWh
-                VStack(alignment: .leading, spacing: 0) {
-                    HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
-                        Text(totalCost, format: .number.precision(.fractionLength(2)))
-                            .font(DS.Font.bold(24))
-                            .monospacedDigit()
-                            .foregroundStyle(renderingMode == .accented ? .primary : currentPriceColor)
-                        Text("kr")
-                            .font(DS.Font.micro)
-                            .foregroundStyle(DS.Color.secondary)
-                    }
-                    if !entry.costProfile.isSpotFollowingRetailContract {
-                        Text(entry.costProfile.retailContractDisplayName.lowercased())
-                            .font(DS.Font.micro)
-                            .foregroundStyle(DS.Color.secondary)
-                    }
-                }
-            } else {
-                // Fallback to spot price in öre/kWh
-                HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
-                    Text("\(price)")
-                        .font(DS.Font.bold(24))
-                        .monospacedDigit()
-                        .foregroundStyle(renderingMode == .accented ? .primary : currentPriceColor)
-                    Text("öre")
-                        .font(DS.Font.micro)
-                        .foregroundStyle(DS.Color.secondary)
-                }
-            }
-            Spacer()
-            // Accessible text label for price level
-            if let category = currentPriceCategory, renderingMode != .accented {
-                Text(category.label)
-                    .font(DS.Font.semibold(9))
-                    .foregroundStyle(currentPriceColor)
-            }
-        }
-    }
-
-    private var errorView: some View {
+private struct SpotpriceWidgetErrorView: View {
+    var body: some View {
         VStack(spacing: DS.Spacing.sm) {
             Image(systemName: "bolt.slash.fill")
                 .font(.system(size: DS.Size.iconMedium))
