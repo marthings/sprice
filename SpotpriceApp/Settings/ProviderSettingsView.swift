@@ -180,7 +180,7 @@ struct ProviderSettingsView: View {
             testState = .success
             NotificationCenter.default.post(name: .consumptionSettingsDidSave, object: nil)
         } catch {
-            testState = .failure(error.localizedDescription)
+            testState = .failure(error.userFacingMessage)
         }
     }
 }

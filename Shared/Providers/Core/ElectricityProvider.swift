@@ -86,10 +86,10 @@ enum ProviderError: Error, LocalizedError {
             return "Serverfel (\(code))"
         case .missingCredentials:
             return "Inloggningsuppgifter saknas"
-        case .networkError(let error):
-            return "Nätverksfel: \(error.localizedDescription)"
-        case .decodingError(let error):
-            return "Kunde inte läsa svar: \(error.localizedDescription)"
+        case .networkError:
+            return "Nätverksfel. Kontrollera din anslutning."
+        case .decodingError:
+            return "Kunde inte läsa svar från servern."
         }
     }
 }

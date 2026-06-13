@@ -367,8 +367,8 @@ enum GridTariffError: LocalizedError {
             return "Kunde inte skapa URL för Eltariff API"
         case .invalidResponse:
             return "Fel svar från Eltariff API"
-        case .decodingError(let error):
-            return "Kunde inte läsa tariffdata: \(error.localizedDescription)"
+        case .decodingError:
+            return "Kunde inte läsa tariffdata från servern."
         case .notFound:
             return "Hittade ingen tariff för vald nätoperatör"
         }
