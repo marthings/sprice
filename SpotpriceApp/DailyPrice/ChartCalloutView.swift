@@ -100,7 +100,7 @@ struct IOSChartCalloutView: View {
                 }
 
                 VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
-                    ForEach(CostBreakdownPresenter.topComponents(for: costBreakdown, profile: profile), id: \.label) { component in
+                    ForEach(CostBreakdownPresenter.topComponents(for: costBreakdown, profile: profile)) { component in
                         BreakdownRow(
                             label: component.label,
                             value: component.value,
@@ -144,7 +144,7 @@ struct IOSChartCalloutView: View {
                 }
 
                 VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
-                    ForEach(CostBreakdownPresenter.topComponents(for: costBreakdown, profile: profile), id: \.label) { component in
+                    ForEach(CostBreakdownPresenter.topComponents(for: costBreakdown, profile: profile)) { component in
                         BreakdownRow(
                             label: component.label,
                             value: component.value,

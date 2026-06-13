@@ -10,8 +10,8 @@ struct SpotPriceBarChart: View {
     let dayData: DayChartData
     let configuration: ChartConfiguration
     var tariff: SimplifiedTariff? = nil
+
     @State private var selectedDate: Date?
-    private let totalCostService = TotalCostService()
 
     private var costProfile: CostProfile {
         ConsumptionSettings.shared.costProfile
@@ -19,25 +19,68 @@ struct SpotPriceBarChart: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            chartHeader
+            SpotPriceBarChartHeader(dayData: dayData, costProfile: costProfile)
                 .padding(.horizontal)
-            chartContent
+            SpotPriceBarChartPlot(
+                dayData: dayData,
+                configuration: configuration,
+                costProfile: costProfile,
+                selectedDate: $selectedDate
+            )
+        }
+    }
+}
+
+private struct SpotPriceBarChartStyle {
+    let areaGradient: LinearGradient
+    let lineGradient: LinearGradient
+    let maxY: Double
+
+    init(dayData: DayChartData) {
+        let colors = dayData.buckets.map {
+            DS.Color.forPrice($0.orePerKWh, min: dayData.minOre, max: dayData.maxOre)
+        }
+        lineGradient = LinearGradient(colors: colors, startPoint: .leading, endPoint: .trailing)
+        areaGradient = LinearGradient(
+            colors: colors.map { $0.opacity(0.26) },
+            startPoint: .leading,
+            endPoint: .trailing
+        )
+        maxY = dayData.maxOre * 1.1
+    }
+}
+
+private struct SpotPriceBarChartHeader: View {
+    let dayData: DayChartData
+    let costProfile: CostProfile
+
+    private let totalCostService = TotalCostService()
+    private let totalCostBounds: (min: Double, max: Double)?
+
+    init(dayData: DayChartData, costProfile: CostProfile) {
+        self.dayData = dayData
+        self.costProfile = costProfile
+
+        if costProfile.isSpotFollowingRetailContract {
+            let service = TotalCostService()
+            let costs = dayData.buckets.map {
+                service.calculatePricePerKWh(spotPriceOre: $0.orePerKWh, profile: costProfile) * 100
+            }
+            totalCostBounds = (costs.min() ?? 0, costs.max() ?? 0)
+        } else {
+            totalCostBounds = nil
         }
     }
 
-    // MARK: - Chart Header
-
-    private var chartHeader: some View {
+    var body: some View {
         let now = Date.now
         let currentBucket = dayData.buckets.first { $0.start <= now && $0.end > now }
         let currentPrice = currentBucket?.orePerKWh
-
-        // Find next quarter's bucket (15 minutes)
         let currentBucketEnd = currentBucket?.end ?? now
         let nextBucket = dayData.buckets.first { $0.start >= currentBucketEnd }
         let nextPrice = nextBucket?.orePerKWh
 
-        return HStack(spacing: DS.Spacing.md) {
+        HStack(spacing: DS.Spacing.md) {
             VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                 if let price = currentPrice {
                     let value = primaryHeaderValue(for: price)
@@ -72,7 +115,7 @@ struct SpotPriceBarChart: View {
 
                 if let next = nextPrice, let current = currentPrice {
                     let nextValue = nextQuarterValue(for: next)
-                    
+
                     HStack(spacing: DS.Spacing.xs) {
                         TrendIndicator(current: current, next: next)
                         Text(nextValue.amount, format: .number.precision(.fractionLength(nextValue.decimals)))
@@ -84,7 +127,7 @@ struct SpotPriceBarChart: View {
                     }
                 } else if let next = nextPrice {
                     let nextValue = nextQuarterValue(for: next)
-                    
+
                     HStack(spacing: DS.Spacing.xxs) {
                         Text(nextValue.amount, format: .number.precision(.fractionLength(nextValue.decimals)))
                             .font(DS.Font.semibold(12).monospacedDigit())
@@ -104,16 +147,58 @@ struct SpotPriceBarChart: View {
         .padding(.bottom, DS.Spacing.lg)
     }
 
-    // MARK: - Chart Content
+    private var chartMeaningText: String {
+        if costProfile.isSpotFollowingRetailContract {
+            return "Grafen visar marknadens kvartspris och din beräknade kostnad följer variationen."
+        }
+        return "Grafen visar marknadens kvartspris. Din kostnad beräknas från ditt avtal."
+    }
 
-    private var chartContent: some View {
+    private func primaryHeaderValue(for marketPriceOre: Double) -> (amount: Double, unit: String, color: Color) {
+        if costProfile.isSpotFollowingRetailContract {
+            let totalCost = totalCostService.calculatePricePerKWh(spotPriceOre: marketPriceOre, profile: costProfile)
+            return (totalCost, "kr/kWh", totalCostColor(for: totalCost * 100))
+        }
+        return (marketPriceOre / 100, "kr/kWh", DS.Color.forPrice(marketPriceOre, min: dayData.minOre, max: dayData.maxOre))
+    }
+
+    private func nextQuarterValue(for marketPriceOre: Double) -> (amount: Double, unit: String, color: Color, decimals: Int) {
+        if costProfile.isSpotFollowingRetailContract {
+            let totalCost = totalCostService.calculatePricePerKWh(spotPriceOre: marketPriceOre, profile: costProfile)
+            return (totalCost, "kr", totalCostColor(for: totalCost * 100), 2)
+        }
+        return (
+            marketPriceOre / 100,
+            "kr",
+            DS.Color.forPrice(marketPriceOre, min: dayData.minOre, max: dayData.maxOre),
+            2
+        )
+    }
+
+    private func totalCostColor(for totalCost: Double) -> Color {
+        guard let totalCostBounds else {
+            return DS.Color.forPrice(totalCost, min: dayData.minOre, max: dayData.maxOre)
+        }
+        return DS.Color.forPrice(totalCost, min: totalCostBounds.min, max: totalCostBounds.max)
+    }
+}
+
+private struct SpotPriceBarChartPlot: View {
+    let dayData: DayChartData
+    let configuration: ChartConfiguration
+    let costProfile: CostProfile
+    @Binding var selectedDate: Date?
+
+    var body: some View {
+        let style = SpotPriceBarChartStyle(dayData: dayData)
+
         Chart {
             ForEach(dayData.buckets) { bucket in
                 AreaMark(
                     x: .value("Tid", bucket.start),
                     y: .value("Kvartspris", bucket.orePerKWh)
                 )
-                .foregroundStyle(areaGradient)
+                .foregroundStyle(style.areaGradient)
                 .opacity(selectedDate == nil || isBucketSelected(bucket, selectedDate: selectedDate) ? 1.0 : 0.3)
             }
 
@@ -122,7 +207,7 @@ struct SpotPriceBarChart: View {
                 y: .value("Kvartspris", dayData.buckets.first?.orePerKWh ?? 0),
                 series: .value("Price", "Market")
             )
-            .foregroundStyle(lineGradient)
+            .foregroundStyle(style.lineGradient)
             .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
             .interpolationMethod(.catmullRom)
 
@@ -132,7 +217,7 @@ struct SpotPriceBarChart: View {
                     y: .value("Kvartspris", bucket.orePerKWh),
                     series: .value("Price", "Market")
                 )
-                .foregroundStyle(lineGradient)
+                .foregroundStyle(style.lineGradient)
                 .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
                 .interpolationMethod(.catmullRom)
                 .opacity(selectedDate == nil || isBucketSelected(bucket, selectedDate: selectedDate) ? 1.0 : 0.4)
@@ -143,12 +228,11 @@ struct SpotPriceBarChart: View {
                     x: .value("Tid", bucket.start),
                     y: .value("Kvartspris", bucket.orePerKWh)
                 )
-                .foregroundStyle(priceColor(for: bucket.orePerKWh))
+                .foregroundStyle(DS.Color.forPrice(bucket.orePerKWh, min: dayData.minOre, max: dayData.maxOre))
                 .symbolSize(64)
                 .symbol(.circle)
             }
 
-            // Contract reference line for fixed and variable contracts
             if !costProfile.isSpotFollowingRetailContract, let contractPrice = costProfile.contractPriceOrePerKWh {
                 RuleMark(y: .value("Avtalat pris", contractPrice))
                     .foregroundStyle(.blue.opacity(0.7))
@@ -164,15 +248,18 @@ struct SpotPriceBarChart: View {
                     .accessibilityLabel("Avtalat elpris")
             }
 
-            // Current time indicator
-            if let now = Calendar.current.date(bySettingHour: Calendar.current.component(.hour, from: Date.now), minute: 0, second: 0, of: Date.now) {
+            if let now = Calendar.current.date(
+                bySettingHour: Calendar.current.component(.hour, from: Date.now),
+                minute: 0,
+                second: 0,
+                of: Date.now
+            ) {
                 RuleMark(x: .value("Nu", now))
                     .foregroundStyle(.primary.opacity(0.6))
                     .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
                     .accessibilityLabel("Nuvarande tid")
             }
 
-            // Selection indicator with callout
             if let selectedDate, let bucket = findBucket(for: selectedDate, in: dayData.buckets) {
                 RuleMark(x: .value("Vald tid", selectedDate))
                     .foregroundStyle(.secondary.opacity(0.5))
@@ -183,7 +270,7 @@ struct SpotPriceBarChart: View {
             }
         }
         .chartXScale(domain: calendarBounds(for: dayData.buckets.first?.start))
-        .chartYScale(domain: 0...maxYValue())
+        .chartYScale(domain: 0...style.maxY)
         .chartXSelection(value: $selectedDate)
         .chartXAxis {
             if configuration.showXAxisLabels {
@@ -222,107 +309,6 @@ struct SpotPriceBarChart: View {
         .frame(height: configuration.height)
         .padding(.horizontal, DS.Spacing.lg)
         .padding(.bottom, DS.Spacing.lg)
-        .contentShape(Rectangle())
-        .gesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { value in
-                    withAnimation(.easeOut(duration: 0.15)) {
-                        updateSelection(at: value.location)
-                    }
-                }
-        )
-    }
-
-    // MARK: - Gradients
-
-    private var areaGradient: LinearGradient {
-        let colors = dayData.buckets.map { priceColor(for: $0.orePerKWh).opacity(0.26) }
-        return LinearGradient(
-            colors: colors,
-            startPoint: .leading,
-            endPoint: .trailing
-        )
-    }
-
-    private var lineGradient: LinearGradient {
-        let colors = dayData.buckets.map { priceColor(for: $0.orePerKWh) }
-        return LinearGradient(
-            colors: colors,
-            startPoint: .leading,
-            endPoint: .trailing
-        )
-    }
-    
-    private var totalCostGradient: LinearGradient {
-        LinearGradient(
-            colors: [
-                Color.blue.opacity(0.3),
-                Color.blue.opacity(0.1),
-                .clear
-            ],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-    }
-    
-    private var totalCostLineGradient: LinearGradient {
-        let totalCosts = dayData.buckets.map { totalCostOre(for: $0.orePerKWh) }
-        let minTotal = totalCosts.min() ?? 0
-        let maxTotal = totalCosts.max() ?? 0
-        let colors = totalCosts.map { totalCostColor(for: $0, min: minTotal, max: maxTotal) }
-        return LinearGradient(
-            colors: colors,
-            startPoint: .leading,
-            endPoint: .trailing
-        )
-    }
-
-    // MARK: - Helper Methods
-
-    private var chartMeaningText: String {
-        if costProfile.isSpotFollowingRetailContract {
-            return "Grafen visar marknadens kvartspris och din beräknade kostnad följer variationen."
-        }
-        return "Grafen visar marknadens kvartspris. Din kostnad beräknas från ditt avtal."
-    }
-
-    private func primaryHeaderValue(for marketPriceOre: Double) -> (amount: Double, unit: String, color: Color) {
-        if costProfile.isSpotFollowingRetailContract {
-            let totalCost = totalCostService.calculatePricePerKWh(spotPriceOre: marketPriceOre, profile: costProfile)
-            return (totalCost, "kr/kWh", totalCostColor(for: totalCost * 100))
-        }
-        return (marketPriceOre / 100, "kr/kWh", priceColor(for: marketPriceOre))
-    }
-    
-    private func nextQuarterValue(for marketPriceOre: Double) -> (amount: Double, unit: String, color: Color, decimals: Int) {
-        if costProfile.isSpotFollowingRetailContract {
-            let totalCost = totalCostService.calculatePricePerKWh(spotPriceOre: marketPriceOre, profile: costProfile)
-            return (totalCost, "kr", totalCostColor(for: totalCost * 100), 2)
-        }
-        return (marketPriceOre / 100, "kr", priceColor(for: marketPriceOre), 2)
-    }
-    
-    private func currentQuarterValue(for marketPriceOre: Double) -> (amount: Double, unit: String, color: Color, decimals: Int) {
-        nextQuarterValue(for: marketPriceOre)
-    }
-
-    private func priceColor(for price: Double) -> Color {
-        DS.Color.forPrice(price, min: dayData.minOre, max: dayData.maxOre)
-    }
-    
-    private func totalCostOre(for spotPriceOre: Double) -> Double {
-        totalCostService.calculatePricePerKWh(spotPriceOre: spotPriceOre, profile: costProfile) * 100
-    }
-
-    private func totalCostColor(for totalCost: Double) -> Color {
-        let totalCosts = dayData.buckets.map { totalCostOre(for: $0.orePerKWh) }
-        let minTotal = totalCosts.min() ?? 0
-        let maxTotal = totalCosts.max() ?? 0
-        return totalCostColor(for: totalCost, min: minTotal, max: maxTotal)
-    }
-    
-    private func totalCostColor(for totalCost: Double, min: Double, max: Double) -> Color {
-        DS.Color.forPrice(totalCost, min: min, max: max)
     }
 
     private func calendarBounds(for date: Date?) -> ClosedRange<Date> {
@@ -338,24 +324,5 @@ struct SpotPriceBarChart: View {
     private func isBucketSelected(_ bucket: PriceBucket, selectedDate: Date?) -> Bool {
         guard let selectedDate else { return true }
         return bucket.start <= selectedDate && bucket.end > selectedDate
-    }
-
-    private func timeLabel(_ date: Date) -> String {
-        date.formatted(.dateTime.hour(.defaultDigits(amPM: .omitted)))
-    }
-
-    private func updateSelection(at location: CGPoint) {
-        let now = Date.now
-        let startOfDay = Calendar.current.startOfDay(for: now)
-        let hourProgress = location.x / 300
-        let selectedHour = Int(hourProgress * 24)
-
-        if let selectedDate = Calendar.current.date(byAdding: .hour, value: selectedHour, to: startOfDay) {
-            self.selectedDate = selectedDate
-        }
-    }
-    
-    private func maxYValue() -> Double {
-        dayData.maxOre * 1.1
     }
 }

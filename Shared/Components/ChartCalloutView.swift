@@ -118,7 +118,7 @@ struct ChartCalloutView: View {
                 
                 // Detailed breakdown - show top 3 components + "Övrigt"
                 VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
-                    ForEach(CostBreakdownPresenter.topComponents(for: costBreakdown, profile: profile), id: \.label) { component in
+                    ForEach(CostBreakdownPresenter.topComponents(for: costBreakdown, profile: profile)) { component in
                         BreakdownRow(
                             label: component.label,
                             value: component.value,
@@ -170,7 +170,7 @@ struct ChartCalloutView: View {
                 
                 // Detailed breakdown for fixed/variable contracts - show top 3 + "Övrigt"
                 VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
-                    ForEach(CostBreakdownPresenter.topComponents(for: costBreakdown, profile: profile), id: \.label) { component in
+                    ForEach(CostBreakdownPresenter.topComponents(for: costBreakdown, profile: profile)) { component in
                         BreakdownRow(
                             label: component.label,
                             value: component.value,
