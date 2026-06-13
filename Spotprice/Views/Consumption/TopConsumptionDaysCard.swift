@@ -85,7 +85,7 @@ struct TopConsumptionDaysCard: View {
         .padding(.horizontal, DS.Spacing.lg)
         .padding(.vertical, DS.Spacing.md)
         .frame(maxWidth: .infinity)
-        .glassCard(cornerRadius: DS.Radius.md)
+        .glassCard()
     }
 
     private func peakLabel(_ date: Date) -> String {

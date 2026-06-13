@@ -171,7 +171,7 @@ struct SharedPriceRangeSection: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, style == .compact ? DS.Spacing.sm : DS.Spacing.md)
         .padding(.horizontal, style == .compact ? DS.Spacing.xs : DS.Spacing.sm)
-        .glassCard(cornerRadius: DS.Radius.lg)
+        .glassCard()
     }
 
 }

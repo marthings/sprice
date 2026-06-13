@@ -23,7 +23,7 @@ struct HistoryMonthSummaryCards: View {
                     color: .primary
                 )
                 .padding(DS.Spacing.md)
-                .glassCard(cornerRadius: DS.Radius.md)
+                .glassCard()
 
                 MetricCard(
                     title: "Förbrukning",
@@ -33,7 +33,7 @@ struct HistoryMonthSummaryCards: View {
                     color: .primary
                 )
                 .padding(DS.Spacing.md)
-                .glassCard(cornerRadius: DS.Radius.md)
+                .glassCard()
             }
 
             HStack(spacing: DS.Spacing.sm) {
@@ -49,7 +49,7 @@ struct HistoryMonthSummaryCards: View {
                     color: .primary
                 )
                 .padding(DS.Spacing.md)
-                .glassCard(cornerRadius: DS.Radius.md)
+                .glassCard()
             }
 
             if isCurrentMonth {

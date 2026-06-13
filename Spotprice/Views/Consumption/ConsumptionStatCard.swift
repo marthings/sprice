@@ -33,6 +33,6 @@ struct ConsumptionStatCard: View {
         )
         .padding(.horizontal, DS.Spacing.lg)
         .padding(.vertical, DS.Spacing.md)
-        .glassCard(cornerRadius: DS.Radius.md)
+        .glassCard()
     }
 }

@@ -157,6 +157,6 @@ struct MonthlyCostCard: View {
             }
         }
         .padding(DS.Spacing.lg)
-        .glassCard(cornerRadius: DS.Radius.lg)
+        .glassCard()
     }
 }

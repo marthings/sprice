@@ -124,7 +124,7 @@ struct MonthlyStatsSection: View {
                 messageLineLimit: 2
             )
             .padding(DS.Spacing.md)
-            .glassCard(cornerRadius: DS.Radius.lg)
+            .glassCard()
         }
     }
     
@@ -164,7 +164,7 @@ struct MonthlyStatsSection: View {
             Spacer(minLength: 0)
         }
         .padding(DS.Spacing.md)
-        .glassCard(cornerRadius: DS.Radius.lg)
+        .glassCard()
     }
 
     private func historySummaryText(_ summary: HistoricalEnergySummaryValue) -> String {

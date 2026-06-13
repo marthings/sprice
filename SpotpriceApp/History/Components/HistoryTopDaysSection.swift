@@ -23,6 +23,6 @@ struct HistoryTopDaysSection: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(DS.Spacing.lg)
-        .glassCard(cornerRadius: DS.Radius.lg)
+        .glassCard()
     }
 }

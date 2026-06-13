@@ -134,7 +134,7 @@ private struct PriceChartPlot: View {
         .chartXSelection(value: $selectedChartDate)
         .frame(height: 260)
         .padding()
-        .glassCard(cornerRadius: DS.Radius.lg)
+        .glassCard()
         .zIndex(1)
         .accessibilityHint("Dra över grafen för att se pris vid en viss tid.")
     }
@@ -186,7 +186,7 @@ private struct MarketContractExplanation: View {
         }
         .padding(DS.Spacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassCard(cornerRadius: DS.Radius.lg)
+        .glassCard()
     }
 
     private var explanationText: String {
