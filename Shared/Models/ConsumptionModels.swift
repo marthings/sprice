@@ -9,7 +9,7 @@ import Foundation
 
 // MARK: - Consumption Data
 
-struct ConsumptionData: Sendable, Codable {
+struct ConsumptionData: Equatable, Sendable, Codable {
     let totalKWh: Double
     let values: [ConsumptionValue]
     let meterName: String
@@ -29,7 +29,7 @@ struct ConsumptionData: Sendable, Codable {
 
 // MARK: - Consumption Value
 
-struct ConsumptionValue: Sendable, Codable {
+struct ConsumptionValue: Equatable, Sendable, Codable {
     let date: Date
     let kWh: Double
     let price: Double
@@ -37,7 +37,7 @@ struct ConsumptionValue: Sendable, Codable {
 
 // MARK: - Daily Consumption
 
-struct DailyConsumption: Identifiable, Sendable {
+struct DailyConsumption: Equatable, Identifiable, Sendable {
     let date: Date
     let kWh: Double
 
@@ -66,7 +66,7 @@ struct QuarterlyConsumption: Identifiable, Sendable {
 
 // MARK: - Power Peak
 
-struct PowerPeak: Identifiable, Sendable {
+struct PowerPeak: Equatable, Identifiable, Sendable {
     let date: Date       // the hour
     let kW: Double       // timmedeleffekt
     var id: Date { date }
@@ -74,7 +74,7 @@ struct PowerPeak: Identifiable, Sendable {
 
 // MARK: - Precise Monthly Cost
 
-struct PreciseMonthlyCost: Sendable {
+struct PreciseMonthlyCost: Equatable, Sendable {
     let totalCostKr: Double
     let totalKWh: Double
     let matchedIntervals: Int

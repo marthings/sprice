@@ -27,7 +27,7 @@ enum HistoricalEnergySource: String, Codable, CaseIterable, Sendable {
 
 // MARK: - Historical Energy Confidence
 
-enum HistoricalEnergyConfidence: String, Codable, CaseIterable, Sendable {
+enum HistoricalEnergyConfidence: String, Codable, CaseIterable, Equatable, Sendable {
     case priceOnly
     case estimated
     case measured
@@ -494,7 +494,7 @@ struct HistoricalEnergyDateRange: Sendable {
     let end: Date
 }
 
-struct HistoricalEnergySummaryValue: Identifiable, Sendable {
+struct HistoricalEnergySummaryValue: Equatable, Identifiable, Sendable {
     let id: UUID
     let periodKey: String
     let periodStart: Date

@@ -134,7 +134,7 @@ struct DateInterval: Decodable, Sendable {
 // MARK: - Simplified User-Facing Models
 
 /// Simplified tariff for cost calculations
-struct SimplifiedTariff: Sendable, Codable {
+struct SimplifiedTariff: Equatable, Sendable, Codable {
     let dsoName: String
     let dsoOrgNo: String
     let monthlyFixedFee: Double        // SEK incl. VAT
