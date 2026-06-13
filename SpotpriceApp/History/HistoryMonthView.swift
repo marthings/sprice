@@ -93,7 +93,7 @@ struct HistoryMonthView: View {
             )
         } else {
             VStack(alignment: .leading, spacing: DS.Spacing.lg) {
-                monthPicker(data.months)
+                HistoryMonthPicker(months: data.months, selectedMonthKey: $selectedMonthKey)
 
                 if let selectedMonth = data.selectedMonth {
                     let isCurrent = isCurrentMonth(selectedMonth)
@@ -144,20 +144,6 @@ struct HistoryMonthView: View {
         }
     }
 
-    private func monthPicker(_ months: [HistoricalEnergySummaryValue]) -> some View {
-        Picker("Månad", selection: Binding(
-            get: { selectedMonthKey ?? months.first?.periodKey ?? "" },
-            set: { selectedMonthKey = $0 }
-        )) {
-            ForEach(months) { month in
-                Text(monthLabel(month.periodStart))
-                    .tag(month.periodKey)
-            }
-        }
-        .pickerStyle(.menu)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
     private func isCurrentMonth(_ summary: HistoricalEnergySummaryValue) -> Bool {
         let calendar = Calendar.energyHistory
         let now = Date()
@@ -186,12 +172,28 @@ struct HistoryMonthView: View {
                 topConsumptionDays: history.topConsumptionDays
             ))
         } catch {
-            state = .failed(error.localizedDescription)
+            state = .failed(error.userFacingMessage)
         }
     }
 
-    private func monthLabel(_ date: Date) -> String {
-        AppFormatters.historyMonthLabel(date)
+}
+
+private struct HistoryMonthPicker: View {
+    let months: [HistoricalEnergySummaryValue]
+    @Binding var selectedMonthKey: String?
+
+    var body: some View {
+        Picker("Månad", selection: Binding(
+            get: { selectedMonthKey ?? months.first?.periodKey ?? "" },
+            set: { selectedMonthKey = $0 }
+        )) {
+            ForEach(months) { month in
+                Text(AppFormatters.historyMonthLabel(month.periodStart))
+                    .tag(month.periodKey)
+            }
+        }
+        .pickerStyle(.menu)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

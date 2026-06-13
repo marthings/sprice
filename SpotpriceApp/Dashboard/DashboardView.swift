@@ -8,52 +8,39 @@ struct DashboardView: View {
 
     var body: some View {
         TabView(selection: $selectedSection) {
-            // Tab 1: Kostnad
-            CostTab(
-                state: viewModel.state,
-                settingsSummary: settingsSummary,
-                monthlyConsumption: viewModel.monthlyConsumption,
-                preciseMonthlyCost: viewModel.preciseMonthlyCost,
-                isShowingSettings: $isShowingSettings,
-                onRetry: reload
-            )
-            .tabItem {
-                Label("Kostnad", systemImage: "wallet.bifold.fill")
+            Tab("Kostnad", systemImage: "wallet.bifold.fill", value: 0) {
+                CostTab(
+                    state: viewModel.state,
+                    settingsSummary: settingsSummary,
+                    monthlyConsumption: viewModel.monthlyConsumption,
+                    preciseMonthlyCost: viewModel.preciseMonthlyCost,
+                    isShowingSettings: $isShowingSettings,
+                    onRetry: reload
+                )
             }
-            .tag(0)
-            
-            // Tab 2: Priser
-            PriceTab(
-                state: viewModel.state,
-                settingsSummary: settingsSummary,
-                selectedChartDate: $selectedChartDate,
-                isShowingSettings: $isShowingSettings,
-                onRetry: reload
-            )
-            .tabItem {
-                Label("Priser", systemImage: "chart.bar.fill")
+
+            Tab("Priser", systemImage: "chart.bar.fill", value: 1) {
+                PriceTab(
+                    state: viewModel.state,
+                    settingsSummary: settingsSummary,
+                    selectedChartDate: $selectedChartDate,
+                    isShowingSettings: $isShowingSettings,
+                    onRetry: reload
+                )
             }
-            .tag(1)
-            
-            HistoryTab(
-                settingsSummary: settingsSummary,
-                isShowingSettings: $isShowingSettings,
-                liveMonthlyConsumption: viewModel.monthlyConsumption,
-                livePreciseCost: viewModel.preciseMonthlyCost
-            )
-            .tabItem {
-                Label("Historik", systemImage: "clock.arrow.circlepath")
+
+            Tab("Historik", systemImage: "clock.arrow.circlepath", value: 2) {
+                HistoryTab(
+                    settingsSummary: settingsSummary,
+                    isShowingSettings: $isShowingSettings,
+                    liveMonthlyConsumption: viewModel.monthlyConsumption,
+                    livePreciseCost: viewModel.preciseMonthlyCost
+                )
             }
-            .tag(2)
         }
-        .toolbarBackground(.hidden, for: .tabBar)
+        .toolbarBackgroundVisibility(.hidden, for: .tabBar)
         .sheet(isPresented: $isShowingSettings) {
             AppSettingsView()
-        }
-        .task {
-            if case .idle = viewModel.state {
-                await viewModel.load()
-            }
         }
     }
     
@@ -68,26 +55,17 @@ struct DashboardView: View {
         let onRetry: () -> Void
         
         var body: some View {
-            NavigationStack {
-                ContentView(title: "Kostnad", settingsSummary: settingsSummary) {
-                    CostTabView(
-                        state: state,
-                        monthlyConsumption: monthlyConsumption,
-                        preciseMonthlyCost: preciseMonthlyCost,
-                        onRetry: onRetry
-                    )
-                }
-                .toolbarBackground(.hidden, for: .navigationBar)
-                .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            isShowingSettings = true
-                        } label: {
-                            Image(systemName: "gearshape.fill")
-                        }
-                        .accessibilityLabel("Inställningar")
-                    }
-                }
+            DashboardTabShell(
+                title: "Kostnad",
+                settingsSummary: settingsSummary,
+                isShowingSettings: $isShowingSettings
+            ) {
+                CostTabView(
+                    state: state,
+                    monthlyConsumption: monthlyConsumption,
+                    preciseMonthlyCost: preciseMonthlyCost,
+                    onRetry: onRetry
+                )
             }
         }
     }
@@ -100,25 +78,16 @@ struct DashboardView: View {
         let onRetry: () -> Void
         
         var body: some View {
-            NavigationStack {
-                ContentView(title: "Priser", settingsSummary: settingsSummary) {
-                    DailyPriceTabView(
-                        state: state,
-                        selectedChartDate: $selectedChartDate,
-                        onRetry: onRetry
-                    )
-                }
-                .toolbarBackground(.hidden, for: .navigationBar)
-                .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            isShowingSettings = true
-                        } label: {
-                            Image(systemName: "gearshape.fill")
-                        }
-                        .accessibilityLabel("Inställningar")
-                    }
-                }
+            DashboardTabShell(
+                title: "Priser",
+                settingsSummary: settingsSummary,
+                isShowingSettings: $isShowingSettings
+            ) {
+                DailyPriceTabView(
+                    state: state,
+                    selectedChartDate: $selectedChartDate,
+                    onRetry: onRetry
+                )
             }
         }
     }
@@ -133,14 +102,45 @@ struct DashboardView: View {
         let livePreciseCost: PreciseMonthlyCost?
 
         var body: some View {
+            DashboardTabShell(
+                title: "Historik",
+                settingsSummary: settingsSummary,
+                isShowingSettings: $isShowingSettings
+            ) {
+                HistoryMonthView(
+                    liveMonthlyConsumption: liveMonthlyConsumption,
+                    livePreciseCost: livePreciseCost
+                )
+            }
+        }
+    }
+
+    private struct DashboardTabShell<TabContent: View>: View {
+        let title: String
+        let settingsSummary: String
+        @Binding var isShowingSettings: Bool
+        @ViewBuilder let tabContent: () -> TabContent
+
+        var body: some View {
             NavigationStack {
-                ContentView(title: "Historik", settingsSummary: settingsSummary) {
-                    HistoryMonthView(
-                        liveMonthlyConsumption: liveMonthlyConsumption,
-                        livePreciseCost: livePreciseCost
-                    )
+                ZStack {
+                    Image("bg")
+                        .resizable()
+                        .scaledToFill()
+                        .ignoresSafeArea()
+
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: DS.Spacing.xl) {
+                            DashboardHeader(title: title, settingsSummary: settingsSummary)
+                            tabContent()
+                        }
+                        .padding(.horizontal, DS.Spacing.lg)
+                        .padding(.top, DS.Spacing.lg)
+                        .padding(.bottom, DS.Spacing.xl * 4)
+                    }
+                    .scrollContentBackground(.hidden)
                 }
-                .toolbarBackground(.hidden, for: .navigationBar)
+                .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button {
@@ -151,35 +151,6 @@ struct DashboardView: View {
                         .accessibilityLabel("Inställningar")
                     }
                 }
-            }
-        }
-    }
-    
-    // MARK: - Content Wrapper
-    
-    // Enkel wrapper för varje tab
-    private struct ContentView<Content: View>: View {
-        let title: String
-        let settingsSummary: String
-        @ViewBuilder let content: Content
-        
-        var body: some View {
-            ZStack {
-                Image("bg")
-                    .resizable()
-                    .scaledToFill()
-                    .ignoresSafeArea()
-                
-                ScrollView {
-                    VStack(alignment: .leading, spacing: DS.Spacing.xl) {
-                        DashboardHeader(title: title, settingsSummary: settingsSummary)
-                        content
-                    }
-                    .padding(.horizontal, DS.Spacing.lg)
-                    .padding(.top, DS.Spacing.lg)
-                    .padding(.bottom, DS.Spacing.xl * 4)
-                }
-                .scrollContentBackground(.hidden)
             }
         }
     }
