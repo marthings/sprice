@@ -218,6 +218,20 @@
 			);
 			target = 201EA1FC2FBCAC8C0036D7BF /* SpotpriceApp */;
 		};
+		20928C002FBCE90100D1BD9F /* Exceptions for "Components" folder in "SpotpriceWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				WidgetDayChart.swift,
+			);
+			target = 20861F8C2F2E0B9A0067EDC1 /* SpotpriceWidgetExtension */;
+		};
+		20928C012FBCE90100D1BD9F /* Exceptions for "Components" folder in "SpotpriceAppWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				WidgetDayChart.swift,
+			);
+			target = 202657782FD89ADD004BB572 /* SpotpriceAppWidgetExtension */;
+		};
 		201EA2A02FBCB1110036D7BF /* Exceptions for "DesignSystem" folder in "SpotpriceWidgetExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -408,6 +422,8 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				201EA2962FBCB10A0036D7BF /* Exceptions for "Components" folder in "SpotpriceApp" target */,
+				20928C002FBCE90100D1BD9F /* Exceptions for "Components" folder in "SpotpriceWidgetExtension" target */,
+				20928C012FBCE90100D1BD9F /* Exceptions for "Components" folder in "SpotpriceAppWidgetExtension" target */,
 			);
 			path = Components;
 			sourceTree = "<group>";

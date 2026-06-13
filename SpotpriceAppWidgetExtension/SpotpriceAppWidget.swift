@@ -107,101 +107,6 @@ struct SpotpriceAppWidgetProvider: TimelineProvider {
     }
 }
 
-// MARK: - Mini Day Chart
-
-struct MiniDayChart: View {
-    let costs: [Double]
-    let currentIndex: Int?
-    @Environment(\.widgetRenderingMode) private var renderingMode
-
-    private var lineGradient: LinearGradient {
-        let minCost = costs.min() ?? 0
-        let maxCost = costs.max() ?? 1
-        switch renderingMode {
-        case .accented:
-            return LinearGradient(colors: [.primary], startPoint: .leading, endPoint: .trailing)
-        default:
-            return LinearGradient(
-                colors: costs.map { DS.Color.forPrice($0, min: minCost, max: maxCost) },
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-        }
-    }
-
-    var body: some View {
-        GeometryReader { geo in
-            let width = geo.size.width
-            let height = geo.size.height
-            let minCost = costs.min() ?? 0
-            let maxCost = costs.max() ?? 1
-            let safeRange = max(maxCost - minCost, 1)
-
-            ZStack {
-                areaPath(width: width, height: height, minCost: minCost, safeRange: safeRange)
-                    .fill(LinearGradient(
-                        colors: [DS.Color.secondary.opacity(0.25), .clear],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    ))
-
-                linePath(width: width, height: height, minCost: minCost, safeRange: safeRange)
-                    .stroke(lineGradient, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
-
-                if let currentIndex, costs.count > 1, costs.indices.contains(currentIndex) {
-                    let x = CGFloat(currentIndex) / CGFloat(costs.count - 1) * width
-                    Path { path in
-                        path.move(to: CGPoint(x: x, y: 0))
-                        path.addLine(to: CGPoint(x: x, y: height))
-                    }
-                    .stroke(DS.Color.secondary.opacity(0.6), style: StrokeStyle(lineWidth: 1, dash: [2, 2]))
-                }
-            }
-        }
-    }
-
-    private func yPosition(for cost: Double, height: CGFloat, minCost: Double, safeRange: Double) -> CGFloat {
-        let normalized = (cost - minCost) / safeRange
-        return height - (normalized * height * 0.85) - (height * 0.075)
-    }
-
-    private func linePath(width: CGFloat, height: CGFloat, minCost: Double, safeRange: Double) -> Path {
-        Path { path in
-            guard costs.count > 1 else { return }
-            let stepX = width / CGFloat(costs.count - 1)
-
-            for (index, cost) in costs.enumerated() {
-                let point = CGPoint(
-                    x: CGFloat(index) * stepX,
-                    y: yPosition(for: cost, height: height, minCost: minCost, safeRange: safeRange)
-                )
-                if index == 0 {
-                    path.move(to: point)
-                } else {
-                    path.addLine(to: point)
-                }
-            }
-        }
-    }
-
-    private func areaPath(width: CGFloat, height: CGFloat, minCost: Double, safeRange: Double) -> Path {
-        Path { path in
-            guard costs.count > 1 else { return }
-            let stepX = width / CGFloat(costs.count - 1)
-
-            path.move(to: CGPoint(x: 0, y: height))
-            for (index, cost) in costs.enumerated() {
-                path.addLine(to: CGPoint(
-                    x: CGFloat(index) * stepX,
-                    y: yPosition(for: cost, height: height, minCost: minCost, safeRange: safeRange)
-                ))
-            }
-            path.addLine(to: CGPoint(x: width, y: height))
-            path.closeSubpath()
-        }
-    }
-}
-
 // MARK: - Widget View
 
 struct SpotpriceAppWidgetView: View {
@@ -252,7 +157,7 @@ struct SpotpriceAppWidgetView: View {
             Spacer(minLength: 0)
 
             if entry.dayCosts.count > 1 {
-                MiniDayChart(costs: entry.dayCosts, currentIndex: entry.currentIndex)
+                WidgetDayChart(costs: entry.dayCosts, currentIndex: entry.currentIndex)
                     .frame(height: chartHeight)
             }
         }
