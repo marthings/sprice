@@ -8,14 +8,11 @@ import Charts
 
 struct SpotPriceBarChart: View {
     let dayData: DayChartData
+    let costProfile: CostProfile
     let configuration: ChartConfiguration
     var tariff: SimplifiedTariff? = nil
 
     @State private var selectedDate: Date?
-
-    private var costProfile: CostProfile {
-        ConsumptionSettings.shared.costProfile
-    }
 
     var body: some View {
         VStack(spacing: 0) {

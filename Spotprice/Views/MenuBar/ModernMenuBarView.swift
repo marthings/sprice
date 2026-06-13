@@ -7,6 +7,7 @@ import SwiftUI
 
 struct ModernMenuBarView: View {
     let state: SpotPriceViewModel.State
+    let costProfile: CostProfile
     let currentTariff: SimplifiedTariff?
     let monthlyConsumption: ConsumptionData?
     let powerPeaks: [PowerPeak]
@@ -128,7 +129,12 @@ struct ModernMenuBarView: View {
     private var chartSection: some View {
         VStack(spacing: DS.Spacing.sm) {
             if case .loaded(let payload) = state {
-                SpotPriceBarChart(dayData: payload.day, configuration: .menuBar, tariff: currentTariff)
+                SpotPriceBarChart(
+                    dayData: payload.day,
+                    costProfile: costProfile,
+                    configuration: .menuBar,
+                    tariff: currentTariff
+                )
             } else {
                 loadingStateView
                     .frame(height: DS.Size.chartHeightMenuBar)
@@ -168,10 +174,10 @@ struct ModernMenuBarView: View {
             VStack(spacing: DS.Spacing.md) {
                 SharedPriceRangeSection(
                     dayData: payload.day,
-                    profile: ConsumptionSettings.shared.costProfile,
+                    profile: costProfile,
                     style: .compact
                 )
-                CostCalculationSection(payload: payload, profile: ConsumptionSettings.shared.costProfile)
+                CostCalculationSection(payload: payload, profile: costProfile)
             }
         }
     }

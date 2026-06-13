@@ -23,6 +23,7 @@ struct DashboardView: View {
                 PriceTab(
                     state: viewModel.state,
                     settingsSummary: settingsSummary,
+                    costProfile: settingsSummaryCostProfile,
                     selectedChartDate: $selectedChartDate,
                     isShowingSettings: $isShowingSettings,
                     onRetry: reload
@@ -75,6 +76,7 @@ struct DashboardView: View {
     private struct PriceTab: View {
         let state: SpotPriceViewModel.State
         let settingsSummary: String
+        let costProfile: CostProfile
         @Binding var selectedChartDate: Date?
         @Binding var isShowingSettings: Bool
         let onRetry: () -> Void
@@ -87,6 +89,7 @@ struct DashboardView: View {
             ) {
                 DailyPriceTabView(
                     state: state,
+                    costProfile: costProfile,
                     selectedChartDate: $selectedChartDate,
                     onRetry: onRetry
                 )

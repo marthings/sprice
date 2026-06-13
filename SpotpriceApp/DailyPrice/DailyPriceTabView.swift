@@ -3,6 +3,7 @@ import Charts
 
 struct DailyPriceTabView: View {
     let state: SpotPriceViewModel.State
+    let costProfile: CostProfile
     @Binding var selectedChartDate: Date?
     let onRetry: () -> Void
 
@@ -14,14 +15,18 @@ struct DailyPriceTabView: View {
             DashboardErrorView(message: message, onRetry: onRetry)
         case .loaded(let payload):
             VStack(alignment: .leading, spacing: DS.Spacing.xl) {
-                PriceChartSection(payload: payload, selectedChartDate: $selectedChartDate)
+                PriceChartSection(
+                    payload: payload,
+                    costProfile: costProfile,
+                    selectedChartDate: $selectedChartDate
+                )
                 SharedPriceRangeSection(
                     dayData: payload.day,
-                    profile: ConsumptionSettings.shared.costProfile,
+                    profile: costProfile,
                     style: .regular
                 )
-                
-                MarketContractExplanation(profile: ConsumptionSettings.shared.costProfile)
+
+                MarketContractExplanation(profile: costProfile)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -30,11 +35,8 @@ struct DailyPriceTabView: View {
 
 private struct PriceChartSection: View {
     let payload: SpotPriceViewModel.CurrentAndDay
+    let costProfile: CostProfile
     @Binding var selectedChartDate: Date?
-
-    private var profile: CostProfile {
-        ConsumptionSettings.shared.costProfile
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
@@ -50,7 +52,7 @@ private struct PriceChartSection: View {
 
             PriceChartPlot(
                 day: payload.day,
-                profile: profile,
+                profile: costProfile,
                 selectedChartDate: $selectedChartDate
             )
         }

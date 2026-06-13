@@ -63,6 +63,7 @@ struct CostExamplesSection: View {
     private var examples: [CostExample] {
         [
             CostExample(
+                id: "shower",
                 title: "Dusch",
                 subtitle: "10 min",
                 kWh: 6.0,
@@ -71,6 +72,7 @@ struct CostExamplesSection: View {
                 color: DS.Color.info
             ),
             CostExample(
+                id: "oven",
                 title: "Pizza i ugn",
                 subtitle: "~1,1 kWh",
                 kWh: 1.1,
@@ -79,6 +81,7 @@ struct CostExamplesSection: View {
                 color: DS.Color.warning
             ),
             CostExample(
+                id: "heat-pump",
                 title: "Värmepump",
                 subtitle: "1 dygn",
                 kWh: 24.0,
@@ -87,6 +90,7 @@ struct CostExamplesSection: View {
                 color: DS.Color.danger
             ),
             CostExample(
+                id: "ev-charge",
                 title: "Ladda bilen",
                 subtitle: "~45 kWh",
                 kWh: 45.0,
@@ -100,7 +104,7 @@ struct CostExamplesSection: View {
 }
 
 private struct CostExample: Identifiable {
-    let id = UUID()
+    let id: String
     let title: String
     let subtitle: String
     let kWh: Double
