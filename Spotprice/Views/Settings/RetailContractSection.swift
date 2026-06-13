@@ -37,7 +37,7 @@ struct RetailContractSection: View {
     }
 
     private var contractTypePicker: some View {
-        Picker("Avtalsmodell", selection: retailContractTypeBinding) {
+        Picker("Avtalsmodell", selection: $settings[retailContractType: SettingsBind.retailContractType]) {
             Text("Kvartspris").tag(RetailContractType.spotPriceMarkup)
             Text("Rörligt").tag(RetailContractType.variableMonthlyPrice)
             Text("Fast").tag(RetailContractType.fixedPrice)
@@ -66,21 +66,21 @@ struct RetailContractSection: View {
             contractValueField(
                 title: "Elhandelsavgifter (öre/kWh inkl. moms)",
                 placeholder: "4",
-                value: retailerMarkupBinding,
+                value: $settings[retailerMarkupOre: SettingsBind.retailerMarkupOre],
                 help: "Ange avgifterna från ditt kvartsprisavtal."
             )
         case .variableMonthlyPrice:
             contractValueField(
                 title: "Avtalat elpris (öre/kWh inkl. moms)",
                 placeholder: "84,30",
-                value: contractPriceBinding,
+                value: $settings[contractPriceOre: SettingsBind.contractPriceOre],
                 help: "Ange det avtalade elpriset i öre/kWh från ditt rörliga månadspris."
             )
         case .fixedPrice:
             contractValueField(
                 title: "Fast elpris (öre/kWh inkl. moms)",
                 placeholder: "103,30",
-                value: contractPriceBinding,
+                value: $settings[contractPriceOre: SettingsBind.contractPriceOre],
                 help: "Ange ditt fasta avtalade elpris i öre/kWh."
             )
         }
@@ -90,14 +90,14 @@ struct RetailContractSection: View {
         contractValueField(
             title: "Månadsavgift (kr/mån)",
             placeholder: "0",
-            value: retailerMonthlyFeeBinding,
+            value: $settings[retailerMonthlyFee: SettingsBind.retailerMonthlyFee],
             help: "Ange månadsavgiften från ditt elhandelsavtal."
         )
     }
 
     private var resetButton: some View {
         Button("Återställ standard") {
-            resetRetailContract()
+            settings.resetRetailContractToDefaults()
         }
         .font(DS.Font.medium(11))
         .buttonStyle(.plain)
@@ -147,100 +147,5 @@ struct RetailContractSection: View {
                 .textFieldStyle(.roundedBorder)
                 .help(help)
         }
-    }
-
-    private var retailContractTypeBinding: Binding<RetailContractType> {
-        Binding(
-            get: { settings.costProfile.retailContractType },
-            set: { newValue in
-                updateRetailContractType(newValue)
-            }
-        )
-    }
-
-    private var retailerMarkupBinding: Binding<Double> {
-        Binding(
-            get: { settings.costProfile.retailerMarkupOrePerKWh },
-            set: { newValue in
-                updateSpotPriceMarkup(newValue)
-            }
-        )
-    }
-
-    private var contractPriceBinding: Binding<Double> {
-        Binding(
-            get: { settings.costProfile.contractPriceOrePerKWh ?? 0 },
-            set: { newValue in
-                updateContractPrice(newValue)
-            }
-        )
-    }
-
-    private var retailerMonthlyFeeBinding: Binding<Double> {
-        Binding(
-            get: { settings.costProfile.retailerMonthlyFee },
-            set: { newValue in
-                updateMonthlyFee(newValue)
-            }
-        )
-    }
-
-    private func updateRetailContractType(_ type: RetailContractType) {
-        let contractPrice = type == .spotPriceMarkup ? nil : settings.costProfile.contractPriceOrePerKWh
-        settings.costProfile = settings.costProfile
-            .settingRetailContract(
-                type: type,
-                contractPriceOrePerKWh: contractPrice,
-                retailContractSource: .userEntered,
-                confidence: .userConfigured,
-                source: .userEntered
-            )
-    }
-
-    private func updateSpotPriceMarkup(_ markup: Double) {
-        settings.costProfile = settings.costProfile
-            .settingRetailContract(
-                type: .spotPriceMarkup,
-                retailerMarkupOrePerKWh: markup,
-                contractPriceOrePerKWh: nil,
-                retailContractSource: .userEntered,
-                confidence: .userConfigured,
-                source: .userEntered
-            )
-    }
-
-    private func updateContractPrice(_ price: Double) {
-        settings.costProfile = settings.costProfile
-            .settingRetailContract(
-                type: settings.costProfile.retailContractType,
-                contractPriceOrePerKWh: price,
-                retailContractSource: .userEntered,
-                confidence: .userConfigured,
-                source: .userEntered
-            )
-    }
-
-    private func updateMonthlyFee(_ monthlyFee: Double) {
-        settings.costProfile = settings.costProfile
-            .settingRetailContract(
-                type: settings.costProfile.retailContractType,
-                contractPriceOrePerKWh: settings.costProfile.contractPriceOrePerKWh,
-                retailerMonthlyFee: monthlyFee,
-                retailContractSource: .userEntered,
-                confidence: .userConfigured,
-                source: .userEntered
-            )
-    }
-
-    private func resetRetailContract() {
-        settings.costProfile = settings.costProfile
-            .settingRetailContract(
-                type: .spotPriceMarkup,
-                retailerMarkupOrePerKWh: CostProfile.SwedishDefaults.retailerMarkupOrePerKWh,
-                contractPriceOrePerKWh: nil,
-                retailerMonthlyFee: CostProfile.SwedishDefaults.retailerMonthlyFee,
-                retailContractSource: .defaultEstimate
-            )
-            .applyingInferredConfidence(configuredSource: .userEntered)
     }
 }

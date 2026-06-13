@@ -497,3 +497,177 @@ final class ConsumptionSettings {
         priceArea = "SE3"
     }
 }
+
+// MARK: - Form Bindings
+
+enum SettingsBind: Hashable {
+    case priceArea
+    case retailContractType
+    case retailerMarkupOre
+    case contractPriceOre
+    case retailerMonthlyFee
+    case gridMonthlyFee
+    case gridTransferOre
+    case effectTariffEnabled
+    case effectTariffPrice
+}
+
+extension ConsumptionSettings {
+    subscript(credential field: String, provider providerId: String) -> String {
+        get { getCredentials(for: providerId)[field] }
+        set {
+            var credentials = getCredentials(for: providerId)
+            credentials[field] = newValue
+            setCredentials(credentials, for: providerId)
+        }
+    }
+
+    subscript(priceArea _: SettingsBind) -> String {
+        get { costProfile.priceArea }
+        set {
+            costProfile = costProfile.updating(priceArea: newValue)
+            WidgetCenter.shared.reloadAllTimelines()
+        }
+    }
+
+    subscript(retailContractType _: SettingsBind) -> RetailContractType {
+        get { costProfile.retailContractType }
+        set { setRetailContractType(newValue) }
+    }
+
+    subscript(retailerMarkupOre _: SettingsBind) -> Double {
+        get { costProfile.retailerMarkupOrePerKWh }
+        set { setRetailerMarkupOre(newValue) }
+    }
+
+    subscript(contractPriceOre _: SettingsBind) -> Double {
+        get { costProfile.contractPriceOrePerKWh ?? 0 }
+        set { setContractPriceOre(newValue) }
+    }
+
+    subscript(retailerMonthlyFee _: SettingsBind) -> Double {
+        get { costProfile.retailerMonthlyFee }
+        set { setRetailerMonthlyFee(newValue) }
+    }
+
+    subscript(gridMonthlyFee _: SettingsBind) -> Double {
+        get { costProfile.gridMonthlyFee ?? 0 }
+        set {
+            setManualGridCosts(
+                monthlyFee: newValue,
+                transferFee: costProfile.gridTransferOrePerKWh ?? 0
+            )
+        }
+    }
+
+    subscript(gridTransferOre _: SettingsBind) -> Double {
+        get { costProfile.gridTransferOrePerKWh ?? 0 }
+        set {
+            setManualGridCosts(
+                monthlyFee: costProfile.gridMonthlyFee ?? 0,
+                transferFee: newValue
+            )
+        }
+    }
+
+    subscript(effectTariffEnabled _: SettingsBind) -> Bool {
+        get { costProfile.effectTariff != nil }
+        set {
+            if newValue {
+                setEffectTariffPrice(costProfile.effectTariff?.monthlyPricePerKW ?? 0)
+            } else {
+                costProfile = costProfile
+                    .settingEffectTariff(nil)
+                    .applyingInferredConfidence()
+                WidgetCenter.shared.reloadAllTimelines()
+            }
+        }
+    }
+
+    subscript(effectTariffPrice _: SettingsBind) -> Double {
+        get { costProfile.effectTariff?.monthlyPricePerKW ?? 0 }
+        set { setEffectTariffPrice(newValue) }
+    }
+
+    func setRetailContractType(_ type: RetailContractType) {
+        let contractPrice = type == .spotPriceMarkup ? nil : costProfile.contractPriceOrePerKWh
+        costProfile = costProfile.settingRetailContract(
+            type: type,
+            contractPriceOrePerKWh: contractPrice,
+            retailContractSource: .userEntered,
+            confidence: .userConfigured,
+            source: .userEntered
+        )
+    }
+
+    func setRetailerMarkupOre(_ markup: Double) {
+        costProfile = costProfile.settingRetailContract(
+            type: .spotPriceMarkup,
+            retailerMarkupOrePerKWh: markup,
+            contractPriceOrePerKWh: nil,
+            retailContractSource: .userEntered,
+            confidence: .userConfigured,
+            source: .userEntered
+        )
+    }
+
+    func setContractPriceOre(_ price: Double) {
+        costProfile = costProfile.settingRetailContract(
+            type: costProfile.retailContractType,
+            contractPriceOrePerKWh: price,
+            retailContractSource: .userEntered,
+            confidence: .userConfigured,
+            source: .userEntered
+        )
+    }
+
+    func setRetailerMonthlyFee(_ monthlyFee: Double) {
+        costProfile = costProfile.settingRetailContract(
+            type: costProfile.retailContractType,
+            contractPriceOrePerKWh: costProfile.contractPriceOrePerKWh,
+            retailerMonthlyFee: monthlyFee,
+            retailContractSource: .userEntered,
+            confidence: .userConfigured,
+            source: .userEntered
+        )
+    }
+
+    func resetRetailContractToDefaults() {
+        costProfile = costProfile
+            .settingRetailContract(
+                type: .spotPriceMarkup,
+                retailerMarkupOrePerKWh: CostProfile.SwedishDefaults.retailerMarkupOrePerKWh,
+                contractPriceOrePerKWh: nil,
+                retailerMonthlyFee: CostProfile.SwedishDefaults.retailerMonthlyFee,
+                retailContractSource: .defaultEstimate
+            )
+            .applyingInferredConfidence(configuredSource: .userEntered)
+    }
+
+    func setManualGridCosts(monthlyFee: Double, transferFee: Double, gridCompanyName: String? = nil) {
+        costProfile = costProfile.updating(
+            gridCompanyId: selectedDSOOrgNo.isEmpty ? costProfile.gridCompanyId : selectedDSOOrgNo,
+            gridCompanyName: gridCompanyName ?? costProfile.gridCompanyName,
+            fuseSize: fuseSize,
+            gridMonthlyFee: monthlyFee,
+            gridTransferOrePerKWh: transferFee,
+            gridCostSource: .userEntered,
+            confidence: .userConfigured,
+            source: .userEntered
+        )
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+
+    func setEffectTariffPrice(_ monthlyPricePerKW: Double) {
+        costProfile = costProfile.settingEffectTariff(
+            EffectTariff(
+                monthlyPricePerKW: monthlyPricePerKW,
+                model: .manual,
+                activeHours: .custom
+            ),
+            confidence: .userConfigured,
+            source: .userEntered
+        )
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+}

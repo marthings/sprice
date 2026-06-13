@@ -11,7 +11,6 @@ import OSLog
 
 struct SettingsView: View {
     @Bindable var settings = ConsumptionSettings.shared
-    @State private var selectedPriceArea = "SE3"
     @State private var connectionStatus: ConnectionStatus = .unknown
     @State private var availableDSOs: [DSOOption] = []
     @State private var isLoadingDSOs = false
@@ -102,7 +101,7 @@ struct SettingsView: View {
                                 
                                 AppLog.settings.info("Consumption provider verification succeeded")
                             } catch {
-                                connectionStatus = .failed(error.localizedDescription)
+                                connectionStatus = .failed(error.userFacingMessage)
                                 AppLog.settings.error("Consumption provider verification failed: \(error.localizedDescription, privacy: .public)")
                             }
                         }
@@ -123,7 +122,6 @@ struct SettingsView: View {
         }
         .frame(width: DS.Size.settingsWidth, height: 520)
         .onAppear {
-            selectedPriceArea = settings.costProfile.priceArea
             loadHistoryStorageStatus()
         }
         .fileExporter(
@@ -133,7 +131,7 @@ struct SettingsView: View {
             defaultFilename: "sprice-history-\(settings.priceArea)"
         ) { result in
             if case .failure(let error) = result {
-                historyStorageStatus = "Kunde inte exportera historik: \(error.localizedDescription)"
+                historyStorageStatus = "Kunde inte exportera historik: \(error.userFacingMessage)"
             }
         }
         .confirmationDialog(
@@ -157,17 +155,15 @@ struct SettingsView: View {
                 .font(DS.Font.bold(12))
                 .foregroundStyle(.primary)
 
-            Picker("", selection: $selectedPriceArea) {
+            Picker("", selection: $settings[priceArea: SettingsBind.priceArea]) {
                 ForEach(priceAreas, id: \.self) { area in
                     Text(area).tag(area)
                 }
             }
             .labelsHidden()
             .pickerStyle(.palette)
-            .onChange(of: selectedPriceArea) { _, newValue in
-                settings.costProfile = settings.costProfile.updating(priceArea: newValue)
+            .onChange(of: settings.costProfile.priceArea) { _, _ in
                 loadHistoryStorageStatus()
-                WidgetCenter.shared.reloadAllTimelines()
             }
 
             Text("Välj ditt elområde i Sverige. Detta räcker för att visa en första kostnadsuppskattning.")
@@ -257,7 +253,7 @@ struct SettingsView: View {
                         .font(DS.Font.regular(11))
                         .foregroundStyle(DS.Color.secondary)
 
-                    TextField("0", value: gridMonthlyFeeBinding, format: .number)
+                    TextField("0", value: $settings[gridMonthlyFee: SettingsBind.gridMonthlyFee], format: .number)
                         .textFieldStyle(.roundedBorder)
                         .help("Ange din fasta elnätsavgift per månad om tariffdata saknas eller avviker.")
                 }
@@ -267,7 +263,7 @@ struct SettingsView: View {
                         .font(DS.Font.regular(11))
                         .foregroundStyle(DS.Color.secondary)
 
-                    TextField("0", value: gridTransferFeeBinding, format: .number)
+                    TextField("0", value: $settings[gridTransferOre: SettingsBind.gridTransferOre], format: .number)
                         .textFieldStyle(.roundedBorder)
                         .help("Ange rörlig nätavgift i öre/kWh om tariffdata saknas eller avviker.")
                 }
@@ -406,7 +402,7 @@ struct SettingsView: View {
             settingSummaryRow("Energiskatt", energyTaxText)
             settingSummaryRow("Elcertifikat", "1,75 öre/kWh")
 
-            Toggle("Effektavgift", isOn: effectTariffEnabledBinding)
+            Toggle("Effektavgift", isOn: $settings[effectTariffEnabled: SettingsBind.effectTariffEnabled])
                 .font(DS.Font.regular(11))
 
             if settings.costProfile.effectTariff != nil {
@@ -415,7 +411,7 @@ struct SettingsView: View {
                         .font(DS.Font.regular(11))
                         .foregroundStyle(DS.Color.secondary)
 
-                    TextField("0", value: effectTariffPriceBinding, format: .number)
+                    TextField("0", value: $settings[effectTariffPrice: SettingsBind.effectTariffPrice], format: .number)
                         .textFieldStyle(.roundedBorder)
                         .help("Ange bara detta om ditt elnätsbolag använder effektavgift.")
                 }
@@ -463,84 +459,6 @@ struct SettingsView: View {
                 .font(DS.Font.regular(11))
                 .foregroundStyle(DS.Color.secondary)
         }
-    }
-
-    private var gridMonthlyFeeBinding: Binding<Double> {
-        Binding(
-            get: { settings.costProfile.gridMonthlyFee ?? 0 },
-            set: { newValue in
-                updateManualGridCosts(
-                    monthlyFee: newValue,
-                    transferFee: settings.costProfile.gridTransferOrePerKWh ?? 0
-                )
-            }
-        )
-    }
-
-    private var gridTransferFeeBinding: Binding<Double> {
-        Binding(
-            get: { settings.costProfile.gridTransferOrePerKWh ?? 0 },
-            set: { newValue in
-                updateManualGridCosts(
-                    monthlyFee: settings.costProfile.gridMonthlyFee ?? 0,
-                    transferFee: newValue
-                )
-            }
-        )
-    }
-
-    private var effectTariffEnabledBinding: Binding<Bool> {
-        Binding(
-            get: { settings.costProfile.effectTariff != nil },
-            set: { isEnabled in
-                if isEnabled {
-                    updateEffectTariff(
-                        monthlyPricePerKW: settings.costProfile.effectTariff?.monthlyPricePerKW ?? 0
-                    )
-                } else {
-                    settings.costProfile = settings.costProfile
-                        .settingEffectTariff(nil)
-                        .applyingInferredConfidence()
-                    WidgetCenter.shared.reloadAllTimelines()
-                }
-            }
-        )
-    }
-
-    private var effectTariffPriceBinding: Binding<Double> {
-        Binding(
-            get: { settings.costProfile.effectTariff?.monthlyPricePerKW ?? 0 },
-            set: { newValue in
-                updateEffectTariff(monthlyPricePerKW: newValue)
-            }
-        )
-    }
-
-    private func updateManualGridCosts(monthlyFee: Double, transferFee: Double) {
-        settings.costProfile = settings.costProfile.updating(
-            gridCompanyId: settings.selectedDSOOrgNo.isEmpty ? settings.costProfile.gridCompanyId : settings.selectedDSOOrgNo,
-            gridCompanyName: selectedDSOName,
-            fuseSize: settings.fuseSize,
-            gridMonthlyFee: monthlyFee,
-            gridTransferOrePerKWh: transferFee,
-            gridCostSource: .userEntered,
-            confidence: .userConfigured,
-            source: .userEntered
-        )
-        WidgetCenter.shared.reloadAllTimelines()
-    }
-
-    private func updateEffectTariff(monthlyPricePerKW: Double) {
-        settings.costProfile = settings.costProfile.settingEffectTariff(
-            EffectTariff(
-                monthlyPricePerKW: monthlyPricePerKW,
-                model: .manual,
-                activeHours: .custom
-            ),
-            confidence: .userConfigured,
-            source: .userEntered
-        )
-        WidgetCenter.shared.reloadAllTimelines()
     }
 
     private func updateGridCompany(_ dsoId: String, preferImportedValues: Bool = false) async {
@@ -671,7 +589,7 @@ struct SettingsView: View {
         do {
             availableDSOs = try await gridTariffService.fetchAvailableDSOs()
         } catch {
-            dsoLoadError = "Kunde inte ladda nätägare: \(error.localizedDescription)"
+            dsoLoadError = "Kunde inte ladda nätägare: \(error.userFacingMessage)"
         }
         
         isLoadingDSOs = false
@@ -689,7 +607,7 @@ struct SettingsView: View {
                 historyStorageStatus = "\(monthCount) sparade månader för \(settings.priceArea)."
             }
         } catch {
-            historyStorageStatus = "Kunde inte läsa historikstatus: \(error.localizedDescription)"
+            historyStorageStatus = "Kunde inte läsa historikstatus: \(error.userFacingMessage)"
         }
     }
 
@@ -711,7 +629,7 @@ struct SettingsView: View {
             historyStorageStatus = "Lokal historik är raderad."
             WidgetCenter.shared.reloadAllTimelines()
         } catch {
-            historyStorageStatus = "Kunde inte radera historik: \(error.localizedDescription)"
+            historyStorageStatus = "Kunde inte radera historik: \(error.userFacingMessage)"
         }
     }
 
@@ -722,7 +640,7 @@ struct SettingsView: View {
             loadHistoryStorageStatus()
             WidgetCenter.shared.reloadAllTimelines()
         } catch {
-            historyStorageStatus = "Kunde inte rensa historik: \(error.localizedDescription)"
+            historyStorageStatus = "Kunde inte rensa historik: \(error.userFacingMessage)"
         }
     }
 }

@@ -28,7 +28,7 @@ struct ProviderCredentialsSection: View {
                     ForEach(metadata.credentialFields) { field in
                         CredentialFieldView(
                             field: field,
-                            value: bindingForField(field.id)
+                            value: $settings[credential: field.id, provider: providerId]
                         )
                     }
                 }
@@ -44,18 +44,6 @@ struct ProviderCredentialsSection: View {
         }
     }
 
-    private func bindingForField(_ fieldId: String) -> Binding<String> {
-        Binding(
-            get: {
-                settings.getCredentials(for: providerId)[fieldId]
-            },
-            set: { newValue in
-                var creds = settings.getCredentials(for: providerId)
-                creds[fieldId] = newValue
-                settings.setCredentials(creds, for: providerId)
-            }
-        )
-    }
 }
 
 // MARK: - Credential Field View
