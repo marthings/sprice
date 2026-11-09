@@ -39,13 +39,13 @@ private enum HistoryMonthPreviewData {
         let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: now))!
         let previousStart = calendar.date(byAdding: .month, value: -1, to: monthStart)!
         let dailySummaries = measuredDailySummaries(calendar: calendar, monthStart: previousStart)
-        let monthlySummary = monthlySummary(
+        let monthlySummary = makeMonthlySummary(
             start: previousStart,
             dailySummaries: dailySummaries,
             measuredCount: 720,
             confidence: .measured
         )
-        let previousSummary = monthlySummary(
+        let previousSummary = makeMonthlySummary(
             start: calendar.date(byAdding: .month, value: -1, to: previousStart)!,
             dailySummaries: dailySummaries,
             measuredCount: 720,
@@ -60,7 +60,7 @@ private enum HistoryMonthPreviewData {
         let now = Date()
         let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: now))!
         let dailySummaries = mixedDailySummaries(calendar: calendar, monthStart: monthStart)
-        let monthlySummary = monthlySummary(
+        let monthlySummary = makeMonthlySummary(
             start: monthStart,
             dailySummaries: dailySummaries,
             measuredCount: 360,
@@ -86,7 +86,7 @@ private enum HistoryMonthPreviewData {
         )
     }
 
-    private static func monthlySummary(
+    private static func makeMonthlySummary(
         start: Date,
         dailySummaries: [HistoricalEnergySummaryValue],
         measuredCount: Int,
@@ -115,7 +115,7 @@ private enum HistoryMonthPreviewData {
     ) -> [HistoricalEnergySummaryValue] {
         (0..<30).map { dayOffset in
             let date = calendar.date(byAdding: .day, value: dayOffset, to: monthStart)!
-            return dailySummary(
+            return makeDailySummary(
                 date: date,
                 measuredCount: 24,
                 consumption: Double.random(in: 30...60),
@@ -134,7 +134,7 @@ private enum HistoryMonthPreviewData {
 
             switch dayOffset % 4 {
             case 0:
-                return dailySummary(
+                return makeDailySummary(
                     date: date,
                     measuredCount: 24,
                     consumption: Double.random(in: 30...60),
@@ -142,7 +142,7 @@ private enum HistoryMonthPreviewData {
                     confidence: .measured
                 )
             case 1:
-                return dailySummary(
+                return makeDailySummary(
                     date: date,
                     measuredCount: 12,
                     consumption: Double.random(in: 30...60),
@@ -150,7 +150,7 @@ private enum HistoryMonthPreviewData {
                     confidence: .partial
                 )
             case 2:
-                return dailySummary(
+                return makeDailySummary(
                     date: date,
                     measuredCount: 0,
                     consumption: nil,
@@ -158,7 +158,7 @@ private enum HistoryMonthPreviewData {
                     confidence: .estimated
                 )
             default:
-                return dailySummary(
+                return makeDailySummary(
                     date: date,
                     measuredCount: 0,
                     consumption: nil,
@@ -169,7 +169,7 @@ private enum HistoryMonthPreviewData {
         }
     }
 
-    private static func dailySummary(
+    private static func makeDailySummary(
         date: Date,
         measuredCount: Int,
         consumption: Double?,
