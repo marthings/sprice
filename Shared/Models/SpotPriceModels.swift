@@ -9,7 +9,7 @@ import Foundation
 
 // MARK: - Price Category
 
-enum PriceCategory: String, Equatable, CaseIterable, Sendable {
+nonisolated enum PriceCategory: String, Equatable, CaseIterable, Sendable {
     case low
     case medium
     case high
@@ -44,7 +44,7 @@ enum PriceCategory: String, Equatable, CaseIterable, Sendable {
 
 // MARK: - Thresholds
 
-struct Thresholds: Equatable, Sendable {
+nonisolated struct Thresholds: Equatable, Sendable {
     /// Tertile cutoffs in öre/kWh used for classification
     let lowUpper: Double   // <= this is low
     let mediumUpper: Double // <= this is medium, above is high
@@ -52,7 +52,7 @@ struct Thresholds: Equatable, Sendable {
 
 // MARK: - Price Bucket
 
-struct PriceBucket: Identifiable, Equatable, Sendable {
+nonisolated struct PriceBucket: Identifiable, Equatable, Sendable {
     let start: Date
     let end: Date
     let orePerKWh: Double
@@ -70,7 +70,7 @@ struct PriceBucket: Identifiable, Equatable, Sendable {
 
 // MARK: - Day Chart Data
 
-struct DayChartData: Equatable, Sendable {
+nonisolated struct DayChartData: Equatable, Sendable {
     let buckets: [PriceBucket]
     let thresholds: Thresholds
     let minOre: Double
@@ -261,7 +261,7 @@ nonisolated enum SpotPriceMatching: Sendable {
     }
 }
 
-enum PriceBucketAnalytics {
+nonisolated enum PriceBucketAnalytics {
     static func averageSpotPrice(_ buckets: [PriceBucket]) -> Double {
         guard !buckets.isEmpty else { return 0 }
         return buckets.reduce(0) { $0 + $1.orePerKWh } / Double(buckets.count)
@@ -270,7 +270,7 @@ enum PriceBucketAnalytics {
 
 // MARK: - Spot Price Item (API Response)
 
-struct SpotPriceItem: Codable, Equatable, Sendable {
+nonisolated struct SpotPriceItem: Codable, Equatable, Sendable {
     let sekPerKWh: Double
     let eurPerKWh: Double
     let exr: Double
