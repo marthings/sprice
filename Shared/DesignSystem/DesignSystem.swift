@@ -938,6 +938,9 @@ struct SpriceCardBackground: View {
     var tone: SpriceCardTone = .default
     var cornerRadius: CGFloat = DS.Glass.cardRadius
     var isInteractive: Bool = false
+    /// Flat fill for grouped Form rows: no `glassEffect` and no per-row gradient,
+    /// so Liquid Glass does not draw a seam under each field.
+    var isListRow: Bool = false
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -986,9 +989,15 @@ struct SpriceCardBackground: View {
         )
     }
 
+    private var flatPaletteFill: Color {
+        paletteColor.opacity(washOpacity)
+    }
+
     var body: some View {
         Group {
-            if reduceTransparency {
+            if isListRow {
+                listRowBackground
+            } else if reduceTransparency {
                 cardShape
                     .fill(opaqueBase)
                     .overlay {
@@ -1005,6 +1014,26 @@ struct SpriceCardBackground: View {
                     }
                     .glassEffect(glassStyle, in: cardShape)
             }
+        }
+    }
+
+    @ViewBuilder
+    private var listRowBackground: some View {
+        if reduceTransparency {
+            cardShape
+                .fill(opaqueBase)
+                .overlay {
+                    cardShape.fill(flatPaletteFill)
+                }
+        } else {
+            cardShape
+                .fill(.regularMaterial)
+                .overlay {
+                    cardShape.fill(contrastFill)
+                }
+                .overlay {
+                    cardShape.fill(flatPaletteFill)
+                }
         }
     }
 }
@@ -1059,11 +1088,63 @@ extension View {
     }
 
     /// Same palette fill as `spriceCard`, for grouped Form rows. Corner radius is
-    /// 0 so the Form can clip the section as one card.
+    /// 0 so the Form can clip the section as one card. Flat: no glass edge.
     func spriceListRowBackground(tone: SpriceCardTone = .default) -> some View {
         listRowBackground(
-            SpriceCardBackground(tone: tone, cornerRadius: 0)
+            SpriceCardBackground(tone: tone, cornerRadius: 0, isListRow: true)
         )
+    }
+
+    func spriceSettingsHeaderStyle() -> some View {
+        font(DS.Font.caption)
+            .foregroundStyle(DS.Color.secondary)
+            .textCase(.uppercase)
+    }
+
+    func spriceSettingsFooterStyle() -> some View {
+        font(DS.Font.micro)
+            .foregroundStyle(DS.Color.secondary)
+    }
+}
+
+/// Menu picker whose trailing value is a `DS.Font` `Text`, for grouped Forms.
+struct SpriceSettingsMenuPicker<Selection: Hashable, Options: View>: View {
+    let title: String
+    @Binding var selection: Selection
+    let valueText: String
+    var monospacedValue: Bool = false
+    let options: Options
+
+    init(
+        title: String,
+        selection: Binding<Selection>,
+        valueText: String,
+        monospacedValue: Bool = false,
+        @ViewBuilder options: () -> Options
+    ) {
+        self.title = title
+        self._selection = selection
+        self.valueText = valueText
+        self.monospacedValue = monospacedValue
+        self.options = options()
+    }
+
+    var body: some View {
+        LabeledContent(title) {
+            Menu {
+                Picker(title, selection: $selection) {
+                    options
+                }
+            } label: {
+                Text(valueText)
+                    .font(monospacedValue ? DS.Font.body.monospacedDigit() : DS.Font.body)
+                    .foregroundStyle(.primary)
+                    .multilineTextAlignment(.trailing)
+            }
+            .accessibilityLabel(title)
+            .accessibilityValue(valueText)
+        }
+        .spriceListRowBackground()
     }
 }
 

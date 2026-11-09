@@ -32,6 +32,8 @@ struct ProviderSettingsView: View {
             .contentMargins(.top, DS.Spacing.titleToContent, for: .scrollContent)
             .listSectionSpacing(DS.Spacing.md)
             .environment(\.defaultMinListHeaderHeight, 0)
+            .font(DS.Font.body)
+            .textFieldStyle(.plain)
             .tint(DS.Color.info)
         }
         .navigationTitle("Förbrukning")
@@ -79,19 +81,22 @@ struct ProviderSettingsView: View {
 
     private var providerSection: some View {
         Section {
-            Picker("Leverantör", selection: $selectedProviderId) {
+            SpriceSettingsMenuPicker(
+                title: "Leverantör",
+                selection: $selectedProviderId,
+                valueText: selectedProviderName
+            ) {
                 Text("Ingen").tag("")
                 ForEach(providers) { provider in
                     Text(provider.displayName).tag(provider.identifier)
                 }
             }
-            .pickerStyle(.menu)
-            .accessibilityLabel("Leverantör")
-            .spriceListRowBackground()
         } header: {
             Text("Datakälla")
+                .spriceSettingsHeaderStyle()
         } footer: {
             Text("Används för månadsförbrukning, effekttoppar och mer träffsäkra kostnader.")
+                .spriceSettingsFooterStyle()
         }
     }
 
@@ -106,13 +111,18 @@ struct ProviderSettingsView: View {
                 if let portalURL = metadata.portalURL {
                     Link(destination: portalURL) {
                         Label("Öppna \(metadata.displayName)", systemImage: "safari")
+                            .font(DS.Font.body)
                     }
                     .spriceListRowBackground()
                 }
             } header: {
                 Text("Inloggningsuppgifter")
+                    .spriceSettingsHeaderStyle()
             } footer: {
-                if let help = metadata.credentialHelpText { Text(help) }
+                if let help = metadata.credentialHelpText {
+                    Text(help)
+                        .spriceSettingsFooterStyle()
+                }
             }
         }
     }
@@ -126,6 +136,7 @@ struct ProviderSettingsView: View {
                 } label: {
                     HStack {
                         Label(verifyActionTitle, systemImage: verifyActionSymbol)
+                            .font(DS.Font.body)
                         Spacer()
                         if case .testing = testState {
                             ProgressView()
@@ -141,25 +152,30 @@ struct ProviderSettingsView: View {
                     EmptyView()
                 case .testing:
                     Text("Testar anslutning...")
+                        .font(DS.Font.body)
                         .foregroundStyle(DS.Color.secondary)
                         .spriceListRowBackground()
                 case .success:
                     Label("Anslutningen fungerar", systemImage: "checkmark.circle.fill")
+                        .font(DS.Font.body)
                         .foregroundStyle(DS.Color.success)
                         .spriceListRowBackground()
                 case .failure(let message):
                     Label(message, systemImage: "exclamationmark.triangle.fill")
+                        .font(DS.Font.body)
                         .foregroundStyle(DS.Color.warning)
                         .spriceListRowBackground()
                 }
             } header: {
                 Text("Anslutning")
+                    .spriceSettingsHeaderStyle()
             } footer: {
                 Text(
                     canSave
                         ? "Uppgifterna sparas automatiskt. Testa när du vill kontrollera att inloggningen fungerar."
                         : "Fyll i uppgifterna innan du testar anslutningen."
                 )
+                .spriceSettingsFooterStyle()
             }
         }
     }
@@ -170,6 +186,8 @@ struct ProviderSettingsView: View {
                 if field.isSecure {
                     SecureField(field.label, text: binding(for: field.id))
                         .textContentType(.password)
+                        .textFieldStyle(.plain)
+                        .font(DS.Font.body)
                         .multilineTextAlignment(.trailing)
                         .focused($focusedField, equals: field.id)
                         .submitLabel(.done)
@@ -179,6 +197,8 @@ struct ProviderSettingsView: View {
                     TextField(field.label, text: binding(for: field.id))
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
+                        .textFieldStyle(.plain)
+                        .font(DS.Font.body)
                         .multilineTextAlignment(.trailing)
                         .focused($focusedField, equals: field.id)
                         .submitLabel(.next)
@@ -195,6 +215,13 @@ struct ProviderSettingsView: View {
             }
         }
         .spriceListRowBackground()
+    }
+
+    private var selectedProviderName: String {
+        if selectedProviderId.isEmpty {
+            return "Ingen"
+        }
+        return providers.first { $0.identifier == selectedProviderId }?.displayName ?? "Ingen"
     }
 
     private var selectedMetadata: ProviderMetadata? {
