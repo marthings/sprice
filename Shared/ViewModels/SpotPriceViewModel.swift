@@ -162,6 +162,11 @@ final class SpotPriceViewModel {
             settings.cachedConsumption = consumption
         }
         
+        await historyRecordingCoordinator.repriceStoredHistoryIfNeeded(
+            priceArea: settings.priceArea,
+            costProfile: settings.costProfile
+        )
+
         if settings.isConfigured {
             await historyRecordingCoordinator.recordCurrentMonthConsumptionHistory(
                 priceArea: settings.priceArea,
@@ -377,6 +382,14 @@ private final class HistoryRecordingCoordinator {
 
     func recordPriceHistory(dayData: DayChartData, priceArea: String) {
         historyRecorder?.recordPriceHistory(dayData: dayData, priceArea: priceArea)
+    }
+
+    func repriceStoredHistoryIfNeeded(priceArea: String, costProfile: CostProfile) async {
+        await historyRecorder?.repriceStoredHistoryIfNeeded(
+            spotPriceService: spotPriceService,
+            priceArea: priceArea,
+            costProfile: costProfile
+        )
     }
 
     func recordCurrentMonthConsumptionHistory(

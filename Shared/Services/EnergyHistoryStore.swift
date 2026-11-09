@@ -903,6 +903,18 @@ actor EnergyHistoryWriter {
     func deleteAllHistory() throws {
         try EnergyHistoryWriting.deleteAllHistory(context: modelContext)
     }
+
+    func repriceMeasuredRecords(
+        lookups: [String: [Date: Double]],
+        fallbackProfile: CostProfile
+    ) throws -> Int {
+        try EnergyHistoryWriting.repriceMeasuredRecords(
+            lookups: lookups,
+            fallbackProfile: fallbackProfile,
+            context: modelContext,
+            calendar: .energyHistory
+        )
+    }
 }
 
 enum EnergyHistoryWriting {
@@ -987,6 +999,73 @@ enum EnergyHistoryWriting {
         try deleteAll(HistoricalMonthlyEnergySummary.self, context: context)
         try context.save()
         WidgetHistorySummaryCache.clear()
+    }
+
+    nonisolated static func repriceMeasuredRecords(
+        lookups: [String: [Date: Double]],
+        fallbackProfile: CostProfile,
+        context: ModelContext,
+        calendar: Calendar
+    ) throws -> Int {
+        let records = try context.fetch(FetchDescriptor<HistoricalEnergyRecord>())
+        let service = TotalCostService.shared
+        var changedDays = Set<String>()
+        var changedMonths = Set<String>()
+        var updated = 0
+
+        for record in records {
+            guard let consumption = record.consumptionKWh, consumption > 0 else { continue }
+            let lookupKey = "\(record.priceArea)|\(record.dayKey)"
+            guard let lookup = lookups[lookupKey] else { continue }
+            let hoursInPeriod = max(record.intervalEnd.timeIntervalSince(record.intervalStart) / 3600, 1 / 60)
+            guard let spot = SpotPriceMatching.price(
+                for: record.intervalStart,
+                hoursInPeriod: hoursInPeriod,
+                lookup: lookup,
+                calendar: calendar
+            ) else {
+                continue
+            }
+
+            let profile: CostProfile
+            if let data = record.costProfileSnapshotData,
+               let snapshot = try? JSONDecoder().decode(HistoricalCostProfileSnapshot.self, from: data),
+               let snapshotProfile = CostProfile(historySnapshot: snapshot) {
+                profile = snapshotProfile
+            } else {
+                profile = fallbackProfile
+            }
+
+            let cost = service.calculateTotalCost(
+                kWh: consumption,
+                spotPriceOre: spot,
+                profile: profile,
+                hoursInPeriod: hoursInPeriod
+            )
+            let spotChanged = abs(record.spotPriceOrePerKWh - spot) > 0.0001
+            let totalChanged = abs((record.totalCostSEK ?? 0) - cost.totalKr) > 0.0001
+            guard spotChanged || totalChanged else { continue }
+
+            record.spotPriceOrePerKWh = spot
+            record.energyCostSEK = cost.providerTotalKr
+            record.gridCostSEK = cost.gridTotalKr
+            record.taxCostSEK = cost.taxesAndFeesKr
+            record.vatCostSEK = cost.vatKr
+            record.totalCostSEK = cost.totalKr
+            record.updatedAt = Date()
+            changedDays.insert(record.dayKey)
+            changedMonths.insert(record.monthKey)
+            updated += 1
+        }
+
+        if updated > 0 {
+            let now = Date()
+            try rebuildDailySummaries(dayKeys: changedDays, updatedAt: now, context: context, calendar: calendar)
+            try rebuildMonthlySummaries(monthKeys: changedMonths, updatedAt: now, context: context, calendar: calendar)
+            try context.save()
+            try updateWidgetSummaryCache(monthKeys: changedMonths, updatedAt: now, context: context)
+        }
+        return updated
     }
 
     nonisolated private static func fetchExistingRecords(

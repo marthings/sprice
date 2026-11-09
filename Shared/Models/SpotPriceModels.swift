@@ -203,6 +203,64 @@ enum SpotPriceDayCache {
 
 // MARK: - Price Bucket Analytics
 
+enum SpotPriceMatching: Sendable {
+    nonisolated static func price(
+        for intervalStart: Date,
+        hoursInPeriod: Double,
+        lookup: [Date: Double],
+        calendar: Calendar
+    ) -> Double? {
+        if hoursInPeriod >= 23 {
+            let dayPrices = lookup.compactMap { start, ore -> Double? in
+                calendar.isDate(start, inSameDayAs: intervalStart) ? ore : nil
+            }
+            return average(dayPrices)
+        }
+
+        if hoursInPeriod <= 0.4 {
+            if let exact = lookup[intervalStart] {
+                return exact
+            }
+            return hourAverage(for: intervalStart, lookup: lookup, calendar: calendar)
+        }
+
+        return hourAverage(for: intervalStart, lookup: lookup, calendar: calendar)
+            ?? lookup[intervalStart]
+    }
+
+    nonisolated private static func hourAverage(
+        for intervalStart: Date,
+        lookup: [Date: Double],
+        calendar: Calendar
+    ) -> Double? {
+        guard let hourStart = calendar.date(
+            from: calendar.dateComponents([.year, .month, .day, .hour], from: intervalStart)
+        ) else {
+            return nil
+        }
+
+        var quarters: [Double] = []
+        quarters.reserveCapacity(4)
+        for offset in 0..<4 {
+            guard let start = calendar.date(byAdding: .minute, value: offset * 15, to: hourStart) else {
+                continue
+            }
+            if let ore = lookup[start] {
+                quarters.append(ore)
+            }
+        }
+        if let averaged = average(quarters) {
+            return averaged
+        }
+        return lookup[hourStart]
+    }
+
+    nonisolated private static func average(_ values: [Double]) -> Double? {
+        guard !values.isEmpty else { return nil }
+        return values.reduce(0, +) / Double(values.count)
+    }
+}
+
 enum PriceBucketAnalytics {
     static func averageSpotPrice(_ buckets: [PriceBucket]) -> Double {
         guard !buckets.isEmpty else { return 0 }

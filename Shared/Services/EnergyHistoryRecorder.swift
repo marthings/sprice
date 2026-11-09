@@ -15,6 +15,20 @@ enum EnergyHistoryBackfillTiming {
     static let spotDelay: Duration = .milliseconds(150)
 }
 
+enum EnergyHistorySpotMatching {
+    static let version = 1
+    private static let defaults = UserDefaults(suiteName: EnergyHistoryConstants.appGroupIdentifier) ?? .standard
+    private static let key = "energyHistory.spotMatchingVersion"
+
+    static var needsReprice: Bool {
+        (defaults.object(forKey: key) as? Int ?? 0) < version
+    }
+
+    static func markComplete() {
+        defaults.set(version, forKey: key)
+    }
+}
+
 // MARK: - Energy History Recorder
 
 @MainActor
@@ -134,6 +148,45 @@ final class EnergyHistoryRecorder {
             costProfile: costProfile,
             now: now
         )
+    }
+
+    func repriceStoredHistoryIfNeeded(
+        spotPriceService: SpotPriceService,
+        priceArea: String,
+        costProfile: CostProfile
+    ) async {
+        guard EnergyHistorySpotMatching.needsReprice, let writer else { return }
+
+        do {
+            let months = try store.fetchMonthlySummaries(priceArea: priceArea)
+            var lookups: [String: [Date: Double]] = [:]
+
+            for month in months {
+                let days = try store.fetchDailySummaries(monthKey: month.periodKey, priceArea: priceArea)
+                for day in days {
+                    let map = await spotPrices(
+                        for: day.periodStart,
+                        area: day.priceArea,
+                        service: spotPriceService
+                    )
+                    lookups["\(day.priceArea)|\(day.periodKey)"] = map
+                }
+            }
+
+            let updated = try await writer.repriceMeasuredRecords(
+                lookups: lookups,
+                fallbackProfile: costProfile
+            )
+            EnergyHistorySpotMatching.markComplete()
+            if updated > 0 {
+                scheduleHistoryDidUpdate()
+                AppLog.history.info("Repriced \(updated) history intervals to exact quarter-hour spot prices")
+            } else {
+                AppLog.history.info("History spot matching is already up to date")
+            }
+        } catch {
+            AppLog.history.error("Could not reprice stored history: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     @discardableResult
@@ -455,18 +508,12 @@ final class EnergyHistoryRecorder {
     }
 
     private func representativeSpotPrice(for interval: ConsumptionInterval, in lookup: [Date: Double]) -> Double? {
-        if interval.hoursInPeriod >= 24 {
-            let dayPrices = lookup.compactMap { start, ore -> Double? in
-                calendar.isDate(start, inSameDayAs: interval.start) ? ore : nil
-            }
-            guard !dayPrices.isEmpty else { return nil }
-            return dayPrices.reduce(0, +) / Double(dayPrices.count)
-        }
-
-        guard let hourStart = calendar.date(from: calendar.dateComponents([.year, .month, .day, .hour], from: interval.start)) else {
-            return nil
-        }
-        return lookup[hourStart]
+        SpotPriceMatching.price(
+            for: interval.start,
+            hoursInPeriod: interval.hoursInPeriod,
+            lookup: lookup,
+            calendar: calendar
+        )
     }
 
     private func rethrowCredentialError(_ error: ConsumptionError) throws {

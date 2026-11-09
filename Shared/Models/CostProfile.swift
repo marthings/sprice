@@ -75,6 +75,34 @@ struct CostProfile: Codable, Equatable, Sendable {
         self.tariffValidUntil = tariffValidUntil
     }
 
+    init?(historySnapshot snapshot: HistoricalCostProfileSnapshot) {
+        guard let retailContractType = RetailContractType(rawValue: snapshot.retailContractType) else {
+            return nil
+        }
+        self.init(
+            priceArea: snapshot.priceArea,
+            retailContractType: retailContractType,
+            retailerMarkupOrePerKWh: snapshot.retailerMarkupOrePerKWh,
+            contractPriceOrePerKWh: snapshot.contractPriceOrePerKWh,
+            retailerMonthlyFee: snapshot.retailerMonthlyFee,
+            retailContractSource: snapshot.retailContractSource.flatMap(TariffSource.init(rawValue:)),
+            gridCompanyId: snapshot.gridCompanyId,
+            gridCompanyName: snapshot.gridCompanyName,
+            fuseSize: snapshot.fuseSize,
+            gridMonthlyFee: snapshot.gridMonthlyFee,
+            gridTransferOrePerKWh: snapshot.gridTransferOrePerKWh,
+            gridCostSource: snapshot.gridCostSource.flatMap(TariffSource.init(rawValue:)),
+            energyTaxOrePerKWh: snapshot.energyTaxOrePerKWh,
+            certificateFeeOrePerKWh: snapshot.certificateFeeOrePerKWh,
+            vatRate: snapshot.vatRate,
+            effectTariff: nil,
+            confidence: CostConfidence(rawValue: snapshot.confidence) ?? .userConfigured,
+            source: TariffSource(rawValue: snapshot.source) ?? .userEntered,
+            tariffLastUpdated: snapshot.tariffLastUpdated,
+            tariffValidUntil: snapshot.tariffValidUntil
+        )
+    }
+
     private enum CodingKeys: String, CodingKey {
         case priceArea
         case retailContractType

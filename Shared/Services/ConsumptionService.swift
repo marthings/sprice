@@ -223,9 +223,9 @@ struct ConsumptionService: Sendable {
 
     // MARK: - Precise Monthly Cost
 
-    /// Calculates precise monthly cost by matching 15-min consumption against hourly spot prices
+    /// Calculates precise monthly cost by matching 15-min consumption against the matching 15-min spot price.
     func calculatePreciseMonthlyCost(spotPriceService: SpotPriceService) async throws -> PreciseMonthlyCost {
-        let calendar = Calendar.current
+        let calendar = Calendar.energyHistory
         let now = Date()
         guard let monthStart = calendar.date(from: DateComponents(
             year: calendar.component(.year, from: now),
@@ -257,12 +257,8 @@ struct ConsumptionService: Sendable {
                 group.addTask {
                     do {
                         let items = try await spotPriceService.fetchSpotPrices(for: dayDate)
-                        return items.compactMap { item in
-                            // Floor to hour start for lookup key
-                            guard let hourStart = calendar.date(from: calendar.dateComponents([.year, .month, .day, .hour], from: item.timeStart)) else {
-                                return nil
-                            }
-                            return (hourStart, item.sekPerKWh * 100.0) // öre/kWh
+                        return items.map { item in
+                            (item.timeStart, item.sekPerKWh * 100.0)
                         }
                     } catch {
                         return []
@@ -279,22 +275,24 @@ struct ConsumptionService: Sendable {
             return lookup
         }
 
-        logger.info("Precise cost: Built price lookup with \(spotPriceLookup.count) hours")
+        logger.info("Precise cost: Built price lookup with \(spotPriceLookup.count) intervals")
 
-        // Match each 15-min interval to its hour's spot price
         var totalCost = 0.0
         var totalKWh = 0.0
         var matchedIntervals = 0
 
         for entry in quarterlyData {
-            guard let hourStart = calendar.date(from: calendar.dateComponents([.year, .month, .day, .hour], from: entry.date)) else {
+            guard let priceOre = SpotPriceMatching.price(
+                for: entry.date,
+                hoursInPeriod: 0.25,
+                lookup: spotPriceLookup,
+                calendar: calendar
+            ) else {
                 continue
             }
-            if let priceOre = spotPriceLookup[hourStart] {
-                totalCost += entry.kWh * priceOre / 100.0  // öre → kr
-                totalKWh += entry.kWh
-                matchedIntervals += 1
-            }
+            totalCost += entry.kWh * priceOre / 100.0
+            totalKWh += entry.kWh
+            matchedIntervals += 1
         }
 
         logger.info("Precise cost: \(String(format: "%.2f", totalCost)) kr from \(matchedIntervals)/\(quarterlyData.count) intervals (\(String(format: "%.1f", totalKWh)) kWh)")
