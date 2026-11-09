@@ -848,9 +848,23 @@ struct AppCanvasBackground: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        canvas
-            .ignoresSafeArea()
-            .accessibilityHidden(true)
+        ZStack(alignment: .bottom) {
+            canvas
+            landscapeOverlay
+        }
+        .ignoresSafeArea()
+        .accessibilityHidden(true)
+    }
+
+    /// Soft ink-wash mountains over the mesh. Anchored at the bottom so
+    /// the empty sky leaves room for cards; opacity keeps the mesh tint.
+    private var landscapeOverlay: some View {
+        Image("LandscapeBackground")
+            .resizable()
+            .scaledToFill()
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+            .opacity(colorScheme == .dark ? 0.60 : 0.55)
+            .allowsHitTesting(false)
     }
 
     @ViewBuilder
