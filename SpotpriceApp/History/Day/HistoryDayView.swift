@@ -504,7 +504,7 @@ private struct HistoryDayCostSplitView: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             if split.usedCurrentTariffs {
-                Text("Äldre rader saknade uppdelning. Det här är räknat med dina nuvarande tariffer.")
+                Text("Äldre rader saknade uppdelning. Det här är räknat med de priser och avgifter du har i dag.")
                     .font(DS.Font.micro)
                     .foregroundStyle(DS.Color.secondary)
                     .fixedSize(horizontal: false, vertical: true)

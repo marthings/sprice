@@ -366,13 +366,13 @@ enum GridTariffError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidURL:
-            return "Kunde inte skapa URL för Eltariff API"
+            return "Kunde inte hämta elnätspriser."
         case .invalidResponse:
-            return "Fel svar från Eltariff API"
+            return "Fel svar när elnätspriser hämtades."
         case .decodingError:
-            return "Kunde inte läsa tariffdata från servern."
+            return "Kunde inte läsa elnätspriser från servern."
         case .notFound:
-            return "Hittade ingen tariff för vald nätoperatör"
+            return "Hittade inga elnätspriser för valt elnät."
         }
     }
 }

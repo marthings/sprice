@@ -259,6 +259,9 @@ struct TibberProvider: ElectricityProvider, PriceInfoProvider {
             totalKWh: totalKWh,
             values: home.consumption.nodes.compactMap { node in
                 guard let date = node.fromDate else { return nil }
+                let nodeYear = calendar.component(.year, from: date)
+                let nodeMonth = calendar.component(.month, from: date)
+                guard nodeYear == year, nodeMonth == month else { return nil }
                 return ConsumptionValue(
                     date: date,
                     kWh: node.consumption ?? 0,

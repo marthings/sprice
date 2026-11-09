@@ -10,7 +10,7 @@ struct SettingsAdvancedSection: View {
 
     var body: some View {
         Section {
-            SettingsSummaryRow(title: "Energiskatt", value: energyTaxText)
+            SettingsSummaryRow(title: "Skatt på el", value: energyTaxText)
             SettingsSummaryRow(title: "Elcertifikat", value: "1,75 öre/kWh")
 
             Toggle(EffectTariffCopy.toggleTitle, isOn: $settings.includeHypotheticalEffectTariff)
@@ -33,7 +33,7 @@ struct SettingsAdvancedSection: View {
 
     private var taxInfoText: String {
         if settings.selectedDSOOrgNo == "jonkoping" {
-            return "Energiskatt sänktes till 45 öre/kWh från januari 2026"
+            return "Skatten på el sänktes till 45 öre/kWh från januari 2026."
         }
         return "Svenska standardvärden 2025 (uppskattade värden i beräkningar)"
     }

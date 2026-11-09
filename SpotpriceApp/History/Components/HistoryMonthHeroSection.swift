@@ -3,6 +3,7 @@ import SwiftUI
 struct HistoryMonthHeroSection: View {
     let snapshot: HistoryMonthSnapshot
     let comparison: HistoryMonthComparison?
+    var previousMonthName: String? = nil
     let hasProvider: Bool
 
     var body: some View {
@@ -22,6 +23,11 @@ struct HistoryMonthHeroSection: View {
                     .font(DS.Font.callout)
                     .foregroundStyle(.primary)
                     .fixedSize(horizontal: false, vertical: true)
+                } else if let previousMonthName {
+                    Text("Det går inte att jämföra med \(previousMonthName) än. Siffrorna för samma dagar saknas eller ser ofullständiga ut.")
+                        .font(DS.Font.callout)
+                        .foregroundStyle(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             } else if let kWh = snapshot.kWh {
                 heroValue(AppFormatters.kWhValue(kWh), unit: "kWh")
@@ -55,14 +61,14 @@ struct HistoryMonthHeroSection: View {
             if snapshot.isCurrentMonth {
                 Text(
                     snapshot.usedCurrentTariffs
-                        ? "Pågående månad. Kostnaden är räknad med dina nuvarande tariffer, och bara så långt månaden har hunnit."
+                        ? "Pågående månad. Kostnaden är räknad med de priser och avgifter du har i dag, och bara så långt månaden har hunnit."
                         : "Pågående månad. Siffrorna visar bara så långt månaden har hunnit."
                 )
                 .font(DS.Font.micro)
                 .foregroundStyle(DS.Color.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             } else if snapshot.usedCurrentTariffs {
-                Text("Den sparade månadssumman saknas. Kostnaden är räknad med dina nuvarande tariffer.")
+                Text("Den sparade månadssumman saknas. Kostnaden är räknad med de priser och avgifter du har i dag.")
                     .font(DS.Font.micro)
                     .foregroundStyle(DS.Color.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -128,7 +134,7 @@ struct HistoryPriceConsumptionEffect: View {
             } else if let previousMonthName {
                 Text("Därför blev det dyrare eller billigare")
                     .font(DS.Font.headline)
-                Text("Uppdelningen kräver förbrukning och kostnad för både den här månaden och \(previousMonthName). Den saknas, så jämförelsen visas inte.")
+                Text("Det går inte att jämföra med \(previousMonthName) än. Förbrukning eller kostnad för samma dagar saknas eller ser ofullständig ut.")
                     .font(DS.Font.callout)
                     .foregroundStyle(.primary)
                     .fixedSize(horizontal: false, vertical: true)

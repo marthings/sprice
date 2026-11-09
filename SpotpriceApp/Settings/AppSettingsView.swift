@@ -440,7 +440,7 @@ struct AppSettingsView: View {
         } else if gridSelectionChanged {
             do {
                 guard let tariff = try await gridTariffService.fetchTariff(forDSO: selectedDSOOrgNo, fuseSize: fuseSize) else {
-                    gridTariffError = "Hittade ingen tariff för valt elnät."
+                    gridTariffError = "Hittade inga elnätspriser för valt elnät."
                     let previous = settings.costProfile
                     settings.costProfile = next.applyingInferredConfidence(configuredSource: .userEntered)
                     flashSavedIfNeeded(previous: previous)

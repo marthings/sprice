@@ -30,7 +30,7 @@ struct HistoryMonthLoadedContent: View {
                 )
 
                 if presentation.hasPastMonths {
-                    Text("Äldre månader räknas med dina nuvarande tariffer, inte med de som gällde då.")
+                    Text("Äldre månader räknas med de priser och avgifter du har i dag, inte de som gällde då.")
                         .font(DS.Font.micro)
                         .foregroundStyle(DS.Color.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -40,6 +40,8 @@ struct HistoryMonthLoadedContent: View {
                     HistoryMonthHeroSection(
                         snapshot: snapshot,
                         comparison: presentation.comparison,
+                        previousMonthName: presentation.comparisonMonthName
+                            ?? presentation.previousSnapshot.map { AppFormatters.monthName($0.summary.periodStart) },
                         hasProvider: hasProvider
                     )
 
@@ -47,6 +49,7 @@ struct HistoryMonthLoadedContent: View {
                         HistoryPriceConsumptionEffect(
                             split: presentation.split,
                             previousMonthName: presentation.comparisonMonthName
+                                ?? presentation.previousSnapshot.map { AppFormatters.monthName($0.summary.periodStart) }
                         )
                     }
 

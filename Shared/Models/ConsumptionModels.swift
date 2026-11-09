@@ -27,8 +27,10 @@ struct ConsumptionData: Equatable, Sendable, Codable {
     }
 
     func restricting(toDayOfMonth throughDay: Int, calendar: Calendar) -> ConsumptionData {
-        let sliced = values.filter { SameDayMonthComparison.date($0.date, isOnOrBeforeDay: throughDay, calendar: calendar) }
-        guard !sliced.isEmpty else { return self }
+        let sliced = values.filter {
+            calendar.isDate($0.date, equalTo: monthDate, toGranularity: .month)
+                && SameDayMonthComparison.date($0.date, isOnOrBeforeDay: throughDay, calendar: calendar)
+        }
         return ConsumptionData(
             totalKWh: sliced.reduce(0) { $0 + $1.kWh },
             values: sliced,

@@ -156,7 +156,7 @@ struct MonthlyCostCard: View {
                     )
                     if enhancedCost.energyTaxKr > 0 {
                         CostBreakdownSubRow(
-                            label: "Energiskatt",
+                            label: "Skatt på el",
                             amount: enhancedCost.energyTaxKr
                         )
                     }

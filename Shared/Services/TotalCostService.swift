@@ -353,7 +353,7 @@ enum CostBreakdownPresenter {
             otherComponents.append(("Elnät månadavgift", cost.fixedFeeCostKr))
         }
 
-        otherComponents.append(("Energiskatt", cost.energyTaxKr))
+        otherComponents.append(("Skatt på el", cost.energyTaxKr))
 
         if cost.certificateFeeKr > 0 {
             otherComponents.append(("Elcertifikat", cost.certificateFeeKr))
@@ -451,7 +451,7 @@ struct KilowattHourBreakdown: Sendable {
             )
         }
 
-        appendLine(&lines, kind: .energyTax, title: "Energiskatt", amount: cost.energyTaxKr)
+        appendLine(&lines, kind: .energyTax, title: "Skatt på el", amount: cost.energyTaxKr)
         appendLine(&lines, kind: .certificates, title: "Elcertifikat", amount: cost.certificateFeeKr)
 
         let monthlyShare = cost.fixedFeeCostKr + cost.providerMonthlyFeeKr

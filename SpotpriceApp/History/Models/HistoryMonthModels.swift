@@ -78,20 +78,22 @@ struct HistoryMonthPresentation {
             }
         }
         let comparesSameDays = throughDay != nil
-        let comparisonCurrent: HistoryMonthSnapshot?
-        let comparisonPrevious: HistoryMonthSnapshot?
-        let comparisonMonthName: String?
-        if let throughDay, let snapshot, let previousSnapshot,
-           let alignedPrevious = HistoryInsights.alignedSnapshot(
-            base: previousSnapshot,
-            dailySummaries: previousDailySummaries,
-            liveConsumption: nil,
-            throughDay: throughDay,
-            costProfile: costProfile,
-            now: now,
-            calendar: calendar
-           ) {
-            comparisonCurrent = HistoryInsights.alignedSnapshot(
+        var comparisonCurrent = snapshot
+        var comparisonPrevious = previousSnapshot
+        var comparisonMonthName = previousSnapshot.map { SameDayMonthComparison.swedishMonthName($0.summary.periodStart) }
+        if let throughDay, let snapshot, let previousSnapshot {
+            comparisonMonthName = previous.map {
+                SameDayMonthComparison.rangeLabel(throughDay: throughDay, monthStart: $0.periodStart)
+            } ?? comparisonMonthName
+            if let alignedPrevious = HistoryInsights.alignedSnapshot(
+                base: previousSnapshot,
+                dailySummaries: previousDailySummaries,
+                liveConsumption: nil,
+                throughDay: throughDay,
+                costProfile: costProfile,
+                now: now,
+                calendar: calendar
+            ), let alignedCurrent = HistoryInsights.alignedSnapshot(
                 base: snapshot,
                 dailySummaries: dailySummaries,
                 liveConsumption: liveConsumption,
@@ -99,19 +101,14 @@ struct HistoryMonthPresentation {
                 costProfile: costProfile,
                 now: now,
                 calendar: calendar
-            ) ?? snapshot
-            comparisonPrevious = alignedPrevious
-            comparisonMonthName = previous.map {
-                SameDayMonthComparison.rangeLabel(throughDay: throughDay, monthStart: $0.periodStart)
+            ), HistoryInsights.alignedCostMatchesDisplayed(aligned: alignedCurrent, displayed: snapshot) {
+                // Keep the hero total as the comparison current so 856 kr
+                // and "X kr mer än 1–8 oktober" describe the same number.
+                comparisonCurrent = snapshot
+                comparisonPrevious = alignedPrevious
+            } else {
+                comparisonPrevious = nil
             }
-        } else if throughDay == nil {
-            comparisonCurrent = snapshot
-            comparisonPrevious = previousSnapshot
-            comparisonMonthName = previousSnapshot.map { AppFormatters.monthName($0.summary.periodStart) }
-        } else {
-            comparisonCurrent = snapshot
-            comparisonPrevious = nil
-            comparisonMonthName = nil
         }
         let dayBars: [MonthDayCost]
         if let selectedMonth {

@@ -310,7 +310,7 @@ struct ConsumptionInsightsContent: View {
                         .foregroundStyle(DS.Color.warning)
                         .fixedSize(horizontal: false, vertical: true)
                     if peak.usesAveragePeaks {
-                        Text("Din tariff räknar på medel av flera toppar. Här visas den högsta timmen, och avgiften på det medel som tariffen använder.")
+                        Text("Elnätet räknar på medel av flera toppar. Här visas den högsta timmen, och avgiften på det medel som elnätet använder.")
                             .font(DS.Font.micro)
                             .foregroundStyle(DS.Color.secondary)
                             .fixedSize(horizontal: false, vertical: true)

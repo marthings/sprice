@@ -118,7 +118,8 @@ enum HistoryInsights {
     ) -> HistoryMonthComparison? {
         guard let previous,
               let currentCost = current.costKr,
-              let previousCost = previous.costKr else {
+              let previousCost = previous.costKr,
+              isCredibleComparison(currentCost: currentCost, previousCost: previousCost) else {
             return nil
         }
         let delta = currentCost - previousCost
@@ -147,13 +148,24 @@ enum HistoryInsights {
               let currentKWh = current.kWh, currentKWh > 0,
               let previousKWh = previous.kWh, previousKWh > 0,
               let currentPaid = current.paidKrPerKWh,
-              let previousPaid = previous.paidKrPerKWh else {
+              let previousPaid = previous.paidKrPerKWh,
+              let currentCost = current.costKr,
+              let previousCost = previous.costKr,
+              isCredibleComparison(currentCost: currentCost, previousCost: previousCost) else {
+            return nil
+        }
+
+        let consumptionEffectKr = (currentKWh - previousKWh) * previousPaid
+        let priceEffectKr = currentKWh * (currentPaid - previousPaid)
+        let reconstructed = consumptionEffectKr + priceEffectKr
+        let delta = currentCost - previousCost
+        guard abs(reconstructed - delta) <= max(5, abs(delta) * 0.2) else {
             return nil
         }
 
         return HistoryPriceConsumptionSplit(
-            consumptionEffectKr: (currentKWh - previousKWh) * previousPaid,
-            priceEffectKr: currentKWh * (currentPaid - previousPaid),
+            consumptionEffectKr: consumptionEffectKr,
+            priceEffectKr: priceEffectKr,
             previousMonthName: previousRangeLabel,
             comparesSameDays: comparesSameDays
         )
@@ -175,15 +187,30 @@ enum HistoryInsights {
         }
         let liveKWh = liveConsumption.map { consumption in
             consumption.values
-                .filter { SameDayMonthComparison.date($0.date, isOnOrBeforeDay: throughDay, calendar: calendar) }
+                .filter {
+                    calendar.isDate($0.date, equalTo: monthStart, toGranularity: .month)
+                        && SameDayMonthComparison.date($0.date, isOnOrBeforeDay: throughDay, calendar: calendar)
+                }
                 .reduce(0) { $0 + $1.kWh }
         }
         let summaryKWh = days.compactMap(\.totalConsumptionKWh).reduce(0, +)
-        let usedLiveKWh = (liveKWh ?? 0) > 0
-        let kWh = usedLiveKWh ? (liveKWh ?? 0) : summaryKWh
-        guard kWh > 0 else { return nil }
-
         let measuredDays = days.filter { ($0.totalConsumptionKWh ?? 0) > 0 }
+        // Same-day windows must use daily history when it exists. Live `values` can
+        // contain other months (day-of-month only is not enough).
+        let cappedLive: Double? = {
+            guard let liveKWh, liveKWh > 0 else { return nil }
+            if let monthTotal = base.kWh, monthTotal > 0, liveKWh > monthTotal * 1.25 {
+                return nil
+            }
+            return liveKWh
+        }()
+        let usedLiveKWh = summaryKWh <= 0 && (cappedLive ?? 0) > 0
+        let kWh = summaryKWh > 0 ? summaryKWh : (cappedLive ?? 0)
+        guard kWh > 0 else { return nil }
+        if !usedLiveKWh {
+            guard measuredDays.count >= max(2, (throughDay + 1) / 2) else { return nil }
+        }
+
         let storedCost = measuredDays.compactMap(\.totalCostSEK)
         let spotParts = days.compactMap { day -> (Double, Double)? in
             guard let dayKWh = day.totalConsumptionKWh, dayKWh > 0,
@@ -373,6 +400,26 @@ enum HistoryInsights {
             return "Förbrukningen för den här månaden har inte kommit in ännu. När den finns ser du vad den kostat."
         }
         return "Gå till Inställningar och lägg till förbrukning. Då kan du se vad månaden kostat."
+    }
+
+    /// Same-day window cost must be in the same ballpark as the number on screen.
+    static func alignedCostMatchesDisplayed(
+        aligned: HistoryMonthSnapshot,
+        displayed: HistoryMonthSnapshot
+    ) -> Bool {
+        guard let alignedCost = aligned.costKr, let displayedCost = displayed.costKr else {
+            return false
+        }
+        let slack = max(25, abs(displayedCost) * 0.35)
+        return abs(alignedCost - displayedCost) <= slack
+    }
+
+    /// Drops comparisons where the previous window is empty/near-zero or the
+    /// two totals cannot be the same kind of number (öre vs kr, all months, …).
+    private static func isCredibleComparison(currentCost: Double, previousCost: Double) -> Bool {
+        guard previousCost >= 10, currentCost >= 0 else { return false }
+        let ratio = currentCost / previousCost
+        return ratio >= 0.12 && ratio <= 8
     }
 
     private static func monthCost(
