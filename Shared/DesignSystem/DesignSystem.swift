@@ -860,20 +860,16 @@ enum SpriceCardTone: Equatable {
         switch self {
         case .default, .history:
             return DS.Color.brand
-        case .accent, .cost:
+        case .accent, .cost, .price:
             return DS.Color.info
-        case .price:
-            return DS.Color.warning
         }
     }
 
-    /// GlassEffect tint. Louder chroma (warning) stays lower; accent is a bit stronger.
+    /// GlassEffect tint. Accent is a bit stronger.
     func glassTintOpacity(colorScheme: ColorScheme) -> Double {
         switch (self, colorScheme) {
         case (.accent, .light): return 0.20
         case (.accent, .dark): return 0.22
-        case (.price, .light): return 0.14
-        case (.price, .dark): return 0.16
         case (_, .light): return 0.16
         case (_, .dark): return 0.20
         @unknown default:
@@ -886,8 +882,6 @@ enum SpriceCardTone: Equatable {
         switch (self, colorScheme) {
         case (.accent, .light): return 0.12
         case (.accent, .dark): return 0.14
-        case (.price, .light): return 0.08
-        case (.price, .dark): return 0.10
         case (_, .light): return 0.10
         case (_, .dark): return 0.12
         @unknown default:
