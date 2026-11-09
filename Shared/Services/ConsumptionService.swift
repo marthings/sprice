@@ -133,23 +133,55 @@ struct ConsumptionService: Sendable {
         let previousYear = calendar.component(.year, from: previousMonthDate)
         let previousMonth = calendar.component(.month, from: previousMonthDate)
 
-        // Fetch current month consumption
-        let currentConsumption = try await fetchConsumption(year: currentYear, month: currentMonth)
+        var currentConsumption = try await consumptionWithDailyValues(
+            fetchConsumption(year: currentYear, month: currentMonth),
+            year: currentYear,
+            month: currentMonth
+        )
 
-        // Fetch previous month consumption (may fail if no data)
         var previousConsumption: ConsumptionData?
         do {
-            previousConsumption = try await fetchConsumption(year: previousYear, month: previousMonth)
+            previousConsumption = try await consumptionWithDailyValues(
+                fetchConsumption(year: previousYear, month: previousMonth),
+                year: previousYear,
+                month: previousMonth
+            )
         } catch {
             logger.info("No previous month consumption data available: \(error.localizedDescription)")
         }
 
-        // Get average prices for both months
-        let currentAvgPrice = try await fetchAveragePrice(for: currentYear, month: currentMonth, spotPriceService: spotPriceService)
+        let lastMeasured = currentConsumption.values.last(where: { $0.kWh > 0 })?.date
+            ?? currentConsumption.values.last?.date
+        let throughDay = previousConsumption.flatMap { previous in
+            SameDayMonthComparison.throughDay(
+                currentMonthStart: currentConsumption.monthDate,
+                lastMeasuredInCurrent: lastMeasured,
+                previousMonthStart: previous.monthDate,
+                now: now,
+                calendar: calendar
+            )
+        }
+
+        if let throughDay {
+            currentConsumption = currentConsumption.restricting(toDayOfMonth: throughDay, calendar: calendar)
+            previousConsumption = previousConsumption?.restricting(toDayOfMonth: throughDay, calendar: calendar)
+        }
+
+        let currentAvgPrice = try await fetchAveragePrice(
+            for: currentYear,
+            month: currentMonth,
+            throughDay: throughDay,
+            spotPriceService: spotPriceService
+        )
         var previousAvgPrice: Double?
         if previousConsumption != nil {
             do {
-                previousAvgPrice = try await fetchAveragePrice(for: previousYear, month: previousMonth, spotPriceService: spotPriceService)
+                previousAvgPrice = try await fetchAveragePrice(
+                    for: previousYear,
+                    month: previousMonth,
+                    throughDay: throughDay,
+                    spotPriceService: spotPriceService
+                )
             } catch {
                 logger.info("Could not fetch previous month average price: \(error.localizedDescription)")
             }
@@ -341,28 +373,56 @@ struct ConsumptionService: Sendable {
 
     // MARK: - Private Helpers
 
+    private func consumptionWithDailyValues(
+        _ consumption: ConsumptionData,
+        year: Int,
+        month: Int
+    ) async -> ConsumptionData {
+        guard consumption.values.isEmpty else { return consumption }
+        do {
+            let daily = try await fetchDailyConsumption(year: year, month: month)
+            guard !daily.isEmpty else { return consumption }
+            return ConsumptionData(
+                totalKWh: daily.reduce(0) { $0 + $1.kWh },
+                values: daily.map { ConsumptionValue(date: $0.date, kWh: $0.kWh, price: 0) },
+                meterName: consumption.meterName,
+                meterId: consumption.meterId,
+                monthDate: consumption.monthDate
+            )
+        } catch {
+            return consumption
+        }
+    }
+
     /// Fetches average spot price for a given month (öre/kWh)
-    private func fetchAveragePrice(for year: Int, month: Int, spotPriceService: SpotPriceService) async throws -> Double {
+    private func fetchAveragePrice(
+        for year: Int,
+        month: Int,
+        throughDay: Int? = nil,
+        spotPriceService: SpotPriceService
+    ) async throws -> Double {
         let calendar = Calendar.current
 
-        // Get all days in the month up to today (or entire month if past)
         guard let monthStart = calendar.date(from: DateComponents(year: year, month: month, day: 1)) else {
             throw ConsumptionError.notFound
         }
         let now = Date()
 
-        // Determine end date: either end of month or today
         var endDate: Date
         let isCurrentMonth = calendar.component(.year, from: now) == year && calendar.component(.month, from: now) == month
         if isCurrentMonth {
             endDate = now
         } else {
-            // Get last day of month
             guard let nextMonth = calendar.date(byAdding: .month, value: 1, to: monthStart),
                   let lastDayOfMonth = calendar.date(byAdding: .day, value: -1, to: nextMonth) else {
                 throw ConsumptionError.notFound
             }
             endDate = lastDayOfMonth
+        }
+        if let throughDay,
+           let capped = calendar.date(byAdding: .day, value: throughDay - 1, to: monthStart) {
+            let cappedEnd = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: capped)) ?? capped
+            endDate = min(endDate, cappedEnd.addingTimeInterval(-1))
         }
 
         // For simplicity, sample a few days to get average

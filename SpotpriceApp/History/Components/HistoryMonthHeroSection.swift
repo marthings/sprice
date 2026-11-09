@@ -15,7 +15,7 @@ struct HistoryMonthHeroSection: View {
                     Text(
                         HistoryInsights.comparisonSentence(
                             deltaKr: comparison.costDeltaKr,
-                            previousMonthName: AppFormatters.monthName(comparison.previous.summary.periodStart),
+                            previousMonthName: comparison.previousRangeLabel,
                             percent: comparison.percentChange
                         )
                     )
@@ -118,6 +118,13 @@ struct HistoryPriceConsumptionEffect: View {
                 .font(DS.Font.callout)
                 .foregroundStyle(.primary)
                 .fixedSize(horizontal: false, vertical: true)
+
+                if split.comparesSameDays {
+                    Text("Jämfört med \(split.previousMonthName), inte hela månaden.")
+                        .font(DS.Font.micro)
+                        .foregroundStyle(DS.Color.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             } else if let previousMonthName {
                 Text("Därför blev det dyrare eller billigare")
                     .font(DS.Font.headline)

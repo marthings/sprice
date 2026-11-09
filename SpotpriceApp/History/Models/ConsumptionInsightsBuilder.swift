@@ -203,7 +203,10 @@ nonisolated enum ConsumptionInsightsBuilder: Sendable {
             return sum + sample.costKr * (baseKWh / sample.kWh)
         }
         let previousPowerKW = nightBaseloadKW(from: previousSamples, calendar: calendar)
-        let previousMonthName = previousSamples.first.map { monthName($0.start) }
+        let previousMonthName = SameDayMonthComparison.previousPeriodLabel(
+            from: previousSamples.map(\.start),
+            calendar: calendar
+        )
         return ConsumptionBaseloadInsight(
             powerKW: powerKW,
             energyKWh: energyKWh,
@@ -258,7 +261,10 @@ nonisolated enum ConsumptionInsightsBuilder: Sendable {
             energyKWh: energyKWh,
             costKr: costKr,
             previousPowerKW: previousPowerKW,
-            previousMonthName: previousIntervals.first.map { monthName($0.intervalStart) },
+            previousMonthName: SameDayMonthComparison.previousPeriodLabel(
+                from: previousIntervals.map(\.intervalStart),
+                calendar: calendar
+            ),
             usedNightPercentile: false
         )
     }
@@ -609,19 +615,6 @@ nonisolated enum ConsumptionInsightsBuilder: Sendable {
 
     nonisolated private static func wholeNumber(_ value: Double) -> String {
         Int(value.rounded()).formatted(.number.locale(AppFormatters.swedishLocale))
-    }
-
-    nonisolated private static func monthName(_ date: Date) -> String {
-        date.formatted(
-            Date.FormatStyle(
-                date: .omitted,
-                time: .omitted,
-                locale: AppFormatters.swedishLocale,
-                calendar: .energyHistory,
-                timeZone: AppFormatters.swedishTimeZone
-            )
-            .month(.wide)
-        )
     }
 
     nonisolated private static func dayLabel(_ date: Date) -> String {

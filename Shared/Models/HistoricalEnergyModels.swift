@@ -801,6 +801,96 @@ nonisolated enum EnergyHistoryKey: Sendable {
     }
 }
 
+/// Aligns an in-progress month with the same days of the previous month.
+nonisolated enum SameDayMonthComparison: Sendable {
+    /// Inclusive day-of-month cap, or `nil` when both months are complete (full vs full).
+    nonisolated static func throughDay(
+        currentMonthStart: Date,
+        lastMeasuredInCurrent: Date?,
+        previousMonthStart: Date,
+        now: Date,
+        calendar: Calendar = .energyHistory
+    ) -> Int? {
+        guard calendar.isDate(currentMonthStart, equalTo: now, toGranularity: .month) else {
+            return nil
+        }
+        guard let lastMeasuredInCurrent,
+              calendar.isDate(lastMeasuredInCurrent, equalTo: currentMonthStart, toGranularity: .month) else {
+            return nil
+        }
+        let measuredDay = calendar.component(.day, from: lastMeasuredInCurrent)
+        let previousDays = calendar.range(of: .day, in: .month, for: previousMonthStart)?.count ?? measuredDay
+        return max(min(measuredDay, previousDays), 1)
+    }
+
+    nonisolated static func lastMeasuredDay(
+        monthStart: Date,
+        dailySummaries: [HistoricalEnergySummaryValue],
+        extraDates: [Date] = [],
+        calendar: Calendar = .energyHistory
+    ) -> Date? {
+        let fromDays = dailySummaries.compactMap { summary -> Date? in
+            guard calendar.isDate(summary.periodStart, equalTo: monthStart, toGranularity: .month),
+                  (summary.totalConsumptionKWh ?? 0) > 0 else {
+                return nil
+            }
+            return summary.periodStart
+        }
+        let fromExtra = extraDates.filter { calendar.isDate($0, equalTo: monthStart, toGranularity: .month) }
+        return (fromDays + fromExtra).max()
+    }
+
+    nonisolated static func lastMeasuredDay(
+        fromIntervals intervals: [HistoricalEnergyIntervalValue]
+    ) -> Date? {
+        intervals.compactMap { interval -> Date? in
+            guard (interval.consumptionKWh ?? 0) > 0 else { return nil }
+            return interval.intervalStart
+        }.max()
+    }
+
+    nonisolated static func date(_ date: Date, isOnOrBeforeDay throughDay: Int, calendar: Calendar) -> Bool {
+        calendar.component(.day, from: date) <= throughDay
+    }
+
+    nonisolated static func rangeLabel(throughDay: Int, monthStart: Date) -> String {
+        "1–\(throughDay) \(AppFormatters.monthName(monthStart))"
+    }
+
+    /// "oktober" when the dates cover that month, otherwise "1–9 oktober".
+    nonisolated static func previousPeriodLabel(from dates: [Date], calendar: Calendar = .energyHistory) -> String? {
+        guard let first = dates.min() else { return nil }
+        let monthStart = calendar.dateInterval(of: .month, for: first)?.start ?? first
+        let maxDay = dates.map { calendar.component(.day, from: $0) }.max() ?? 1
+        let daysInMonth = calendar.range(of: .day, in: .month, for: monthStart)?.count ?? maxDay
+        if maxDay < daysInMonth {
+            return rangeLabel(throughDay: maxDay, monthStart: monthStart)
+        }
+        return AppFormatters.monthName(monthStart)
+    }
+
+    nonisolated static func restrictingPreviousIntervals(
+        _ previous: [HistoricalEnergyIntervalValue],
+        lastMeasuredInCurrent: Date?,
+        currentMonthStart: Date,
+        now: Date,
+        calendar: Calendar = .energyHistory
+    ) -> [HistoricalEnergyIntervalValue] {
+        guard let earliest = previous.map(\.intervalStart).min() else { return previous }
+        let previousMonthStart = calendar.dateInterval(of: .month, for: earliest)?.start ?? earliest
+        guard let throughDay = throughDay(
+            currentMonthStart: currentMonthStart,
+            lastMeasuredInCurrent: lastMeasuredInCurrent,
+            previousMonthStart: previousMonthStart,
+            now: now,
+            calendar: calendar
+        ) else {
+            return previous
+        }
+        return previous.filter { date($0.intervalStart, isOnOrBeforeDay: throughDay, calendar: calendar) }
+    }
+}
+
 extension Calendar {
     nonisolated static let energyHistory = AppFormatters.energyCalendar
 }

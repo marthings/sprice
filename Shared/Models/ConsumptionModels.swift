@@ -25,6 +25,18 @@ struct ConsumptionData: Equatable, Sendable, Codable {
     var monthName: String {
         AppFormatters.monthAndYear(monthDate)
     }
+
+    func restricting(toDayOfMonth throughDay: Int, calendar: Calendar) -> ConsumptionData {
+        let sliced = values.filter { SameDayMonthComparison.date($0.date, isOnOrBeforeDay: throughDay, calendar: calendar) }
+        guard !sliced.isEmpty else { return self }
+        return ConsumptionData(
+            totalKWh: sliced.reduce(0) { $0 + $1.kWh },
+            values: sliced,
+            meterName: meterName,
+            meterId: meterId,
+            monthDate: monthDate
+        )
+    }
 }
 
 // MARK: - Consumption Value

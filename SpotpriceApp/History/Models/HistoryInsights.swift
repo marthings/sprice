@@ -31,12 +31,15 @@ struct HistoryMonthComparison {
     let previous: HistoryMonthSnapshot
     let costDeltaKr: Double
     let percentChange: Double?
+    let previousRangeLabel: String
+    let comparesSameDays: Bool
 }
 
 struct HistoryPriceConsumptionSplit {
     let consumptionEffectKr: Double
     let priceEffectKr: Double
     let previousMonthName: String
+    let comparesSameDays: Bool
 }
 
 struct HistoryWeekdayAverage: Identifiable {
@@ -109,7 +112,9 @@ enum HistoryInsights {
 
     static func comparison(
         current: HistoryMonthSnapshot,
-        previous: HistoryMonthSnapshot?
+        previous: HistoryMonthSnapshot?,
+        previousRangeLabel: String,
+        comparesSameDays: Bool
     ) -> HistoryMonthComparison? {
         guard let previous,
               let currentCost = current.costKr,
@@ -126,13 +131,17 @@ enum HistoryInsights {
         return HistoryMonthComparison(
             previous: previous,
             costDeltaKr: delta,
-            percentChange: percent
+            percentChange: percent,
+            previousRangeLabel: previousRangeLabel,
+            comparesSameDays: comparesSameDays
         )
     }
 
     static func priceConsumptionSplit(
         current: HistoryMonthSnapshot,
-        previous: HistoryMonthSnapshot?
+        previous: HistoryMonthSnapshot?,
+        previousRangeLabel: String,
+        comparesSameDays: Bool
     ) -> HistoryPriceConsumptionSplit? {
         guard let previous,
               let currentKWh = current.kWh, currentKWh > 0,
@@ -145,7 +154,86 @@ enum HistoryInsights {
         return HistoryPriceConsumptionSplit(
             consumptionEffectKr: (currentKWh - previousKWh) * previousPaid,
             priceEffectKr: currentKWh * (currentPaid - previousPaid),
-            previousMonthName: AppFormatters.monthName(previous.summary.periodStart)
+            previousMonthName: previousRangeLabel,
+            comparesSameDays: comparesSameDays
+        )
+    }
+
+    static func alignedSnapshot(
+        base: HistoryMonthSnapshot,
+        dailySummaries: [HistoricalEnergySummaryValue],
+        liveConsumption: ConsumptionData?,
+        throughDay: Int,
+        costProfile: CostProfile,
+        now: Date,
+        calendar: Calendar
+    ) -> HistoryMonthSnapshot? {
+        let monthStart = base.summary.periodStart
+        let days = dailySummaries.filter { summary in
+            calendar.isDate(summary.periodStart, equalTo: monthStart, toGranularity: .month)
+                && SameDayMonthComparison.date(summary.periodStart, isOnOrBeforeDay: throughDay, calendar: calendar)
+        }
+        let liveKWh = liveConsumption.map { consumption in
+            consumption.values
+                .filter { SameDayMonthComparison.date($0.date, isOnOrBeforeDay: throughDay, calendar: calendar) }
+                .reduce(0) { $0 + $1.kWh }
+        }
+        let summaryKWh = days.compactMap(\.totalConsumptionKWh).reduce(0, +)
+        let usedLiveKWh = (liveKWh ?? 0) > 0
+        let kWh = usedLiveKWh ? (liveKWh ?? 0) : summaryKWh
+        guard kWh > 0 else { return nil }
+
+        let measuredDays = days.filter { ($0.totalConsumptionKWh ?? 0) > 0 }
+        let storedCost = measuredDays.compactMap(\.totalCostSEK)
+        let spotParts = days.compactMap { day -> (Double, Double)? in
+            guard let dayKWh = day.totalConsumptionKWh, dayKWh > 0,
+                  let spot = day.averageSpotPriceOrePerKWh else {
+                return nil
+            }
+            return (dayKWh, spot)
+        }
+        let spotOre: Double?
+        if !spotParts.isEmpty {
+            let total = spotParts.reduce(0.0) { $0 + $1.0 }
+            spotOre = spotParts.reduce(0.0) { $0 + ($1.0 * $1.1) } / total
+        } else {
+            spotOre = base.spotOrePerKWh
+        }
+
+        let hours: Double
+        if let lastInWindow = calendar.date(byAdding: .day, value: throughDay - 1, to: monthStart),
+           calendar.isDate(lastInWindow, inSameDayAs: now) {
+            hours = elapsedHours(from: monthStart, now: now, calendar: calendar)
+        } else {
+            hours = Double(throughDay) * 24
+        }
+
+        let cost: Double?
+        let usedCurrentTariffs: Bool
+        if !usedLiveKWh, storedCost.count == measuredDays.count, !storedCost.isEmpty {
+            cost = storedCost.reduce(0, +)
+            usedCurrentTariffs = false
+        } else if let spotOre {
+            cost = TotalCostService.shared.calculateTotalCost(
+                kWh: kWh,
+                spotPriceOre: spotOre,
+                profile: costProfile,
+                hoursInPeriod: hours
+            ).totalKr
+            usedCurrentTariffs = true
+        } else {
+            cost = storedCost.isEmpty ? nil : storedCost.reduce(0, +)
+            usedCurrentTariffs = false
+        }
+
+        return HistoryMonthSnapshot(
+            summary: base.summary,
+            isCurrentMonth: base.isCurrentMonth,
+            costKr: cost,
+            kWh: kWh,
+            paidKrPerKWh: paidKrPerKWh(costKr: cost, kWh: kWh),
+            spotOrePerKWh: spotOre,
+            usedCurrentTariffs: usedCurrentTariffs
         )
     }
 

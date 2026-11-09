@@ -19,11 +19,13 @@ struct HistoryMonthPresentation {
     let dayBars: [MonthDayCost]
     let weekdayAverages: [HistoryWeekdayAverage]
     let comparisonMonthName: String?
+    let previousDailySummaries: [HistoricalEnergySummaryValue]
 
     static func make(
         months: [HistoricalEnergySummaryValue],
         selectedMonth: HistoricalEnergySummaryValue?,
         dailySummaries: [HistoricalEnergySummaryValue],
+        previousDailySummaries: [HistoricalEnergySummaryValue] = [],
         costProfile: CostProfile,
         liveMonthlyConsumption: ConsumptionData?,
         livePreciseCost: PreciseMonthlyCost?,
@@ -56,6 +58,61 @@ struct HistoryMonthPresentation {
                 calendar: calendar
             )
         }
+        let lastMeasured = selectedMonth.flatMap { selected in
+            SameDayMonthComparison.lastMeasuredDay(
+                monthStart: selected.periodStart,
+                dailySummaries: dailySummaries,
+                extraDates: liveConsumption?.values.filter { $0.kWh > 0 }.map(\.date) ?? [],
+                calendar: calendar
+            )
+        } ?? (isCurrentMonth ? now : nil)
+        let throughDay = previous.flatMap { previousMonth in
+            selectedMonth.flatMap { selected in
+                SameDayMonthComparison.throughDay(
+                    currentMonthStart: selected.periodStart,
+                    lastMeasuredInCurrent: lastMeasured,
+                    previousMonthStart: previousMonth.periodStart,
+                    now: now,
+                    calendar: calendar
+                )
+            }
+        }
+        let comparesSameDays = throughDay != nil
+        let comparisonCurrent: HistoryMonthSnapshot?
+        let comparisonPrevious: HistoryMonthSnapshot?
+        let comparisonMonthName: String?
+        if let throughDay, let snapshot, let previousSnapshot,
+           let alignedPrevious = HistoryInsights.alignedSnapshot(
+            base: previousSnapshot,
+            dailySummaries: previousDailySummaries,
+            liveConsumption: nil,
+            throughDay: throughDay,
+            costProfile: costProfile,
+            now: now,
+            calendar: calendar
+           ) {
+            comparisonCurrent = HistoryInsights.alignedSnapshot(
+                base: snapshot,
+                dailySummaries: dailySummaries,
+                liveConsumption: liveConsumption,
+                throughDay: throughDay,
+                costProfile: costProfile,
+                now: now,
+                calendar: calendar
+            ) ?? snapshot
+            comparisonPrevious = alignedPrevious
+            comparisonMonthName = previous.map {
+                SameDayMonthComparison.rangeLabel(throughDay: throughDay, monthStart: $0.periodStart)
+            }
+        } else if throughDay == nil {
+            comparisonCurrent = snapshot
+            comparisonPrevious = previousSnapshot
+            comparisonMonthName = previousSnapshot.map { AppFormatters.monthName($0.summary.periodStart) }
+        } else {
+            comparisonCurrent = snapshot
+            comparisonPrevious = nil
+            comparisonMonthName = nil
+        }
         let dayBars: [MonthDayCost]
         if let selectedMonth {
             let monthStart = calendar.dateInterval(of: .month, for: selectedMonth.periodStart)?.start
@@ -84,11 +141,26 @@ struct HistoryMonthPresentation {
             isCurrentMonth: isCurrentMonth,
             snapshot: snapshot,
             previousSnapshot: previousSnapshot,
-            comparison: snapshot.flatMap { HistoryInsights.comparison(current: $0, previous: previousSnapshot) },
-            split: snapshot.flatMap { HistoryInsights.priceConsumptionSplit(current: $0, previous: previousSnapshot) },
+            comparison: comparisonCurrent.flatMap {
+                HistoryInsights.comparison(
+                    current: $0,
+                    previous: comparisonPrevious,
+                    previousRangeLabel: comparisonMonthName ?? "",
+                    comparesSameDays: comparesSameDays
+                )
+            },
+            split: comparisonCurrent.flatMap {
+                HistoryInsights.priceConsumptionSplit(
+                    current: $0,
+                    previous: comparisonPrevious,
+                    previousRangeLabel: comparisonMonthName ?? "",
+                    comparesSameDays: comparesSameDays
+                )
+            },
             dayBars: dayBars,
             weekdayAverages: HistoryInsights.weekdayAverages(from: dayBars, calendar: calendar),
-            comparisonMonthName: previousSnapshot.map { AppFormatters.monthName($0.summary.periodStart) }
+            comparisonMonthName: comparisonMonthName,
+            previousDailySummaries: previousDailySummaries
         )
     }
 }

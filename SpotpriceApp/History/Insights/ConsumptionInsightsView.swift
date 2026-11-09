@@ -164,13 +164,14 @@ struct ConsumptionInsightsContent: View {
             return nil
         }
         let percent = (baseload.powerKW - previous) / previous
+        let than = name.contains("–") ? name : "i \(name)"
         if percent <= -0.05 {
-            return "Lägre än i \(name) (\(ConsumptionInsightsBuilder.powerPhrase(previous)))."
+            return "Lägre än \(than) (\(ConsumptionInsightsBuilder.powerPhrase(previous)))."
         }
         if percent >= 0.05 {
-            return "Högre än i \(name) (\(ConsumptionInsightsBuilder.powerPhrase(previous)))."
+            return "Högre än \(than) (\(ConsumptionInsightsBuilder.powerPhrase(previous)))."
         }
-        return "Ungefär som i \(name)."
+        return "Ungefär som \(than)."
     }
 
     @ViewBuilder

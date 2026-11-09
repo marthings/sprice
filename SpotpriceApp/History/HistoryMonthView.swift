@@ -155,6 +155,7 @@ struct HistoryMonthView: View {
                 months: presentation.months,
                 selectedMonth: presentation.selectedMonth,
                 dailySummaries: presentation.dailySummaries,
+                previousDailySummaries: presentation.previousDailySummaries,
                 costProfile: costProfile,
                 liveMonthlyConsumption: liveMonthlyConsumption,
                 livePreciseCost: livePreciseCost
@@ -182,6 +183,7 @@ struct HistoryMonthView: View {
                         months: history.months,
                         selectedMonth: history.selectedMonth,
                         dailySummaries: history.dailySummaries,
+                        previousDailySummaries: history.previousDailySummaries,
                         costProfile: costProfile,
                         liveMonthlyConsumption: liveMonthlyConsumption,
                         livePreciseCost: livePreciseCost

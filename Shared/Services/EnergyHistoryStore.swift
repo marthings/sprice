@@ -35,6 +35,7 @@ struct EnergyHistoryMonthQueryResult {
     let months: [HistoricalEnergySummaryValue]
     let selectedMonth: HistoricalEnergySummaryValue?
     let dailySummaries: [HistoricalEnergySummaryValue]
+    let previousDailySummaries: [HistoricalEnergySummaryValue]
     let topCostDays: [HistoricalEnergySummaryValue]
     let topConsumptionDays: [HistoricalEnergySummaryValue]
     let selectedMonthKey: String?
@@ -96,6 +97,7 @@ final class EnergyHistoryQueryService: EnergyHistoryQuerying {
         let resolvedMonthKey = selectedMonthKey ?? EnergyHistoryKey.preferredMonthKey(from: months)
         let dailySummaries: [HistoricalEnergySummaryValue]
 
+        let selectedMonth = months.first { $0.periodKey == resolvedMonthKey }
         if let resolvedMonthKey {
             dailySummaries = try store.fetchDailySummaries(monthKey: resolvedMonthKey, priceArea: priceArea)
                 .sorted { $0.periodStart < $1.periodStart }
@@ -103,10 +105,25 @@ final class EnergyHistoryQueryService: EnergyHistoryQuerying {
             dailySummaries = []
         }
 
+        let previousDailySummaries: [HistoricalEnergySummaryValue]
+        if let selectedMonth,
+           let previous = months
+            .filter({ $0.periodStart < selectedMonth.periodStart })
+            .max(by: { $0.periodStart < $1.periodStart }) {
+            previousDailySummaries = try store.fetchDailySummaries(
+                monthKey: previous.periodKey,
+                priceArea: priceArea
+            )
+            .sorted { $0.periodStart < $1.periodStart }
+        } else {
+            previousDailySummaries = []
+        }
+
         return EnergyHistoryMonthQueryResult(
             months: months,
-            selectedMonth: months.first { $0.periodKey == resolvedMonthKey },
+            selectedMonth: selectedMonth,
             dailySummaries: dailySummaries,
+            previousDailySummaries: previousDailySummaries,
             topCostDays: [],
             topConsumptionDays: [],
             selectedMonthKey: resolvedMonthKey

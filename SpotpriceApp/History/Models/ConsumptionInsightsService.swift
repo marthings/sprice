@@ -20,11 +20,27 @@ enum ConsumptionInsightsService {
 
         let includeHypotheticalEffectTariff = ConsumptionSettings.shared.includeHypotheticalEffectTariff
         let intervals = await loadIntervals(for: route, historyQuery: historyQuery)
-        let previousIntervals = await loadPreviousIntervals(for: route, historyQuery: historyQuery)
+        let lastMeasured = [
+            SameDayMonthComparison.lastMeasuredDay(fromIntervals: intervals),
+            SameDayMonthComparison.lastMeasuredDay(
+                monthStart: bounds.start,
+                dailySummaries: dailySummaries,
+                calendar: calendar
+            )
+        ].compactMap { $0 }.max()
+            ?? (calendar.isDate(bounds.start, equalTo: now, toGranularity: .month) ? now : nil)
+        let previousIntervals = SameDayMonthComparison.restrictingPreviousIntervals(
+            await loadPreviousIntervals(for: route, historyQuery: historyQuery),
+            lastMeasuredInCurrent: lastMeasured,
+            currentMonthStart: bounds.start,
+            now: now,
+            calendar: calendar
+        )
         let cacheKey = key(
             route: route,
             costProfile: costProfile,
             intervals: intervals,
+            previousIntervals: previousIntervals,
             includeHypotheticalEffectTariff: includeHypotheticalEffectTariff,
             now: now,
             calendar: calendar
@@ -179,11 +195,13 @@ enum ConsumptionInsightsService {
         route: ConsumptionInsightsRoute,
         costProfile: CostProfile,
         intervals: [HistoricalEnergyIntervalValue],
+        previousIntervals: [HistoricalEnergyIntervalValue],
         includeHypotheticalEffectTariff: Bool,
         now: Date,
         calendar: Calendar
     ) -> String {
         let lastStart = intervals.last?.intervalStart.timeIntervalSince1970 ?? 0
+        let previousLast = previousIntervals.last?.intervalStart.timeIntervalSince1970 ?? 0
         let tariff = costProfile.effectTariff.map { "\($0.monthlyPricePerKW)-\($0.model.rawValue)" } ?? "none"
         let effectFlag = includeHypotheticalEffectTariff ? "effectOn" : "effectOff"
         let bucket: String
@@ -201,6 +219,6 @@ enum ConsumptionInsightsService {
                 bucket = "closed"
             }
         }
-        return "\(route.id)|\(intervals.count)|\(lastStart)|\(tariff)|\(effectFlag)|\(bucket)"
+        return "\(route.id)|\(intervals.count)|\(lastStart)|\(previousIntervals.count)|\(previousLast)|\(tariff)|\(effectFlag)|\(bucket)"
     }
 }
