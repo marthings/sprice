@@ -999,7 +999,7 @@ extension View {
         cornerRadius: CGFloat = DS.Glass.cardRadius,
         interactive: Bool = false
     ) -> some View {
-        modifier(SpriceCardModifier(tone: tone, cornerRadius: cornerRadius, isInteractive: isInteractive))
+        modifier(SpriceCardModifier(tone: tone, cornerRadius: cornerRadius, isInteractive: interactive))
     }
 
     /// Forwards to `spriceCard(tone: .default)` so older call sites keep compiling.
