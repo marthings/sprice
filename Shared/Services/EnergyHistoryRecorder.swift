@@ -17,8 +17,10 @@ enum EnergyHistoryBackfillTiming {
 
 enum EnergyHistorySpotMatching {
     static let version = 1
-    private static let defaults = UserDefaults(suiteName: EnergyHistoryConstants.appGroupIdentifier) ?? .standard
     private static let key = "energyHistory.spotMatchingVersion"
+    private static var defaults: UserDefaults {
+        UserDefaults(suiteName: EnergyHistoryConstants.appGroupIdentifier) ?? .standard
+    }
 
     static var needsReprice: Bool {
         (defaults.object(forKey: key) as? Int ?? 0) < version
@@ -545,8 +547,10 @@ final class EnergyHistoryBackfillController {
     private var recorder: EnergyHistoryRecorder?
     private var inFlight: Task<Void, Never>?
 
-    private static let defaults = UserDefaults(suiteName: EnergyHistoryConstants.appGroupIdentifier) ?? .standard
     nonisolated private static let lastSuccessKey = "energyHistory.backfill.lastSuccessAt"
+    private static var defaults: UserDefaults {
+        UserDefaults(suiteName: EnergyHistoryConstants.appGroupIdentifier) ?? .standard
+    }
 
     nonisolated static func resetAfterStoreRebuild() {
         UserDefaults(suiteName: EnergyHistoryConstants.appGroupIdentifier)?

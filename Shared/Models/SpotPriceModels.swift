@@ -97,7 +97,7 @@ struct DayChartData: Equatable, Sendable {
 
 // MARK: - Widget Timeline
 
-enum WidgetTimelineSchedule {
+nonisolated enum WidgetTimelineSchedule {
     /// Next quarter-hour boundary for widget timeline refresh policy.
     static func nextQuarterHourUpdate(from date: Date = Date(), calendar: Calendar = .energyHistory) -> Date {
         let minute = calendar.component(.minute, from: date)
@@ -141,7 +141,7 @@ enum WidgetTimelineSchedule {
     }
 }
 
-enum SpotPriceDayCache {
+nonisolated enum SpotPriceDayCache {
     private static let folderName = "SpotPriceCache"
 
     static func store(_ items: [SpotPriceItem], area: String, calendar: Calendar = .energyHistory) {

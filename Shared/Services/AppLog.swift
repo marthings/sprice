@@ -6,7 +6,7 @@
 import Foundation
 import OSLog
 
-enum AppLog {
+nonisolated enum AppLog {
     private static let subsystem = Bundle.main.bundleIdentifier ?? "mb.Spotprice"
 
     static let spotPrice = Logger(subsystem: subsystem, category: "SpotPrice")

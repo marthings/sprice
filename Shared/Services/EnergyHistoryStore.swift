@@ -7,6 +7,7 @@
 
 import CoreData
 import Foundation
+import OSLog
 import SwiftData
 
 // MARK: - Energy History Store
@@ -309,7 +310,8 @@ enum EnergyHistoryModelContainer {
         AppLog.history.error("Resetting history store: \(reason, privacy: .public)")
         let url = configuration.url
         do {
-            try NSPersistentStoreCoordinator.destroyPersistentStore(at: url, type: .sqlite)
+            let coordinator = NSPersistentStoreCoordinator(managedObjectModel: NSManagedObjectModel())
+            try coordinator.destroyPersistentStore(at: url, type: .sqlite)
         } catch {
             AppLog.history.error("destroyPersistentStore failed: \(error.localizedDescription, privacy: .public)")
         }
@@ -912,7 +914,7 @@ actor EnergyHistoryWriter {
     }
 }
 
-enum EnergyHistoryWriting {
+nonisolated enum EnergyHistoryWriting {
     nonisolated static func upsertRecords(
         _ drafts: [HistoricalEnergyRecordDraft],
         context: ModelContext,
@@ -1367,17 +1369,17 @@ enum EnergyHistoryWriting {
     }
 }
 
-private struct SummaryGroupKey: Hashable {
+nonisolated private struct SummaryGroupKey: Hashable, Sendable {
     let priceArea: String
     let providerID: String?
 }
 
-private struct SummaryCacheKey: Hashable {
+nonisolated private struct SummaryCacheKey: Hashable, Sendable {
     let monthKey: String
     let priceArea: String
 }
 
-private struct SummaryStats {
+nonisolated private struct SummaryStats: Sendable {
     let intervalCount: Int
     let measuredIntervalCount: Int
     let totalConsumptionKWh: Double?

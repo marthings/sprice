@@ -204,7 +204,7 @@ final class HistoricalEnergyRecord {
     }
 }
 
-struct HistoricalEnergyIntervalValue: Identifiable, Equatable, Sendable {
+nonisolated struct HistoricalEnergyIntervalValue: Identifiable, Equatable, Sendable {
     let id: UUID
     let intervalStart: Date
     let intervalEnd: Date
@@ -526,7 +526,7 @@ nonisolated struct HistoricalEnergyRecordDraft: Sendable {
 
 // MARK: - Query Values
 
-struct HistoricalEnergyDateRange: Sendable {
+nonisolated struct HistoricalEnergyDateRange: Sendable {
     let start: Date
     let end: Date
 }
@@ -596,7 +596,7 @@ nonisolated enum HistoricalEnergyDataCoverage: String, Codable, CaseIterable, Se
 }
 
 extension HistoricalEnergySummaryValue {
-    func isPreferred(over other: HistoricalEnergySummaryValue) -> Bool {
+    nonisolated func isPreferred(over other: HistoricalEnergySummaryValue) -> Bool {
         let lhsRank = dataCoverage.qualityRank
         let rhsRank = other.dataCoverage.qualityRank
 
@@ -608,7 +608,7 @@ extension HistoricalEnergySummaryValue {
 }
 
 extension Sequence where Element == HistoricalEnergySummaryValue {
-    func bestSummaries<Key: Hashable>(
+    nonisolated func bestSummaries<Key: Hashable>(
         groupedBy keyPath: KeyPath<HistoricalEnergySummaryValue, Key>
     ) -> [HistoricalEnergySummaryValue] {
         Dictionary(grouping: self, by: { $0[keyPath: keyPath] })
@@ -647,7 +647,9 @@ nonisolated struct WidgetHistorySummary: Codable, Equatable, Sendable {
 }
 
 nonisolated enum WidgetHistorySummaryCache: Sendable {
-    private static let defaults = UserDefaults(suiteName: EnergyHistoryConstants.appGroupIdentifier) ?? .standard
+    private static var defaults: UserDefaults {
+        UserDefaults(suiteName: EnergyHistoryConstants.appGroupIdentifier) ?? .standard
+    }
     private static let key = "widget_historySummaries"
 
     nonisolated static func summary(monthKey: String, priceArea: String) -> WidgetHistorySummary? {

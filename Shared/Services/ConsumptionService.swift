@@ -6,7 +6,7 @@
 //
 
 import Foundation
-import os.log
+import OSLog
 
 private let logger = Logger(subsystem: "se.spotprice", category: "ConsumptionService")
 
