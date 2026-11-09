@@ -31,13 +31,6 @@ struct ProviderSettingsView: View {
             .scrollDismissesKeyboard(.interactively)
             .listSectionSpacing(DS.Spacing.md)
             .tint(DS.Color.info)
-            .overlay(alignment: .topTrailing) {
-                if showSaved {
-                    SettingsSavedLabel()
-                        .padding(.top, DS.Spacing.xs)
-                        .padding(.trailing, DS.Spacing.lg)
-                }
-            }
         }
         .navigationTitle("Förbrukning")
         .navigationBarTitleDisplayMode(.inline)
@@ -69,6 +62,11 @@ struct ProviderSettingsView: View {
             }
         }
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                if showSaved {
+                    SettingsSavedLabel()
+                }
+            }
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer()
                 Button("Klar") {

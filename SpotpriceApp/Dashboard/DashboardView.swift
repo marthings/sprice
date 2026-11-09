@@ -10,7 +10,6 @@ struct DashboardView: View {
             Tab("Kostnad", systemImage: "wallet.bifold.fill", value: 0) {
                 CostTab(
                     state: viewModel.state,
-                    settingsSummary: settingsSummary,
                     monthlyConsumption: viewModel.monthlyConsumption,
                     preciseMonthlyCost: viewModel.preciseMonthlyCost,
                     powerPeaks: viewModel.powerPeaks,
@@ -22,8 +21,7 @@ struct DashboardView: View {
             Tab("Priser", systemImage: "chart.bar.fill", value: 1) {
                 PriceTab(
                     state: viewModel.state,
-                    settingsSummary: settingsSummary,
-                    costProfile: settingsSummaryCostProfile,
+                    costProfile: settingsCostProfile,
                     onRetry: reload,
                     onRefresh: refresh
                 )
@@ -31,9 +29,8 @@ struct DashboardView: View {
 
             Tab("Historik", systemImage: "clock.arrow.circlepath", value: 2) {
                 HistoryTab(
-                    settingsSummary: settingsSummary,
-                    priceArea: settingsSummaryPriceArea,
-                    costProfile: settingsSummaryCostProfile,
+                    priceArea: settingsPriceArea,
+                    costProfile: settingsCostProfile,
                     liveMonthlyConsumption: viewModel.monthlyConsumption,
                     livePreciseCost: viewModel.preciseMonthlyCost,
                     onRefresh: refresh
@@ -43,7 +40,6 @@ struct DashboardView: View {
             Tab("Inställningar", systemImage: "gearshape", value: 3) {
                 DashboardTabShell(
                     title: "Inställningar",
-                    settingsSummary: settingsSummary,
                     onRefresh: refresh,
                     showsRefresh: false,
                     embedsInScrollView: false
@@ -63,7 +59,6 @@ struct DashboardView: View {
     
     private struct CostTab: View {
         let state: SpotPriceViewModel.State
-        let settingsSummary: String
         let monthlyConsumption: ConsumptionData?
         let preciseMonthlyCost: PreciseMonthlyCost?
         let powerPeaks: [PowerPeak]
@@ -73,7 +68,6 @@ struct DashboardView: View {
         var body: some View {
             DashboardTabShell(
                 title: "Kostnad",
-                settingsSummary: settingsSummary,
                 onRefresh: onRefresh
             ) {
                 CostTabView(
@@ -89,7 +83,6 @@ struct DashboardView: View {
     
     private struct PriceTab: View {
         let state: SpotPriceViewModel.State
-        let settingsSummary: String
         let costProfile: CostProfile
         let onRetry: () -> Void
         let onRefresh: () async -> Void
@@ -97,7 +90,6 @@ struct DashboardView: View {
         var body: some View {
             DashboardTabShell(
                 title: "Priser",
-                settingsSummary: settingsSummary,
                 onRefresh: onRefresh
             ) {
                 DailyPriceTabView(
@@ -110,7 +102,6 @@ struct DashboardView: View {
     }
     
     private struct HistoryTab: View {
-        let settingsSummary: String
         let priceArea: String
         let costProfile: CostProfile
 
@@ -123,7 +114,6 @@ struct DashboardView: View {
         var body: some View {
             DashboardTabShell(
                 title: "Historik",
-                settingsSummary: settingsSummary,
                 onRefresh: onRefresh
             ) {
                 HistoryMonthView(
@@ -138,7 +128,6 @@ struct DashboardView: View {
 
     private struct DashboardTabShell<TabContent: View>: View {
         let title: String
-        let settingsSummary: String
         let onRefresh: () async -> Void
         var showsRefresh: Bool = true
         var embedsInScrollView: Bool = true
@@ -146,11 +135,11 @@ struct DashboardView: View {
 
         var body: some View {
             NavigationStack {
-                ZStack {
-                    AppCanvasBackground()
-                    tabBody
-                }
-                .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
+                tabBody
+                    .background { AppCanvasBackground() }
+                    .navigationTitle(title)
+                    .navigationBarTitleDisplayMode(.large)
+                    .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
             }
         }
 
@@ -159,7 +148,6 @@ struct DashboardView: View {
             if embedsInScrollView {
                 ScrollView {
                     VStack(alignment: .leading, spacing: DS.Spacing.xl) {
-                        DashboardHeader(title: title, settingsSummary: settingsSummary)
                         tabContent()
                     }
                     .padding(.horizontal, DS.Spacing.lg)
@@ -170,35 +158,17 @@ struct DashboardView: View {
                 .scrollDismissesKeyboard(.interactively)
                 .modifier(DashboardRefreshModifier(isEnabled: showsRefresh, onRefresh: onRefresh))
             } else {
-                VStack(alignment: .leading, spacing: 0) {
-                    DashboardHeader(title: title, settingsSummary: settingsSummary)
-                        .padding(.horizontal, DS.Spacing.lg)
-                        .padding(.top, DS.Spacing.lg)
-                        .padding(.bottom, DS.Spacing.sm)
-                    tabContent()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
+                tabContent()
             }
         }
     }
 
-    private var settingsSummaryCostProfile: CostProfile {
+    private var settingsCostProfile: CostProfile {
         ConsumptionSettings.shared.costProfile
     }
 
-    private var settingsSummaryPriceArea: String {
-        settingsSummaryCostProfile.priceArea
-    }
-
-    private var settingsSummary: String {
-        let profile = settingsSummaryCostProfile
-        var parts = [profile.priceArea, profile.retailContractDisplayName]
-
-        if let gridCompanyName = profile.gridCompanyName, !gridCompanyName.isEmpty {
-            parts.append(gridCompanyName)
-        }
-
-        return parts.joined(separator: " ")
+    private var settingsPriceArea: String {
+        settingsCostProfile.priceArea
     }
 
     private func reload() {

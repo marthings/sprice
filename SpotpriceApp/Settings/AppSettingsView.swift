@@ -33,6 +33,7 @@ struct AppSettingsView: View {
 
     var body: some View {
         Form {
+            overviewSection
             consumptionSection
             priceAreaSection
             retailContractSection
@@ -41,16 +42,8 @@ struct AppSettingsView: View {
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
         .scrollDismissesKeyboard(.interactively)
-        .contentMargins(.top, 0)
         .listSectionSpacing(DS.Spacing.md)
         .tint(DS.Color.info)
-        .overlay(alignment: .topTrailing) {
-            if showSaved {
-                SettingsSavedLabel()
-                    .padding(.top, DS.Spacing.xs)
-                    .padding(.trailing, DS.Spacing.lg)
-            }
-        }
         .onAppear {
             guard !isReady else { return }
             loadSettings()
@@ -80,12 +73,35 @@ struct AppSettingsView: View {
             }
         }
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                if showSaved {
+                    SettingsSavedLabel()
+                }
+            }
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer()
                 Button("Klar") {
                     focusedField = nil
                 }
             }
+        }
+    }
+
+    private var overviewSection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
+                Text(overviewLine)
+                    .font(DS.Font.callout)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let overviewStatus {
+                    Text(overviewStatus)
+                        .font(DS.Font.micro)
+                        .foregroundStyle(DS.Color.secondary)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .combine)
+            .spriceListRowBackground()
         }
     }
 
@@ -254,9 +270,40 @@ struct AppSettingsView: View {
         }
     }
 
+    private var overviewLine: String {
+        "\(priceArea) · \(contractOverviewName) · \(providerOverviewName)"
+    }
+
+    private var contractOverviewName: String {
+        switch contractType {
+        case .spotPriceMarkup:
+            return "Kvartspris"
+        case .variableMonthlyPrice:
+            return "Rörligt månadspris"
+        case .fixedPrice:
+            return "Fast pris"
+        }
+    }
+
+    private var providerOverviewName: String {
+        providerMetadata?.displayName ?? "Ingen leverantör"
+    }
+
+    private var overviewStatus: String? {
+        guard let metadata = providerMetadata else { return nil }
+        let credentials = settings.getCredentials(for: metadata.identifier)
+        return credentials.isComplete(for: metadata.credentialFields)
+            ? "Konfigurerad"
+            : "Saknar uppgifter"
+    }
+
+    private var providerMetadata: ProviderMetadata? {
+        guard !settings.selectedProviderId.isEmpty else { return nil }
+        return ProviderRegistry.shared.metadata(for: settings.selectedProviderId)
+    }
+
     private var providerStatusText: String {
-        guard !settings.selectedProviderId.isEmpty,
-              let metadata = ProviderRegistry.shared.metadata(for: settings.selectedProviderId) else {
+        guard let metadata = providerMetadata else {
             return "Ingen leverantör vald"
         }
 
@@ -452,9 +499,10 @@ struct AppSettingsView: View {
 
 #Preview {
     NavigationStack {
-        ZStack {
-            AppCanvasBackground()
-            AppSettingsView()
-        }
+        AppSettingsView()
+            .background { AppCanvasBackground() }
+            .navigationTitle("Inställningar")
+            .navigationBarTitleDisplayMode(.large)
+            .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
     }
 }
