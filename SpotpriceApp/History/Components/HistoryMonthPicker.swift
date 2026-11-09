@@ -2,13 +2,10 @@ import SwiftUI
 
 struct HistoryMonthPicker: View {
     let months: [HistoricalEnergySummaryValue]
-    @Binding var selectedMonthKey: String?
+    @Binding var selectedMonthKey: String
 
     var body: some View {
-        Picker("Månad", selection: Binding(
-            get: { selectedMonthKey ?? months.first?.periodKey ?? "" },
-            set: { selectedMonthKey = $0 }
-        )) {
+        Picker("Månad", selection: $selectedMonthKey) {
             ForEach(months) { month in
                 Text(AppFormatters.historyMonthLabel(month.periodStart))
                     .tag(month.periodKey)

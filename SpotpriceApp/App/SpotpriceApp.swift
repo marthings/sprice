@@ -1,5 +1,5 @@
 //
-//  SpotpriceAppApp.swift
+//  SpotpriceApp.swift
 //  SpotpriceApp
 //
 //  Created by Martin Berggren on 2026-05-19.

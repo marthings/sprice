@@ -195,7 +195,7 @@ The current iOS app still has template files:
 
 - `ContentView.swift`
 - `Item.swift`
-- SwiftData model container setup in `SpotpriceAppApp.swift`
+- SwiftData model container setup in `SpotpriceApp.swift`
 
 Once the dashboard is the real root UI, decide whether SwiftData is needed.
 

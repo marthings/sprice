@@ -60,7 +60,7 @@ final class EnergyHistoryQueryService: EnergyHistoryQuerying {
 
         if let resolvedMonthKey {
             dailySummaries = try store.fetchDailySummaries(monthKey: resolvedMonthKey, priceArea: priceArea)
-                .sorted { $0.periodStart > $1.periodStart }
+                .sorted { $0.periodStart < $1.periodStart }
             topCostDays = try store.fetchTopCostDays(monthKey: resolvedMonthKey, priceArea: priceArea, limit: 3)
             topConsumptionDays = try store.fetchTopConsumptionDays(monthKey: resolvedMonthKey, priceArea: priceArea, limit: 3)
         } else {

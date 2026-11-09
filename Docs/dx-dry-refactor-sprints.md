@@ -27,6 +27,8 @@ Already done:
 - [x] Added `vat_cost_sek` to history CSV export.
 - [x] Removed hardcoded chart hit-test width from the history chart.
 - [x] Centralized Swedish locale, Europe/Stockholm timezone, energy calendar, common date labels, CSV number formatting, and shared display number formatter.
+- [x] SwiftUI dataflow hygiene (History): removed manual `Binding(get:set:)` closure from `HistoryMonthPicker`. The picker now receives a direct `Binding<String>` and uses the preferred `selection: $selectedMonthKey` key-path form. Fallback defaulting lives in a computed `monthSelection` property on `HistoryMonthLoadedContent`. (Follow-up from targeted swiftui-specialist review of the History feature.)
+- [x] Quick win 2 from specialist review (History): Removed repeated `sorted` + `plottableDays` derivation from `HistoryDailyChart` (was in computed properties, re-running on every body). `dailySummaries` are now sorted once (chronological ascending) in `EnergyHistoryQueryService.loadMonthHistory` when materializing `HistoryMonthData`. Chart views receive and use the prepared array directly. Follows foreach.md guidance to keep transforms out of view bodies.
 
 Known remaining hotspots:
 
@@ -202,6 +204,11 @@ Keep `HistoryMonthView` responsible for:
 - [x] Extracted subviews are covered by loaded, empty, measured, and mixed mock previews through injected view state.
 - [x] Chart selection behavior remains unchanged.
 - [x] Project builds.
+
+### Follow-up Polish (post-Sprint 4)
+
+- Applied swiftui-specialist dataflow guidance: `HistoryMonthPicker` now uses a clean direct `Binding<String>` (no closure `Binding(get:set:)` created inside the picker). Defaulting logic moved to a computed property on the composition view (`HistoryMonthLoadedContent`).
+- Quick win 2: Moved repeated sort + derived plottable data out of `HistoryDailyChart` view (per foreach.md). Daily data is now sorted once (ascending) upstream in `EnergyHistoryQueryService` so views receive a prepared array.
 
 ### Out Of Scope
 

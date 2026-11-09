@@ -10,6 +10,13 @@ struct HistoryMonthLoadedContent: View {
     @Binding var viewMode: HistoryMonthViewMode
     @Binding var selectedDay: HistoricalEnergySummaryValue?
 
+    private var monthSelection: Binding<String> {
+        Binding(
+            get: { selectedMonthKey ?? data.months.first?.periodKey ?? "" },
+            set: { selectedMonthKey = $0 }
+        )
+    }
+
     var body: some View {
         if data.months.isEmpty {
             AppStatusCard(
@@ -20,7 +27,7 @@ struct HistoryMonthLoadedContent: View {
             )
         } else {
             VStack(alignment: .leading, spacing: DS.Spacing.lg) {
-                HistoryMonthPicker(months: data.months, selectedMonthKey: $selectedMonthKey)
+                HistoryMonthPicker(months: data.months, selectedMonthKey: monthSelection)
 
                 if let selectedMonth = data.selectedMonth {
                     let isCurrent = HistoryMonthFormatting.isCurrentMonth(selectedMonth)
