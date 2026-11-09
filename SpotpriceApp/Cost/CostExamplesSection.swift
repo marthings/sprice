@@ -15,7 +15,7 @@ struct CostExamplesSection: View {
             header
 
             LazyVGrid(columns: columns, spacing: DS.Spacing.sm) {
-                ForEach(examples) { example in
+                ForEach(HouseholdCostExample.catalog) { example in
                     CostExampleCard(
                         example: example,
                         cost: totalCostService.calculateTotalCost(
@@ -23,11 +23,15 @@ struct CostExamplesSection: View {
                             spotPriceOre: currentPrice,
                             profile: profile,
                             hoursInPeriod: example.hoursInPeriod
-                        ),
-                        profile: profile
+                        )
                     )
                 }
             }
+
+            Text(HouseholdCostExample.catalogFootnote)
+                .font(DS.Font.micro)
+                .foregroundStyle(DS.Color.secondary)
+                .fixedSize(horizontal: false, vertical: true)
 
             if profile.gridMonthlyFee != nil || profile.gridTransferOrePerKWh != nil {
                 Label("Elnätskostnaden baseras på dina elnätsuppgifter och kan avvika från fakturan.", systemImage: "info.circle.fill")
@@ -60,63 +64,11 @@ struct CostExamplesSection: View {
         ]
     }
 
-    private var examples: [CostExample] {
-        [
-            CostExample(
-                id: "shower",
-                title: "Dusch",
-                subtitle: "10 min",
-                kWh: 6.0,
-                hoursInPeriod: 1.0,
-                icon: "shower.fill",
-                color: DS.Color.info
-            ),
-            CostExample(
-                id: "oven",
-                title: "Pizza i ugn",
-                subtitle: "~1,1 kWh",
-                kWh: 1.1,
-                hoursInPeriod: 0.5,
-                icon: "oven.fill",
-                color: DS.Color.warning
-            ),
-            CostExample(
-                id: "heat-pump",
-                title: "Värmepump",
-                subtitle: "1 dygn",
-                kWh: 24.0,
-                hoursInPeriod: 24.0,
-                icon: "heat.waves",
-                color: DS.Color.danger
-            ),
-            CostExample(
-                id: "ev-charge",
-                title: "Ladda bilen",
-                subtitle: "~45 kWh",
-                kWh: 45.0,
-                hoursInPeriod: 8.0,
-                icon: "ev.charger.fill",
-                color: DS.Color.success
-            )
-        ]
-    }
-
-}
-
-private struct CostExample: Identifiable {
-    let id: String
-    let title: String
-    let subtitle: String
-    let kWh: Double
-    let hoursInPeriod: Double
-    let icon: String
-    let color: Color
 }
 
 private struct CostExampleCard: View {
-    let example: CostExample
+    let example: HouseholdCostExample
     let cost: EnhancedCost
-    let profile: CostProfile
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.sm) {

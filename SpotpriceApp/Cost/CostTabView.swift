@@ -79,8 +79,10 @@ private struct CurrentCostHero: View {
                     metricInline(
                         title: "Prognos",
                         value: AppFormatters.wholeNumber(forecast),
-                        unit: "kr/mån"
+                        unit: "kr/mån",
+                        accessibilityLabel: "Prognos för månaden"
                     )
+                    .layoutPriority(1)
                 }
                 Spacer(minLength: 0)
             }
@@ -99,7 +101,12 @@ private struct CurrentCostHero: View {
         }
     }
 
-    private func metricInline(title: String, value: String, unit: String) -> some View {
+    private func metricInline(
+        title: String,
+        value: String,
+        unit: String,
+        accessibilityLabel: String? = nil
+    ) -> some View {
         VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
             Text(title)
                 .font(DS.Font.callout)
@@ -112,6 +119,9 @@ private struct CurrentCostHero: View {
                     .foregroundStyle(DS.Color.secondary)
             }
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityLabel ?? title)
+        .accessibilityValue("\(value) \(unit)")
     }
 
     private func formattedMetric(_ value: Double) -> String {
