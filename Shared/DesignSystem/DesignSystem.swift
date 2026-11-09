@@ -843,31 +843,30 @@ struct PriceLevelBadge: View {
 // MARK: - Canvas background
 
 /// Full-bleed landscape reused by every screen (light/dark asset).
+/// Layout-neutral: the image lives in an overlay so `scaledToFill` never
+/// expands the parent (which would wipe out horizontal padding).
 struct AppCanvasBackground: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            base
-            Image("LandscapeBackground")
-                .resizable()
-                .scaledToFill()
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                .clipped()
-        }
-        .ignoresSafeArea()
-        .accessibilityHidden(true)
-        .allowsHitTesting(false)
+        base
+            .overlay(alignment: .bottom) {
+                Image("LandscapeBackground")
+                    .resizable()
+                    .scaledToFill()
+                    .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity, alignment: .bottom)
+                    .allowsHitTesting(false)
+            }
+            .clipped()
+            .ignoresSafeArea()
+            .accessibilityHidden(true)
+            .allowsHitTesting(false)
     }
 
-    private var base: some View {
-        Group {
-            if colorScheme == .dark {
-                Color(red: 0.045, green: 0.05, blue: 0.065)
-            } else {
-                Color(red: 0.86, green: 0.88, blue: 0.92)
-            }
-        }
+    private var base: Color {
+        colorScheme == .dark
+            ? Color(red: 0.045, green: 0.05, blue: 0.065)
+            : Color(red: 0.78, green: 0.86, blue: 0.94)
     }
 }
 
