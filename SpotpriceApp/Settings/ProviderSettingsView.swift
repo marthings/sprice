@@ -19,21 +19,25 @@ struct ProviderSettingsView: View {
         ZStack {
             AppCanvasBackground()
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: DS.Spacing.xl) {
-                    savedRow
-                    providerCard
-                    if selectedMetadata != nil {
-                        credentialsCard
-                        connectionCard
-                    }
+            Form {
+                providerSection
+                if selectedMetadata != nil {
+                    credentialsSection
+                    connectionSection
                 }
-                .padding(.horizontal, DS.Spacing.lg)
-                .padding(.top, DS.Spacing.lg)
-                .padding(.bottom, DS.Spacing.xl * 4)
             }
+            .formStyle(.grouped)
             .scrollContentBackground(.hidden)
             .scrollDismissesKeyboard(.interactively)
+            .listSectionSpacing(DS.Spacing.md)
+            .tint(DS.Color.info)
+            .overlay(alignment: .topTrailing) {
+                if showSaved {
+                    SettingsSavedLabel()
+                        .padding(.top, DS.Spacing.xs)
+                        .padding(.trailing, DS.Spacing.lg)
+                }
+            }
         }
         .navigationTitle("Förbrukning")
         .navigationBarTitleDisplayMode(.inline)
@@ -74,22 +78,8 @@ struct ProviderSettingsView: View {
         }
     }
 
-    private var savedRow: some View {
-        HStack {
-            Spacer(minLength: 0)
-            if showSaved {
-                SettingsSavedLabel()
-            }
-        }
-        .frame(minHeight: 16)
-        .accessibilityHidden(!showSaved)
-    }
-
-    private var providerCard: some View {
-        SettingsCard(
-            title: "Datakälla",
-            footer: "Används för månadsförbrukning, effekttoppar och mer träffsäkra kostnader."
-        ) {
+    private var providerSection: some View {
+        Section {
             Picker("Leverantör", selection: $selectedProviderId) {
                 Text("Ingen").tag("")
                 ForEach(providers) { provider in
@@ -98,101 +88,104 @@ struct ProviderSettingsView: View {
             }
             .pickerStyle(.menu)
             .accessibilityLabel("Leverantör")
+            .spriceListRowBackground()
+        } header: {
+            Text("Datakälla")
+        } footer: {
+            Text("Används för månadsförbrukning, effekttoppar och mer träffsäkra kostnader.")
         }
     }
 
     @ViewBuilder
-    private var credentialsCard: some View {
+    private var credentialsSection: some View {
         if let metadata = selectedMetadata {
-            SettingsCard(
-                title: "Inloggningsuppgifter",
-                footer: metadata.credentialHelpText
-            ) {
-                VStack(alignment: .leading, spacing: DS.Spacing.md) {
-                    ForEach(metadata.credentialFields) { field in
-                        credentialField(field)
-                    }
-
-                    if let portalURL = metadata.portalURL {
-                        Link(destination: portalURL) {
-                            Label("Öppna \(metadata.displayName)", systemImage: "safari")
-                                .font(DS.Font.callout)
-                        }
-                    }
+            Section {
+                ForEach(metadata.credentialFields) { field in
+                    credentialField(field)
                 }
+
+                if let portalURL = metadata.portalURL {
+                    Link(destination: portalURL) {
+                        Label("Öppna \(metadata.displayName)", systemImage: "safari")
+                    }
+                    .spriceListRowBackground()
+                }
+            } header: {
+                Text("Inloggningsuppgifter")
+            } footer: {
+                Text(metadata.credentialHelpText)
             }
         }
     }
 
     @ViewBuilder
-    private var connectionCard: some View {
+    private var connectionSection: some View {
         if selectedMetadata != nil {
-            SettingsCard(
-                title: "Anslutning",
-                footer: canSave
-                    ? "Uppgifterna sparas automatiskt. Testa när du vill kontrollera att inloggningen fungerar."
-                    : "Fyll i uppgifterna innan du testar anslutningen."
-            ) {
-                VStack(alignment: .leading, spacing: DS.Spacing.md) {
-                    Button {
-                        Task { await testConnection() }
-                    } label: {
-                        HStack {
-                            Label(verifyActionTitle, systemImage: verifyActionSymbol)
-                                .font(DS.Font.callout)
-                            Spacer()
-                            if case .testing = testState {
-                                ProgressView()
-                            }
+            Section {
+                Button {
+                    Task { await testConnection() }
+                } label: {
+                    HStack {
+                        Label(verifyActionTitle, systemImage: verifyActionSymbol)
+                        Spacer()
+                        if case .testing = testState {
+                            ProgressView()
                         }
                     }
-                    .disabled(!canSave || testState == .testing)
-                    .accessibilityHint("Sparar uppgifterna och testar anslutningen mot leverantören")
-
-                    switch testState {
-                    case .idle:
-                        EmptyView()
-                    case .testing:
-                        Text("Testar anslutning...")
-                            .font(DS.Font.micro)
-                            .foregroundStyle(DS.Color.secondary)
-                    case .success:
-                        Label("Anslutningen fungerar", systemImage: "checkmark.circle.fill")
-                            .font(DS.Font.callout)
-                            .foregroundStyle(DS.Color.success)
-                    case .failure(let message):
-                        Label(message, systemImage: "exclamationmark.triangle.fill")
-                            .font(DS.Font.callout)
-                            .foregroundStyle(DS.Color.warning)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
                 }
+                .disabled(!canSave || testState == .testing)
+                .accessibilityHint("Sparar uppgifterna och testar anslutningen mot leverantören")
+                .spriceListRowBackground()
+
+                switch testState {
+                case .idle:
+                    EmptyView()
+                case .testing:
+                    Text("Testar anslutning...")
+                        .foregroundStyle(DS.Color.secondary)
+                        .spriceListRowBackground()
+                case .success:
+                    Label("Anslutningen fungerar", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(DS.Color.success)
+                        .spriceListRowBackground()
+                case .failure(let message):
+                    Label(message, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(DS.Color.warning)
+                        .spriceListRowBackground()
+                }
+            } header: {
+                Text("Anslutning")
+            } footer: {
+                Text(
+                    canSave
+                        ? "Uppgifterna sparas automatiskt. Testa när du vill kontrollera att inloggningen fungerar."
+                        : "Fyll i uppgifterna innan du testar anslutningen."
+                )
             }
         }
     }
 
     private func credentialField(_ field: CredentialField) -> some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-            Text(field.label)
-                .font(DS.Font.callout)
-
-            if field.isSecure {
-                SecureField(field.label, text: binding(for: field.id))
-                    .textContentType(.password)
-                    .font(DS.Font.callout)
-                    .focused($focusedField, equals: field.id)
-                    .submitLabel(.done)
-                    .onSubmit { flushPendingSave() }
-                    .accessibilityLabel(field.label)
-            } else {
-                TextField(field.label, text: binding(for: field.id))
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .font(DS.Font.callout)
-                    .focused($focusedField, equals: field.id)
-                    .submitLabel(.next)
-                    .onSubmit { flushPendingSave() }
-                    .accessibilityLabel(field.label)
+        VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
+            LabeledContent(field.label) {
+                if field.isSecure {
+                    SecureField(field.label, text: binding(for: field.id))
+                        .textContentType(.password)
+                        .multilineTextAlignment(.trailing)
+                        .focused($focusedField, equals: field.id)
+                        .submitLabel(.done)
+                        .onSubmit { flushPendingSave() }
+                        .accessibilityLabel(field.label)
+                } else {
+                    TextField(field.label, text: binding(for: field.id))
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .multilineTextAlignment(.trailing)
+                        .focused($focusedField, equals: field.id)
+                        .submitLabel(.next)
+                        .onSubmit { flushPendingSave() }
+                        .accessibilityLabel(field.label)
+                }
             }
 
             if !field.hint.isEmpty {
@@ -202,6 +195,7 @@ struct ProviderSettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
+        .spriceListRowBackground()
     }
 
     private var selectedMetadata: ProviderMetadata? {
@@ -327,6 +321,9 @@ private enum TestState: Equatable {
 
 #Preview {
     NavigationStack {
-        ProviderSettingsView()
+        ZStack {
+            AppCanvasBackground()
+            ProviderSettingsView()
+        }
     }
 }

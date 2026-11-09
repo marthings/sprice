@@ -45,7 +45,8 @@ struct DashboardView: View {
                     title: "Inställningar",
                     settingsSummary: settingsSummary,
                     onRefresh: refresh,
-                    showsRefresh: false
+                    showsRefresh: false,
+                    embedsInScrollView: false
                 ) {
                     AppSettingsView()
                 }
@@ -140,27 +141,43 @@ struct DashboardView: View {
         let settingsSummary: String
         let onRefresh: () async -> Void
         var showsRefresh: Bool = true
+        var embedsInScrollView: Bool = true
         @ViewBuilder let tabContent: () -> TabContent
 
         var body: some View {
             NavigationStack {
                 ZStack {
                     AppCanvasBackground()
-
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: DS.Spacing.xl) {
-                            DashboardHeader(title: title, settingsSummary: settingsSummary)
-                            tabContent()
-                        }
-                        .padding(.horizontal, DS.Spacing.lg)
-                        .padding(.top, DS.Spacing.lg)
-                        .padding(.bottom, DS.Spacing.xl * 4)
-                    }
-                    .scrollContentBackground(.hidden)
-                    .scrollDismissesKeyboard(.interactively)
-                    .modifier(DashboardRefreshModifier(isEnabled: showsRefresh, onRefresh: onRefresh))
+                    tabBody
                 }
                 .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
+            }
+        }
+
+        @ViewBuilder
+        private var tabBody: some View {
+            if embedsInScrollView {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: DS.Spacing.xl) {
+                        DashboardHeader(title: title, settingsSummary: settingsSummary)
+                        tabContent()
+                    }
+                    .padding(.horizontal, DS.Spacing.lg)
+                    .padding(.top, DS.Spacing.lg)
+                    .padding(.bottom, DS.Spacing.xl * 4)
+                }
+                .scrollContentBackground(.hidden)
+                .scrollDismissesKeyboard(.interactively)
+                .modifier(DashboardRefreshModifier(isEnabled: showsRefresh, onRefresh: onRefresh))
+            } else {
+                VStack(alignment: .leading, spacing: 0) {
+                    DashboardHeader(title: title, settingsSummary: settingsSummary)
+                        .padding(.horizontal, DS.Spacing.lg)
+                        .padding(.top, DS.Spacing.lg)
+                        .padding(.bottom, DS.Spacing.sm)
+                    tabContent()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
             }
         }
     }

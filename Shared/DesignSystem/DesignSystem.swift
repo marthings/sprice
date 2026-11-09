@@ -886,12 +886,11 @@ enum SpriceCardTone: Equatable {
     }
 }
 
-/// Palette-tinted material card. Native glass stays underneath; only the
-/// background is clipped so chart callouts can overflow.
-struct SpriceCardModifier: ViewModifier {
-    let tone: SpriceCardTone
-    let cornerRadius: CGFloat
-    let isInteractive: Bool
+/// Palette fill used by `spriceCard` and by Form `listRowBackground`.
+struct SpriceCardBackground: View {
+    var tone: SpriceCardTone = .default
+    var cornerRadius: CGFloat = DS.Glass.cardRadius
+    var isInteractive: Bool = false
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -940,11 +939,51 @@ struct SpriceCardModifier: ViewModifier {
         )
     }
 
+    var body: some View {
+        Group {
+            if reduceTransparency {
+                cardShape
+                    .fill(opaqueBase)
+                    .overlay {
+                        cardShape.fill(paletteWash)
+                    }
+            } else {
+                cardShape
+                    .fill(.regularMaterial)
+                    .overlay {
+                        cardShape.fill(contrastFill)
+                    }
+                    .overlay {
+                        cardShape.fill(paletteWash)
+                    }
+                    .glassEffect(glassStyle, in: cardShape)
+            }
+        }
+    }
+}
+
+/// Palette-tinted material card. Native glass stays underneath; only the
+/// background is clipped so chart callouts can overflow.
+struct SpriceCardModifier: ViewModifier {
+    let tone: SpriceCardTone
+    let cornerRadius: CGFloat
+    let isInteractive: Bool
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var cardShape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+    }
+
     func body(content: Content) -> some View {
         content
             .background {
-                cardBackground
-                    .clipShape(cardShape)
+                SpriceCardBackground(
+                    tone: tone,
+                    cornerRadius: cornerRadius,
+                    isInteractive: isInteractive
+                )
+                .clipShape(cardShape)
             }
             .overlay {
                 cardShape.strokeBorder(strokeColor, lineWidth: 0.5)
@@ -952,29 +991,8 @@ struct SpriceCardModifier: ViewModifier {
             .containerShape(cardShape)
     }
 
-    @ViewBuilder
-    private var cardBackground: some View {
-        if reduceTransparency {
-            cardShape
-                .fill(opaqueBase)
-                .overlay {
-                    cardShape.fill(paletteWash)
-                }
-        } else {
-            cardShape
-                .fill(.regularMaterial)
-                .overlay {
-                    cardShape.fill(contrastFill)
-                }
-                .overlay {
-                    cardShape.fill(paletteWash)
-                }
-                .glassEffect(glassStyle, in: cardShape)
-        }
-    }
-
     private var strokeColor: Color {
-        paletteColor.opacity(colorScheme == .dark ? 0.28 : 0.16)
+        tone.paletteColor.opacity(colorScheme == .dark ? 0.28 : 0.16)
     }
 }
 
@@ -991,6 +1009,14 @@ extension View {
     /// Forwards to `spriceCard(tone: .default)` so older call sites keep compiling.
     func glassCard(cornerRadius: CGFloat = DS.Glass.cardRadius, interactive: Bool = false) -> some View {
         spriceCard(tone: .default, cornerRadius: cornerRadius, interactive: interactive)
+    }
+
+    /// Same palette fill as `spriceCard`, for grouped Form rows. Corner radius is
+    /// 0 so the Form can clip the section as one card.
+    func spriceListRowBackground(tone: SpriceCardTone = .default) -> some View {
+        listRowBackground(
+            SpriceCardBackground(tone: tone, cornerRadius: 0)
+        )
     }
 }
 

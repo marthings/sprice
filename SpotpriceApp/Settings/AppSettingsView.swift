@@ -32,13 +32,24 @@ struct AppSettingsView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.xl) {
-            savedRow
-
-            providerCard
-            priceAreaCard
-            retailContractCard
-            gridTariffCard
+        Form {
+            consumptionSection
+            priceAreaSection
+            retailContractSection
+            gridTariffSection
+        }
+        .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
+        .scrollDismissesKeyboard(.interactively)
+        .contentMargins(.top, 0)
+        .listSectionSpacing(DS.Spacing.md)
+        .tint(DS.Color.info)
+        .overlay(alignment: .topTrailing) {
+            if showSaved {
+                SettingsSavedLabel()
+                    .padding(.top, DS.Spacing.xs)
+                    .padding(.trailing, DS.Spacing.lg)
+            }
         }
         .onAppear {
             guard !isReady else { return }
@@ -78,157 +89,129 @@ struct AppSettingsView: View {
         }
     }
 
-    private var savedRow: some View {
-        HStack {
-            Spacer(minLength: 0)
-            if showSaved {
-                SettingsSavedLabel()
-            }
-        }
-        .frame(minHeight: 16)
-        .accessibilityHidden(!showSaved)
-    }
-
-    private var providerCard: some View {
-        SettingsCard(
-            title: "Förbrukning",
-            footer: "Används för månadsförbrukning, effekttoppar och mer träffsäkra kostnader."
-        ) {
+    private var consumptionSection: some View {
+        Section {
             NavigationLink {
                 ProviderSettingsView()
             } label: {
-                HStack(spacing: DS.Spacing.md) {
-                    Image(systemName: "bolt.badge.meter")
-                        .foregroundStyle(DS.Color.info)
-                        .accessibilityHidden(true)
-
-                    VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
-                        Text("Datakälla")
-                            .font(DS.Font.callout)
-                            .foregroundStyle(.primary)
-                        Text(providerStatusText)
-                            .font(DS.Font.micro)
-                            .foregroundStyle(DS.Color.secondary)
-                    }
-
-                    Spacer(minLength: DS.Spacing.sm)
-
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .semibold))
+                LabeledContent("Datakälla") {
+                    Text(providerStatusText)
                         .foregroundStyle(DS.Color.secondary)
-                        .accessibilityHidden(true)
+                        .multilineTextAlignment(.trailing)
                 }
             }
-            .buttonStyle(.plain)
             .accessibilityHint("Öppnar inställningar för förbrukningsdata")
+            .spriceListRowBackground()
+        } header: {
+            Text("Förbrukning")
+        } footer: {
+            Text("Används för månadsförbrukning, effekttoppar och mer träffsäkra kostnader.")
         }
     }
 
-    private var priceAreaCard: some View {
-        SettingsCard(
-            title: "Elområde",
-            footer: "Spotpriser hämtas för valt elområde."
-        ) {
+    private var priceAreaSection: some View {
+        Section {
             Picker("Elområde", selection: $priceArea) {
                 ForEach(["SE1", "SE2", "SE3", "SE4"], id: \.self) { area in
                     Text(area).tag(area)
                 }
             }
-            .pickerStyle(.segmented)
+            .pickerStyle(.menu)
             .accessibilityLabel("Elområde")
+            .spriceListRowBackground()
+        } header: {
+            Text("Elområde")
+        } footer: {
+            Text("Spotpriser hämtas för valt elområde.")
         }
     }
 
-    private var retailContractCard: some View {
-        SettingsCard(
-            title: "Elhandel",
-            footer: contractFooterText
-        ) {
-            VStack(alignment: .leading, spacing: DS.Spacing.md) {
-                Picker("Avtal", selection: $contractType) {
-                    Text("Kvartspris").tag(RetailContractType.spotPriceMarkup)
-                    Text("Rörligt").tag(RetailContractType.variableMonthlyPrice)
-                    Text("Fast").tag(RetailContractType.fixedPrice)
-                }
-                .pickerStyle(.segmented)
-                .accessibilityLabel("Avtal")
+    private var retailContractSection: some View {
+        Section {
+            Picker("Avtal", selection: $contractType) {
+                Text("Kvartspris").tag(RetailContractType.spotPriceMarkup)
+                Text("Rörligt").tag(RetailContractType.variableMonthlyPrice)
+                Text("Fast").tag(RetailContractType.fixedPrice)
+            }
+            .pickerStyle(.menu)
+            .accessibilityLabel("Avtal")
+            .spriceListRowBackground()
 
+            currencyField(
+                title: "Påslag",
+                value: $retailerMarkupOrePerKWh,
+                unit: "öre/kWh",
+                field: .markup
+            )
+
+            if contractType != .spotPriceMarkup {
                 currencyField(
-                    title: "Påslag",
-                    value: $retailerMarkupOrePerKWh,
+                    title: contractType == .fixedPrice ? "Fast pris" : "Månadspris",
+                    value: $contractPriceOrePerKWh,
                     unit: "öre/kWh",
-                    field: .markup
+                    field: .contractPrice
                 )
+            }
 
-                if contractType != .spotPriceMarkup {
-                    currencyField(
-                        title: contractType == .fixedPrice ? "Fast pris" : "Månadspris",
-                        value: $contractPriceOrePerKWh,
-                        unit: "öre/kWh",
-                        field: .contractPrice
-                    )
-                }
+            currencyField(
+                title: "Månadsavgift",
+                value: $retailerMonthlyFee,
+                unit: "kr/mån",
+                field: .monthlyFee
+            )
 
-                currencyField(
-                    title: "Månadsavgift",
-                    value: $retailerMonthlyFee,
-                    unit: "kr/mån",
-                    field: .monthlyFee
-                )
+            if let fieldError {
+                Label(fieldError, systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(DS.Color.warning)
+                    .spriceListRowBackground()
+            }
+        } header: {
+            Text("Elhandel")
+        } footer: {
+            Text(contractFooterText)
+        }
+    }
 
-                if let fieldError {
-                    Label(fieldError, systemImage: "exclamationmark.triangle.fill")
-                        .font(DS.Font.micro)
-                        .foregroundStyle(DS.Color.warning)
-                        .fixedSize(horizontal: false, vertical: true)
+    private var gridTariffSection: some View {
+        Section {
+            Picker("Elnät", selection: $selectedDSOOrgNo) {
+                Text("Inget valt").tag("")
+                ForEach(dsoOptions) { option in
+                    Text(option.name).tag(option.id)
                 }
             }
-        }
-    }
+            .pickerStyle(.menu)
+            .accessibilityLabel("Elnät")
+            .spriceListRowBackground()
 
-    private var gridTariffCard: some View {
-        SettingsCard(
-            title: "Elnät",
-            footer: "Elnätskostnader används i totalpriset tillsammans med spotpris, elhandel och moms. Beloppen anges som på fakturan, inklusive moms."
-        ) {
-            VStack(alignment: .leading, spacing: DS.Spacing.md) {
-                Picker("Elnät", selection: $selectedDSOOrgNo) {
-                    Text("Inget valt").tag("")
-                    ForEach(dsoOptions) { option in
-                        Text(option.name).tag(option.id)
-                    }
+            Picker("Säkring", selection: $fuseSize) {
+                ForEach(fuseSizes, id: \.self) { size in
+                    Text("\(size) A").tag(size)
                 }
-                .pickerStyle(.menu)
-                .accessibilityLabel("Elnät")
+            }
+            .pickerStyle(.menu)
+            .accessibilityLabel("Säkring")
+            .spriceListRowBackground()
 
-                Picker("Säkring", selection: $fuseSize) {
-                    ForEach(fuseSizes, id: \.self) { size in
-                        Text("\(size) A").tag(size)
-                    }
-                }
-                .pickerStyle(.menu)
-                .accessibilityLabel("Säkring")
+            Toggle(EffectTariffCopy.toggleTitle, isOn: $includeHypotheticalEffectTariff)
+                .accessibilityHint(EffectTariffCopy.explanation)
+                .spriceListRowBackground()
 
-                Toggle(EffectTariffCopy.toggleTitle, isOn: $includeHypotheticalEffectTariff)
-                    .font(DS.Font.callout)
-                    .accessibilityHint(EffectTariffCopy.explanation)
-
-                Text(EffectTariffCopy.explanation)
-                    .font(DS.Font.micro)
+            if let gridTariffError {
+                Label(gridTariffError, systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(DS.Color.warning)
+                    .spriceListRowBackground()
+            } else if let gridTariffSummary {
+                Label(gridTariffSummary, systemImage: "checkmark.circle.fill")
                     .foregroundStyle(DS.Color.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                if let gridTariffError {
-                    Label(gridTariffError, systemImage: "exclamationmark.triangle.fill")
-                        .font(DS.Font.micro)
-                        .foregroundStyle(DS.Color.warning)
-                        .fixedSize(horizontal: false, vertical: true)
-                } else if let gridTariffSummary {
-                    Label(gridTariffSummary, systemImage: "checkmark.circle.fill")
-                        .font(DS.Font.micro)
-                        .foregroundStyle(DS.Color.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                    .spriceListRowBackground()
+            }
+        } header: {
+            Text("Elnät")
+        } footer: {
+            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                Text("Elnätskostnader används i totalpriset tillsammans med spotpris, elhandel och moms. Beloppen anges som på fakturan, inklusive moms.")
+                Text(EffectTariffCopy.explanation)
             }
         }
     }
@@ -239,27 +222,25 @@ struct AppSettingsView: View {
         unit: String,
         field: Field
     ) -> some View {
-        HStack(spacing: DS.Spacing.md) {
-            Text(title)
-                .font(DS.Font.callout)
-            Spacer()
-            TextField(title, value: value, format: .number.precision(.fractionLength(2)))
-                .keyboardType(.decimalPad)
-                .multilineTextAlignment(.trailing)
-                .font(DS.Font.callout.monospacedDigit())
-                .frame(maxWidth: 110)
-                .focused($focusedField, equals: field)
-                .submitLabel(.done)
-                .onSubmit {
-                    flushPendingSave()
-                }
-                .accessibilityLabel(title)
-            Text(unit)
-                .font(DS.Font.micro)
-                .foregroundStyle(DS.Color.secondary)
-                .frame(width: 56, alignment: .leading)
-                .accessibilityHidden(true)
+        LabeledContent(title) {
+            HStack(spacing: DS.Spacing.xs) {
+                TextField(title, value: value, format: .number.precision(.fractionLength(2)))
+                    .keyboardType(.decimalPad)
+                    .multilineTextAlignment(.trailing)
+                    .font(DS.Font.callout.monospacedDigit())
+                    .focused($focusedField, equals: field)
+                    .submitLabel(.done)
+                    .onSubmit {
+                        flushPendingSave()
+                    }
+                    .accessibilityLabel(title)
+                Text(unit)
+                    .font(DS.Font.micro)
+                    .foregroundStyle(DS.Color.secondary)
+                    .accessibilityHidden(true)
+            }
         }
+        .spriceListRowBackground()
     }
 
     private var contractFooterText: String {
@@ -471,10 +452,9 @@ struct AppSettingsView: View {
 
 #Preview {
     NavigationStack {
-        ScrollView {
+        ZStack {
+            AppCanvasBackground()
             AppSettingsView()
-                .padding()
         }
-        .background { AppCanvasBackground() }
     }
 }
