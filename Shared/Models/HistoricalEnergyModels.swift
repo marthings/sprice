@@ -10,14 +10,14 @@ import SwiftData
 
 // MARK: - Historical Energy Constants
 
-enum EnergyHistoryConstants {
+nonisolated enum EnergyHistoryConstants {
     static let appGroupIdentifier = "group.mb.Spotprice"
     static let storeName = "EnergyHistory"
 }
 
 // MARK: - Historical Energy Source
 
-enum HistoricalEnergySource: String, Codable, CaseIterable, Sendable {
+nonisolated enum HistoricalEnergySource: String, Codable, CaseIterable, Sendable {
     case spotPrice
     case estimatedCost
     case measuredConsumption
@@ -27,7 +27,7 @@ enum HistoricalEnergySource: String, Codable, CaseIterable, Sendable {
 
 // MARK: - Historical Energy Confidence
 
-enum HistoricalEnergyConfidence: String, Codable, CaseIterable, Equatable, Sendable {
+nonisolated enum HistoricalEnergyConfidence: String, Codable, CaseIterable, Equatable, Sendable {
     case priceOnly
     case estimated
     case measured
@@ -37,7 +37,7 @@ enum HistoricalEnergyConfidence: String, Codable, CaseIterable, Equatable, Senda
 
 // MARK: - Historical Cost Profile Snapshot
 
-struct HistoricalCostProfileSnapshot: Codable, Equatable, Sendable {
+nonisolated struct HistoricalCostProfileSnapshot: Codable, Equatable, Sendable {
     let priceArea: String
     let retailContractType: String
     let retailerMarkupOrePerKWh: Double
@@ -437,7 +437,7 @@ final class HistoricalMonthlyEnergySummary {
 
 // MARK: - Drafts
 
-struct HistoricalEnergyRecordDraft: Sendable {
+nonisolated struct HistoricalEnergyRecordDraft: Sendable {
     let deduplicationKey: String
     let intervalStart: Date
     let intervalEnd: Date
@@ -531,7 +531,7 @@ struct HistoricalEnergyDateRange: Sendable {
     let end: Date
 }
 
-struct HistoricalEnergySummaryValue: Equatable, Identifiable, Sendable {
+nonisolated struct HistoricalEnergySummaryValue: Equatable, Identifiable, Sendable {
     let id: UUID
     let periodKey: String
     let periodStart: Date
@@ -575,7 +575,7 @@ struct HistoricalEnergySummaryValue: Equatable, Identifiable, Sendable {
     }
 }
 
-enum HistoricalEnergyDataCoverage: String, Codable, CaseIterable, Sendable {
+nonisolated enum HistoricalEnergyDataCoverage: String, Codable, CaseIterable, Sendable {
     case priceOnly
     case estimatedCost
     case partialConsumption
@@ -618,7 +618,7 @@ extension Sequence where Element == HistoricalEnergySummaryValue {
     }
 }
 
-struct WidgetHistorySummary: Codable, Equatable, Sendable {
+nonisolated struct WidgetHistorySummary: Codable, Equatable, Sendable {
     let monthKey: String
     let priceArea: String
     let periodStart: Date
@@ -646,7 +646,7 @@ struct WidgetHistorySummary: Codable, Equatable, Sendable {
     }
 }
 
-enum WidgetHistorySummaryCache: Sendable {
+nonisolated enum WidgetHistorySummaryCache: Sendable {
     private static let defaults = UserDefaults(suiteName: EnergyHistoryConstants.appGroupIdentifier) ?? .standard
     private static let key = "widget_historySummaries"
 
@@ -696,7 +696,7 @@ enum WidgetHistorySummaryCache: Sendable {
 
 // MARK: - Keys
 
-enum EnergyHistoryKey: Sendable {
+nonisolated enum EnergyHistoryKey: Sendable {
     nonisolated static func recordKey(
         intervalStart: Date,
         intervalEnd: Date,
@@ -756,5 +756,5 @@ enum EnergyHistoryKey: Sendable {
 }
 
 extension Calendar {
-    static let energyHistory = AppFormatters.energyCalendar
+    nonisolated static let energyHistory = AppFormatters.energyCalendar
 }

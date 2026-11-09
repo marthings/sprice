@@ -20,7 +20,7 @@ final class GridTariffService: Sendable {
     // Cached tariff data
     private let cache: TariffCache = TariffCache()
 
-    init(session: URLSession = .shared) {
+    nonisolated init(session: URLSession = .shared) {
         self.session = session
     }
 

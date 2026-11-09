@@ -8,12 +8,12 @@
 import Foundation
 
 final class TotalCostService: Sendable {
-    static let shared = TotalCostService()
+    nonisolated static let shared = TotalCostService()
 
     private let gridTariffService: GridTariffService
     private let consumptionService: ConsumptionService
 
-    init(gridTariffService: GridTariffService = GridTariffService(),
+    nonisolated init(gridTariffService: GridTariffService = GridTariffService(),
          consumptionService: ConsumptionService = ConsumptionService()) {
         self.gridTariffService = gridTariffService
         self.consumptionService = consumptionService
@@ -23,7 +23,7 @@ final class TotalCostService: Sendable {
     /// Nord Pool spot is excluding VAT. Markup, grid, tax, certificates and monthly
     /// fees in the profile are consumer-facing amounts including VAT. Contract
     /// prices (fast/rörligt) are also stored including VAT.
-    func calculateTotalCost(
+    nonisolated func calculateTotalCost(
         kWh: Double,
         spotPriceOre: Double,
         profile: CostProfile,
@@ -65,7 +65,7 @@ final class TotalCostService: Sendable {
     }
 
     /// Calculate total price per kWh from the central cost profile, including VAT.
-    func calculatePricePerKWh(
+    nonisolated func calculatePricePerKWh(
         spotPriceOre: Double,
         profile: CostProfile
     ) -> Double {
@@ -123,12 +123,12 @@ final class TotalCostService: Sendable {
         ).totalKr  // kr/kWh
     }
 
-    private func proratedMonthlyCost(_ monthlyCostKr: Double, hoursInPeriod: Double) -> Double {
+    nonisolated private func proratedMonthlyCost(_ monthlyCostKr: Double, hoursInPeriod: Double) -> Double {
         let hoursInMonth = 730.0
         return (monthlyCostKr / hoursInMonth) * hoursInPeriod
     }
 
-    private func retailEnergyExcludingVAT(
+    nonisolated private func retailEnergyExcludingVAT(
         kWh: Double,
         spotPriceOre: Double,
         profile: CostProfile
@@ -144,14 +144,14 @@ final class TotalCostService: Sendable {
         }
     }
 
-    private func retailMarkupCost(kWh: Double, profile: CostProfile) -> Double {
+    nonisolated private func retailMarkupCost(kWh: Double, profile: CostProfile) -> Double {
         guard profile.retailContractType == .spotPriceMarkup else {
             return 0
         }
         return (profile.retailerMarkupOrePerKWh / 100.0) * kWh
     }
 
-    private func calculateEffectTariffCost(
+    nonisolated private func calculateEffectTariffCost(
         _ effectTariff: EffectTariff?,
         powerPeakKW: Double,
         hoursInPeriod: Double
@@ -476,7 +476,7 @@ struct KilowattHourBreakdown: Sendable {
 }
 
 #if DEBUG
-private enum WorkedExampleGuard {
+nonisolated private enum WorkedExampleGuard {
     static let isValid: Bool = {
         let profile = ElectricityCostMath.workedExampleSE3Jonkoping20A()
         let cost = EnhancedCost.assembling(

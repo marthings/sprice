@@ -11,11 +11,11 @@ import CoreText
 // MARK: - Shared Formatters
 
 enum AppFormatters {
-    static let swedishLocale = Locale(identifier: "sv_SE")
-    static let swedishTimeZone = TimeZone(identifier: "Europe/Stockholm") ?? .current
-    static let posixLocale = Locale(identifier: "en_US_POSIX")
+    nonisolated static let swedishLocale = Locale(identifier: "sv_SE")
+    nonisolated static let swedishTimeZone = TimeZone(identifier: "Europe/Stockholm") ?? .current
+    nonisolated static let posixLocale = Locale(identifier: "en_US_POSIX")
 
-    static let energyCalendar: Calendar = {
+    nonisolated static let energyCalendar: Calendar = {
         var calendar = Calendar(identifier: .gregorian)
         calendar.locale = swedishLocale
         calendar.timeZone = swedishTimeZone

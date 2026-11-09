@@ -211,7 +211,7 @@ struct DSOOption: Identifiable, Sendable {
 
 // MARK: - Enhanced Cost Models
 
-struct EnhancedCost: Sendable {
+nonisolated struct EnhancedCost: Sendable {
     /// Retail energy (spot or contract), excluding VAT.
     let spotCostKr: Double
     /// Grid transfer, excluding VAT.
@@ -295,8 +295,8 @@ struct EnhancedCost: Sendable {
 
 // MARK: - VAT
 
-enum ElectricityCostMath {
-    static let standardVATRate = CostProfile.SwedishDefaults.vatRate
+nonisolated enum ElectricityCostMath {
+    nonisolated static let standardVATRate = CostProfile.SwedishDefaults.vatRate
 
     /// Profile values (markup, grid, tax, certificates, monthly fees) are stored including VAT.
     static func excludingVAT(_ amountIncludingVAT: Double, vatRate: Double = standardVATRate) -> Double {

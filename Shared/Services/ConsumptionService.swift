@@ -15,7 +15,7 @@ private let logger = Logger(subsystem: "se.spotprice", category: "ConsumptionSer
 struct ConsumptionService: Sendable {
     private let session: URLSession
 
-    init(session: URLSession = NetworkSession.shared) {
+    nonisolated init(session: URLSession = NetworkSession.shared) {
         self.session = session
     }
 

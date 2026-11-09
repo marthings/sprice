@@ -203,7 +203,7 @@ enum SpotPriceDayCache {
 
 // MARK: - Price Bucket Analytics
 
-enum SpotPriceMatching: Sendable {
+nonisolated enum SpotPriceMatching: Sendable {
     nonisolated static func price(
         for intervalStart: Date,
         hoursInPeriod: Double,

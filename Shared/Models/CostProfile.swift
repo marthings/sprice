@@ -9,7 +9,7 @@ import Foundation
 
 // MARK: - Cost Profile
 
-struct CostProfile: Codable, Equatable, Sendable {
+nonisolated struct CostProfile: Codable, Equatable, Sendable {
     let priceArea: String
     let retailContractType: RetailContractType
     let retailerMarkupOrePerKWh: Double
@@ -159,7 +159,7 @@ struct CostProfile: Codable, Equatable, Sendable {
 }
 
 extension CostProfile {
-    enum SwedishDefaults {
+    nonisolated enum SwedishDefaults {
         static let priceArea = "SE3"
         static let retailerMarkupOrePerKWh = 4.0
         static let retailerMonthlyFee = 0.0
@@ -436,7 +436,7 @@ extension CostProfile {
 
 // MARK: - Retail Contract
 
-enum RetailContractType: String, Codable, Equatable, Sendable {
+nonisolated enum RetailContractType: String, Codable, Equatable, Sendable {
     case spotPriceMarkup
     case variableMonthlyPrice
     case fixedPrice
@@ -444,7 +444,7 @@ enum RetailContractType: String, Codable, Equatable, Sendable {
 
 // MARK: - Confidence
 
-enum CostConfidence: String, Codable, Equatable, Sendable {
+nonisolated enum CostConfidence: String, Codable, Equatable, Sendable {
     case estimated
     case userConfigured
     case providerConnected
@@ -463,7 +463,7 @@ enum CostConfidence: String, Codable, Equatable, Sendable {
 
 // MARK: - Source
 
-enum TariffSource: String, Codable, Equatable, Sendable {
+nonisolated enum TariffSource: String, Codable, Equatable, Sendable {
     case defaultEstimate
     case userEntered
     case localPreset
@@ -473,20 +473,20 @@ enum TariffSource: String, Codable, Equatable, Sendable {
 
 // MARK: - Effect Tariff
 
-struct EffectTariff: Codable, Equatable, Sendable {
+nonisolated struct EffectTariff: Codable, Equatable, Sendable {
     let monthlyPricePerKW: Double
     let model: EffectTariffModel
     let activeHours: EffectTariffActiveHours
 }
 
-enum EffectTariffModel: String, Codable, Equatable, Sendable {
+nonisolated enum EffectTariffModel: String, Codable, Equatable, Sendable {
     case singlePeak
     case averageTopThree
     case averageTopFive
     case manual
 }
 
-enum EffectTariffActiveHours: String, Codable, Equatable, Sendable {
+nonisolated enum EffectTariffActiveHours: String, Codable, Equatable, Sendable {
     case allHours
     case weekdaysDaytime
     case custom
