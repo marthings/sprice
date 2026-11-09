@@ -853,8 +853,12 @@ nonisolated enum SameDayMonthComparison: Sendable {
         calendar.component(.day, from: date) <= throughDay
     }
 
+    nonisolated static func swedishMonthName(_ date: Date) -> String {
+        date.formatted(Date.FormatStyle(locale: Locale(identifier: "sv_SE"), calendar: .energyHistory).month(.wide))
+    }
+
     nonisolated static func rangeLabel(throughDay: Int, monthStart: Date) -> String {
-        "1–\(throughDay) \(AppFormatters.monthName(monthStart))"
+        "1–\(throughDay) \(swedishMonthName(monthStart))"
     }
 
     /// "oktober" when the dates cover that month, otherwise "1–9 oktober".
@@ -866,7 +870,7 @@ nonisolated enum SameDayMonthComparison: Sendable {
         if maxDay < daysInMonth {
             return rangeLabel(throughDay: maxDay, monthStart: monthStart)
         }
-        return AppFormatters.monthName(monthStart)
+        return swedishMonthName(monthStart)
     }
 
     nonisolated static func restrictingPreviousIntervals(
