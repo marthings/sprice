@@ -18,6 +18,7 @@ struct SpotpriceApp: App {
     var body: some Scene {
         MenuBarExtra {
             ModernMenuBarView(viewModel: viewModel)
+                .tint(DS.Color.accent)
         } label: {
             MenuBarLabel(viewModel: viewModel)
         }
@@ -25,6 +26,7 @@ struct SpotpriceApp: App {
 
         Settings {
             SettingsView()
+                .tint(DS.Color.accent)
         }
     }
 }

@@ -47,7 +47,6 @@ struct AppSettingsView: View {
         .environment(\.defaultMinListHeaderHeight, 0)
         .font(DS.Font.body)
         .textFieldStyle(.plain)
-        .tint(DS.Color.info)
         .onAppear {
             guard !isReady else { return }
             loadSettings()

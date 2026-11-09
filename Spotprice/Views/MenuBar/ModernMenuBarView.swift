@@ -151,7 +151,7 @@ struct ModernMenuBarView: View {
                 ProgressView()
                     .progressViewStyle(CircularProgressViewStyle())
                     .scaleEffect(1.0)
-                    .tint(.orange)
+                    .tint(DS.Color.accent)
             } else {
                 Image(systemName: "bolt.slash.fill")
                     .font(.system(size: DS.Size.iconXL, weight: .light))

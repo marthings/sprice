@@ -255,6 +255,8 @@ enum DS {
         static let info = SwiftUI.Color("InfoColor")
         static let warning = SwiftUI.Color("WarningColor")
         static let danger = SwiftUI.Color("DangerColor")
+        /// Palette orange (`WarningColor`). App tint for toggles, links and selected tabs.
+        static let accent = warning
 
         static let secondary = SwiftUI.Color.primary.opacity(0.72)
         static let outline = SwiftUI.Color.primary.opacity(0.28)
@@ -840,56 +842,96 @@ struct PriceLevelBadge: View {
 
 // MARK: - Canvas background
 
-/// Calm field behind dashboard content. Replaces the old photo background so
-/// materials and text keep contrast in light and dark mode.
+/// Calm field behind dashboard content. A soft 3×3 mesh of palette tints;
+/// falls back to the previous linear + radial wash below MeshGradient.
 struct AppCanvasBackground: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
+        canvas
+            .ignoresSafeArea()
+            .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private var canvas: some View {
+        if #available(iOS 18.0, macOS 15.0, *) {
+            MeshGradient(
+                width: 3,
+                height: 3,
+                points: Self.meshPoints,
+                colors: meshColors,
+                background: paper,
+                smoothsColors: true
+            )
+        } else {
+            fallbackCanvas
+        }
+    }
+
+    private static let meshPoints: [SIMD2<Float>] = [
+        SIMD2<Float>(0.00, 0.00), SIMD2<Float>(0.40, 0.00), SIMD2<Float>(1.00, 0.00),
+        SIMD2<Float>(0.00, 0.42), SIMD2<Float>(0.38, 0.40), SIMD2<Float>(1.00, 0.58),
+        SIMD2<Float>(0.00, 1.00), SIMD2<Float>(0.55, 1.00), SIMD2<Float>(1.00, 1.00)
+    ]
+
+    private var paper: Color {
+        colorScheme == .dark
+            ? Color(red: 0.07, green: 0.08, blue: 0.10)
+            : Color(red: 0.94, green: 0.94, blue: 0.96)
+    }
+
+    @available(iOS 18.0, macOS 15.0, *)
+    private var meshColors: [Color] {
+        let info = DS.Color.info
+        let warm = DS.Color.accent
+        if colorScheme == .dark {
+            let cool = Color(red: 0.11, green: 0.14, blue: 0.20)
+            return [
+                cool.mix(with: info, by: 0.28),
+                cool,
+                paper.mix(with: warm, by: 0.08),
+                cool.mix(with: paper, by: 0.30),
+                cool.mix(with: info, by: 0.14),
+                paper,
+                paper,
+                cool.mix(with: paper, by: 0.20),
+                cool.mix(with: info, by: 0.20)
+            ]
+        }
+        let cool = Color(red: 0.88, green: 0.92, blue: 0.97)
+        let cream = Color(red: 0.96, green: 0.94, blue: 0.91)
+        return [
+            cool.mix(with: info, by: 0.18),
+            cool,
+            cream.mix(with: warm, by: 0.06),
+            cool.mix(with: paper, by: 0.35),
+            paper.mix(with: info, by: 0.10),
+            cream,
+            cream,
+            paper,
+            cool.mix(with: info, by: 0.14)
+        ]
+    }
+
+    private var fallbackCanvas: some View {
         ZStack {
             LinearGradient(
-                colors: colorScheme == .dark ? darkBase : lightBase,
+                colors: colorScheme == .dark
+                    ? [Color(red: 0.10, green: 0.13, blue: 0.18), Color(red: 0.07, green: 0.08, blue: 0.10)]
+                    : [Color(red: 0.86, green: 0.91, blue: 0.96), Color(red: 0.95, green: 0.93, blue: 0.90)],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
-
             RadialGradient(
-                colors: colorScheme == .dark ? darkWash : lightWash,
+                colors: colorScheme == .dark
+                    ? [Color(red: 0.18, green: 0.24, blue: 0.32).opacity(0.50), .clear]
+                    : [Color(red: 0.76, green: 0.86, blue: 0.94).opacity(0.65), .clear],
                 center: .topLeading,
                 startRadius: 24,
                 endRadius: 520
             )
         }
-        .ignoresSafeArea()
-        .accessibilityHidden(true)
-    }
-
-    private var lightBase: [Color] {
-        [
-            Color(red: 0.89, green: 0.92, blue: 0.95),
-            Color(red: 0.94, green: 0.93, blue: 0.91)
-        ]
-    }
-
-    private var darkBase: [Color] {
-        [
-            Color(red: 0.10, green: 0.12, blue: 0.16),
-            Color(red: 0.07, green: 0.08, blue: 0.10)
-        ]
-    }
-
-    private var lightWash: [Color] {
-        [
-            Color(red: 0.80, green: 0.87, blue: 0.93).opacity(0.55),
-            .clear
-        ]
-    }
-
-    private var darkWash: [Color] {
-        [
-            Color(red: 0.18, green: 0.22, blue: 0.30).opacity(0.40),
-            .clear
-        ]
     }
 }
 
@@ -911,10 +953,10 @@ enum SpriceCardTone: Equatable {
     /// Gradient overlay on top of material.
     func overlayOpacity(colorScheme: ColorScheme) -> Double {
         switch (self, colorScheme) {
-        case (_, .light): return 0.10
-        case (_, .dark): return 0.12
+        case (_, .light): return 0.14
+        case (_, .dark): return 0.16
         @unknown default:
-            return 0.10
+            return 0.14
         }
     }
 
@@ -943,8 +985,8 @@ struct SpriceCardBackground: View {
     /// stay at WCAG AA (4.5:1) against the tinted fill in both appearances.
     private var contrastFill: Color {
         colorScheme == .dark
-            ? Color.black.opacity(0.36)
-            : Color.white.opacity(0.58)
+            ? Color.black.opacity(0.42)
+            : Color.white.opacity(0.64)
     }
 
     private var opaqueBase: Color {

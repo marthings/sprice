@@ -34,7 +34,6 @@ struct ProviderSettingsView: View {
             .environment(\.defaultMinListHeaderHeight, 0)
             .font(DS.Font.body)
             .textFieldStyle(.plain)
-            .tint(DS.Color.info)
         }
         .navigationTitle("Förbrukning")
         .navigationBarTitleDisplayMode(.inline)
