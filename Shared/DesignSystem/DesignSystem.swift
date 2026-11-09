@@ -857,19 +857,13 @@ enum SpriceCardTone: Equatable {
     case history
 
     var paletteColor: Color {
-        switch self {
-        case .default, .history:
-            return DS.Color.brand
-        case .accent, .cost, .price:
-            return DS.Color.info
-        }
+        // One shared tint for every card so all tabs look the same.
+        DS.Color.info
     }
 
-    /// GlassEffect tint. Accent is a bit stronger.
+    /// GlassEffect tint, the same for every tone.
     func glassTintOpacity(colorScheme: ColorScheme) -> Double {
         switch (self, colorScheme) {
-        case (.accent, .light): return 0.20
-        case (.accent, .dark): return 0.22
         case (_, .light): return 0.16
         case (_, .dark): return 0.20
         @unknown default:
@@ -880,8 +874,6 @@ enum SpriceCardTone: Equatable {
     /// Gradient overlay on top of material, kept below the glass tint.
     func overlayOpacity(colorScheme: ColorScheme) -> Double {
         switch (self, colorScheme) {
-        case (.accent, .light): return 0.12
-        case (.accent, .dark): return 0.14
         case (_, .light): return 0.10
         case (_, .dark): return 0.12
         @unknown default:
