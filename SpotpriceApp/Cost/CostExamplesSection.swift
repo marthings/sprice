@@ -153,6 +153,7 @@ private struct CostExampleCard: View {
                 breakdownRow("Elhandel", cost.providerTotalKr)
                 breakdownRow("Elnät", cost.gridTotalKr)
                 breakdownRow("Skatt/avg.", cost.taxesAndFeesKr)
+                breakdownRow("Moms", cost.vatKr)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

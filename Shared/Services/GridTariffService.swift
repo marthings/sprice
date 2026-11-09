@@ -109,15 +109,16 @@ final class GridTariffService: Sendable {
             let energyTaxKr = (standardEnergyTax / 100.0) * kWh
             let certificateFeeKr = (standardCertificateFee / 100.0) * kWh
 
-            return EnhancedCost(
-                spotCostKr: spotCostKr,
-                gridEnergyCostKr: 0,
-                fixedFeeCostKr: 0,
-                powerTariffCostKr: 0,
-                energyTaxKr: energyTaxKr,
-                certificateFeeKr: certificateFeeKr,
-                providerSurchargeKr: providerSurchargeKr,
-                providerMonthlyFeeKr: providerMonthlyFeeKr
+            return EnhancedCost.assembling(
+                spotExcludingVAT: spotCostKr,
+                gridEnergyIncludingVAT: 0,
+                fixedFeeIncludingVAT: 0,
+                powerTariffIncludingVAT: 0,
+                energyTaxIncludingVAT: energyTaxKr,
+                certificateFeeIncludingVAT: certificateFeeKr,
+                surchargeIncludingVAT: providerSurchargeKr,
+                monthlyFeeIncludingVAT: providerMonthlyFeeKr,
+                vatRate: CostProfile.SwedishDefaults.vatRate
             )
         }
 
@@ -144,15 +145,16 @@ final class GridTariffService: Sendable {
         let providerSurchargeKr = (providerSurcharge / 100.0) * kWh
         let providerMonthlyFeeKr = (providerMonthlyFee / hoursInMonth) * hoursInPeriod
 
-        return EnhancedCost(
-            spotCostKr: spotCostKr,
-            gridEnergyCostKr: gridEnergyCostKr,
-            fixedFeeCostKr: fixedFeeCostKr,
-            powerTariffCostKr: powerTariffCostKr,
-            energyTaxKr: energyTaxKr,
-            certificateFeeKr: certificateFeeKr,
-            providerSurchargeKr: providerSurchargeKr,
-            providerMonthlyFeeKr: providerMonthlyFeeKr
+        return EnhancedCost.assembling(
+            spotExcludingVAT: spotCostKr,
+            gridEnergyIncludingVAT: gridEnergyCostKr,
+            fixedFeeIncludingVAT: fixedFeeCostKr,
+            powerTariffIncludingVAT: powerTariffCostKr,
+            energyTaxIncludingVAT: energyTaxKr,
+            certificateFeeIncludingVAT: certificateFeeKr,
+            surchargeIncludingVAT: providerSurchargeKr,
+            monthlyFeeIncludingVAT: providerMonthlyFeeKr,
+            vatRate: CostProfile.SwedishDefaults.vatRate
         )
     }
 

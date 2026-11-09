@@ -98,7 +98,7 @@ extension CostCardView {
         return CostBreakdown(
             spot: enhancedCost.spotCostKr,
             grid: enhancedCost.gridTotalKr,
-            fixed: enhancedCost.taxesAndFeesKr + enhancedCost.providerSurchargeKr + enhancedCost.providerMonthlyFeeKr,
+            fixed: enhancedCost.taxesAndFeesKr + enhancedCost.providerSurchargeKr + enhancedCost.providerMonthlyFeeKr + enhancedCost.vatKr,
             total: enhancedCost.totalKr
         )
     }
@@ -124,7 +124,7 @@ extension CostCardView {
         return CostBreakdown(
             spot: enhancedCost.spotCostKr,
             grid: enhancedCost.gridTotalKr,
-            fixed: enhancedCost.taxesAndFeesKr + enhancedCost.providerSurchargeKr + enhancedCost.providerMonthlyFeeKr,
+            fixed: enhancedCost.taxesAndFeesKr + enhancedCost.providerSurchargeKr + enhancedCost.providerMonthlyFeeKr + enhancedCost.vatKr,
             total: enhancedCost.totalKr
         )
     }

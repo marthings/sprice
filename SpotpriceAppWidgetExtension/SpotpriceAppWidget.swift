@@ -78,6 +78,7 @@ struct SpotpriceAppWidgetProvider: TimelineProvider {
 
             let items = try await service.fetchSpotPrices(for: now, area: costProfile.priceArea)
             let dayData = try service.makeDayChartData(from: items, for: now)
+            // dayTotalCostsPerKWh uses calculatePricePerKWh, which includes VAT.
             let dayCosts = totalCostService.dayTotalCostsPerKWh(from: dayData, profile: costProfile)
 
             guard let currentBucketIndex = dayData.currentBucketIndex(at: now),

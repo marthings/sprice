@@ -118,7 +118,7 @@ final class EnergyHistoryRecorder {
                     energyCostSEK: cost.providerTotalKr,
                     gridCostSEK: cost.gridTotalKr,
                     taxCostSEK: cost.taxesAndFeesKr,
-                    vatCostSEK: nil,
+                    vatCostSEK: cost.vatKr,
                     totalCostSEK: cost.totalKr,
                     costProfileSnapshot: snapshot,
                     source: .measuredConsumption,

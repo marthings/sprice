@@ -137,6 +137,7 @@ extension CostProfile {
         static let retailerMonthlyFee = 0.0
         static let energyTaxOrePerKWh = 54.875
         static let certificateFeeOrePerKWh = 1.75
+        /// Consumer VAT. Profile amounts other than Nord Pool spot are stored including this rate.
         static let vatRate = 0.25
     }
 
@@ -364,9 +365,9 @@ extension CostProfile {
         case .spotPriceMarkup:
             return nil
         case .variableMonthlyPrice:
-            return "Totalpriset använder rörligt månadspris för elhandeln."
+            return "Totalpriset använder rörligt månadspris för elhandeln, inklusive moms."
         case .fixedPrice:
-            return "Totalpriset använder fast pris för elhandeln."
+            return "Totalpriset använder fast pris för elhandeln, inklusive moms."
         }
     }
 

@@ -161,7 +161,7 @@ struct AppSettingsView: View {
             Text("Elnät")
                 .font(DS.Font.caption)
         } footer: {
-            Text("Elnätskostnader används i totalpriset tillsammans med spotpris och elhandel.")
+            Text("Elnätskostnader används i totalpriset tillsammans med spotpris, elhandel och moms. Beloppen anges som på fakturan, inklusive moms.")
                 .font(DS.Font.micro)
         }
     }
@@ -186,11 +186,11 @@ struct AppSettingsView: View {
     private var contractFooterText: String {
         switch contractType {
         case .spotPriceMarkup:
-            return "Totalpriset följer spotpriset plus påslag, skatter och elnätskostnader."
+            return "Totalpriset följer spotpriset plus påslag, skatter, elnät och moms. Påslag, skatt och elnät anges som på fakturan, inklusive moms. Spotpriset hämtas utan moms."
         case .variableMonthlyPrice:
-            return "Totalpriset använder ditt rörliga månadspris för elhandeln."
+            return "Totalpriset använder ditt rörliga månadspris för elhandeln, inklusive moms."
         case .fixedPrice:
-            return "Totalpriset använder ditt fasta avtalade pris för elhandeln."
+            return "Totalpriset använder ditt fasta avtalade pris för elhandeln, inklusive moms."
         }
     }
 

@@ -44,7 +44,7 @@ private struct PriceChartSection: View {
                 Text("Dagens totalpris")
                     .font(DS.Font.headline)
 
-                Text("Kurvan visar priset per kWh under dagen med spotpris, skatter och dina valda avgifter inräknade.")
+                Text("Kurvan visar vad en kWh kostar under dagen, inklusive skatt, avgifter och moms.")
                     .font(DS.Font.micro)
                     .foregroundStyle(DS.Color.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -195,11 +195,11 @@ private struct MarketContractExplanation: View {
     private var explanationText: String {
         switch profile.retailContractType {
         case .spotPriceMarkup:
-            return "Grafen visar marknadens kvartspris. Din kostnad följer kurvan och lägger till påslag, skatter och valda elnätskostnader."
+            return "Grafen visar vad en kWh kostar under dagen. Där ingår spotpris, påslag, skatt, avgifter och moms. Elnät ingår om du har valt elnätsbolag."
         case .variableMonthlyPrice:
-            return "Grafen visar marknadens kvartspris som jämförelse. Din elhandelskostnad beräknas från ditt rörliga månadspris."
+            return "Grafen visar vad en kWh kostar under dagen. Elhandeln räknas från ditt rörliga månadspris, inte från kvartens spotpris. Skatt, avgifter och moms ingår. Elnät ingår om du har valt elnätsbolag."
         case .fixedPrice:
-            return "Grafen visar marknadens kvartspris som jämförelse. Din elhandelskostnad beräknas från ditt fasta avtalade pris."
+            return "Grafen visar vad en kWh kostar under dagen. Elhandeln räknas från ditt fasta avtalade pris, inte från kvartens spotpris. Skatt, avgifter och moms ingår. Elnät ingår om du har valt elnätsbolag."
         }
     }
 
@@ -236,6 +236,10 @@ private struct MarketContractExplanation: View {
         let taxesAndFees = baseCost.energyTaxKr + baseCost.certificateFeeKr
         if taxesAndFees > 0 {
             rows.append(("Skatt och avgifter", taxesAndFees))
+        }
+
+        if baseCost.vatKr > 0 {
+            rows.append(("Moms", baseCost.vatKr))
         }
 
         return rows

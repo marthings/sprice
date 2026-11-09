@@ -33,6 +33,19 @@ struct CostCalculationSection: View {
                     .foregroundStyle(DS.Color.secondary)
             }
 
+            KilowattHourBreakdownView(
+                breakdown: KilowattHourBreakdown.make(
+                    from: TotalCostService().calculateTotalCost(
+                        kWh: 1,
+                        spotPriceOre: currentPrice,
+                        profile: profile,
+                        hoursInPeriod: 1
+                    ),
+                    profile: profile
+                ),
+                style: .compact
+            )
+
             LazyVGrid(columns: [GridItem(.flexible(), spacing: DS.Spacing.sm), GridItem(.flexible(), spacing: DS.Spacing.sm)], spacing: DS.Spacing.sm) {
                 CostCardView(
                     title: "Dusch (10 min)",

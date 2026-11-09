@@ -154,6 +154,14 @@ struct MonthlyCostCard: View {
                         )
                     }
                 }
+
+                if enhancedCost.vatKr > 0 {
+                    CostBreakdownRow(
+                        label: "Moms",
+                        amount: enhancedCost.vatKr,
+                        color: .gray
+                    )
+                }
             }
         }
         .padding(DS.Spacing.lg)

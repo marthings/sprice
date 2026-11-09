@@ -212,35 +212,141 @@ struct DSOOption: Identifiable, Sendable {
 // MARK: - Enhanced Cost Models
 
 struct EnhancedCost: Sendable {
+    /// Retail energy (spot or contract), excluding VAT.
     let spotCostKr: Double
+    /// Grid transfer, excluding VAT.
     let gridEnergyCostKr: Double
+    /// Grid monthly fee share, excluding VAT.
     let fixedFeeCostKr: Double
+    /// Power tariff share, excluding VAT.
     let powerTariffCostKr: Double
-    
-    // New cost components
-    let energyTaxKr: Double             // Energiskatt
-    let certificateFeeKr: Double        // Elcertifikat
-    let providerSurchargeKr: Double     // Retail energy fees
-    let providerMonthlyFeeKr: Double    // Månadsavgift (pro-rated)
+    /// Energy tax, excluding VAT.
+    let energyTaxKr: Double
+    /// Electricity certificate fee, excluding VAT.
+    let certificateFeeKr: Double
+    /// Supplier markup, excluding VAT.
+    let providerSurchargeKr: Double
+    /// Retailer monthly fee share, excluding VAT.
+    let providerMonthlyFeeKr: Double
+    /// VAT on the sum of the lines above.
+    let vatKr: Double
 
-    var totalKr: Double {
+    var totalExcludingVATKr: Double {
         spotCostKr + gridEnergyCostKr + fixedFeeCostKr +
         powerTariffCostKr + energyTaxKr + certificateFeeKr +
         providerSurchargeKr + providerMonthlyFeeKr
     }
-    
-    // Helper functions for grouped UI display
+
+    /// What a Swedish consumer pays, including VAT.
+    var totalKr: Double {
+        totalExcludingVATKr + vatKr
+    }
+
     var gridTotalKr: Double {
         gridEnergyCostKr + fixedFeeCostKr + powerTariffCostKr
     }
-    
+
     var taxesAndFeesKr: Double {
         energyTaxKr + certificateFeeKr
     }
-    
+
     var providerTotalKr: Double {
         spotCostKr + providerSurchargeKr + providerMonthlyFeeKr
     }
+
+    /// Spot from the market is excluding VAT. Every other stored profile/tariff
+    /// amount is consumer-facing including VAT. This strips VAT from those
+    /// amounts, then adds one VAT line so the total matches the invoice.
+    static func assembling(
+        spotExcludingVAT: Double,
+        gridEnergyIncludingVAT: Double,
+        fixedFeeIncludingVAT: Double,
+        powerTariffIncludingVAT: Double,
+        energyTaxIncludingVAT: Double,
+        certificateFeeIncludingVAT: Double,
+        surchargeIncludingVAT: Double,
+        monthlyFeeIncludingVAT: Double,
+        vatRate: Double
+    ) -> EnhancedCost {
+        let gridEnergy = ElectricityCostMath.excludingVAT(gridEnergyIncludingVAT, vatRate: vatRate)
+        let fixedFee = ElectricityCostMath.excludingVAT(fixedFeeIncludingVAT, vatRate: vatRate)
+        let powerTariff = ElectricityCostMath.excludingVAT(powerTariffIncludingVAT, vatRate: vatRate)
+        let energyTax = ElectricityCostMath.excludingVAT(energyTaxIncludingVAT, vatRate: vatRate)
+        let certificate = ElectricityCostMath.excludingVAT(certificateFeeIncludingVAT, vatRate: vatRate)
+        let surcharge = ElectricityCostMath.excludingVAT(surchargeIncludingVAT, vatRate: vatRate)
+        let monthlyFee = ElectricityCostMath.excludingVAT(monthlyFeeIncludingVAT, vatRate: vatRate)
+
+        let excludingVAT = spotExcludingVAT + gridEnergy + fixedFee + powerTariff +
+            energyTax + certificate + surcharge + monthlyFee
+
+        return EnhancedCost(
+            spotCostKr: spotExcludingVAT,
+            gridEnergyCostKr: gridEnergy,
+            fixedFeeCostKr: fixedFee,
+            powerTariffCostKr: powerTariff,
+            energyTaxKr: energyTax,
+            certificateFeeKr: certificate,
+            providerSurchargeKr: surcharge,
+            providerMonthlyFeeKr: monthlyFee,
+            vatKr: ElectricityCostMath.vat(onExcludingVAT: excludingVAT, vatRate: vatRate)
+        )
+    }
+}
+
+// MARK: - VAT
+
+enum ElectricityCostMath {
+    static let standardVATRate = CostProfile.SwedishDefaults.vatRate
+
+    /// Profile values (markup, grid, tax, certificates, monthly fees) are stored including VAT.
+    static func excludingVAT(_ amountIncludingVAT: Double, vatRate: Double = standardVATRate) -> Double {
+        let divisor = 1 + vatRate
+        guard divisor > 0 else { return amountIncludingVAT }
+        return amountIncludingVAT / divisor
+    }
+
+    static func vat(onExcludingVAT amount: Double, vatRate: Double = standardVATRate) -> Double {
+        amount * vatRate
+    }
+
+    static func includingVAT(_ amountExcludingVAT: Double, vatRate: Double = standardVATRate) -> Double {
+        amountExcludingVAT * (1 + vatRate)
+    }
+
+    /// Worked example: SE3 spot 50 öre excluding VAT, 4 öre markup including VAT,
+    /// Jönköping 20 A grid preset.
+    ///
+    /// Excluding VAT, öre/kWh for 1 kWh during 1 hour:
+    /// spot 50.00, markup 3.20, grid transfer 4.864, energy tax 36.00,
+    /// certificate 1.40, grid monthly share 43.115616, VAT 34.644904.
+    /// Total 1.732245 kr/kWh including VAT.
+    static func workedExampleSE3Jonkoping20A() -> CostProfile {
+        CostProfile(
+            priceArea: "SE3",
+            retailContractType: .spotPriceMarkup,
+            retailerMarkupOrePerKWh: 4.0,
+            contractPriceOrePerKWh: nil,
+            retailerMonthlyFee: 0,
+            retailContractSource: .defaultEstimate,
+            gridCompanyId: "jonkoping",
+            gridCompanyName: "Jönköping Energi Elnät",
+            fuseSize: 20,
+            gridMonthlyFee: 393.43,
+            gridTransferOrePerKWh: 6.08,
+            gridCostSource: .localPreset,
+            energyTaxOrePerKWh: 45.0,
+            certificateFeeOrePerKWh: 1.75,
+            vatRate: standardVATRate,
+            effectTariff: nil,
+            confidence: .userConfigured,
+            source: .localPreset,
+            tariffLastUpdated: nil,
+            tariffValidUntil: nil
+        )
+    }
+
+    static let workedExampleSpotOre = 50.0
+    static let workedExampleExpectedTotalKr = 1.7322452054794522
 }
 
 // MARK: - Provider Cost Information Models

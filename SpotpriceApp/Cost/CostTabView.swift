@@ -61,7 +61,7 @@ private struct CurrentCostHero: View {
             }
 
             HStack(spacing: DS.Spacing.lg) {
-                metricInline(title: "Spotpris", value: payload.currentDisplay, unit: "öre")
+                metricInline(title: "Spotpris", value: payload.currentDisplay, unit: "öre/kWh")
                 Spacer()
                 if let trendPrices {
                     HStack(spacing: DS.Spacing.xs) {
@@ -69,7 +69,7 @@ private struct CurrentCostHero: View {
                         metricInline(
                             title: "Nästa kvart",
                             value: AppFormatters.oreValue(trendPrices.next),
-                            unit: "öre"
+                            unit: "öre/kWh"
                         )
                     }
                 }
@@ -84,8 +84,19 @@ private struct CurrentCostHero: View {
                 }
                 Spacer(minLength: 0)
             }
+
+            KilowattHourBreakdownView(
+                breakdown: KilowattHourBreakdown.make(
+                    from: totalCostService.calculateTotalCost(
+                        kWh: 1,
+                        spotPriceOre: spotPrice,
+                        profile: profile,
+                        hoursInPeriod: 1
+                    ),
+                    profile: profile
+                )
+            )
         }
-   
     }
 
     private func metricInline(title: String, value: String, unit: String) -> some View {

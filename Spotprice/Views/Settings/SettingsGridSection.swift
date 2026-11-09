@@ -87,7 +87,7 @@ struct SettingsGridSection: View {
                 } header: {
                     Text("Egna nätavgifter")
                 } footer: {
-                    Text("Ange egna värden om tariffdata saknas eller avviker från din faktura.")
+                    Text("Ange egna värden om tariffdata saknas eller avviker från din faktura. Beloppen anges som på fakturan, inklusive moms.")
                 }
 
                 if !settings.selectedDSOOrgNo.isEmpty,

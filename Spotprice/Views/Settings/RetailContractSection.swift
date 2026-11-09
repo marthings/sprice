@@ -93,11 +93,11 @@ struct RetailContractSection: View {
     private var activeContractDescription: String {
         switch settings.costProfile.retailContractType {
         case .spotPriceMarkup:
-            return "Elhandelskostnaden följer Nord Pools spotpris per kvart plus dina elhandelsavgifter."
+            return "Elhandelskostnaden följer Nord Pools spotpris per kvart plus dina elhandelsavgifter. Påslag anges som på fakturan, inklusive moms. Spotpriset hämtas utan moms."
         case .variableMonthlyPrice:
-            return "Använd ditt avtalade elpris i öre/kWh från rörligt månadspris istället för kvartens spotpris."
+            return "Använd ditt avtalade elpris i öre/kWh från rörligt månadspris istället för kvartens spotpris. Priset anges inklusive moms."
         case .fixedPrice:
-            return "Använd ditt fasta avtalade elpris i öre/kWh istället för kvartens spotpris."
+            return "Använd ditt fasta avtalade elpris i öre/kWh istället för kvartens spotpris. Priset anges inklusive moms."
         }
     }
 
