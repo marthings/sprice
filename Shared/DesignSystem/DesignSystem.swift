@@ -842,110 +842,36 @@ struct PriceLevelBadge: View {
 
 // MARK: - Canvas background
 
-/// Calm field behind dashboard content. A soft 3×3 mesh of palette tints;
-/// falls back to the previous linear + radial wash below MeshGradient.
+/// Full-bleed landscape behind app content (light/dark asset).
 struct AppCanvasBackground: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            canvas
-            landscapeOverlay
+            baseFill
+            Image("LandscapeBackground")
+                .resizable()
+                .scaledToFill()
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .clipped()
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea()
         .accessibilityHidden(true)
     }
 
-    /// Soft ink-wash mountains over the mesh. Anchored at the bottom so
-    /// the empty sky leaves room for cards; opacity keeps the mesh tint.
-    private var landscapeOverlay: some View {
-        Image("LandscapeBackground")
-            .resizable()
-            .scaledToFill()
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-            .opacity(colorScheme == .dark ? 0.60 : 0.55)
-            .allowsHitTesting(false)
-    }
-
-    @ViewBuilder
-    private var canvas: some View {
-        if #available(iOS 18.0, macOS 15.0, *) {
-            MeshGradient(
-                width: 3,
-                height: 3,
-                points: Self.meshPoints,
-                colors: meshColors,
-                background: paper,
-                smoothsColors: true
-            )
-        } else {
-            fallbackCanvas
+    /// Solid underlay so letterboxing never shows through.
+    private var baseFill: some View {
+        Group {
+            if colorScheme == .dark {
+                Color(red: 0.045, green: 0.05, blue: 0.065)
+            } else {
+                Color(red: 0.86, green: 0.88, blue: 0.92)
+            }
         }
-    }
-
-    private static let meshPoints: [SIMD2<Float>] = [
-        SIMD2<Float>(0.00, 0.00), SIMD2<Float>(0.40, 0.00), SIMD2<Float>(1.00, 0.00),
-        SIMD2<Float>(0.00, 0.42), SIMD2<Float>(0.38, 0.40), SIMD2<Float>(1.00, 0.58),
-        SIMD2<Float>(0.00, 1.00), SIMD2<Float>(0.55, 1.00), SIMD2<Float>(1.00, 1.00)
-    ]
-
-    private var paper: Color {
-        colorScheme == .dark
-            ? Color(red: 0.045, green: 0.05, blue: 0.065)
-            : Color(red: 0.86, green: 0.88, blue: 0.92)
-    }
-
-    @available(iOS 18.0, macOS 15.0, *)
-    private var meshColors: [Color] {
-        let info = DS.Color.info
-        let warm = DS.Color.accent
-        if colorScheme == .dark {
-            let cool = Color(red: 0.07, green: 0.11, blue: 0.17)
-            return [
-                cool.mix(with: info, by: 0.34),
-                cool,
-                paper.mix(with: warm, by: 0.12),
-                cool.mix(with: paper, by: 0.22),
-                cool.mix(with: info, by: 0.18),
-                paper,
-                paper,
-                cool.mix(with: paper, by: 0.14),
-                cool.mix(with: info, by: 0.26)
-            ]
-        }
-        let cool = Color(red: 0.78, green: 0.86, blue: 0.94)
-        let cream = Color(red: 0.90, green: 0.86, blue: 0.80)
-        return [
-            cool.mix(with: info, by: 0.22),
-            cool,
-            cream.mix(with: warm, by: 0.10),
-            cool.mix(with: paper, by: 0.25),
-            paper.mix(with: info, by: 0.14),
-            cream,
-            cream,
-            paper,
-            cool.mix(with: info, by: 0.18)
-        ]
-    }
-
-    private var fallbackCanvas: some View {
-        ZStack {
-            LinearGradient(
-                colors: colorScheme == .dark
-                    ? [Color(red: 0.07, green: 0.11, blue: 0.17), Color(red: 0.045, green: 0.05, blue: 0.065)]
-                    : [Color(red: 0.78, green: 0.86, blue: 0.94), Color(red: 0.90, green: 0.86, blue: 0.80)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            RadialGradient(
-                colors: colorScheme == .dark
-                    ? [Color(red: 0.10, green: 0.16, blue: 0.24).opacity(0.62), .clear]
-                    : [Color(red: 0.68, green: 0.80, blue: 0.90).opacity(0.75), .clear],
-                center: .topLeading,
-                startRadius: 24,
-                endRadius: 520
-            )
-        }
+        .ignoresSafeArea()
     }
 }
 
