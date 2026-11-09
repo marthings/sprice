@@ -1,8 +1,6 @@
 import SwiftUI
 
 struct AppSettingsView: View {
-    @Environment(\.dismiss) private var dismiss
-
     @State private var priceArea = "SE3"
     @State private var contractType: RetailContractType = .spotPriceMarkup
     @State private var retailerMarkupOrePerKWh = 0.0
@@ -32,13 +30,6 @@ struct AppSettingsView: View {
             }
             .navigationTitle("Inställningar")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Avbryt") {
-                        dismiss()
-                    }
-                }
-            }
             .onAppear(perform: loadSettings)
             .task {
                 await loadDSOOptions()
@@ -280,7 +271,6 @@ struct AppSettingsView: View {
         }
 
         settings.costProfile = next.applyingInferredConfidence(configuredSource: .userEntered)
-        dismiss()
     }
 
     private func applyGridTariff(_ tariff: SimplifiedTariff, to profile: CostProfile) -> CostProfile {
