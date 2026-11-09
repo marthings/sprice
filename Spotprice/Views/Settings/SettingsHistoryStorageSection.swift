@@ -95,24 +95,28 @@ struct SettingsHistoryStorageSection: View {
     }
 
     private func deleteLocalHistory() {
-        do {
-            let store = try EnergyHistoryStores.writer()
-            try store.deleteAllHistory()
-            historyStorageStatus = "Lokal historik är raderad."
-            WidgetReload.timelines()
-        } catch {
-            historyStorageStatus = "Kunde inte radera historik: \(error.userFacingMessage)"
+        Task {
+            do {
+                let writer = try EnergyHistoryStores.writer()
+                try await writer.deleteAllHistory()
+                historyStorageStatus = "Lokal historik är raderad."
+                WidgetReload.timelines()
+            } catch {
+                historyStorageStatus = "Kunde inte radera historik: \(error.userFacingMessage)"
+            }
         }
     }
 
     private func pruneLocalHistory() {
-        do {
-            let store = try EnergyHistoryStores.writer()
-            try store.pruneHistory(keepingRecentMonths: 24)
-            loadHistoryStorageStatus()
-            WidgetReload.timelines()
-        } catch {
-            historyStorageStatus = "Kunde inte rensa historik: \(error.userFacingMessage)"
+        Task {
+            do {
+                let writer = try EnergyHistoryStores.writer()
+                try await writer.pruneHistory(keepingRecentMonths: 24)
+                loadHistoryStorageStatus()
+                WidgetReload.timelines()
+            } catch {
+                historyStorageStatus = "Kunde inte rensa historik: \(error.userFacingMessage)"
+            }
         }
     }
 }

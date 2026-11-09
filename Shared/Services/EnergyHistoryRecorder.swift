@@ -48,22 +48,26 @@ final class EnergyHistoryRecorder {
     }
 
     private let store: EnergyHistoryStore
+    private let writer: EnergyHistoryWriter?
     private let calendar: Calendar
     private let totalCostService: TotalCostService
     private var spotPriceCache: [String: [Date: Double]] = [:]
+    private var pendingHistoryNotification: Task<Void, Never>?
 
     init(
         store: EnergyHistoryStore,
+        writer: EnergyHistoryWriter? = nil,
         totalCostService: TotalCostService? = nil,
         calendar: Calendar? = nil
     ) {
         self.store = store
+        self.writer = writer
         self.totalCostService = totalCostService ?? .shared
         self.calendar = calendar ?? .energyHistory
     }
 
     convenience init() throws {
-        try self.init(store: EnergyHistoryStores.writer())
+        try self.init(store: EnergyHistoryStores.reader(), writer: EnergyHistoryStores.writer())
     }
 
     func recordPriceHistory(dayData: DayChartData, priceArea: String) {
@@ -83,11 +87,13 @@ final class EnergyHistoryRecorder {
             return
         }
 
-        do {
-            try store.upsertRecords(drafts)
-            AppLog.history.info("Recorded \(drafts.count) price intervals for \(priceArea, privacy: .public)")
-        } catch {
-            AppLog.history.error("Failed to record price history: \(error.localizedDescription, privacy: .public)")
+        Task {
+            do {
+                try await upsertRecords(drafts)
+                AppLog.history.info("Recorded \(drafts.count) price intervals for \(priceArea, privacy: .public)")
+            } catch {
+                AppLog.history.error("Failed to record price history: \(error.localizedDescription, privacy: .public)")
+            }
         }
     }
 
@@ -104,8 +110,22 @@ final class EnergyHistoryRecorder {
             return
         }
 
+        let windowStart = now.addingTimeInterval(-48 * 60 * 60)
+        var rangeStart = max(monthStart, windowStart)
+        do {
+            let monthKey = EnergyHistoryKey.monthKey(for: monthStart, calendar: calendar)
+            let existingDays = try store.fetchDailySummaries(monthKey: monthKey, priceArea: priceArea)
+                .filter { ($0.totalConsumptionKWh ?? 0) > 0 }
+                .count
+            if existingDays < 2 {
+                rangeStart = monthStart
+            }
+        } catch {
+            rangeStart = monthStart
+        }
+
         _ = await recordConsumptionHistory(
-            from: monthStart,
+            from: rangeStart,
             to: now,
             consumptionService: consumptionService,
             spotPriceService: spotPriceService,
@@ -164,7 +184,7 @@ final class EnergyHistoryRecorder {
 
             switch result {
             case .recorded:
-                NotificationCenter.default.post(name: .energyHistoryDidUpdate, object: nil)
+                scheduleHistoryDidUpdate()
                 try? await Task.sleep(for: EnergyHistoryBackfillTiming.monthDelay)
             case .empty:
                 AppLog.history.info("No consumption for \(EnergyHistoryKey.monthKey(for: monthStart), privacy: .public), stopping backfill")
@@ -258,7 +278,7 @@ final class EnergyHistoryRecorder {
                 )
             }
 
-            try store.upsertRecords(drafts)
+            try await upsertRecords(drafts)
             AppLog.history.info(
                 "Recorded \(drafts.count)/\(intervals.count) consumption intervals for \(priceArea, privacy: .public) via \(providerID, privacy: .public)"
             )
@@ -349,16 +369,37 @@ final class EnergyHistoryRecorder {
         for intervals: [ConsumptionInterval],
         spotPriceService: SpotPriceService,
         priceArea: String,
-        throttle: Bool
+        throttle _: Bool
     ) async -> [Date: Double] {
-        let days = Set(intervals.map { calendar.startOfDay(for: $0.start) })
+        let days = Set(intervals.map { calendar.startOfDay(for: $0.start) }).sorted()
         var lookup: [Date: Double] = [:]
+        lookup.reserveCapacity(days.count * 96)
 
-        for day in days.sorted() {
-            if Task.isCancelled { break }
-            let dayPrices = await spotPrices(for: day, area: priceArea, service: spotPriceService, throttle: throttle)
-            for (start, ore) in dayPrices {
-                lookup[start] = ore
+        await withTaskGroup(of: (Date, [Date: Double]).self) { group in
+            var iterator = days.makeIterator()
+            let limit = 4
+
+            func enqueue() {
+                guard let day = iterator.next() else { return }
+                group.addTask {
+                    let prices = await self.spotPrices(
+                        for: day,
+                        area: priceArea,
+                        service: spotPriceService
+                    )
+                    return (day, prices)
+                }
+            }
+
+            for _ in 0..<min(limit, days.count) {
+                enqueue()
+            }
+
+            for await (_, dayPrices) in group {
+                for (start, ore) in dayPrices {
+                    lookup[start] = ore
+                }
+                enqueue()
             }
         }
 
@@ -368,16 +409,16 @@ final class EnergyHistoryRecorder {
     private func spotPrices(
         for day: Date,
         area: String,
-        service: SpotPriceService,
-        throttle: Bool
+        service: SpotPriceService
     ) async -> [Date: Double] {
         let key = "\(area)|\(EnergyHistoryKey.dayKey(for: day, calendar: calendar))"
-        if let cached = spotPriceCache[key] {
+        if let cached = spotPriceCache[key], !cached.isEmpty {
             return cached
         }
 
-        if throttle {
-            try? await Task.sleep(for: EnergyHistoryBackfillTiming.spotDelay)
+        if let disk = SpotPriceDayCache.lookup(for: day, area: area, calendar: calendar), !disk.isEmpty {
+            spotPriceCache[key] = disk
+            return disk
         }
 
         do {
@@ -386,12 +427,30 @@ final class EnergyHistoryRecorder {
             for item in items {
                 map[item.timeStart] = item.sekPerKWh * 100.0
             }
-            spotPriceCache[key] = map
+            if !map.isEmpty {
+                spotPriceCache[key] = map
+            }
             return map
         } catch {
             AppLog.history.error("Failed to fetch spot prices for \(day, privacy: .public): \(error.localizedDescription, privacy: .public)")
-            spotPriceCache[key] = [:]
             return [:]
+        }
+    }
+
+    private func upsertRecords(_ drafts: [HistoricalEnergyRecordDraft]) async throws {
+        if let writer {
+            try await writer.upsertRecords(drafts)
+        } else {
+            try store.upsertRecords(drafts)
+        }
+    }
+
+    private func scheduleHistoryDidUpdate() {
+        pendingHistoryNotification?.cancel()
+        pendingHistoryNotification = Task {
+            try? await Task.sleep(for: .milliseconds(350))
+            guard !Task.isCancelled else { return }
+            NotificationCenter.default.post(name: .energyHistoryDidUpdate, object: nil)
         }
     }
 
@@ -477,7 +536,7 @@ final class EnergyHistoryBackfillController {
             return
         }
 
-        let task = Task { @MainActor in
+        let task = Task {
             let succeeded = await activeRecorder.backfillPastConsumptionHistory(
                 consumptionService: consumptionService,
                 spotPriceService: spotPriceService,

@@ -18,6 +18,7 @@ protocol EnergyHistoryStore {
     func fetchRecords(monthKey: String, priceArea: String?) throws -> [HistoricalEnergyRecord]
     func fetchDailySummaries(monthKey: String, priceArea: String?) throws -> [HistoricalEnergySummaryValue]
     func fetchMonthlySummaries(priceArea: String?) throws -> [HistoricalEnergySummaryValue]
+    func fetchMonthlySummaries(monthKey: String, priceArea: String?) throws -> [HistoricalEnergySummaryValue]
     func fetchTopCostDays(monthKey: String, priceArea: String?, limit: Int) throws -> [HistoricalEnergySummaryValue]
     func fetchTopConsumptionDays(monthKey: String, priceArea: String?, limit: Int) throws -> [HistoricalEnergySummaryValue]
     func exportHistoryCSV(priceArea: String?) throws -> String
@@ -47,7 +48,7 @@ protocol EnergyHistoryQuerying {
 enum EnergyHistoryStores {
     private static var cachedContainer: ModelContainer?
     private static var cachedReader: SwiftDataEnergyHistoryStore?
-    private static var cachedWriter: SwiftDataEnergyHistoryStore?
+    private static var cachedWriter: EnergyHistoryWriter?
 
     static func container() throws -> ModelContainer {
         if let cachedContainer {
@@ -67,13 +68,13 @@ enum EnergyHistoryStores {
         return store
     }
 
-    static func writer() throws -> SwiftDataEnergyHistoryStore {
+    static func writer() throws -> EnergyHistoryWriter {
         if let cachedWriter {
             return cachedWriter
         }
-        let store = SwiftDataEnergyHistoryStore(container: try container())
-        cachedWriter = store
-        return store
+        let writer = EnergyHistoryWriter(modelContainer: try container())
+        cachedWriter = writer
+        return writer
     }
 }
 
@@ -88,36 +89,29 @@ final class EnergyHistoryQueryService: EnergyHistoryQuerying {
     func loadMonthHistory(priceArea: String?, selectedMonthKey: String?) throws -> EnergyHistoryMonthQueryResult {
         let store = try resolvedStore()
         let months = uniqueBestMonthlySummaries(try store.fetchMonthlySummaries(priceArea: priceArea))
-        let resolvedMonthKey = selectedMonthKey ?? months.first?.periodKey
+        let resolvedMonthKey = selectedMonthKey ?? EnergyHistoryKey.preferredMonthKey(from: months)
         let dailySummaries: [HistoricalEnergySummaryValue]
-        let topCostDays: [HistoricalEnergySummaryValue]
-        let topConsumptionDays: [HistoricalEnergySummaryValue]
 
         if let resolvedMonthKey {
             dailySummaries = try store.fetchDailySummaries(monthKey: resolvedMonthKey, priceArea: priceArea)
                 .sorted { $0.periodStart < $1.periodStart }
-            topCostDays = try store.fetchTopCostDays(monthKey: resolvedMonthKey, priceArea: priceArea, limit: 3)
-            topConsumptionDays = try store.fetchTopConsumptionDays(monthKey: resolvedMonthKey, priceArea: priceArea, limit: 3)
         } else {
             dailySummaries = []
-            topCostDays = []
-            topConsumptionDays = []
         }
 
         return EnergyHistoryMonthQueryResult(
             months: months,
             selectedMonth: months.first { $0.periodKey == resolvedMonthKey },
             dailySummaries: dailySummaries,
-            topCostDays: topCostDays,
-            topConsumptionDays: topConsumptionDays,
+            topCostDays: [],
+            topConsumptionDays: [],
             selectedMonthKey: resolvedMonthKey
         )
     }
 
     func loadCurrentMonthSummary(priceArea: String?, monthKey: String) throws -> HistoricalEnergySummaryValue? {
         let store = try resolvedStore()
-        return try store.fetchMonthlySummaries(priceArea: priceArea)
-            .filter { $0.periodKey == monthKey }
+        return try store.fetchMonthlySummaries(monthKey: monthKey, priceArea: priceArea)
             .max { lhs, rhs in rhs.isPreferred(over: lhs) }
     }
 
@@ -203,25 +197,111 @@ enum EnergyHistoryStoreError: LocalizedError {
 
 // MARK: - SwiftData Model Container
 
-enum EnergyHistoryModelContainer {
-    enum CurrentSchema: VersionedSchema {
-        static let versionIdentifier = Schema.Version(1, 0, 0)
+enum EnergyHistorySchemaV1: VersionedSchema {
+    static let versionIdentifier = Schema.Version(1, 0, 0)
 
-        static var models: [any PersistentModel.Type] {
-            [
-                HistoricalEnergyRecord.self,
-                HistoricalDailyEnergySummary.self,
-                HistoricalMonthlyEnergySummary.self
-            ]
+    static var models: [any PersistentModel.Type] {
+        [
+            HistoricalEnergyRecord.self,
+            HistoricalDailyEnergySummary.self,
+            HistoricalMonthlyEnergySummary.self
+        ]
+    }
+}
+
+enum EnergyHistorySchemaV1_1: VersionedSchema {
+    static let versionIdentifier = Schema.Version(1, 1, 0)
+
+    static var models: [any PersistentModel.Type] {
+        [
+            HistoricalEnergyRecord.self,
+            HistoricalDailyEnergySummary.self,
+            HistoricalMonthlyEnergySummary.self
+        ]
+    }
+}
+
+enum EnergyHistoryMigrationPlan: SchemaMigrationPlan {
+    static var schemas: [any VersionedSchema.Type] {
+        [EnergyHistorySchemaV1.self, EnergyHistorySchemaV1_1.self]
+    }
+
+    static var stages: [MigrationStage] {
+        [migrateV1toV1_1]
+    }
+
+    static let migrateV1toV1_1 = MigrationStage.custom(
+        fromVersion: EnergyHistorySchemaV1.self,
+        toVersion: EnergyHistorySchemaV1_1.self,
+        willMigrate: { context in
+            try deduplicateRecords(in: context)
+            try deduplicateDailySummaries(in: context)
+            try deduplicateMonthlySummaries(in: context)
+            try context.save()
+        },
+        didMigrate: nil
+    )
+
+    private static func deduplicateRecords(in context: ModelContext) throws {
+        let records = try context.fetch(FetchDescriptor<HistoricalEnergyRecord>())
+        var kept: [String: HistoricalEnergyRecord] = [:]
+        kept.reserveCapacity(records.count)
+        for record in records {
+            if let existing = kept[record.deduplicationKey] {
+                if record.updatedAt >= existing.updatedAt {
+                    context.delete(existing)
+                    kept[record.deduplicationKey] = record
+                } else {
+                    context.delete(record)
+                }
+            } else {
+                kept[record.deduplicationKey] = record
+            }
         }
     }
 
+    private static func deduplicateDailySummaries(in context: ModelContext) throws {
+        let summaries = try context.fetch(FetchDescriptor<HistoricalDailyEnergySummary>())
+        var kept: [String: HistoricalDailyEnergySummary] = [:]
+        for summary in summaries {
+            if let existing = kept[summary.summaryKey] {
+                if summary.updatedAt >= existing.updatedAt {
+                    context.delete(existing)
+                    kept[summary.summaryKey] = summary
+                } else {
+                    context.delete(summary)
+                }
+            } else {
+                kept[summary.summaryKey] = summary
+            }
+        }
+    }
+
+    private static func deduplicateMonthlySummaries(in context: ModelContext) throws {
+        let summaries = try context.fetch(FetchDescriptor<HistoricalMonthlyEnergySummary>())
+        var kept: [String: HistoricalMonthlyEnergySummary] = [:]
+        for summary in summaries {
+            if let existing = kept[summary.summaryKey] {
+                if summary.updatedAt >= existing.updatedAt {
+                    context.delete(existing)
+                    kept[summary.summaryKey] = summary
+                } else {
+                    context.delete(summary)
+                }
+            } else {
+                kept[summary.summaryKey] = summary
+            }
+        }
+    }
+}
+
+enum EnergyHistoryModelContainer {
     static func makeLocalContainer() throws -> ModelContainer {
         guard FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: EnergyHistoryConstants.appGroupIdentifier) != nil else {
             throw EnergyHistoryStoreError.missingAppGroupContainer(EnergyHistoryConstants.appGroupIdentifier)
         }
 
-        let schema = Schema(CurrentSchema.models, version: CurrentSchema.versionIdentifier)
+        let schema = Schema(versionedSchema: EnergyHistorySchemaV1_1.self)
 
         let configuration = ModelConfiguration(
             EnergyHistoryConstants.storeName,
@@ -233,11 +313,15 @@ enum EnergyHistoryModelContainer {
             cloudKitDatabase: .none
         )
 
-        return try ModelContainer(for: schema, configurations: [configuration])
+        return try ModelContainer(
+            for: schema,
+            migrationPlan: EnergyHistoryMigrationPlan.self,
+            configurations: [configuration]
+        )
     }
 
     static func makeInMemoryContainer() throws -> ModelContainer {
-        let schema = Schema(CurrentSchema.models, version: CurrentSchema.versionIdentifier)
+        let schema = Schema(versionedSchema: EnergyHistorySchemaV1_1.self)
 
         let configuration = ModelConfiguration(
             EnergyHistoryConstants.storeName,
@@ -247,7 +331,11 @@ enum EnergyHistoryModelContainer {
             cloudKitDatabase: .none
         )
 
-        return try ModelContainer(for: schema, configurations: [configuration])
+        return try ModelContainer(
+            for: schema,
+            migrationPlan: EnergyHistoryMigrationPlan.self,
+            configurations: [configuration]
+        )
     }
 }
 
@@ -268,27 +356,7 @@ final class SwiftDataEnergyHistoryStore: EnergyHistoryStore {
     }
 
     func upsertRecords(_ drafts: [HistoricalEnergyRecordDraft]) throws {
-        guard !drafts.isEmpty else { return }
-
-        let now = Date()
-        var affectedDayKeys = Set<String>()
-        var affectedMonthKeys = Set<String>()
-
-        for draft in drafts {
-            affectedDayKeys.insert(draft.dayKey)
-            affectedMonthKeys.insert(draft.monthKey)
-
-            if let existingRecord = try fetchRecord(deduplicationKey: draft.deduplicationKey) {
-                existingRecord.update(from: draft, updatedAt: now)
-            } else {
-                context.insert(draft.makeRecord(createdAt: now))
-            }
-        }
-
-        try rebuildDailySummaries(dayKeys: affectedDayKeys, updatedAt: now)
-        try rebuildMonthlySummaries(monthKeys: affectedMonthKeys, updatedAt: now)
-        try context.save()
-        try updateWidgetSummaryCache(monthKeys: affectedMonthKeys, updatedAt: now)
+        try EnergyHistoryWriting.upsertRecords(drafts, context: context, calendar: calendar)
     }
 
     func fetchRecords(in range: HistoricalEnergyDateRange, priceArea: String? = nil) throws -> [HistoricalEnergyRecord] {
@@ -383,22 +451,31 @@ final class SwiftDataEnergyHistoryStore: EnergyHistoryStore {
     }
 
     func fetchMonthlySummaries(priceArea: String? = nil) throws -> [HistoricalEnergySummaryValue] {
-        let descriptor: FetchDescriptor<HistoricalMonthlyEnergySummary>
+        var descriptor: FetchDescriptor<HistoricalMonthlyEnergySummary>
 
         if let priceArea {
             descriptor = FetchDescriptor(
                 predicate: #Predicate<HistoricalMonthlyEnergySummary> { summary in
                     summary.priceArea == priceArea
                 },
-                sortBy: [SortDescriptor(\HistoricalMonthlyEnergySummary.monthStart)]
+                sortBy: [SortDescriptor(\HistoricalMonthlyEnergySummary.monthStart, order: .reverse)]
             )
         } else {
             descriptor = FetchDescriptor(
-                sortBy: [SortDescriptor(\HistoricalMonthlyEnergySummary.monthStart)]
+                sortBy: [SortDescriptor(\HistoricalMonthlyEnergySummary.monthStart, order: .reverse)]
             )
         }
+        descriptor.fetchLimit = 128
 
         return try context.fetch(descriptor).map { $0.summaryValue() }
+    }
+
+    func fetchMonthlySummaries(monthKey: String, priceArea: String? = nil) throws -> [HistoricalEnergySummaryValue] {
+        try EnergyHistoryWriting.fetchMonthlySummaries(
+            monthKey: monthKey,
+            priceArea: priceArea,
+            context: context
+        )
     }
 
     func fetchTopCostDays(
@@ -806,6 +883,413 @@ final class SwiftDataEnergyHistoryStore: EnergyHistoryStore {
         for record in records {
             context.delete(record)
         }
+    }
+}
+
+@ModelActor
+actor EnergyHistoryWriter {
+    func upsertRecords(_ drafts: [HistoricalEnergyRecordDraft]) throws {
+        try EnergyHistoryWriting.upsertRecords(drafts, context: modelContext, calendar: .energyHistory)
+    }
+
+    func pruneHistory(keepingRecentMonths monthCount: Int) throws {
+        try EnergyHistoryWriting.pruneHistory(
+            keepingRecentMonths: monthCount,
+            context: modelContext,
+            calendar: .energyHistory
+        )
+    }
+
+    func deleteAllHistory() throws {
+        try EnergyHistoryWriting.deleteAllHistory(context: modelContext)
+    }
+}
+
+enum EnergyHistoryWriting {
+    nonisolated static func upsertRecords(
+        _ drafts: [HistoricalEnergyRecordDraft],
+        context: ModelContext,
+        calendar: Calendar
+    ) throws {
+        guard !drafts.isEmpty else { return }
+
+        let now = Date()
+        let snapshotData = drafts.lazy.compactMap(\.costProfileSnapshot).first.flatMap { snapshot in
+            try? JSONEncoder().encode(snapshot)
+        }
+        var existingByKey = try fetchExistingRecords(for: drafts, context: context)
+        var affectedDayKeys = Set<String>()
+        var affectedMonthKeys = Set<String>()
+
+        for draft in drafts {
+            affectedDayKeys.insert(draft.dayKey)
+            affectedMonthKeys.insert(draft.monthKey)
+
+            if let existingRecord = existingByKey[draft.deduplicationKey] {
+                existingRecord.update(from: draft, snapshotData: snapshotData, updatedAt: now)
+            } else {
+                let record = draft.makeRecord(createdAt: now, snapshotData: snapshotData)
+                context.insert(record)
+                existingByKey[draft.deduplicationKey] = record
+            }
+        }
+
+        try rebuildDailySummaries(dayKeys: affectedDayKeys, updatedAt: now, context: context, calendar: calendar)
+        try rebuildMonthlySummaries(monthKeys: affectedMonthKeys, updatedAt: now, context: context, calendar: calendar)
+        try context.save()
+        try updateWidgetSummaryCache(monthKeys: affectedMonthKeys, updatedAt: now, context: context)
+    }
+
+    nonisolated static func fetchMonthlySummaries(
+        monthKey: String,
+        priceArea: String?,
+        context: ModelContext
+    ) throws -> [HistoricalEnergySummaryValue] {
+        var descriptor: FetchDescriptor<HistoricalMonthlyEnergySummary>
+        if let priceArea {
+            descriptor = FetchDescriptor(
+                predicate: #Predicate<HistoricalMonthlyEnergySummary> { summary in
+                    summary.monthKey == monthKey && summary.priceArea == priceArea
+                }
+            )
+        } else {
+            descriptor = FetchDescriptor(
+                predicate: #Predicate<HistoricalMonthlyEnergySummary> { summary in
+                    summary.monthKey == monthKey
+                }
+            )
+        }
+        descriptor.fetchLimit = 8
+        return try context.fetch(descriptor).map { $0.summaryValue() }
+    }
+
+    nonisolated static func pruneHistory(
+        keepingRecentMonths monthCount: Int,
+        context: ModelContext,
+        calendar: Calendar
+    ) throws {
+        guard monthCount > 0,
+              let cutoff = calendar.date(byAdding: .month, value: -monthCount + 1, to: calendar.startOfDay(for: Date())),
+              let cutoffMonthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: cutoff)) else {
+            return
+        }
+
+        try deleteRecords(before: cutoffMonthStart, context: context)
+        try deleteDailySummaries(before: cutoffMonthStart, context: context)
+        try deleteMonthlySummaries(before: cutoffMonthStart, context: context)
+        try context.save()
+        try rebuildWidgetSummaryCache(context: context)
+    }
+
+    nonisolated static func deleteAllHistory(context: ModelContext) throws {
+        try deleteAll(HistoricalEnergyRecord.self, context: context)
+        try deleteAll(HistoricalDailyEnergySummary.self, context: context)
+        try deleteAll(HistoricalMonthlyEnergySummary.self, context: context)
+        try context.save()
+        WidgetHistorySummaryCache.clear()
+    }
+
+    nonisolated private static func fetchExistingRecords(
+        for drafts: [HistoricalEnergyRecordDraft],
+        context: ModelContext
+    ) throws -> [String: HistoricalEnergyRecord] {
+        guard let start = drafts.map(\.intervalStart).min() else { return [:] }
+        let end = drafts.map(\.intervalEnd).max() ?? start
+        let descriptor = FetchDescriptor<HistoricalEnergyRecord>(
+            predicate: #Predicate<HistoricalEnergyRecord> { record in
+                record.intervalStart >= start && record.intervalStart < end
+            }
+        )
+        let existing = try context.fetch(descriptor)
+        var map: [String: HistoricalEnergyRecord] = [:]
+        map.reserveCapacity(existing.count)
+        for record in existing {
+            map[record.deduplicationKey] = record
+        }
+        return map
+    }
+
+    nonisolated private static func rebuildDailySummaries(
+        dayKeys: Set<String>,
+        updatedAt: Date,
+        context: ModelContext,
+        calendar: Calendar
+    ) throws {
+        for dayKey in dayKeys {
+            let records = try fetchRecords(dayKey: dayKey, context: context)
+            let groupedRecords = Dictionary(grouping: records) { record in
+                SummaryGroupKey(priceArea: record.priceArea, providerID: record.providerID)
+            }
+
+            for (groupKey, groupRecords) in groupedRecords {
+                guard let firstRecord = groupRecords.first else { continue }
+                let summaryKey = EnergyHistoryKey.summaryKey(
+                    periodKey: dayKey,
+                    priceArea: groupKey.priceArea,
+                    providerID: groupKey.providerID
+                )
+                let stats = makeSummaryStats(from: groupRecords)
+                let dayStart = calendar.startOfDay(for: firstRecord.intervalStart)
+
+                if let existingSummary = try fetchDailySummary(summaryKey: summaryKey, context: context) {
+                    existingSummary.update(
+                        providerID: groupKey.providerID,
+                        date: dayStart,
+                        intervalCount: stats.intervalCount,
+                        measuredIntervalCount: stats.measuredIntervalCount,
+                        totalConsumptionKWh: stats.totalConsumptionKWh,
+                        totalCostSEK: stats.totalCostSEK,
+                        averageSpotPriceOrePerKWh: stats.averageSpotPriceOrePerKWh,
+                        minSpotPriceOrePerKWh: stats.minSpotPriceOrePerKWh,
+                        maxSpotPriceOrePerKWh: stats.maxSpotPriceOrePerKWh,
+                        confidence: stats.confidence,
+                        updatedAt: updatedAt
+                    )
+                } else {
+                    context.insert(HistoricalDailyEnergySummary(
+                        summaryKey: summaryKey,
+                        dayKey: dayKey,
+                        monthKey: firstRecord.monthKey,
+                        date: dayStart,
+                        priceArea: groupKey.priceArea,
+                        providerID: groupKey.providerID,
+                        intervalCount: stats.intervalCount,
+                        measuredIntervalCount: stats.measuredIntervalCount,
+                        totalConsumptionKWh: stats.totalConsumptionKWh,
+                        totalCostSEK: stats.totalCostSEK,
+                        averageSpotPriceOrePerKWh: stats.averageSpotPriceOrePerKWh,
+                        minSpotPriceOrePerKWh: stats.minSpotPriceOrePerKWh,
+                        maxSpotPriceOrePerKWh: stats.maxSpotPriceOrePerKWh,
+                        confidence: stats.confidence,
+                        updatedAt: updatedAt
+                    ))
+                }
+            }
+        }
+    }
+
+    nonisolated private static func rebuildMonthlySummaries(
+        monthKeys: Set<String>,
+        updatedAt: Date,
+        context: ModelContext,
+        calendar: Calendar
+    ) throws {
+        for monthKey in monthKeys {
+            let dailies = try fetchDailySummaryModels(monthKey: monthKey, context: context)
+            let grouped = Dictionary(grouping: dailies) { summary in
+                SummaryGroupKey(priceArea: summary.priceArea, providerID: summary.providerID)
+            }
+
+            for (groupKey, groupDays) in grouped {
+                guard let first = groupDays.first else { continue }
+                let summaryKey = EnergyHistoryKey.summaryKey(
+                    periodKey: monthKey,
+                    priceArea: groupKey.priceArea,
+                    providerID: groupKey.providerID
+                )
+                let stats = makeSummaryStats(fromDaily: groupDays)
+                let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: first.date)) ?? first.date
+
+                if let existingSummary = try fetchMonthlySummary(summaryKey: summaryKey, context: context) {
+                    existingSummary.update(
+                        providerID: groupKey.providerID,
+                        monthStart: monthStart,
+                        dayCount: groupDays.count,
+                        intervalCount: stats.intervalCount,
+                        measuredIntervalCount: stats.measuredIntervalCount,
+                        totalConsumptionKWh: stats.totalConsumptionKWh,
+                        totalCostSEK: stats.totalCostSEK,
+                        averageSpotPriceOrePerKWh: stats.averageSpotPriceOrePerKWh,
+                        minSpotPriceOrePerKWh: stats.minSpotPriceOrePerKWh,
+                        maxSpotPriceOrePerKWh: stats.maxSpotPriceOrePerKWh,
+                        confidence: stats.confidence,
+                        updatedAt: updatedAt
+                    )
+                } else {
+                    context.insert(HistoricalMonthlyEnergySummary(
+                        summaryKey: summaryKey,
+                        monthKey: monthKey,
+                        monthStart: monthStart,
+                        priceArea: groupKey.priceArea,
+                        providerID: groupKey.providerID,
+                        dayCount: groupDays.count,
+                        intervalCount: stats.intervalCount,
+                        measuredIntervalCount: stats.measuredIntervalCount,
+                        totalConsumptionKWh: stats.totalConsumptionKWh,
+                        totalCostSEK: stats.totalCostSEK,
+                        averageSpotPriceOrePerKWh: stats.averageSpotPriceOrePerKWh,
+                        minSpotPriceOrePerKWh: stats.minSpotPriceOrePerKWh,
+                        maxSpotPriceOrePerKWh: stats.maxSpotPriceOrePerKWh,
+                        confidence: stats.confidence,
+                        updatedAt: updatedAt
+                    ))
+                }
+            }
+        }
+    }
+
+    nonisolated private static func fetchRecords(dayKey: String, context: ModelContext) throws -> [HistoricalEnergyRecord] {
+        let descriptor = FetchDescriptor(
+            predicate: #Predicate<HistoricalEnergyRecord> { record in
+                record.dayKey == dayKey
+            },
+            sortBy: [SortDescriptor(\HistoricalEnergyRecord.intervalStart)]
+        )
+        return try context.fetch(descriptor)
+    }
+
+    nonisolated private static func fetchDailySummaryModels(monthKey: String, context: ModelContext) throws -> [HistoricalDailyEnergySummary] {
+        let descriptor = FetchDescriptor(
+            predicate: #Predicate<HistoricalDailyEnergySummary> { summary in
+                summary.monthKey == monthKey
+            }
+        )
+        return try context.fetch(descriptor)
+    }
+
+    nonisolated private static func fetchDailySummary(summaryKey: String, context: ModelContext) throws -> HistoricalDailyEnergySummary? {
+        var descriptor = FetchDescriptor(
+            predicate: #Predicate<HistoricalDailyEnergySummary> { summary in
+                summary.summaryKey == summaryKey
+            }
+        )
+        descriptor.fetchLimit = 1
+        return try context.fetch(descriptor).first
+    }
+
+    nonisolated private static func fetchMonthlySummary(summaryKey: String, context: ModelContext) throws -> HistoricalMonthlyEnergySummary? {
+        var descriptor = FetchDescriptor(
+            predicate: #Predicate<HistoricalMonthlyEnergySummary> { summary in
+                summary.summaryKey == summaryKey
+            }
+        )
+        descriptor.fetchLimit = 1
+        return try context.fetch(descriptor).first
+    }
+
+    nonisolated private static func updateWidgetSummaryCache(monthKeys: Set<String>, updatedAt: Date, context: ModelContext) throws {
+        for monthKey in monthKeys {
+            let summaries = try fetchMonthlySummaries(monthKey: monthKey, priceArea: nil, context: context)
+            let groupedByPriceArea = Dictionary(grouping: summaries, by: \.priceArea)
+            for (_, priceAreaSummaries) in groupedByPriceArea {
+                guard let summary = priceAreaSummaries.max(by: { lhs, rhs in rhs.isPreferred(over: lhs) }) else {
+                    continue
+                }
+                WidgetHistorySummaryCache.store(WidgetHistorySummary(summary: summary, updatedAt: updatedAt))
+            }
+        }
+    }
+
+    nonisolated private static func rebuildWidgetSummaryCache(context: ModelContext) throws {
+        let descriptor = FetchDescriptor<HistoricalMonthlyEnergySummary>(
+            sortBy: [SortDescriptor(\HistoricalMonthlyEnergySummary.monthStart, order: .reverse)]
+        )
+        let summaries = try context.fetch(descriptor).map { $0.summaryValue() }
+        let grouped = Dictionary(grouping: summaries) { summary in
+            SummaryCacheKey(monthKey: summary.periodKey, priceArea: summary.priceArea)
+        }
+        let widgetSummaries = grouped.compactMap { _, group in
+            group.max { lhs, rhs in rhs.isPreferred(over: lhs) }.map { WidgetHistorySummary(summary: $0) }
+        }
+        WidgetHistorySummaryCache.replaceAll(widgetSummaries)
+    }
+
+    nonisolated private static func deleteRecords(before cutoff: Date, context: ModelContext) throws {
+        let descriptor = FetchDescriptor(
+            predicate: #Predicate<HistoricalEnergyRecord> { record in
+                record.intervalStart < cutoff
+            }
+        )
+        for record in try context.fetch(descriptor) {
+            context.delete(record)
+        }
+    }
+
+    nonisolated private static func deleteDailySummaries(before cutoff: Date, context: ModelContext) throws {
+        let descriptor = FetchDescriptor(
+            predicate: #Predicate<HistoricalDailyEnergySummary> { summary in
+                summary.date < cutoff
+            }
+        )
+        for summary in try context.fetch(descriptor) {
+            context.delete(summary)
+        }
+    }
+
+    nonisolated private static func deleteMonthlySummaries(before cutoff: Date, context: ModelContext) throws {
+        let descriptor = FetchDescriptor(
+            predicate: #Predicate<HistoricalMonthlyEnergySummary> { summary in
+                summary.monthStart < cutoff
+            }
+        )
+        for summary in try context.fetch(descriptor) {
+            context.delete(summary)
+        }
+    }
+
+    nonisolated private static func deleteAll<T: PersistentModel>(_ modelType: T.Type, context: ModelContext) throws {
+        for record in try context.fetch(FetchDescriptor<T>()) {
+            context.delete(record)
+        }
+    }
+
+    nonisolated private static func makeSummaryStats(from records: [HistoricalEnergyRecord]) -> SummaryStats {
+        let intervalCount = records.count
+        let measuredRecords = records.filter { $0.consumptionKWh != nil }
+        let totalConsumption = measuredRecords.reduce(0) { $0 + ($1.consumptionKWh ?? 0) }
+        let totalCosts = records.compactMap(\.totalCostSEK)
+        let spotPrices = records.map(\.spotPriceOrePerKWh)
+
+        return SummaryStats(
+            intervalCount: intervalCount,
+            measuredIntervalCount: measuredRecords.count,
+            totalConsumptionKWh: measuredRecords.isEmpty ? nil : totalConsumption,
+            totalCostSEK: totalCosts.isEmpty ? nil : totalCosts.reduce(0, +),
+            averageSpotPriceOrePerKWh: spotPrices.isEmpty ? nil : spotPrices.reduce(0, +) / Double(spotPrices.count),
+            minSpotPriceOrePerKWh: spotPrices.min(),
+            maxSpotPriceOrePerKWh: spotPrices.max(),
+            confidence: summaryConfidence(for: records.map(\.confidence))
+        )
+    }
+
+    nonisolated private static func makeSummaryStats(fromDaily dailies: [HistoricalDailyEnergySummary]) -> SummaryStats {
+        let intervalCount = dailies.reduce(0) { $0 + $1.intervalCount }
+        let measuredIntervalCount = dailies.reduce(0) { $0 + $1.measuredIntervalCount }
+        let consumptions = dailies.compactMap(\.totalConsumptionKWh)
+        let costs = dailies.compactMap(\.totalCostSEK)
+        let weightedSpot = dailies.reduce(0.0) { partial, day in
+            partial + (day.averageSpotPriceOrePerKWh ?? 0) * Double(max(day.intervalCount, 1))
+        }
+        let weight = dailies.reduce(0) { $0 + max($1.intervalCount, 1) }
+
+        return SummaryStats(
+            intervalCount: intervalCount,
+            measuredIntervalCount: measuredIntervalCount,
+            totalConsumptionKWh: consumptions.isEmpty ? nil : consumptions.reduce(0, +),
+            totalCostSEK: costs.isEmpty ? nil : costs.reduce(0, +),
+            averageSpotPriceOrePerKWh: dailies.isEmpty ? nil : weightedSpot / Double(max(weight, 1)),
+            minSpotPriceOrePerKWh: dailies.compactMap(\.minSpotPriceOrePerKWh).min(),
+            maxSpotPriceOrePerKWh: dailies.compactMap(\.maxSpotPriceOrePerKWh).max(),
+            confidence: summaryConfidence(for: dailies.map(\.confidence))
+        )
+    }
+
+    nonisolated private static func summaryConfidence(for confidences: [HistoricalEnergyConfidence]) -> HistoricalEnergyConfidence {
+        guard !confidences.isEmpty else { return .priceOnly }
+        let unique = Set(confidences)
+        if unique == [.measured] {
+            return .measured
+        }
+        if unique.contains(.measured) || unique.contains(.partial) {
+            return .partial
+        }
+        if unique.contains(.recalculated) {
+            return .recalculated
+        }
+        if unique.contains(.estimated) {
+            return .estimated
+        }
+        return .priceOnly
     }
 }
 

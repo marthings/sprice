@@ -74,8 +74,9 @@ struct HistoryMonthView: View {
                 startBackfill()
             }
         }
-        .onChange(of: selectedMonthKey) { _, _ in
+        .onChange(of: selectedMonthKey) { oldValue, _ in
             guard initialState == nil else { return }
+            guard oldValue != nil else { return }
             Task { await loadHistory() }
         }
         .onReceive(NotificationCenter.default.publisher(for: .energyHistoryDidUpdate)) { _ in
@@ -108,20 +109,10 @@ struct HistoryMonthView: View {
     @MainActor
     private func loadHistory() async {
         do {
-            let probe = try historyQuery.loadMonthHistory(
+            let history = try historyQuery.loadMonthHistory(
                 priceArea: priceArea,
                 selectedMonthKey: selectedMonthKey
             )
-            let preferredKey = selectedMonthKey ?? HistoryInsights.preferredMonthKey(from: probe.months)
-            let history: EnergyHistoryMonthQueryResult
-            if preferredKey != probe.selectedMonthKey {
-                history = try historyQuery.loadMonthHistory(
-                    priceArea: priceArea,
-                    selectedMonthKey: preferredKey
-                )
-            } else {
-                history = probe
-            }
 
             if selectedMonthKey != history.selectedMonthKey {
                 selectedMonthKey = history.selectedMonthKey

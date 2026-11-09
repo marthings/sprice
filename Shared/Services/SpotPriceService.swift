@@ -39,6 +39,12 @@ struct SpotPriceService: Sendable {
 
     /// Fetches spot prices for the given date and price area.
     func fetchSpotPrices(for date: Date = Date(), area: String) async throws -> [SpotPriceItem] {
+        let dayStart = calendar.startOfDay(for: date)
+        let isPastDay = dayStart < calendar.startOfDay(for: Date())
+        if isPastDay, let cached = SpotPriceDayCache.items(for: date, area: area, calendar: calendar), !cached.isEmpty {
+            return cached
+        }
+
         let url = try endpointURL(for: date, area: area, timeZone: timeZone, calendar: calendar)
         let (data, response) = try await session.data(from: url)
         try validate(response: response)

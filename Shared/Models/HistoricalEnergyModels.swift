@@ -87,6 +87,9 @@ struct HistoricalCostProfileSnapshot: Codable, Equatable, Sendable {
 
 @Model
 final class HistoricalEnergyRecord {
+    #Unique<HistoricalEnergyRecord>([\.deduplicationKey])
+    #Index<HistoricalEnergyRecord>([\.deduplicationKey], [\.dayKey, \.priceArea], [\.monthKey, \.priceArea], [\.intervalStart])
+
     var id: UUID
     var deduplicationKey: String
     var intervalStart: Date
@@ -165,7 +168,7 @@ final class HistoricalEnergyRecord {
         HistoricalEnergyConfidence(rawValue: confidenceRawValue) ?? .priceOnly
     }
 
-    func update(from draft: HistoricalEnergyRecordDraft, updatedAt: Date = Date()) {
+    func update(from draft: HistoricalEnergyRecordDraft, snapshotData: Data? = nil, updatedAt: Date = Date()) {
         intervalStart = draft.intervalStart
         intervalEnd = draft.intervalEnd
         dayKey = draft.dayKey
@@ -179,7 +182,7 @@ final class HistoricalEnergyRecord {
         taxCostSEK = draft.taxCostSEK
         vatCostSEK = draft.vatCostSEK
         totalCostSEK = draft.totalCostSEK
-        costProfileSnapshotData = draft.costProfileSnapshotData
+        costProfileSnapshotData = snapshotData ?? costProfileSnapshotData
         sourceRawValue = draft.source.rawValue
         confidenceRawValue = draft.confidence.rawValue
         self.updatedAt = updatedAt
@@ -218,6 +221,9 @@ struct HistoricalEnergyIntervalValue: Identifiable, Equatable, Sendable {
 
 @Model
 final class HistoricalDailyEnergySummary {
+    #Unique<HistoricalDailyEnergySummary>([\.summaryKey])
+    #Index<HistoricalDailyEnergySummary>([\.summaryKey], [\.monthKey], [\.date], [\.monthKey, \.priceArea])
+
     var id: UUID
     var summaryKey: String
     var dayKey: String
@@ -322,6 +328,9 @@ final class HistoricalDailyEnergySummary {
 
 @Model
 final class HistoricalMonthlyEnergySummary {
+    #Unique<HistoricalMonthlyEnergySummary>([\.summaryKey])
+    #Index<HistoricalMonthlyEnergySummary>([\.summaryKey], [\.monthKey], [\.monthStart])
+
     var id: UUID
     var summaryKey: String
     var monthKey: String
@@ -443,7 +452,7 @@ struct HistoricalEnergyRecordDraft: Sendable {
     let taxCostSEK: Double?
     let vatCostSEK: Double?
     let totalCostSEK: Double?
-    let costProfileSnapshotData: Data?
+    let costProfileSnapshot: HistoricalCostProfileSnapshot?
     let source: HistoricalEnergySource
     let confidence: HistoricalEnergyConfidence
 
@@ -477,7 +486,7 @@ struct HistoricalEnergyRecordDraft: Sendable {
         self.taxCostSEK = taxCostSEK
         self.vatCostSEK = vatCostSEK
         self.totalCostSEK = totalCostSEK
-        self.costProfileSnapshotData = costProfileSnapshot.flatMap { try? JSONEncoder().encode($0) }
+        self.costProfileSnapshot = costProfileSnapshot
         self.source = source
         self.confidence = confidence
         self.deduplicationKey = EnergyHistoryKey.recordKey(
@@ -490,7 +499,7 @@ struct HistoricalEnergyRecordDraft: Sendable {
         )
     }
 
-    func makeRecord(createdAt: Date = Date()) -> HistoricalEnergyRecord {
+    func makeRecord(createdAt: Date = Date(), snapshotData: Data? = nil) -> HistoricalEnergyRecord {
         HistoricalEnergyRecord(
             deduplicationKey: deduplicationKey,
             intervalStart: intervalStart,
@@ -506,7 +515,7 @@ struct HistoricalEnergyRecordDraft: Sendable {
             taxCostSEK: taxCostSEK,
             vatCostSEK: vatCostSEK,
             totalCostSEK: totalCostSEK,
-            costProfileSnapshotData: costProfileSnapshotData,
+            costProfileSnapshotData: snapshotData,
             source: source,
             confidence: confidence,
             createdAt: createdAt,
@@ -637,17 +646,17 @@ struct WidgetHistorySummary: Codable, Equatable, Sendable {
     }
 }
 
-enum WidgetHistorySummaryCache {
+enum WidgetHistorySummaryCache: Sendable {
     private static let defaults = UserDefaults(suiteName: EnergyHistoryConstants.appGroupIdentifier) ?? .standard
     private static let key = "widget_historySummaries"
 
-    static func summary(monthKey: String, priceArea: String) -> WidgetHistorySummary? {
+    nonisolated static func summary(monthKey: String, priceArea: String) -> WidgetHistorySummary? {
         summaries().first { summary in
             summary.monthKey == monthKey && summary.priceArea == priceArea
         }
     }
 
-    static func store(_ summary: WidgetHistorySummary) {
+    nonisolated static func store(_ summary: WidgetHistorySummary) {
         var cached = summaries().filter { existing in
             !(existing.monthKey == summary.monthKey && existing.priceArea == summary.priceArea)
         }
@@ -661,7 +670,7 @@ enum WidgetHistorySummaryCache {
         }
     }
 
-    static func replaceAll(_ summaries: [WidgetHistorySummary]) {
+    nonisolated static func replaceAll(_ summaries: [WidgetHistorySummary]) {
         let cached = Array(summaries.sorted { $0.periodStart > $1.periodStart }.prefix(12))
         if let data = try? JSONEncoder().encode(cached) {
             defaults.set(data, forKey: key)
@@ -671,12 +680,12 @@ enum WidgetHistorySummaryCache {
         defaults.synchronize()
     }
 
-    static func clear() {
+    nonisolated static func clear() {
         defaults.removeObject(forKey: key)
         defaults.synchronize()
     }
 
-    private static func summaries() -> [WidgetHistorySummary] {
+    nonisolated private static func summaries() -> [WidgetHistorySummary] {
         guard let data = defaults.data(forKey: key),
               let summaries = try? JSONDecoder().decode([WidgetHistorySummary].self, from: data) else {
             return []
@@ -687,8 +696,8 @@ enum WidgetHistorySummaryCache {
 
 // MARK: - Keys
 
-enum EnergyHistoryKey {
-    static func recordKey(
+enum EnergyHistoryKey: Sendable {
+    nonisolated static func recordKey(
         intervalStart: Date,
         intervalEnd: Date,
         priceArea: String,
@@ -705,30 +714,39 @@ enum EnergyHistoryKey {
         ].joined(separator: "|")
     }
 
-    static func summaryKey(periodKey: String, priceArea: String, providerID: String?) -> String {
+    nonisolated static func summaryKey(periodKey: String, priceArea: String, providerID: String?) -> String {
         [periodKey, priceArea, providerID ?? "none"].joined(separator: "|")
     }
 
-    static func dayKey(for date: Date, calendar: Calendar = .energyHistory) -> String {
+    nonisolated static func dayKey(for date: Date, calendar: Calendar = .energyHistory) -> String {
         let components = calendar.dateComponents([.year, .month, .day], from: date)
         return "\(paddedYear(components.year ?? 0))-\(paddedTwo(components.month ?? 0))-\(paddedTwo(components.day ?? 0))"
     }
 
-    static func monthKey(for date: Date, calendar: Calendar = .energyHistory) -> String {
+    nonisolated static func monthKey(for date: Date, calendar: Calendar = .energyHistory) -> String {
         let components = calendar.dateComponents([.year, .month], from: date)
         return "\(paddedYear(components.year ?? 0))-\(paddedTwo(components.month ?? 0))"
     }
 
-    private static func instantKey(for date: Date, calendar: Calendar) -> String {
+    nonisolated static func preferredMonthKey(
+        from months: [HistoricalEnergySummaryValue],
+        now: Date = Date(),
+        calendar: Calendar = .energyHistory
+    ) -> String? {
+        let currentKey = monthKey(for: now, calendar: calendar)
+        return months.first { $0.periodKey != currentKey }?.periodKey ?? months.first?.periodKey
+    }
+
+    nonisolated private static func instantKey(for date: Date, calendar: Calendar) -> String {
         let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
         return "\(paddedYear(components.year ?? 0))-\(paddedTwo(components.month ?? 0))-\(paddedTwo(components.day ?? 0))T\(paddedTwo(components.hour ?? 0)):\(paddedTwo(components.minute ?? 0))"
     }
 
-    private static func paddedTwo(_ value: Int) -> String {
+    nonisolated private static func paddedTwo(_ value: Int) -> String {
         value < 10 ? "0\(value)" : String(value)
     }
 
-    private static func paddedYear(_ value: Int) -> String {
+    nonisolated private static func paddedYear(_ value: Int) -> String {
         if value < 0 { return String(value) }
         if value < 10 { return "000\(value)" }
         if value < 100 { return "00\(value)" }
