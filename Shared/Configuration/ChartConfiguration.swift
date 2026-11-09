@@ -4,6 +4,15 @@
 //
 
 import SwiftUI
+import Charts
+
+enum ChartCalloutOverflow {
+    /// Keeps selection callouts inside the chart horizontally, and lets them
+    /// draw above the plot instead of being clipped by the card.
+    static var resolution: AnnotationOverflowResolution {
+        AnnotationOverflowResolution(x: .fit(to: .chart), y: .disabled)
+    }
+}
 
 enum ChartConfiguration {
     case menuBar

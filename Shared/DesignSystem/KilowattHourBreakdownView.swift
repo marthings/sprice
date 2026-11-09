@@ -1,4 +1,5 @@
 import SwiftUI
+import Charts
 
 enum KilowattHourBreakdownStyle {
     case regular
@@ -8,46 +9,35 @@ enum KilowattHourBreakdownStyle {
 struct KilowattHourBreakdownView: View {
     let breakdown: KilowattHourBreakdown
     var style: KilowattHourBreakdownStyle = .regular
+    var priceCategory: PriceCategory?
+    var nextTotalKrPerKWh: Double?
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ScaledMetric(relativeTo: .largeTitle) private var regularDonutSize: CGFloat = 208
+    @ScaledMetric(relativeTo: .title) private var compactDonutSize: CGFloat = 118
+    @ScaledMetric(relativeTo: .largeTitle) private var regularPriceSize: CGFloat = 36
+    @ScaledMetric(relativeTo: .title) private var compactPriceSize: CGFloat = 20
+
+    private var usesExternalHeroPrice: Bool {
+        dynamicTypeSize.isAccessibilitySize
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: style == .compact ? DS.Spacing.sm : DS.Spacing.md) {
-            stackedBar
+            if usesExternalHeroPrice {
+                centerPrice
+                    .frame(maxWidth: .infinity)
+            }
 
-            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                ForEach(breakdown.lines) { line in
-                    HStack(spacing: DS.Spacing.sm) {
-                        Circle()
-                            .fill(color(for: line.kind))
-                            .frame(width: 8, height: 8)
-
-                        Text(line.title)
-                            .font(DS.Font.micro)
-                            .foregroundStyle(DS.Color.secondary)
-
-                        Spacer(minLength: DS.Spacing.sm)
-
-                        Text(line.amountOrePerKWh, format: .number.precision(.fractionLength(1)))
-                            .font(DS.Font.micro.monospacedDigit())
-                            .foregroundStyle(.primary)
-
-                        Text("öre/kWh")
-                            .font(DS.Font.micro)
-                            .foregroundStyle(DS.Color.secondary)
-                    }
+            if style == .compact && !usesExternalHeroPrice {
+                HStack(alignment: .center, spacing: DS.Spacing.md) {
+                    donutChart
+                    legend
                 }
-
-                Divider()
-
-                HStack(spacing: DS.Spacing.sm) {
-                    Text("Totalt")
-                        .font(DS.Font.semibold(12))
-                    Spacer(minLength: DS.Spacing.sm)
-                    Text(breakdown.totalKrPerKWh, format: .number.precision(.fractionLength(2)))
-                        .font(DS.Font.semibold(12).monospacedDigit())
-                    Text("kr/kWh")
-                        .font(DS.Font.micro)
-                        .foregroundStyle(DS.Color.secondary)
-                }
+            } else {
+                donutChart
+                    .frame(maxWidth: .infinity)
+                legend
             }
 
             Text("Siffrorna i listan är utan moms. Momsen ligger på en egen rad. Totalen är vad du betalar.")
@@ -65,22 +55,146 @@ struct KilowattHourBreakdownView: View {
         .padding(style == .compact ? DS.Spacing.md : DS.Spacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
         .glassCard()
+        .accessibilityElement(children: .contain)
     }
 
-    private var stackedBar: some View {
-        GeometryReader { geometry in
-            let total = max(breakdown.totalKrPerKWh, 0.0001)
-            HStack(spacing: 0) {
-                ForEach(breakdown.lines) { line in
-                    Rectangle()
-                        .fill(color(for: line.kind))
-                        .frame(width: geometry.size.width * CGFloat(line.amountKrPerKWh / total))
+    private var donutSize: CGFloat {
+        let raw = style == .compact ? compactDonutSize : regularDonutSize
+        return min(max(raw, style == .compact ? 96 : 168), style == .compact ? 148 : 260)
+    }
+
+    private var donutChart: some View {
+        ZStack {
+            if breakdown.lines.isEmpty {
+                Circle()
+                    .stroke(DS.Color.outline, lineWidth: style == .compact ? 12 : 18)
+                    .frame(width: donutSize * 0.82, height: donutSize * 0.82)
+                    .accessibilityHidden(true)
+            } else {
+                Chart(breakdown.lines) { line in
+                    SectorMark(
+                        angle: .value("Andel", line.amountKrPerKWh),
+                        innerRadius: .ratio(style == .compact ? 0.58 : 0.64),
+                        angularInset: style == .compact ? 1.4 : 2.0
+                    )
+                    .cornerRadius(style == .compact ? 2.5 : 4)
+                    .foregroundStyle(color(for: line.kind))
+                    .accessibilityLabel(line.title)
+                    .accessibilityValue(sectorAccessibilityValue(for: line))
                 }
+                .chartLegend(.hidden)
+            }
+
+            if !usesExternalHeroPrice {
+                centerPrice
+                    .frame(width: donutSize * 0.54)
+                    .allowsHitTesting(false)
             }
         }
-        .frame(height: style == .compact ? 8 : 12)
-        .clipShape(Capsule())
-        .accessibilityHidden(true)
+        .frame(width: donutSize, height: donutSize)
+        .accessibilityElement(children: .contain)
+    }
+
+    private var centerPrice: some View {
+        let priceColor = priceCategory.map { DS.Color.forCategory($0) } ?? .primary
+
+        return VStack(spacing: DS.Spacing.xxs) {
+            if style == .regular, let priceCategory {
+                PriceLevelBadge(category: priceCategory)
+            }
+
+            Text("Nu")
+                .font(DS.Font.micro)
+                .foregroundStyle(DS.Color.secondary)
+
+            HStack(alignment: .center, spacing: DS.Spacing.xs) {
+                Text(breakdown.totalKrPerKWh, format: .number.precision(.fractionLength(2)))
+                    .font(DS.Font.bold(style == .compact ? compactPriceSize : regularPriceSize).monospacedDigit())
+                    .foregroundStyle(priceColor)
+                    .minimumScaleFactor(0.5)
+                    .lineLimit(1)
+
+                if style == .regular {
+                    PriceChangeIndicator(
+                        current: breakdown.totalKrPerKWh,
+                        next: nextTotalKrPerKWh,
+                        fontSize: 14
+                    )
+                }
+            }
+
+            Text("kr/kWh")
+                .font(style == .compact ? DS.Font.micro : DS.Font.caption)
+                .foregroundStyle(DS.Color.secondary)
+        }
+        .multilineTextAlignment(.center)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(centerAccessibilityLabel)
+    }
+
+    private var legend: some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+            ForEach(breakdown.lines) { line in
+                HStack(alignment: .firstTextBaseline, spacing: DS.Spacing.sm) {
+                    Circle()
+                        .fill(color(for: line.kind))
+                        .frame(width: 8, height: 8)
+                        .padding(.top, 3)
+                        .accessibilityHidden(true)
+
+                    Text(line.title)
+                        .font(DS.Font.micro)
+                        .foregroundStyle(DS.Color.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Spacer(minLength: DS.Spacing.sm)
+
+                    Text(shareText(for: line))
+                        .font(DS.Font.micro.monospacedDigit())
+                        .foregroundStyle(DS.Color.secondary)
+                        .frame(minWidth: 32, alignment: .trailing)
+
+                    Text(line.amountOrePerKWh, format: .number.precision(.fractionLength(1)))
+                        .font(DS.Font.micro.monospacedDigit())
+                        .foregroundStyle(.primary)
+
+                    Text("öre")
+                        .font(DS.Font.micro)
+                        .foregroundStyle(DS.Color.secondary)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(legendAccessibilityLabel(for: line))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var centerAccessibilityLabel: String {
+        var parts = [
+            "Nu",
+            AppFormatters.krPerKWh(breakdown.totalKrPerKWh)
+        ]
+        if let priceCategory {
+            parts.insert(priceCategory.label, at: 0)
+        }
+        return parts.joined(separator: ", ")
+    }
+
+    private func sharePercent(for line: KilowattHourLine) -> Double {
+        guard breakdown.totalKrPerKWh > 0 else { return 0 }
+        return (line.amountKrPerKWh / breakdown.totalKrPerKWh) * 100
+    }
+
+    private func shareText(for line: KilowattHourLine) -> String {
+        "\(Int(sharePercent(for: line).rounded())) %"
+    }
+
+    private func sectorAccessibilityValue(for line: KilowattHourLine) -> String {
+        "\(Int(sharePercent(for: line).rounded())) procent, \(line.amountOrePerKWh.formatted(.number.precision(.fractionLength(1)))) öre per kilowattimme"
+    }
+
+    private func legendAccessibilityLabel(for line: KilowattHourLine) -> String {
+        "\(line.title), \(sectorAccessibilityValue(for: line))"
     }
 
     private func color(for kind: KilowattHourLineKind) -> Color {

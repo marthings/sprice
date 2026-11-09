@@ -36,7 +36,7 @@ struct HistoryMonthDaysChart: View {
 
     private var introCopy: String {
         if isCurrentMonth {
-            return "Så här har den pågående månaden kostat hittills. Tryck på en dag för att se timmarna. Hela månadens prognos finns under Kostnad."
+            return "Så här har den pågående månaden kostat hittills. Tryck på en dag för att se timmarna."
         }
         return "Tryck på en dag för att se hur kostnaden fördelades över timmarna."
     }
@@ -63,6 +63,18 @@ struct HistoryMonthDaysChart: View {
                 .foregroundStyle(barColor(for: day, expensiveID: expensive?.id))
                 .cornerRadius(3)
                 .opacity(barOpacity(for: day))
+            }
+
+            if let selectedDay {
+                RuleMark(x: .value("Vald dag", selectedDay.date, unit: .day))
+                    .foregroundStyle(DS.Color.secondary.opacity(0.4))
+                    .lineStyle(StrokeStyle(lineWidth: 1))
+                    .annotation(position: .top, spacing: DS.Spacing.xs, overflowResolution: ChartCalloutOverflow.resolution) {
+                        ChartValueCallout(
+                            title: AppFormatters.shortDayAndMonth(selectedDay.date),
+                            value: selectedDay.costKr.map { "\(AppFormatters.wholeNumber($0)) kr" } ?? "–"
+                        )
+                    }
             }
         }
         .chartXAxis {
@@ -93,7 +105,11 @@ struct HistoryMonthDaysChart: View {
                 }
             }
         }
+        .chartPlotStyle { plot in
+            plot.padding(.top, DS.Spacing.sm)
+        }
         .frame(height: 180)
+        .zIndex(1)
         .overlay {
             GeometryReader { geometry in
                 Rectangle()

@@ -8,6 +8,7 @@ import SwiftUI
 struct PriceChangeIndicator: View {
     let current: Double?
     let next: Double?
+    var fontSize: CGFloat = 10
 
     var body: some View {
         if let current, let next {
@@ -20,7 +21,7 @@ struct PriceChangeIndicator: View {
             let color: Color = isIncrease ? DS.Color.danger : isDecrease ? DS.Color.success : DS.Color.secondary
 
             Image(systemName: icon)
-                .font(.system(size: 10, weight: .bold))
+                .font(.system(size: fontSize, weight: .bold))
                 .foregroundStyle(color)
                 .accessibilityLabel(isIncrease ? "Ökar" : isDecrease ? "Minskar" : "Stabilt")
         }

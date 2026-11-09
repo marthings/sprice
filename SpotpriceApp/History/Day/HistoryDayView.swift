@@ -164,6 +164,8 @@ private struct HistoryDayTotals: View {
 
 private struct HistoryDayHourChart: View {
     let snapshot: HistoryDaySnapshot
+    @State private var selectedCostHour: Date?
+    @State private var selectedSpotHour: Date?
 
     private var hasCost: Bool {
         !snapshot.costHours.isEmpty
@@ -187,6 +189,18 @@ private struct HistoryDayHourChart: View {
                         )
                         .foregroundStyle(costBarColor(for: hour))
                         .cornerRadius(2)
+                    }
+
+                    if let selected = selectedCostHour.flatMap({ nearestHour(to: $0, in: snapshot.costHours) }),
+                       let cost = selected.costKr {
+                        RuleMark(x: .value("Vald timme", selected.start, unit: .hour))
+                            .foregroundStyle(DS.Color.secondary.opacity(0.4))
+                            .annotation(position: .top, spacing: DS.Spacing.xs, overflowResolution: ChartCalloutOverflow.resolution) {
+                                ChartValueCallout(
+                                    title: selected.hourRangeLabel,
+                                    value: "\(AppFormatters.wholeNumber(cost)) kr"
+                                )
+                            }
                     }
                 }
                 .chartXScale(domain: hourDomain)
@@ -216,7 +230,12 @@ private struct HistoryDayHourChart: View {
                         }
                     }
                 }
+                .chartXSelection(value: $selectedCostHour)
+                .chartPlotStyle { plot in
+                    plot.padding(.top, DS.Spacing.sm)
+                }
                 .frame(height: 160)
+                .zIndex(1)
                 .accessibilityLabel("Stapeldiagram över kostnad per timme, i kronor")
             } else {
                 Text("Ingen kostnad per timme att visa. Förbrukning saknas, så inga kronor räknas fram.")
@@ -245,6 +264,18 @@ private struct HistoryDayHourChart: View {
                         .foregroundStyle(DS.Color.warning.opacity(0.12))
                         .interpolationMethod(.stepStart)
                     }
+
+                    if let selected = selectedSpotHour.flatMap({ nearestHour(to: $0, in: snapshot.spotHours) }),
+                       let spot = selected.spotOrePerKWh {
+                        RuleMark(x: .value("Vald timme", selected.start, unit: .hour))
+                            .foregroundStyle(DS.Color.secondary.opacity(0.4))
+                            .annotation(position: .top, spacing: DS.Spacing.xs, overflowResolution: ChartCalloutOverflow.resolution) {
+                                ChartValueCallout(
+                                    title: selected.hourRangeLabel,
+                                    value: "\(AppFormatters.oreValue(spot)) öre"
+                                )
+                            }
+                    }
                 }
                 .chartXScale(domain: hourDomain)
                 .chartXAxis {
@@ -273,7 +304,12 @@ private struct HistoryDayHourChart: View {
                         }
                     }
                 }
+                .chartXSelection(value: $selectedSpotHour)
+                .chartPlotStyle { plot in
+                    plot.padding(.top, DS.Spacing.sm)
+                }
                 .frame(height: 96)
+                .zIndex(1)
                 .accessibilityLabel("Linjediagram över spotpris per timme, i öre per kilowattimme")
             }
         }
@@ -293,6 +329,12 @@ private struct HistoryDayHourChart: View {
             return DS.Color.danger
         }
         return DS.Color.info
+    }
+
+    private func nearestHour(to date: Date, in hours: [HistoryHourCost]) -> HistoryHourCost? {
+        hours.min { lhs, rhs in
+            abs(lhs.start.timeIntervalSince(date)) < abs(rhs.start.timeIntervalSince(date))
+        }
     }
 }
 

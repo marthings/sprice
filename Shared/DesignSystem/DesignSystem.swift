@@ -874,12 +874,13 @@ struct GlassCardModifier: ViewModifier {
                     .overlay {
                         cardShape.fill(contrastFill)
                     }
+                    .glassEffect(isInteractive ? .regular.interactive() : .regular, in: cardShape)
+                    .clipShape(cardShape)
             }
-            .clipShape(cardShape)
-            .glassEffect(isInteractive ? .regular.interactive() : .regular, in: cardShape)
             .overlay {
                 cardShape.strokeBorder(Color.primary.opacity(colorScheme == .dark ? 0.16 : 0.10), lineWidth: 0.5)
             }
+            .containerShape(cardShape)
     }
 }
 

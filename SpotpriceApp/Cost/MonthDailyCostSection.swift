@@ -5,11 +5,14 @@ struct MonthDailyCostSection: View {
     let priceArea: String
     let profile: CostProfile
     let hasProvider: Bool
+    var forecastKr: Double? = nil
 
     @State private var days: [MonthDayCost] = []
     @State private var selectedDay: MonthDayCost?
     @State private var loadFailed = false
     @State private var didLoad = false
+
+    private var calendar: Calendar { .energyHistory }
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
@@ -17,7 +20,7 @@ struct MonthDailyCostSection: View {
                 Text("Kostnad per dag")
                     .font(DS.Font.headline)
 
-                Text("Så här har månaden kostat hittills. Tryck på en stapel för att se den dagen.")
+                Text(introCopy)
                     .font(DS.Font.micro)
                     .foregroundStyle(DS.Color.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -43,6 +46,13 @@ struct MonthDailyCostSection: View {
         }
     }
 
+    private var introCopy: String {
+        if forecastKr != nil {
+            return "Staplarna visar vad varje dag har kostat. Linjen är kostnaden hittills, den streckade delen är prognosen till månadens slut."
+        }
+        return "Så här har månaden kostat hittills. Tryck på en stapel för att se den dagen."
+    }
+
     @ViewBuilder
     private var chartContent: some View {
         let expensive = mostExpensiveDay
@@ -64,7 +74,21 @@ struct MonthDailyCostSection: View {
                 .cornerRadius(3)
                 .opacity(barOpacity(for: day))
             }
+
+            if let selectedDay {
+                RuleMark(x: .value("Vald dag", selectedDay.date, unit: .day))
+                    .foregroundStyle(DS.Color.secondary.opacity(0.4))
+                    .lineStyle(StrokeStyle(lineWidth: 1))
+                    .annotation(position: .top, spacing: DS.Spacing.xs, overflowResolution: ChartCalloutOverflow.resolution) {
+                        ChartValueCallout(
+                            title: AppFormatters.shortDayAndMonth(selectedDay.date),
+                            value: selectedDay.costKr.map { "\(AppFormatters.wholeNumber($0)) kr" } ?? "–"
+                        )
+                    }
+            }
         }
+        .chartXScale(domain: monthRange ?? defaultDomain)
+        .chartYScale(domain: 0...(dailyYMax * 1.18))
         .chartXAxis {
             AxisMarks(values: .stride(by: .day, count: xAxisStride)) { value in
                 AxisGridLine()
@@ -93,24 +117,60 @@ struct MonthDailyCostSection: View {
                 }
             }
         }
-        .frame(height: 180)
-        .overlay {
+        .chartPlotStyle { plot in
+            plot.padding(.top, DS.Spacing.sm)
+        }
+        .frame(height: 196)
+        .chartOverlay { proxy in
             GeometryReader { geometry in
-                Rectangle()
-                    .fill(.clear)
-                    .contentShape(Rectangle())
-                    .gesture(
-                        DragGesture(minimumDistance: 0)
-                            .onChanged { value in
-                                let day = nearestDay(at: value.location, chartWidth: geometry.size.width)
-                                if selectedDay?.id != day?.id {
-                                    selectedDay = day
-                                }
-                            }
+                let plotFrame = proxy.plotFrame.map { geometry[$0] } ?? geometry.frame(in: .local)
+                ZStack(alignment: .topLeading) {
+                    MonthCumulativeProjectionShape(
+                        proxy: proxy,
+                        plotFrame: plotFrame,
+                        points: cumulativePoints,
+                        projection: projectionSegment,
+                        yMax: lineYMax
                     )
+                    .accessibilityHidden(true)
+
+                    if let forecastKr, let endPoint = projectionEndPoint(proxy: proxy, plotFrame: plotFrame) {
+                        ChartValueCallout(
+                            title: nil,
+                            value: "Prognos: \(AppFormatters.wholeNumber(forecastKr)) kr"
+                        )
+                        .position(endPoint)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                    }
+
+                    Rectangle()
+                        .fill(.clear)
+                        .contentShape(Rectangle())
+                        .gesture(
+                            DragGesture(minimumDistance: 0)
+                                .onChanged { value in
+                                    guard let date: Date = proxy.value(atX: value.location.x) else { return }
+                                    let day = days.first { calendar.isDate($0.date, inSameDayAs: date) }
+                                    if let day, selectedDay?.id != day.id {
+                                        selectedDay = day
+                                    }
+                                }
+                        )
+                }
             }
         }
-        .accessibilityLabel("Stapeldiagram över kostnad per dag den här månaden")
+        .zIndex(1)
+        .accessibilityLabel(chartAccessibilityLabel)
+
+        if let forecastKr {
+            seriesLegend
+            Text("Månaden ser ut att landa på cirka \(AppFormatters.wholeNumber(forecastKr)) kr")
+                .font(DS.Font.callout)
+                .foregroundStyle(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityLabel("Månaden ser ut att landa på cirka \(AppFormatters.wholeNumber(forecastKr)) kronor")
+        }
 
         if let selectedDay {
             Text(detailCopy(for: selectedDay))
@@ -124,6 +184,38 @@ struct MonthDailyCostSection: View {
             .font(DS.Font.micro)
             .foregroundStyle(DS.Color.secondary)
             .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var seriesLegend: some View {
+        HStack(spacing: DS.Spacing.md) {
+            legendSwatch(color: DS.Color.info, label: "Per dag")
+            legendLine(style: StrokeStyle(lineWidth: 2), label: "Hittills")
+            legendLine(style: StrokeStyle(lineWidth: 2, dash: [5, 4]), label: "Prognos")
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Per dag som staplar, hittills som heldragen linje, prognos som streckad linje")
+    }
+
+    private func legendSwatch(color: Color, label: String) -> some View {
+        HStack(spacing: DS.Spacing.xs) {
+            RoundedRectangle(cornerRadius: 2, style: .continuous)
+                .fill(color)
+                .frame(width: 10, height: 8)
+            Text(label)
+                .font(DS.Font.micro)
+                .foregroundStyle(DS.Color.secondary)
+        }
+    }
+
+    private func legendLine(style: StrokeStyle, label: String) -> some View {
+        HStack(spacing: DS.Spacing.xs) {
+            Capsule()
+                .stroke(DS.Color.brand, style: style)
+                .frame(width: 16, height: 2)
+            Text(label)
+                .font(DS.Font.micro)
+                .foregroundStyle(DS.Color.secondary)
+        }
     }
 
     private var emptyStateCopy: String {
@@ -150,8 +242,23 @@ struct MonthDailyCostSection: View {
             .0
     }
 
+    private var monthRange: ClosedRange<Date>? {
+        guard let interval = calendar.dateInterval(of: .month, for: Date()) else { return nil }
+        guard let lastDay = calendar.date(byAdding: .day, value: -1, to: interval.end) else {
+            return interval.start...interval.start
+        }
+        return interval.start...calendar.startOfDay(for: lastDay)
+    }
+
+    private var defaultDomain: ClosedRange<Date> {
+        let start = days.first?.date ?? Date()
+        let end = days.last?.date ?? start
+        return start...end
+    }
+
     private var xAxisStride: Int {
-        switch days.count {
+        let count = monthDayCount
+        switch count {
         case ...7: return 1
         case ...14: return 2
         case ...21: return 3
@@ -159,11 +266,64 @@ struct MonthDailyCostSection: View {
         }
     }
 
-    private func nearestDay(at location: CGPoint, chartWidth: CGFloat) -> MonthDayCost? {
-        guard !days.isEmpty, chartWidth > 0 else { return nil }
-        let dayIndex = Int((location.x / chartWidth) * Double(days.count))
-        let clampedIndex = max(0, min(dayIndex, days.count - 1))
-        return days[clampedIndex]
+    private var monthDayCount: Int {
+        guard let monthRange else { return max(days.count, 1) }
+        return (calendar.dateComponents([.day], from: monthRange.lowerBound, to: monthRange.upperBound).day ?? 0) + 1
+    }
+
+    private var dailyYMax: Double {
+        max(days.compactMap(\.costKr).max() ?? 1, 1)
+    }
+
+    private var cumulativePoints: [MonthCumulativePoint] {
+        var sum = 0.0
+        var points: [MonthCumulativePoint] = []
+        for day in days {
+            if let cost = day.costKr {
+                sum += cost
+                points.append(MonthCumulativePoint(date: day.date, value: sum))
+            }
+        }
+        return points
+    }
+
+    private var spentSoFarKr: Double {
+        cumulativePoints.last?.value ?? 0
+    }
+
+    private var lineYMax: Double {
+        max(forecastKr ?? 0, spentSoFarKr, 1) * 1.12
+    }
+
+    private var projectionSegment: MonthProjectionSegment? {
+        guard let forecastKr, let last = cumulativePoints.last, let monthRange else { return nil }
+        if calendar.isDate(last.date, inSameDayAs: monthRange.upperBound) {
+            return nil
+        }
+        return MonthProjectionSegment(
+            fromDate: last.date,
+            fromValue: last.value,
+            toDate: monthRange.upperBound,
+            toValue: forecastKr
+        )
+    }
+
+    private var chartAccessibilityLabel: String {
+        if let forecastKr {
+            return "Stapeldiagram över kostnad per dag den här månaden, med ackumulerad kostnad och prognos \(AppFormatters.wholeNumber(forecastKr)) kronor"
+        }
+        return "Stapeldiagram över kostnad per dag den här månaden"
+    }
+
+    private func projectionEndPoint(proxy: ChartProxy, plotFrame: CGRect) -> CGPoint? {
+        guard let forecastKr, let monthRange, lineYMax > 0 else { return nil }
+        guard let x = proxy.position(forX: monthRange.upperBound) else { return nil }
+        let yRatio = CGFloat(forecastKr / lineYMax)
+        let y = plotFrame.maxY - (plotFrame.height * min(max(yRatio, 0), 1))
+        let labelOffsetX: CGFloat = 78
+        let clampedX = min(max(x - 56, plotFrame.minX + labelOffsetX), plotFrame.maxX - 72)
+        let clampedY = min(max(y - 16, plotFrame.minY + 18), plotFrame.maxY - 18)
+        return CGPoint(x: clampedX, y: clampedY)
     }
 
     private func barColor(for day: MonthDayCost, expensiveID: Date?) -> Color {
@@ -226,6 +386,79 @@ struct MonthDailyCostSection: View {
             loadFailed = true
         }
         didLoad = true
+    }
+}
+
+private struct MonthCumulativePoint {
+    let date: Date
+    let value: Double
+}
+
+private struct MonthProjectionSegment {
+    let fromDate: Date
+    let fromValue: Double
+    let toDate: Date
+    let toValue: Double
+}
+
+private struct MonthCumulativeProjectionShape: View {
+    let proxy: ChartProxy
+    let plotFrame: CGRect
+    let points: [MonthCumulativePoint]
+    let projection: MonthProjectionSegment?
+    let yMax: Double
+
+    var body: some View {
+        ZStack {
+            Path { path in
+                addLine(to: &path, points: points)
+            }
+            .stroke(DS.Color.brand, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+
+            if let projection {
+                Path { path in
+                    addLine(
+                        to: &path,
+                        points: [
+                            MonthCumulativePoint(date: projection.fromDate, value: projection.fromValue),
+                            MonthCumulativePoint(date: projection.toDate, value: projection.toValue)
+                        ]
+                    )
+                }
+                .stroke(
+                    DS.Color.brand,
+                    style: StrokeStyle(lineWidth: 2, lineCap: .round, dash: [5, 4])
+                )
+
+                if let end = position(for: projection.toDate, value: projection.toValue) {
+                    Circle()
+                        .fill(DS.Color.brand)
+                        .frame(width: 7, height: 7)
+                        .position(end)
+                }
+            }
+        }
+        .allowsHitTesting(false)
+    }
+
+    private func addLine(to path: inout Path, points: [MonthCumulativePoint]) {
+        var started = false
+        for point in points {
+            guard let location = position(for: point.date, value: point.value) else { continue }
+            if started {
+                path.addLine(to: location)
+            } else {
+                path.move(to: location)
+                started = true
+            }
+        }
+    }
+
+    private func position(for date: Date, value: Double) -> CGPoint? {
+        guard yMax > 0, let x = proxy.position(forX: date) else { return nil }
+        let yRatio = CGFloat(value / yMax)
+        let y = plotFrame.maxY - (plotFrame.height * min(max(yRatio, 0), 1))
+        return CGPoint(x: x, y: y)
     }
 }
 

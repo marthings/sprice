@@ -225,6 +225,34 @@ struct ChartCalloutView: View {
     }
 }
 
+/// Compact pill used as a chart annotation on bar charts.
+struct ChartValueCallout: View {
+    var title: String? = nil
+    let value: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
+            if let title, !title.isEmpty {
+                Text(title)
+                    .font(DS.Font.micro)
+                    .foregroundStyle(DS.Color.secondary)
+            }
+            Text(value)
+                .font(DS.Font.semibold(12).monospacedDigit())
+                .foregroundStyle(.primary)
+        }
+        .padding(.horizontal, DS.Spacing.sm)
+        .padding(.vertical, DS.Spacing.xs)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: DS.Radius.sm, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: DS.Radius.sm, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.10), lineWidth: 0.5)
+        }
+        .shadow(color: .black.opacity(0.12), radius: 4, y: 2)
+        .fixedSize()
+    }
+}
+
 private struct ChartCalloutBreakdownRow: View {
     let label: String
     let value: Double

@@ -234,7 +234,7 @@ private struct SpotPriceBarChartPlot: View {
                 RuleMark(y: .value("Avtalat pris", contractPrice))
                     .foregroundStyle(.blue.opacity(0.7))
                     .lineStyle(StrokeStyle(lineWidth: 2, dash: [6, 4]))
-                    .annotation(position: .top, alignment: .trailing) {
+                    .annotation(position: .top, alignment: .trailing, overflowResolution: ChartCalloutOverflow.resolution) {
                         Text("Ditt avtal: \((contractPrice / 100).formatted(.number.precision(.fractionLength(2)))) kr/kWh")
                             .font(DS.Font.micro)
                             .foregroundStyle(.blue)
@@ -261,7 +261,7 @@ private struct SpotPriceBarChartPlot: View {
                 RuleMark(x: .value("Vald tid", selectedDate))
                     .foregroundStyle(.secondary.opacity(0.5))
                     .lineStyle(StrokeStyle(lineWidth: 1))
-                    .annotation(position: .top, spacing: DS.Spacing.sm, overflowResolution: .init(x: .fit, y: .disabled)) {
+                    .annotation(position: .top, spacing: DS.Spacing.sm, overflowResolution: ChartCalloutOverflow.resolution) {
                         ChartCalloutView(bucket: bucket, dayData: dayData, profile: costProfile)
                     }
             }
@@ -269,6 +269,9 @@ private struct SpotPriceBarChartPlot: View {
         .chartXScale(domain: calendarBounds(for: dayData.buckets.first?.start))
         .chartYScale(domain: 0...style.maxY)
         .chartXSelection(value: $selectedDate)
+        .chartPlotStyle { plot in
+            plot.padding(.top, DS.Spacing.sm)
+        }
         .chartXAxis {
             if configuration.showXAxisLabels {
                 AxisMarks(values: .stride(by: .hour, count: 6)) { value in
