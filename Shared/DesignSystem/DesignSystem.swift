@@ -303,6 +303,10 @@ enum DS {
         static let md: CGFloat = 12
         static let lg: CGFloat = 16
         static let xl: CGFloat = 24
+        /// Space from a navigation title down to the first content on iOS tabs
+        /// and pushed screens. Tight but not flush; Form screens use the same
+        /// value via `contentMargins` so they match ScrollView padding.
+        static let titleToContent: CGFloat = 10
     }
 
     // MARK: - Radius

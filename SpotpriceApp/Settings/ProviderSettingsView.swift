@@ -29,7 +29,9 @@ struct ProviderSettingsView: View {
             .formStyle(.grouped)
             .scrollContentBackground(.hidden)
             .scrollDismissesKeyboard(.interactively)
+            .contentMargins(.top, DS.Spacing.titleToContent, for: .scrollContent)
             .listSectionSpacing(DS.Spacing.md)
+            .environment(\.defaultMinListHeaderHeight, 0)
             .tint(DS.Color.info)
         }
         .navigationTitle("Förbrukning")

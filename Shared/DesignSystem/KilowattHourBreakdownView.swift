@@ -52,7 +52,9 @@ struct KilowattHourBreakdownView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(style == .compact ? DS.Spacing.md : DS.Spacing.lg)
+        .padding(.horizontal, style == .compact ? DS.Spacing.md : DS.Spacing.lg)
+        .padding(.bottom, style == .compact ? DS.Spacing.md : DS.Spacing.lg)
+        .padding(.top, style == .compact ? DS.Spacing.md : DS.Spacing.xl)
         .frame(maxWidth: .infinity, alignment: .leading)
         .spriceCard(tone: .accent)
         .accessibilityElement(children: .contain)
@@ -92,6 +94,7 @@ struct KilowattHourBreakdownView: View {
             }
         }
         .frame(width: donutSize, height: donutSize)
+        .padding(.top, style == .compact ? 0 : DS.Spacing.sm)
         .accessibilityElement(children: .contain)
     }
 

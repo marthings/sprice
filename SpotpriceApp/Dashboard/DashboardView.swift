@@ -150,10 +150,10 @@ struct DashboardView: View {
                         tabContent()
                     }
                     .padding(.horizontal, DS.Spacing.lg)
-                    .padding(.top, DS.Spacing.lg)
                     .padding(.bottom, DS.Spacing.xl * 4)
                 }
                 .scrollContentBackground(.hidden)
+                .contentMargins(.top, DS.Spacing.titleToContent, for: .scrollContent)
                 .scrollDismissesKeyboard(.interactively)
                 .modifier(DashboardRefreshModifier(isEnabled: showsRefresh, onRefresh: onRefresh))
             } else {
