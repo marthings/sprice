@@ -12,6 +12,7 @@ import WidgetKit
 struct SpotpriceApp: App {
     init() {
         WidgetReload.timelines()
+        DS.Font.configureNavigationBarAppearance()
     }
 
     var body: some Scene {

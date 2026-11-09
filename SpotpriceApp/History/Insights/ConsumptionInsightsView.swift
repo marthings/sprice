@@ -44,7 +44,6 @@ struct ConsumptionInsightsScreen: View {
         }
         .navigationTitle("Vad drog?")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
         .task(id: "\(route.id)-\(includeHypotheticalEffectTariff)") {
             await load()
         }

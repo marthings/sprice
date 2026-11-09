@@ -503,6 +503,5 @@ struct AppSettingsView: View {
             .background { AppCanvasBackground() }
             .navigationTitle("Inställningar")
             .navigationBarTitleDisplayMode(.large)
-            .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
     }
 }

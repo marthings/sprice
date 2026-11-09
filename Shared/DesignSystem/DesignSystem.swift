@@ -7,6 +7,9 @@
 
 import SwiftUI
 import CoreText
+#if os(iOS)
+import UIKit
+#endif
 
 // MARK: - Shared Formatters
 
@@ -201,6 +204,46 @@ enum DS {
         static let callout = medium(14)
         static let caption = medium(12)
         static let micro = medium(11)
+
+        #if os(iOS)
+        /// Navigation titles can't take a SwiftUI `Font`, so UIKit chrome uses this.
+        static func configureNavigationBarAppearance() {
+            let titleAttributes: [NSAttributedString.Key: Any] = [
+                .font: uiHeavy(size: 17, textStyle: .headline),
+                .foregroundColor: UIColor.label
+            ]
+            let largeTitleAttributes: [NSAttributedString.Key: Any] = [
+                .font: uiHeavy(size: 34, textStyle: .largeTitle),
+                .foregroundColor: UIColor.label
+            ]
+
+            let standard = UINavigationBarAppearance()
+            standard.configureWithDefaultBackground()
+            standard.titleTextAttributes = titleAttributes
+            standard.largeTitleTextAttributes = largeTitleAttributes
+
+            let scrollEdge = UINavigationBarAppearance()
+            scrollEdge.configureWithTransparentBackground()
+            scrollEdge.titleTextAttributes = titleAttributes
+            scrollEdge.largeTitleTextAttributes = largeTitleAttributes
+
+            let compact = UINavigationBarAppearance()
+            compact.configureWithDefaultBackground()
+            compact.titleTextAttributes = titleAttributes
+            compact.largeTitleTextAttributes = largeTitleAttributes
+
+            let navigationBar = UINavigationBar.appearance()
+            navigationBar.standardAppearance = standard
+            navigationBar.scrollEdgeAppearance = scrollEdge
+            navigationBar.compactAppearance = compact
+        }
+
+        private static func uiHeavy(size: CGFloat, textStyle: UIFont.TextStyle) -> UIFont {
+            let base = UIFont(name: "PPObjectSans-Heavy", size: size)
+                ?? .systemFont(ofSize: size, weight: .heavy)
+            return UIFontMetrics(forTextStyle: textStyle).scaledFont(for: base)
+        }
+        #endif
     }
 
     // MARK: - Semantic Colors

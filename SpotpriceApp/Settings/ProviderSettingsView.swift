@@ -34,7 +34,6 @@ struct ProviderSettingsView: View {
         }
         .navigationTitle("Förbrukning")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
         .onAppear {
             guard !isReady else { return }
             loadSettings()

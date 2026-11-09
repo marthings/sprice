@@ -139,7 +139,6 @@ struct DashboardView: View {
                     .background { AppCanvasBackground() }
                     .navigationTitle(title)
                     .navigationBarTitleDisplayMode(.large)
-                    .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
             }
         }
 
