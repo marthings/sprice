@@ -136,7 +136,7 @@ struct DashboardView: View {
         var body: some View {
             NavigationStack {
                 tabBody
-                    .background { AppCanvasBackground().ignoresSafeArea() }
+                    .background { AppCanvasBackground() }
                     .navigationTitle(title)
                     .navigationBarTitleDisplayMode(.large)
             }

@@ -519,7 +519,7 @@ struct AppSettingsView: View {
 #Preview {
     NavigationStack {
         AppSettingsView()
-            .background { AppCanvasBackground().ignoresSafeArea() }
+            .background { AppCanvasBackground() }
             .navigationTitle("Inställningar")
             .navigationBarTitleDisplayMode(.large)
     }

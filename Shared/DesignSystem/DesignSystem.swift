@@ -842,28 +842,25 @@ struct PriceLevelBadge: View {
 
 // MARK: - Canvas background
 
-/// Full-bleed landscape behind app content (light/dark asset).
+/// Full-bleed landscape reused by every screen (light/dark asset).
 struct AppCanvasBackground: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            baseFill
+            base
             Image("LandscapeBackground")
                 .resizable()
                 .scaledToFill()
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                 .clipped()
-                .ignoresSafeArea()
-                .allowsHitTesting(false)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea()
         .accessibilityHidden(true)
+        .allowsHitTesting(false)
     }
 
-    /// Solid underlay so letterboxing never shows through.
-    private var baseFill: some View {
+    private var base: some View {
         Group {
             if colorScheme == .dark {
                 Color(red: 0.045, green: 0.05, blue: 0.065)
@@ -871,7 +868,6 @@ struct AppCanvasBackground: View {
                 Color(red: 0.86, green: 0.88, blue: 0.92)
             }
         }
-        .ignoresSafeArea()
     }
 }
 
