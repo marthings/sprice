@@ -372,14 +372,14 @@ private struct ConsumptionInsightsHourChart: View {
         }
         .chartXScale(domain: -0.5...23.5)
         .chartXAxis {
-            AxisMarks(values: [0.0, 6.0, 12.0, 18.0, 23.0]) { value in
+            AxisMarks(values: HistoryChartAxis.clockHourMarks) { value in
                 AxisGridLine()
+                    .foregroundStyle(.tertiary)
+                AxisTick()
                     .foregroundStyle(.tertiary)
                 if let hour = value.as(Double.self) {
                     AxisValueLabel {
-                        Text("\(Int(hour.rounded()))")
-                            .font(DS.Font.micro)
-                            .foregroundStyle(DS.Color.secondary)
+                        HistoryChartAxis.clockHourLabel(hour)
                     }
                 }
             }
@@ -398,9 +398,7 @@ private struct ConsumptionInsightsHourChart: View {
             }
         }
         .chartXSelection(value: $selectedHour)
-        .chartPlotStyle { plot in
-            plot.padding(.top, DS.Spacing.sm)
-        }
+        .historyChartPlotStyle()
         .frame(height: 160)
         .zIndex(1)
         .accessibilityLabel("Stapeldiagram över medelförbrukning per klockslag, i kilowattimmar")

@@ -252,14 +252,14 @@ private struct HistoryDayHourChart: View {
                 }
                 .chartXScale(domain: hourDomain)
                 .chartXAxis {
-                    AxisMarks(values: .stride(by: .hour, count: 3)) { value in
+                    AxisMarks(values: .stride(by: .hour, count: HistoryChartAxis.hourStrideHours)) { value in
                         AxisGridLine()
+                            .foregroundStyle(.tertiary)
+                        AxisTick()
                             .foregroundStyle(.tertiary)
                         if let date = value.as(Date.self) {
                             AxisValueLabel {
-                                Text(date, format: .dateTime.hour(.defaultDigits(amPM: .omitted)))
-                                    .font(DS.Font.micro)
-                                    .foregroundStyle(DS.Color.secondary)
+                                HistoryChartAxis.hourLabel(date)
                             }
                         }
                     }
@@ -278,9 +278,7 @@ private struct HistoryDayHourChart: View {
                     }
                 }
                 .chartXSelection(value: $selectedCostHour)
-                .chartPlotStyle { plot in
-                    plot.padding(.top, DS.Spacing.sm)
-                }
+                .historyChartPlotStyle()
                 .frame(height: 160)
                 .zIndex(1)
                 .accessibilityLabel("Stapeldiagram över kostnad per timme, i kronor")
@@ -326,14 +324,14 @@ private struct HistoryDayHourChart: View {
                 }
                 .chartXScale(domain: hourDomain)
                 .chartXAxis {
-                    AxisMarks(values: .stride(by: .hour, count: 3)) { value in
+                    AxisMarks(values: .stride(by: .hour, count: HistoryChartAxis.hourStrideHours)) { value in
                         AxisGridLine()
+                            .foregroundStyle(.tertiary)
+                        AxisTick()
                             .foregroundStyle(.tertiary)
                         if let date = value.as(Date.self) {
                             AxisValueLabel {
-                                Text(date, format: .dateTime.hour(.defaultDigits(amPM: .omitted)))
-                                    .font(DS.Font.micro)
-                                    .foregroundStyle(DS.Color.secondary)
+                                HistoryChartAxis.hourLabel(date)
                             }
                         }
                     }
@@ -352,9 +350,7 @@ private struct HistoryDayHourChart: View {
                     }
                 }
                 .chartXSelection(value: $selectedSpotHour)
-                .chartPlotStyle { plot in
-                    plot.padding(.top, DS.Spacing.sm)
-                }
+                .historyChartPlotStyle()
                 .frame(height: 96)
                 .zIndex(1)
                 .accessibilityLabel("Linjediagram över spotpris per timme, i öre per kilowattimme")

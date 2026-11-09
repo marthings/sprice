@@ -82,11 +82,10 @@ struct HistoryMonthDaysChart: View {
                 AxisGridLine()
                     .foregroundStyle(.tertiary)
                 AxisTick()
+                    .foregroundStyle(.tertiary)
                 if let date = value.as(Date.self) {
                     AxisValueLabel {
-                        Text(date, format: .dateTime.day())
-                            .font(DS.Font.micro)
-                            .foregroundStyle(DS.Color.secondary)
+                        HistoryChartAxis.dayLabel(date)
                     }
                 }
             }
@@ -105,9 +104,7 @@ struct HistoryMonthDaysChart: View {
                 }
             }
         }
-        .chartPlotStyle { plot in
-            plot.padding(.top, DS.Spacing.sm)
-        }
+        .historyChartPlotStyle()
         .frame(height: 180)
         .zIndex(1)
         .overlay {
@@ -174,12 +171,7 @@ struct HistoryMonthDaysChart: View {
     }
 
     private var xAxisStride: Int {
-        switch days.count {
-        case ...7: return 1
-        case ...14: return 2
-        case ...21: return 3
-        default: return 5
-        }
+        HistoryChartAxis.monthDayStride(dayCount: days.count)
     }
 
     private func nearestDay(at location: CGPoint, chartWidth: CGFloat) -> MonthDayCost? {

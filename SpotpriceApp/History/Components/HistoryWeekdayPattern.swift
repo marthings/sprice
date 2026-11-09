@@ -39,11 +39,11 @@ struct HistoryWeekdayPattern: View {
                 .chartXSelection(value: $selectedLabel)
                 .chartXAxis {
                     AxisMarks { value in
+                        AxisTick()
+                            .foregroundStyle(.tertiary)
                         AxisValueLabel {
                             if let label = value.as(String.self) {
-                                Text(label)
-                                    .font(DS.Font.micro)
-                                    .foregroundStyle(DS.Color.secondary)
+                                HistoryChartAxis.label(label)
                             }
                         }
                     }
@@ -61,9 +61,7 @@ struct HistoryWeekdayPattern: View {
                         }
                     }
                 }
-                .chartPlotStyle { plot in
-                    plot.padding(.top, DS.Spacing.sm)
-                }
+                .historyChartPlotStyle()
                 .frame(height: 140)
                 .zIndex(1)
                 .accessibilityLabel("Stapeldiagram över snittkostnad per veckodag, i kronor")

@@ -72,46 +72,68 @@ struct ConsumptionInsightsTeaserCard: View {
     let onOpen: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            Text("Vad drog?")
-                .font(DS.Font.headline)
+        if canOpen {
+            Button(action: onOpen) {
+                card
+            }
+            .buttonStyle(.plain)
+            .accessibilityElement(children: .ignore)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityLabel("Vad drog?")
+            .accessibilityValue(teaserLine)
+            .accessibilityHint("Öppnar mer om grundlast, toppar och tid på dygnet")
+        } else {
+            card
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Vad drog?")
+                .accessibilityValue(teaserLine)
+        }
+    }
 
-            if isLoading {
-                ProgressView()
-                    .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
-                    .accessibilityLabel("Räknar ut vad som drog i perioden")
-            } else if let insights {
-                ForEach(Array(insights.summarySentences.enumerated()), id: \.offset) { _, sentence in
-                    Text(sentence)
+    private var card: some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.md) {
+            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                Text("Vad drog?")
+                    .font(DS.Font.headline)
+                    .foregroundStyle(.primary)
+                Text(teaserLine)
+                    .font(DS.Font.micro)
+                    .foregroundStyle(DS.Color.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+
+            if canOpen {
+                HStack(spacing: DS.Spacing.xs) {
+                    Text("Visa mer")
                         .font(DS.Font.callout)
                         .foregroundStyle(.primary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: DS.Spacing.sm)
+                    Image(systemName: "chevron.right")
+                        .font(DS.Font.caption)
+                        .foregroundStyle(DS.Color.secondary)
                 }
-
-                Button(action: onOpen) {
-                    HStack(spacing: DS.Spacing.xs) {
-                        Text("Visa Vad drog?")
-                            .font(DS.Font.semibold(14))
-                        Spacer(minLength: DS.Spacing.sm)
-                        Image(systemName: "chevron.right")
-                            .font(DS.Font.caption)
-                            .foregroundStyle(DS.Color.secondary)
-                    }
-                }
-                .buttonStyle(.plain)
-                .accessibilityHint("Öppnar en mer detaljerad bild av grundlast, toppar och tid på dygnet")
-            } else {
-                Text("Förbrukning saknas, så Vad drog? kan inte räknas ut än.")
-                    .font(DS.Font.callout)
-                    .foregroundStyle(.primary)
-                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(DS.Spacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
         .spriceCard(tone: .history)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Vad drog i perioden")
+    }
+
+    private var canOpen: Bool {
+        if isLoading { return true }
+        guard let insights else { return false }
+        return insights.resolution != .none
+    }
+
+    private var teaserLine: String {
+        if isLoading && insights == nil {
+            return "Räknar ut vad som drog."
+        }
+        if insights == nil || insights?.resolution == .none {
+            return "Förbrukning saknas, så det går inte att räkna ut än."
+        }
+        return "Grundlast, toppar och när på dygnet det drog."
     }
 }
 
@@ -120,35 +142,10 @@ struct ConsumptionInsightsDayTeaser: View {
     let onOpen: () -> Void
 
     var body: some View {
-        Button(action: onOpen) {
-            VStack(alignment: .leading, spacing: DS.Spacing.md) {
-                HStack {
-                    Text("Vad drog?")
-                        .font(DS.Font.headline)
-                    Spacer(minLength: DS.Spacing.sm)
-                    Image(systemName: "chevron.right")
-                        .font(DS.Font.caption)
-                        .foregroundStyle(DS.Color.secondary)
-                }
-
-                if let insights {
-                    ForEach(Array(insights.summarySentences.prefix(2).enumerated()), id: \.offset) { _, sentence in
-                        Text(sentence)
-                            .font(DS.Font.callout)
-                            .foregroundStyle(.primary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                } else {
-                    Text("Räknar ut vad som drog den här dagen.")
-                        .font(DS.Font.callout)
-                        .foregroundStyle(DS.Color.secondary)
-                }
-            }
-            .padding(DS.Spacing.lg)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .spriceCard(tone: .history)
-        }
-        .buttonStyle(.plain)
-        .accessibilityHint("Öppnar Vad drog för den här dagen")
+        ConsumptionInsightsTeaserCard(
+            insights: insights,
+            isLoading: insights == nil,
+            onOpen: onOpen
+        )
     }
 }

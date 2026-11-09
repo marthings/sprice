@@ -175,11 +175,10 @@ struct MonthDailyCostSection: View {
                 AxisGridLine()
                     .foregroundStyle(.tertiary)
                 AxisTick()
+                    .foregroundStyle(.tertiary)
                 if let date = value.as(Date.self) {
                     AxisValueLabel {
-                        Text(date, format: .dateTime.day())
-                            .font(DS.Font.micro)
-                            .foregroundStyle(DS.Color.secondary)
+                        HistoryChartAxis.dayLabel(date)
                     }
                 }
             }
@@ -209,9 +208,7 @@ struct MonthDailyCostSection: View {
                 .font(DS.Font.micro)
                 .foregroundStyle(DS.Color.secondary)
         }
-        .chartPlotStyle { plot in
-            plot.padding(.top, DS.Spacing.sm)
-        }
+        .historyChartPlotStyle()
         .chartOverlay { proxy in
             GeometryReader { _ in
                 Rectangle()
@@ -283,9 +280,7 @@ struct MonthDailyCostSection: View {
                     .foregroundStyle(.clear)
                 if let date = value.as(Date.self) {
                     AxisValueLabel {
-                        Text(date, format: .dateTime.day())
-                            .font(DS.Font.micro)
-                            .foregroundStyle(DS.Color.secondary)
+                        HistoryChartAxis.dayLabel(date)
                             .opacity(0)
                     }
                 }
@@ -320,9 +315,7 @@ struct MonthDailyCostSection: View {
                 .font(DS.Font.micro)
                 .foregroundStyle(DS.Color.secondary)
         }
-        .chartPlotStyle { plot in
-            plot.padding(.top, DS.Spacing.sm)
-        }
+        .historyChartPlotStyle()
         .chartLegend(.hidden)
         .chartBackground { (_: ChartProxy) in
             Color.clear
@@ -381,13 +374,7 @@ struct MonthDailyCostSection: View {
     }
 
     private var xAxisStride: Int {
-        let count = monthDayCount
-        switch count {
-        case ...7: return 1
-        case ...14: return 2
-        case ...21: return 3
-        default: return 5
-        }
+        HistoryChartAxis.monthDayStride(dayCount: monthDayCount)
     }
 
     private var monthDayCount: Int {
