@@ -6,31 +6,6 @@
 import SwiftUI
 
 extension SpotPriceViewModel.State {
-    /// Total price per kWh including all components (spot + grid + taxes + provider).
-    @MainActor
-    var menuBarPricePerKWh: Double? {
-        guard case .loaded(let payload) = self,
-              let currentBucket = payload.day.currentBucket else {
-            return nil
-        }
-
-        let service = TotalCostService.shared
-        let profile = ConsumptionSettings.shared.costProfile
-        return service.calculatePricePerKWh(
-            spotPriceOre: currentBucket.orePerKWh,
-            profile: profile
-        )
-    }
-
-    var labelColor: Color {
-        if case .loaded(let payload) = self {
-            if let bucket = payload.day.currentBucket {
-                return DS.Color.forPrice(bucket.orePerKWh, min: payload.day.minOre, max: payload.day.maxOre)
-            }
-        }
-        return DS.Color.secondary
-    }
-
     var currentCategory: PriceCategory? {
         if case .loaded(let payload) = self {
             if let bucket = payload.day.currentBucket {

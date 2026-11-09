@@ -59,7 +59,7 @@ struct CostCardView: View {
         }
         .padding(.horizontal, DS.Spacing.lg)
         .padding(.vertical, DS.Spacing.md)
-        .glassCard()
+        .spriceCard(tone: .cost)
     }
 }
 

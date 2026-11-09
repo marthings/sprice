@@ -23,6 +23,7 @@ protocol EnergyHistoryStore {
     func fetchMonthlySummaries(monthKey: String, priceArea: String?) throws -> [HistoricalEnergySummaryValue]
     func fetchTopCostDays(monthKey: String, priceArea: String?, limit: Int) throws -> [HistoricalEnergySummaryValue]
     func fetchTopConsumptionDays(monthKey: String, priceArea: String?, limit: Int) throws -> [HistoricalEnergySummaryValue]
+    func spotPriceLookup(dayKey: String, priceArea: String) throws -> [Date: Double]
     func exportHistoryCSV(priceArea: String?) throws -> String
     func pruneHistory(keepingRecentMonths monthCount: Int) throws
     func deleteAllHistory() throws
@@ -34,6 +35,7 @@ struct EnergyHistoryMonthQueryResult {
     let months: [HistoricalEnergySummaryValue]
     let selectedMonth: HistoricalEnergySummaryValue?
     let dailySummaries: [HistoricalEnergySummaryValue]
+    let previousDailySummaries: [HistoricalEnergySummaryValue]
     let topCostDays: [HistoricalEnergySummaryValue]
     let topConsumptionDays: [HistoricalEnergySummaryValue]
     let selectedMonthKey: String?
@@ -44,6 +46,7 @@ protocol EnergyHistoryQuerying {
     func loadMonthHistory(priceArea: String?, selectedMonthKey: String?) throws -> EnergyHistoryMonthQueryResult
     func loadCurrentMonthSummary(priceArea: String?, monthKey: String) throws -> HistoricalEnergySummaryValue?
     func loadDayIntervals(dayKey: String, priceArea: String?) throws -> [HistoricalEnergyIntervalValue]
+    func loadPreferredIntervals(monthKey: String, priceArea: String?) throws -> [HistoricalEnergyIntervalValue]
 }
 
 @MainActor
@@ -94,6 +97,7 @@ final class EnergyHistoryQueryService: EnergyHistoryQuerying {
         let resolvedMonthKey = selectedMonthKey ?? EnergyHistoryKey.preferredMonthKey(from: months)
         let dailySummaries: [HistoricalEnergySummaryValue]
 
+        let selectedMonth = months.first { $0.periodKey == resolvedMonthKey }
         if let resolvedMonthKey {
             dailySummaries = try store.fetchDailySummaries(monthKey: resolvedMonthKey, priceArea: priceArea)
                 .sorted { $0.periodStart < $1.periodStart }
@@ -101,10 +105,25 @@ final class EnergyHistoryQueryService: EnergyHistoryQuerying {
             dailySummaries = []
         }
 
+        let previousDailySummaries: [HistoricalEnergySummaryValue]
+        if let selectedMonth,
+           let previous = months
+            .filter({ $0.periodStart < selectedMonth.periodStart })
+            .max(by: { $0.periodStart < $1.periodStart }) {
+            previousDailySummaries = try store.fetchDailySummaries(
+                monthKey: previous.periodKey,
+                priceArea: priceArea
+            )
+            .sorted { $0.periodStart < $1.periodStart }
+        } else {
+            previousDailySummaries = []
+        }
+
         return EnergyHistoryMonthQueryResult(
             months: months,
-            selectedMonth: months.first { $0.periodKey == resolvedMonthKey },
+            selectedMonth: selectedMonth,
             dailySummaries: dailySummaries,
+            previousDailySummaries: previousDailySummaries,
             topCostDays: [],
             topConsumptionDays: [],
             selectedMonthKey: resolvedMonthKey
@@ -122,19 +141,12 @@ final class EnergyHistoryQueryService: EnergyHistoryQuerying {
         return Self.preferredIntervals(from: try store.fetchRecords(dayKey: dayKey, priceArea: priceArea))
     }
 
-    private func resolvedStore() throws -> any EnergyHistoryStore {
-        if let store {
-            return store
-        }
-        return try EnergyHistoryStores.reader()
+    func loadPreferredIntervals(monthKey: String, priceArea: String?) throws -> [HistoricalEnergyIntervalValue] {
+        let store = try resolvedStore()
+        return Self.preferredIntervals(from: try store.fetchRecords(monthKey: monthKey, priceArea: priceArea))
     }
 
-    private func uniqueBestMonthlySummaries(_ summaries: [HistoricalEnergySummaryValue]) -> [HistoricalEnergySummaryValue] {
-        summaries.bestSummaries(groupedBy: \.periodKey)
-            .sorted { $0.periodStart > $1.periodStart }
-    }
-
-    static func preferredIntervals(from records: [HistoricalEnergyRecord]) -> [HistoricalEnergyIntervalValue] {
+    private static func preferredIntervals(from records: [HistoricalEnergyRecord]) -> [HistoricalEnergyIntervalValue] {
         Dictionary(grouping: records, by: \.intervalStart)
             .values
             .compactMap { group -> HistoricalEnergyIntervalValue? in
@@ -153,6 +165,19 @@ final class EnergyHistoryQueryService: EnergyHistoryQuerying {
         if record.energyCostSEK != nil { score += 1 }
         return score
     }
+
+    private func resolvedStore() throws -> any EnergyHistoryStore {
+        if let store {
+            return store
+        }
+        return try EnergyHistoryStores.reader()
+    }
+
+    private func uniqueBestMonthlySummaries(_ summaries: [HistoricalEnergySummaryValue]) -> [HistoricalEnergySummaryValue] {
+        summaries.bestSummaries(groupedBy: \.periodKey)
+            .sorted { $0.periodStart > $1.periodStart }
+    }
+
 }
 
 @MainActor
@@ -160,15 +185,18 @@ final class StaticEnergyHistoryQueryService: EnergyHistoryQuerying {
     private let monthHistory: EnergyHistoryMonthQueryResult
     private let currentMonthSummary: HistoricalEnergySummaryValue?
     private let dayIntervals: [HistoricalEnergyIntervalValue]
+    private let monthIntervals: [HistoricalEnergyIntervalValue]
 
     init(
         monthHistory: EnergyHistoryMonthQueryResult,
         currentMonthSummary: HistoricalEnergySummaryValue? = nil,
-        dayIntervals: [HistoricalEnergyIntervalValue] = []
+        dayIntervals: [HistoricalEnergyIntervalValue] = [],
+        monthIntervals: [HistoricalEnergyIntervalValue] = []
     ) {
         self.monthHistory = monthHistory
         self.currentMonthSummary = currentMonthSummary
         self.dayIntervals = dayIntervals
+        self.monthIntervals = monthIntervals
     }
 
     func loadMonthHistory(priceArea: String?, selectedMonthKey: String?) throws -> EnergyHistoryMonthQueryResult {
@@ -182,17 +210,24 @@ final class StaticEnergyHistoryQueryService: EnergyHistoryQuerying {
     func loadDayIntervals(dayKey: String, priceArea: String?) throws -> [HistoricalEnergyIntervalValue] {
         dayIntervals
     }
+
+    func loadPreferredIntervals(monthKey: String, priceArea: String?) throws -> [HistoricalEnergyIntervalValue] {
+        monthIntervals
+    }
 }
 
 // MARK: - Errors
 
 enum EnergyHistoryStoreError: LocalizedError {
     case missingAppGroupContainer(String)
+    case exportFailed(String)
 
     var errorDescription: String? {
         switch self {
         case .missingAppGroupContainer(let identifier):
             return "App Group container saknas för \(identifier). Kontrollera target-entitlements."
+        case .exportFailed(let reason):
+            return "Kunde inte exportera historik: \(reason)"
         }
     }
 }
@@ -207,21 +242,26 @@ enum EnergyHistoryStoreError: LocalizedError {
 /// current model types (which now have those macros), so the shipped store's
 /// hashes never matched the source model and the custom stage never ran.
 enum EnergyHistorySchema: VersionedSchema {
-    static let versionIdentifier = Schema.Version(1, 1, 0)
+    static let versionIdentifier = Schema.Version(1, 2, 0)
 
     static var models: [any PersistentModel.Type] {
         [
             HistoricalEnergyRecord.self,
             HistoricalDailyEnergySummary.self,
-            HistoricalMonthlyEnergySummary.self
+            HistoricalMonthlyEnergySummary.self,
+            HistoricalCostProfileSnapshotRecord.self
         ]
     }
 }
 
 enum EnergyHistoryModelContainer {
     private static let storeGenerationKey = "energyHistory.storeGeneration"
-    /// Bumped when the on-disk schema cannot open stores written before 1.1.0.
-    private static let currentStoreGeneration = 2
+    /// Bumped when the on-disk schema cannot open stores written before 1.2.0.
+    /// History is a refillable cache. Adding `snapshotHash` plus a snapshot entity
+    /// is not a safe VersionedSchema lightweight migration without duplicating the
+    /// previous model types (that approach crashed on launch in 1.1.0), so existing
+    /// stores are deleted and rebuilt. If opening still fails, we fall back to in-memory.
+    private static let currentStoreGeneration = 3
 
     private static var defaults: UserDefaults {
         UserDefaults(suiteName: EnergyHistoryConstants.appGroupIdentifier) ?? .standard
@@ -495,6 +535,10 @@ final class SwiftDataEnergyHistoryStore: EnergyHistoryStore {
         }
     }
 
+    func spotPriceLookup(dayKey: String, priceArea: String) throws -> [Date: Double] {
+        try EnergyHistoryWriting.spotPriceLookup(dayKey: dayKey, priceArea: priceArea, context: context)
+    }
+
     func exportHistoryCSV(priceArea: String? = nil) throws -> String {
         let records = try fetchAllRecords(priceArea: priceArea)
         let formatter = ISO8601DateFormatter()
@@ -545,6 +589,7 @@ final class SwiftDataEnergyHistoryStore: EnergyHistoryStore {
         try deleteAll(HistoricalEnergyRecord.self)
         try deleteAll(HistoricalDailyEnergySummary.self)
         try deleteAll(HistoricalMonthlyEnergySummary.self)
+        try deleteAll(HistoricalCostProfileSnapshotRecord.self)
         try context.save()
         WidgetHistorySummaryCache.clear()
     }
@@ -912,9 +957,60 @@ actor EnergyHistoryWriter {
             calendar: .energyHistory
         )
     }
+
+    func exportHistoryCSV(priceArea: String?, to url: URL) throws {
+        try EnergyHistoryWriting.exportHistoryCSV(priceArea: priceArea, to: url, context: modelContext)
+    }
+
+    func loadPreferredIntervals(monthKey: String, priceArea: String?) throws -> [HistoricalEnergyIntervalValue] {
+        try EnergyHistoryWriting.preferredIntervals(
+            monthKey: monthKey,
+            priceArea: priceArea,
+            context: modelContext
+        )
+    }
 }
 
 nonisolated enum EnergyHistoryWriting {
+    nonisolated static func preferredIntervals(
+        monthKey: String,
+        priceArea: String?,
+        context: ModelContext
+    ) throws -> [HistoricalEnergyIntervalValue] {
+        preferredIntervals(from: try fetchRecords(monthKey: monthKey, priceArea: priceArea, context: context))
+    }
+
+    nonisolated static func preferredIntervals(from records: [HistoricalEnergyRecord]) -> [HistoricalEnergyIntervalValue] {
+        Dictionary(grouping: records, by: \.intervalStart)
+            .values
+            .compactMap { group -> HistoricalEnergyIntervalValue? in
+                guard let preferred = group.max(by: { intervalPreference($0) < intervalPreference($1) }) else {
+                    return nil
+                }
+                return HistoricalEnergyIntervalValue(
+                    id: preferred.id,
+                    intervalStart: preferred.intervalStart,
+                    intervalEnd: preferred.intervalEnd,
+                    spotPriceOrePerKWh: preferred.spotPriceOrePerKWh,
+                    consumptionKWh: preferred.consumptionKWh,
+                    energyCostSEK: preferred.energyCostSEK,
+                    gridCostSEK: preferred.gridCostSEK,
+                    taxCostSEK: preferred.taxCostSEK,
+                    vatCostSEK: preferred.vatCostSEK,
+                    totalCostSEK: preferred.totalCostSEK
+                )
+            }
+            .sorted { $0.intervalStart < $1.intervalStart }
+    }
+
+    nonisolated private static func intervalPreference(_ record: HistoricalEnergyRecord) -> Int {
+        var score = 0
+        if record.consumptionKWh != nil { score += 4 }
+        if record.totalCostSEK != nil { score += 2 }
+        if record.energyCostSEK != nil { score += 1 }
+        return score
+    }
+
     nonisolated static func upsertRecords(
         _ drafts: [HistoricalEnergyRecordDraft],
         context: ModelContext,
@@ -923,8 +1019,12 @@ nonisolated enum EnergyHistoryWriting {
         guard !drafts.isEmpty else { return }
 
         let now = Date()
-        let snapshotData = drafts.lazy.compactMap(\.costProfileSnapshot).first.flatMap { snapshot in
-            try? JSONEncoder().encode(snapshot)
+        let snapshotData = drafts.lazy.compactMap(\.costProfileSnapshot).first.flatMap(
+            HistoricalCostProfileSnapshot.encodedData
+        )
+        let snapshotHash = snapshotData.map(HistoricalCostProfileSnapshot.hash(of:))
+        if let snapshotData, let snapshotHash {
+            try upsertSnapshotRecord(snapshotHash: snapshotHash, data: snapshotData, context: context)
         }
         var existingByKey = try fetchExistingRecords(for: drafts, context: context)
         var affectedDayKeys = Set<String>()
@@ -935,9 +1035,18 @@ nonisolated enum EnergyHistoryWriting {
             affectedMonthKeys.insert(draft.monthKey)
 
             if let existingRecord = existingByKey[draft.deduplicationKey] {
-                existingRecord.update(from: draft, snapshotData: snapshotData, updatedAt: now)
+                existingRecord.update(
+                    from: draft,
+                    snapshotData: snapshotData,
+                    snapshotHash: snapshotHash,
+                    updatedAt: now
+                )
             } else {
-                let record = draft.makeRecord(createdAt: now, snapshotData: snapshotData)
+                let record = draft.makeRecord(
+                    createdAt: now,
+                    snapshotData: snapshotData,
+                    snapshotHash: snapshotHash
+                )
                 context.insert(record)
                 existingByKey[draft.deduplicationKey] = record
             }
@@ -947,6 +1056,108 @@ nonisolated enum EnergyHistoryWriting {
         try rebuildMonthlySummaries(monthKeys: affectedMonthKeys, updatedAt: now, context: context, calendar: calendar)
         try context.save()
         try updateWidgetSummaryCache(monthKeys: affectedMonthKeys, updatedAt: now, context: context)
+    }
+
+    nonisolated static func exportHistoryCSV(
+        priceArea: String?,
+        to url: URL,
+        context: ModelContext
+    ) throws {
+        let directory = url.deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        if FileManager.default.fileExists(atPath: url.path) {
+            try FileManager.default.removeItem(at: url)
+        }
+
+        guard let stream = OutputStream(url: url, append: false) else {
+            throw EnergyHistoryStoreError.exportFailed(url.path)
+        }
+        stream.open()
+        defer { stream.close() }
+
+        let header = [
+            "interval_start",
+            "interval_end",
+            "day",
+            "month",
+            "price_area",
+            "provider_id",
+            "source",
+            "confidence",
+            "spot_price_ore_per_kwh",
+            "consumption_kwh",
+            "energy_cost_sek",
+            "grid_cost_sek",
+            "tax_cost_sek",
+            "vat_cost_sek",
+            "total_cost_sek"
+        ].joined(separator: ",") + "\n"
+        try writeCSV(header, to: stream)
+
+        let formatter = ISO8601DateFormatter()
+        let months = try context.fetch(
+            FetchDescriptor<HistoricalMonthlyEnergySummary>(
+                sortBy: [SortDescriptor(\HistoricalMonthlyEnergySummary.monthStart)]
+            )
+        )
+        let monthKeys: [String]
+        if months.isEmpty {
+            monthKeys = [""]
+        } else {
+            var seen = Set<String>()
+            monthKeys = months.compactMap { summary in
+                if let priceArea, summary.priceArea != priceArea { return nil }
+                if seen.contains(summary.monthKey) { return nil }
+                seen.insert(summary.monthKey)
+                return summary.monthKey
+            }
+        }
+
+        for monthKey in monthKeys {
+            let records = try fetchRecords(
+                monthKey: monthKey.isEmpty ? nil : monthKey,
+                priceArea: priceArea,
+                context: context
+            )
+            for record in records {
+                let row = [
+                    formatter.string(from: record.intervalStart),
+                    formatter.string(from: record.intervalEnd),
+                    record.dayKey,
+                    record.monthKey,
+                    record.priceArea,
+                    record.providerID ?? "",
+                    record.source.rawValue,
+                    record.confidence.rawValue,
+                    csvNumber(record.spotPriceOrePerKWh),
+                    csvNumber(record.consumptionKWh),
+                    csvNumber(record.energyCostSEK),
+                    csvNumber(record.gridCostSEK),
+                    csvNumber(record.taxCostSEK),
+                    csvNumber(record.vatCostSEK),
+                    csvNumber(record.totalCostSEK)
+                ]
+                .map(csvEscape)
+                .joined(separator: ",") + "\n"
+                try writeCSV(row, to: stream)
+            }
+        }
+    }
+
+    nonisolated static func spotPriceLookup(
+        dayKey: String,
+        priceArea: String,
+        context: ModelContext
+    ) throws -> [Date: Double] {
+        let records = try fetchRecords(dayKey: dayKey, context: context)
+        var map: [Date: Double] = [:]
+        map.reserveCapacity(records.count)
+        for record in records where record.priceArea == priceArea && record.spotPriceOrePerKWh != 0 {
+            if record.source == .spotPrice || map[record.intervalStart] == nil {
+                map[record.intervalStart] = record.spotPriceOrePerKWh
+            }
+        }
+        return map
     }
 
     nonisolated static func fetchMonthlySummaries(
@@ -994,6 +1205,7 @@ nonisolated enum EnergyHistoryWriting {
         try deleteAll(HistoricalEnergyRecord.self, context: context)
         try deleteAll(HistoricalDailyEnergySummary.self, context: context)
         try deleteAll(HistoricalMonthlyEnergySummary.self, context: context)
+        try deleteAll(HistoricalCostProfileSnapshotRecord.self, context: context)
         try context.save()
         WidgetHistorySummaryCache.clear()
     }
@@ -1025,9 +1237,7 @@ nonisolated enum EnergyHistoryWriting {
             }
 
             let profile: CostProfile
-            if let data = record.costProfileSnapshotData,
-               let snapshot = try? JSONDecoder().decode(HistoricalCostProfileSnapshot.self, from: data),
-               let snapshotProfile = CostProfile(historySnapshot: snapshot) {
+            if let snapshotProfile = try costProfile(for: record, context: context) {
                 profile = snapshotProfile
             } else {
                 profile = fallbackProfile
@@ -1202,6 +1412,117 @@ nonisolated enum EnergyHistoryWriting {
                 }
             }
         }
+    }
+
+    nonisolated private static func writeCSV(_ text: String, to stream: OutputStream) throws {
+        let bytes = Array(text.utf8)
+        let total = bytes.count
+        var written = 0
+        while written < total {
+            let offset = written
+            let result = bytes.withUnsafeBufferPointer { buffer -> Int in
+                guard let base = buffer.baseAddress else { return -1 }
+                return stream.write(base + offset, maxLength: total - offset)
+            }
+            if result < 0 {
+                throw stream.streamError ?? EnergyHistoryStoreError.exportFailed("csv")
+            }
+            written += result
+        }
+    }
+
+    nonisolated private static func upsertSnapshotRecord(
+        snapshotHash: String,
+        data: Data,
+        context: ModelContext
+    ) throws {
+        let hash = snapshotHash
+        var descriptor = FetchDescriptor<HistoricalCostProfileSnapshotRecord>(
+            predicate: #Predicate<HistoricalCostProfileSnapshotRecord> { record in
+                record.snapshotHash == hash
+            }
+        )
+        descriptor.fetchLimit = 1
+        if try context.fetch(descriptor).first != nil {
+            return
+        }
+        context.insert(
+            HistoricalCostProfileSnapshotRecord(snapshotHash: hash, snapshotData: data)
+        )
+    }
+
+    nonisolated private static func costProfile(
+        for record: HistoricalEnergyRecord,
+        context: ModelContext
+    ) throws -> CostProfile? {
+        if let hash = record.snapshotHash {
+            var descriptor = FetchDescriptor<HistoricalCostProfileSnapshotRecord>(
+                predicate: #Predicate<HistoricalCostProfileSnapshotRecord> { snapshot in
+                    snapshot.snapshotHash == hash
+                }
+            )
+            descriptor.fetchLimit = 1
+            if let stored = try context.fetch(descriptor).first,
+               let snapshot = try? JSONDecoder().decode(HistoricalCostProfileSnapshot.self, from: stored.snapshotData) {
+                return CostProfile(historySnapshot: snapshot)
+            }
+        }
+        if let data = record.costProfileSnapshotData,
+           let snapshot = try? JSONDecoder().decode(HistoricalCostProfileSnapshot.self, from: data) {
+            return CostProfile(historySnapshot: snapshot)
+        }
+        return nil
+    }
+
+    nonisolated private static func fetchRecords(
+        monthKey: String?,
+        priceArea: String?,
+        context: ModelContext
+    ) throws -> [HistoricalEnergyRecord] {
+        let descriptor: FetchDescriptor<HistoricalEnergyRecord>
+        if let monthKey, let priceArea {
+            descriptor = FetchDescriptor(
+                predicate: #Predicate<HistoricalEnergyRecord> { record in
+                    record.monthKey == monthKey && record.priceArea == priceArea
+                },
+                sortBy: [SortDescriptor(\HistoricalEnergyRecord.intervalStart)]
+            )
+        } else if let monthKey {
+            descriptor = FetchDescriptor(
+                predicate: #Predicate<HistoricalEnergyRecord> { record in
+                    record.monthKey == monthKey
+                },
+                sortBy: [SortDescriptor(\HistoricalEnergyRecord.intervalStart)]
+            )
+        } else if let priceArea {
+            descriptor = FetchDescriptor(
+                predicate: #Predicate<HistoricalEnergyRecord> { record in
+                    record.priceArea == priceArea
+                },
+                sortBy: [SortDescriptor(\HistoricalEnergyRecord.intervalStart)]
+            )
+        } else {
+            descriptor = FetchDescriptor(
+                sortBy: [SortDescriptor(\HistoricalEnergyRecord.intervalStart)]
+            )
+        }
+        return try context.fetch(descriptor)
+    }
+
+    nonisolated private static func csvNumber(_ value: Double?) -> String {
+        guard let value else { return "" }
+        return AppFormatters.csvNumber(value)
+    }
+
+    nonisolated private static func csvNumber(_ value: Double) -> String {
+        AppFormatters.csvNumber(value)
+    }
+
+    nonisolated private static func csvEscape(_ value: String) -> String {
+        if value.contains(",") || value.contains("\"") || value.contains("\n") {
+            return "\"\(value.replacingOccurrences(of: "\"", with: "\"\""))\""
+        }
+        return value
     }
 
     nonisolated private static func fetchRecords(dayKey: String, context: ModelContext) throws -> [HistoricalEnergyRecord] {

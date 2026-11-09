@@ -21,7 +21,7 @@ struct SettingsGridSection: View {
                     HStack {
                         ProgressView()
                             .controlSize(.small)
-                        Text("Laddar nätägare...")
+                        Text("Laddar elnätsbolag...")
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -32,7 +32,7 @@ struct SettingsGridSection: View {
                 }
             } else {
                 Section {
-                    Picker("Nätägare", selection: $settings.selectedDSOOrgNo) {
+                    Picker("Elnätsbolag", selection: $settings.selectedDSOOrgNo) {
                         Text("Ingen vald").tag("")
                         ForEach(availableDSOs) { dso in
                             Text(dso.name).tag(dso.id)
@@ -57,9 +57,14 @@ struct SettingsGridSection: View {
                             await updateFuseSize(newValue)
                         }
                     }
+
+                    Toggle(EffectTariffCopy.toggleTitle, isOn: $settings.includeHypotheticalEffectTariff)
                 } footer: {
-                    if settings.selectedDSOOrgNo.isEmpty {
-                        Text("Elnätskostnad ingår först när du väljer nätägare eller anger nätavgifter.")
+                    VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                        if settings.selectedDSOOrgNo.isEmpty {
+                            Text("Elnätskostnad ingår först när du väljer elnätsbolag eller fyller i avgifterna själv.")
+                        }
+                        Text(EffectTariffCopy.explanation)
                     }
                 }
 
@@ -84,16 +89,16 @@ struct SettingsGridSection: View {
                         }
                     }
                 } header: {
-                    Text("Egna nätavgifter")
+                    Text("Egna elnätsavgifter")
                 } footer: {
-                    Text("Ange egna värden om tariffdata saknas eller avviker från din faktura. Beloppen anges som på fakturan, inklusive moms.")
+                    Text("Fyll i själv om uppgifterna saknas eller inte stämmer med fakturan. Beloppen som på fakturan, inklusive moms.")
                 }
 
                 if !settings.selectedDSOOrgNo.isEmpty,
                    let selectedDSO = availableDSOs.first(where: { $0.id == settings.selectedDSOOrgNo }) {
                     Section {
                         if settings.costProfile.hasUserEnteredGridCosts {
-                            Button("Använd tariffvärden") {
+                            Button("Använd elnätsbolagets priser") {
                                 Task {
                                     await updateGridCompany(settings.selectedDSOOrgNo, preferImportedValues: true)
                                 }
@@ -123,9 +128,9 @@ struct SettingsGridSection: View {
 
     private func gridCostSourceText(for dsoName: String) -> String {
         if settings.costProfile.hasUserEnteredGridCosts {
-            return "Dina egna nätavgifter används för \(dsoName)."
+            return "Dina egna elnätsavgifter används för \(dsoName)."
         }
-        return "Uppskattade nätavgifter för \(dsoName) används när tariffdata finns."
+        return "Uppskattade elnätsavgifter för \(dsoName) används när uppgifterna finns."
     }
 
     private var tariffFreshnessText: String? {
@@ -135,18 +140,18 @@ struct SettingsGridSection: View {
         }
 
         if profile.isTariffExpired {
-            return "Tariffdata kan vara inaktuell."
+            return "Elnätspriserna kan vara inaktuella."
         }
 
         if let validUntil = profile.tariffValidUntil {
-            return "Tariff giltig till \(validUntil.formatted(date: .numeric, time: .omitted))."
+            return "Gäller till \(validUntil.formatted(date: .numeric, time: .omitted))."
         }
 
         if let lastUpdated = profile.tariffLastUpdated {
-            return "Tariff hämtad \(lastUpdated.formatted(date: .numeric, time: .shortened))."
+            return "Hämtad \(lastUpdated.formatted(date: .numeric, time: .shortened))."
         }
 
-        return "Lokal tariffpresets används."
+        return "Inbyggda elnätspriser används."
     }
 
     private func loadDSOs() async {
@@ -156,7 +161,7 @@ struct SettingsGridSection: View {
         do {
             availableDSOs = try await gridTariffService.fetchAvailableDSOs()
         } catch {
-            dsoLoadError = "Kunde inte ladda nätägare: \(error.userFacingMessage)"
+            dsoLoadError = "Kunde inte ladda elnätsbolag: \(error.userFacingMessage)"
         }
 
         isLoadingDSOs = false

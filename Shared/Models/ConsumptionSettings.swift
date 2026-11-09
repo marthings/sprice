@@ -54,12 +54,15 @@ final class ConsumptionSettings {
 
         // Central cost profile
         static let costProfile = "settings_costProfile"
+
+        static let includeHypotheticalEffectTariff = "settings_includeHypotheticalEffectTariff"
     }
 
     // MARK: - Observable Properties
 
     var selectedProviderId: String {
         didSet {
+            guard selectedProviderId != oldValue else { return }
             Self.defaults.set(selectedProviderId, forKey: Keys.selectedProviderId)
             // Clear cached consumption when switching providers (different home/meter)
             Self.defaults.removeObject(forKey: Keys.cachedConsumption)
@@ -67,11 +70,15 @@ final class ConsumptionSettings {
     }
 
     var priceArea: String {
-        didSet { Self.defaults.set(priceArea, forKey: Keys.priceArea) }
+        didSet {
+            guard priceArea != oldValue else { return }
+            Self.defaults.set(priceArea, forKey: Keys.priceArea)
+        }
     }
     
     var selectedDSOOrgNo: String {
         didSet {
+            guard selectedDSOOrgNo != oldValue else { return }
             Self.defaults.set(selectedDSOOrgNo, forKey: Keys.selectedDSOOrgNo)
             // Clear cached tariff when DSO changes
             Self.defaults.removeObject(forKey: Keys.cachedTariff)
@@ -87,6 +94,7 @@ final class ConsumptionSettings {
             return try? JSONDecoder().decode(SimplifiedTariff.self, from: data)
         }
         set {
+            guard newValue != cachedTariff else { return }
             if let newValue = newValue,
                let data = try? JSONEncoder().encode(newValue) {
                 Self.defaults.set(data, forKey: Keys.cachedTariff)
@@ -99,12 +107,14 @@ final class ConsumptionSettings {
     // Electricity provider costs
     var providerSurchargePerKWh: Double {
         didSet {
+            guard providerSurchargePerKWh != oldValue else { return }
             Self.defaults.set(providerSurchargePerKWh, forKey: Keys.providerSurcharge)
         }
     }
     
     var providerMonthlyFee: Double {
         didSet {
+            guard providerMonthlyFee != oldValue else { return }
             Self.defaults.set(providerMonthlyFee, forKey: Keys.providerMonthlyFee)
         }
     }
@@ -112,6 +122,7 @@ final class ConsumptionSettings {
     // Fuse size in amperes (default 20A, common for Swedish homes)
     var fuseSize: Int {
         didSet {
+            guard fuseSize != oldValue else { return }
             Self.defaults.set(fuseSize, forKey: Keys.fuseSize)
             // Clear cached tariff when fuse size changes
             Self.defaults.removeObject(forKey: Keys.cachedTariff)
@@ -126,6 +137,18 @@ final class ConsumptionSettings {
             syncLegacyProperties(from: costProfile)
             NotificationCenter.default.post(name: .consumptionSettingsDidSave, object: nil)
 
+            Self.defaults.synchronize()
+            WidgetReload.timelines()
+        }
+    }
+
+    /// When false (default), effect tariff is omitted from shown costs.
+    /// When true, peak × kr/kW is shown as a hypothetical extra.
+    var includeHypotheticalEffectTariff: Bool {
+        didSet {
+            guard includeHypotheticalEffectTariff != oldValue else { return }
+            Self.defaults.set(includeHypotheticalEffectTariff, forKey: Keys.includeHypotheticalEffectTariff)
+            NotificationCenter.default.post(name: .consumptionSettingsDidSave, object: nil)
             Self.defaults.synchronize()
             WidgetReload.timelines()
         }
@@ -263,6 +286,7 @@ final class ConsumptionSettings {
 
     /// Sets credentials for a specific provider
     func setCredentials(_ credentials: ProviderCredentials, for providerId: String) {
+        guard getCredentials(for: providerId) != credentials else { return }
         credentialsCache[providerId] = credentials
 
         var allCredentials = loadAllCredentials()
@@ -430,6 +454,7 @@ final class ConsumptionSettings {
         // Load fuse size (default 20A - common for Swedish homes)
         let savedFuseSize = Self.defaults.integer(forKey: Keys.fuseSize)
         self.fuseSize = savedFuseSize > 0 ? savedFuseSize : 20
+        self.includeHypotheticalEffectTariff = Self.defaults.bool(forKey: Keys.includeHypotheticalEffectTariff)
 
         // Load or migrate central cost profile
         self.costProfile = Self.loadCostProfile() ?? Self.migratedCostProfile(
@@ -515,6 +540,7 @@ extension ConsumptionSettings {
         get { getCredentials(for: providerId)[field] }
         set {
             var credentials = getCredentials(for: providerId)
+            guard credentials[field] != newValue else { return }
             credentials[field] = newValue
             setCredentials(credentials, for: providerId)
         }
@@ -676,4 +702,13 @@ enum WidgetReload {
         WidgetCenter.shared.reloadTimelines(ofKind: WidgetKind.iOSApp)
         WidgetCenter.shared.reloadTimelines(ofKind: WidgetKind.macOSMenuBar)
     }
+}
+
+
+nonisolated enum EffectTariffCopy {
+    nonisolated static let toggleTitle = "Räkna med effektavgift"
+    nonisolated static let explanation = "Visar vad toppen hade kostat om elnätet tog betalt för den. Elnätsbolag får i dag inte ta betalt för effekttoppen."
+    nonisolated static let lineTitle = "Effektavgift (om den räknades)"
+    nonisolated static let missingRate = "Ingen effektavgift i dina elnätsuppgifter, så toppen syns bara som kW."
+    nonisolated static let dailyBarsNote = "Den syns inte i dygnsstaplarna — det är en månadsavgift, inte en kostnad per dag."
 }

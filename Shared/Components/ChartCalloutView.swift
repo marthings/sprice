@@ -225,6 +225,51 @@ struct ChartCalloutView: View {
     }
 }
 
+/// Compact pill used as a chart annotation on bar charts.
+/// Opaque fill — `.regularMaterial` renders black in Swift Chart annotations.
+struct ChartValueCallout: View {
+    var title: String? = nil
+    let value: String
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
+            if let title, !title.isEmpty {
+                Text(title)
+                    .font(DS.Font.micro)
+                    .foregroundStyle(secondaryText)
+            }
+            Text(value)
+                .font(DS.Font.semibold(12).monospacedDigit())
+                .foregroundStyle(primaryText)
+        }
+        .padding(.horizontal, DS.Spacing.sm)
+        .padding(.vertical, DS.Spacing.xs)
+        .background {
+            RoundedRectangle(cornerRadius: DS.Radius.sm, style: .continuous)
+                .fill(colorScheme == .dark ? Color(red: 0.12, green: 0.13, blue: 0.16) : Color.white)
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: DS.Radius.sm, style: .continuous)
+                .strokeBorder(
+                    colorScheme == .dark ? Color.white.opacity(0.18) : Color.black.opacity(0.12),
+                    lineWidth: 0.5
+                )
+        }
+        .shadow(color: .black.opacity(colorScheme == .dark ? 0.35 : 0.12), radius: 4, y: 2)
+        .fixedSize()
+    }
+
+    private var primaryText: Color {
+        colorScheme == .dark ? .white : .black
+    }
+
+    private var secondaryText: Color {
+        primaryText.opacity(0.72)
+    }
+}
+
 private struct ChartCalloutBreakdownRow: View {
     let label: String
     let value: Double

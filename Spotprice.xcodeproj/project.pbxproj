@@ -117,6 +117,7 @@
 				GridTariffService.swift,
 				KeychainHelper.swift,
 				NetworkSession.swift,
+				SpotPriceCache.swift,
 				SpotPriceService.swift,
 				TotalCostService.swift,
 			);
@@ -139,6 +140,7 @@
 				GridTariffService.swift,
 				KeychainHelper.swift,
 				NetworkSession.swift,
+				SpotPriceCache.swift,
 				SpotPriceService.swift,
 				TotalCostService.swift,
 			);
@@ -154,6 +156,7 @@
 				GridTariffService.swift,
 				KeychainHelper.swift,
 				NetworkSession.swift,
+				SpotPriceCache.swift,
 				SpotPriceService.swift,
 				TotalCostService.swift,
 			);
@@ -277,6 +280,7 @@
 				GridTariffService.swift,
 				KeychainHelper.swift,
 				NetworkSession.swift,
+				SpotPriceCache.swift,
 				SpotPriceService.swift,
 				TotalCostService.swift,
 			);

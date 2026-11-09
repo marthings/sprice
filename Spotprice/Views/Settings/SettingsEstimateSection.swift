@@ -22,8 +22,8 @@ struct SettingsEstimateSection: View {
                     : "Inkluderat"
             )
             SettingsSummaryRow(
-                title: "Effektavgift",
-                value: settings.costProfile.effectTariff == nil ? "Av" : "På"
+                title: EffectTariffCopy.toggleTitle,
+                value: settings.includeHypotheticalEffectTariff ? "På" : "Av"
             )
         } header: {
             Text("Uppskattning")

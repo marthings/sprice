@@ -4,6 +4,61 @@
 //
 
 import SwiftUI
+import Charts
+
+enum ChartCalloutOverflow {
+    /// Keeps selection callouts inside the chart horizontally, and lets them
+    /// draw above the plot instead of being clipped by the card.
+    static var resolution: AnnotationOverflowResolution {
+        AnnotationOverflowResolution(x: .fit(to: .chart), y: .disabled)
+    }
+}
+
+/// Shared x-axis air and tick density for Historik charts.
+enum HistoryChartAxis {
+    static let plotTopPadding: CGFloat = DS.Spacing.sm
+    static let plotBottomPadding: CGFloat = DS.Spacing.md
+    static let labelTopPadding: CGFloat = DS.Spacing.xs
+    static let hourStrideHours = 6
+    static let clockHourMarks: [Double] = [0, 6, 12, 18]
+
+    static func monthDayStride(dayCount: Int) -> Int {
+        dayCount <= 10 ? 2 : 5
+    }
+
+    @ViewBuilder
+    static func label(_ text: String) -> some View {
+        Text(text)
+            .font(DS.Font.micro)
+            .foregroundStyle(DS.Color.secondary)
+            .padding(.top, labelTopPadding)
+    }
+
+    @ViewBuilder
+    static func dayLabel(_ date: Date) -> some View {
+        label(date.formatted(.dateTime.day()))
+    }
+
+    @ViewBuilder
+    static func hourLabel(_ date: Date) -> some View {
+        label(date.formatted(.dateTime.hour(.defaultDigits(amPM: .omitted))))
+    }
+
+    @ViewBuilder
+    static func clockHourLabel(_ hour: Double) -> some View {
+        label("\(Int(hour.rounded()))")
+    }
+}
+
+extension View {
+    func historyChartPlotStyle() -> some View {
+        chartPlotStyle { plot in
+            plot
+                .padding(.top, HistoryChartAxis.plotTopPadding)
+                .padding(.bottom, HistoryChartAxis.plotBottomPadding)
+        }
+    }
+}
 
 enum ChartConfiguration {
     case menuBar

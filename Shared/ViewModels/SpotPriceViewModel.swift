@@ -28,6 +28,8 @@ final class SpotPriceViewModel {
     private(set) var consumptionError: String?
     private(set) var currentTariff: SimplifiedTariff?
     private(set) var currentMonthHistorySummary: HistoricalEnergySummaryValue?
+    private(set) var menuBarPricePerKWh: Double?
+    private(set) var menuBarLabelColor: Color = DS.Color.secondary
 
     private let priceRefreshCoordinator: SpotPriceRefreshCoordinator
     private let consumptionLoadService: ConsumptionLoadService
@@ -49,6 +51,18 @@ final class SpotPriceViewModel {
     private var loadGeneration = 0
     @ObservationIgnored
     private var isRefreshing = false
+    @ObservationIgnored
+    private var cachedToday: DayChartData?
+    @ObservationIgnored
+    private var cachedTomorrow: DayChartData?
+    @ObservationIgnored
+    private var lastPriceDayKey: String?
+    @ObservationIgnored
+    private var hasTomorrowPrices = false
+    @ObservationIgnored
+    private var lastConsumptionFetchAt: Date?
+    @ObservationIgnored
+    private var lastForegroundRefreshAt: Date?
 
     init(
         service: SpotPriceService? = nil,
@@ -99,56 +113,30 @@ final class SpotPriceViewModel {
     }
     
     func load() async {
-        // Bump generation so any in-flight load discards its stale results
-        loadGeneration += 1
-        let myGeneration = loadGeneration
-        let hasLoadedData: Bool
-        if case .loaded = state {
-            hasLoadedData = true
-        } else {
-            hasLoadedData = false
-        }
-        if hasLoadedData {
-            isRefreshing = true
-        } else {
-            state = .loading
-        }
-        defer {
-            if myGeneration == loadGeneration {
-                isRefreshing = false
-            }
-        }
-
-        do {
-            let priceArea = settings.priceArea
-            let payload = try await priceRefreshCoordinator.load(priceArea: priceArea)
-
-            // Superseded by a newer load – discard
-            guard myGeneration == loadGeneration else { return }
-
-            historyRecordingCoordinator.recordPriceHistory(dayData: payload.day, priceArea: priceArea)
-            loadCurrentMonthHistorySummary()
-
-            state = .loaded(payload)
-        } catch let error as DisplayableError {
-            guard myGeneration == loadGeneration else { return }
-            if !hasLoadedData {
-                state = .failed(error.message)
-            }
-        } catch {
-            guard myGeneration == loadGeneration else { return }
-            if !hasLoadedData {
-                state = .failed("Ett oväntat fel inträffade. Försök igen senare.")
-            }
-        }
-
-        // Also load consumption and tariff (don't block on errors)
-        guard myGeneration == loadGeneration else { return }
+        await loadPrices(force: true)
+        guard !Task.isCancelled else { return }
         async let consumptionLoad: Void = loadConsumption()
         async let tariffLoad: Void = loadGridTariff()
-        
         await consumptionLoad
         await tariffLoad
+    }
+
+    func refreshFromUser() async {
+        await load()
+    }
+
+    func handleForeground() async {
+        let now = nowProvider()
+        if let lastForegroundRefreshAt, now.timeIntervalSince(lastForegroundRefreshAt) < 60 {
+            applyCachedPriceDisplay(now: now)
+            return
+        }
+        lastForegroundRefreshAt = now
+        applyCachedPriceDisplay(now: now)
+        if shouldRefetchPrices(now: now) {
+            await loadPrices(force: false)
+        }
+        await loadConsumption()
     }
 
     func loadConsumption() async {
@@ -157,6 +145,7 @@ final class SpotPriceViewModel {
         consumptionError = result.consumptionError
         powerPeaks = result.powerPeaks ?? powerPeaks
         preciseMonthlyCost = result.preciseMonthlyCost
+        lastConsumptionFetchAt = nowProvider()
 
         if let consumption = result.monthlyConsumption {
             settings.cachedConsumption = consumption
@@ -171,7 +160,8 @@ final class SpotPriceViewModel {
             await historyRecordingCoordinator.recordCurrentMonthConsumptionHistory(
                 priceArea: settings.priceArea,
                 providerID: settings.selectedProviderId,
-                costProfile: settings.costProfile
+                costProfile: settings.costProfile,
+                quarterlyConsumption: result.quarterlyConsumption
             )
             historyRecordingCoordinator.startPastMonthBackfill(
                 priceArea: settings.priceArea,
@@ -215,22 +205,155 @@ final class SpotPriceViewModel {
     
     private func startPeriodicRefresh() {
         refreshTask?.cancel()
-        let interval = refreshInterval
         refreshTask = Task { [weak self] in
-            // Kör en initial laddning direkt
             await self?.load()
-            // Kör därefter var 15:e minut tills Task avbryts
             while !Task.isCancelled {
+                let now = Date()
+                let nextQuarter = WidgetTimelineSchedule.nextQuarterHourUpdate(from: now)
+                let delay = max(nextQuarter.timeIntervalSince(now), 0.2)
                 do {
-                    try await Task.sleep(for: interval)
+                    try await Task.sleep(for: .seconds(delay))
                 } catch {
-                    // Avbruten sömn -> avsluta loopen
                     break
                 }
                 if Task.isCancelled { break }
-                await self?.load()
+                await self?.handleQuarterHourTick()
             }
         }
+    }
+
+    private func handleQuarterHourTick() async {
+        let now = nowProvider()
+        applyCachedPriceDisplay(now: now)
+        if shouldRefetchPrices(now: now) {
+            await loadPrices(force: false)
+        }
+        if shouldRefetchConsumption(now: now) {
+            await loadConsumption()
+        }
+    }
+
+    private func loadPrices(force: Bool) async {
+        loadGeneration += 1
+        let myGeneration = loadGeneration
+        let hasLoadedData: Bool
+        if case .loaded = state {
+            hasLoadedData = true
+        } else {
+            hasLoadedData = false
+        }
+        if hasLoadedData {
+            isRefreshing = true
+        } else {
+            state = .loading
+        }
+        defer {
+            if myGeneration == loadGeneration {
+                isRefreshing = false
+            }
+        }
+
+        do {
+            let now = nowProvider()
+            let priceArea = settings.priceArea
+            let includeTomorrow = Self.isDayAheadPublished(at: now)
+            let result = try await priceRefreshCoordinator.load(
+                priceArea: priceArea,
+                includeTomorrow: includeTomorrow,
+                ignoreCache: force
+            )
+
+            guard myGeneration == loadGeneration else { return }
+
+            cachedToday = result.payload.day
+            cachedTomorrow = result.tomorrow
+            hasTomorrowPrices = result.tomorrow != nil
+            lastPriceDayKey = EnergyHistoryKey.dayKey(for: now)
+            historyRecordingCoordinator.recordPriceHistory(dayData: result.payload.day, priceArea: priceArea)
+            loadCurrentMonthHistorySummary()
+            applyLoadedPrices(result.payload, now: now)
+        } catch let error as DisplayableError {
+            guard myGeneration == loadGeneration else { return }
+            if !hasLoadedData {
+                state = .failed(error.message)
+            }
+        } catch {
+            guard myGeneration == loadGeneration else { return }
+            if !hasLoadedData {
+                state = .failed("Ett oväntat fel inträffade. Försök igen senare.")
+            }
+        }
+    }
+
+    private func applyCachedPriceDisplay(now: Date) {
+        let calendar = Calendar.energyHistory
+        var displayDay = cachedToday
+        if let today = displayDay, let first = today.buckets.first,
+           !calendar.isDate(first.start, inSameDayAs: now) {
+            if let tomorrow = cachedTomorrow, let tomorrowFirst = tomorrow.buckets.first,
+               calendar.isDate(tomorrowFirst.start, inSameDayAs: now) {
+                displayDay = tomorrow
+                cachedToday = tomorrow
+                cachedTomorrow = nil
+                hasTomorrowPrices = false
+                lastPriceDayKey = EnergyHistoryKey.dayKey(for: now, calendar: calendar)
+            } else {
+                displayDay = nil
+            }
+        }
+
+        guard let displayDay else { return }
+        let display = priceRefreshCoordinator.displayText(from: displayDay, now: now)
+        applyLoadedPrices(
+            CurrentAndDay(currentDisplay: display, day: displayDay),
+            now: now
+        )
+    }
+
+    private func applyLoadedPrices(_ payload: CurrentAndDay, now: Date) {
+        state = .loaded(payload)
+        updateMenuBarDerived(from: payload.day, now: now)
+    }
+
+    private func updateMenuBarDerived(from day: DayChartData, now: Date) {
+        guard let bucket = day.currentBucket(at: now) else {
+            menuBarPricePerKWh = nil
+            menuBarLabelColor = DS.Color.secondary
+            return
+        }
+        menuBarPricePerKWh = TotalCostService.shared.calculatePricePerKWh(
+            spotPriceOre: bucket.orePerKWh,
+            profile: settings.costProfile
+        )
+        menuBarLabelColor = DS.Color.forPrice(bucket.orePerKWh, min: day.minOre, max: day.maxOre)
+    }
+
+    private func shouldRefetchPrices(now: Date) -> Bool {
+        let todayKey = EnergyHistoryKey.dayKey(for: now)
+        if lastPriceDayKey != todayKey {
+            return true
+        }
+        return Self.isDayAheadPublished(at: now) && !hasTomorrowPrices
+    }
+
+    private func shouldRefetchConsumption(now: Date) -> Bool {
+        guard let lastConsumptionFetchAt else { return true }
+        return now.timeIntervalSince(lastConsumptionFetchAt) >= consumptionRefreshSeconds
+    }
+
+    private var consumptionRefreshSeconds: TimeInterval {
+        let requested = TimeInterval(refreshInterval.components.seconds)
+        if requested > 0 && requested < 45 * 60 {
+            return max(requested, 1)
+        }
+        return 45 * 60
+    }
+
+    private static func isDayAheadPublished(at date: Date, calendar: Calendar = .energyHistory) -> Bool {
+        date >= WidgetTimelineSchedule.nextDayAheadRefresh(
+            from: calendar.startOfDay(for: date),
+            calendar: calendar
+        )
     }
 
     private func observeSettingsChanges() {
@@ -273,24 +396,48 @@ private final class SpotPriceRefreshCoordinator {
         self.nowProvider = nowProvider
     }
 
-    func load(priceArea: String) async throws -> SpotPriceViewModel.CurrentAndDay {
+    func load(priceArea: String, includeTomorrow: Bool, ignoreCache: Bool) async throws -> PriceLoadResult {
         let now = nowProvider()
-        let items = try await service.fetchSpotPrices(for: now, area: priceArea)
+        let items = try await service.fetchSpotPrices(for: now, area: priceArea, ignoreCache: ignoreCache)
         let currentDisplay = try service.makeDisplayText(
             from: items,
             now: now,
             formatter: numberFormatter
         )
         let dayData = try service.makeDayChartData(from: items, for: now)
+        var tomorrow: DayChartData?
+        if includeTomorrow {
+            let calendar = Calendar.energyHistory
+            if let tomorrowDate = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now)) {
+                tomorrow = await service.cachedOrFetchedDayChart(for: tomorrowDate, area: priceArea)
+            }
+        }
 
-        return SpotPriceViewModel.CurrentAndDay(currentDisplay: currentDisplay, day: dayData)
+        return PriceLoadResult(
+            payload: SpotPriceViewModel.CurrentAndDay(currentDisplay: currentDisplay, day: dayData),
+            tomorrow: tomorrow
+        )
     }
+
+    func displayText(from day: DayChartData, now: Date) -> String {
+        guard let bucket = day.currentBucket(at: now) else {
+            return "--"
+        }
+        return numberFormatter.string(from: NSNumber(value: bucket.orePerKWh))
+            ?? String(format: "%.1f", bucket.orePerKWh)
+    }
+}
+
+private struct PriceLoadResult {
+    let payload: SpotPriceViewModel.CurrentAndDay
+    let tomorrow: DayChartData?
 }
 
 private struct ConsumptionLoadResult {
     let monthlyConsumption: ConsumptionData?
     let powerPeaks: [PowerPeak]?
     let preciseMonthlyCost: PreciseMonthlyCost?
+    let quarterlyConsumption: [QuarterlyConsumption]?
     let consumptionError: String?
 }
 
@@ -309,16 +456,51 @@ private final class ConsumptionLoadService {
 
     func load() async -> ConsumptionLoadResult {
         async let consumption = loadConsumption()
-        async let powerPeaks = loadPowerPeaks()
-        async let preciseMonthlyCost = loadPreciseMonthlyCost()
+        let quarterly = await loadQuarterlyConsumption()
+
+        let powerPeaks: [PowerPeak]?
+        let preciseMonthlyCost: PreciseMonthlyCost?
+        if let quarterly, !quarterly.isEmpty {
+            powerPeaks = consumptionService.powerPeaks(fromQuarterly: quarterly)
+            do {
+                let cost = try await consumptionService.calculatePreciseMonthlyCost(
+                    from: quarterly,
+                    spotPriceService: spotPriceService
+                )
+                preciseMonthlyCost = cost
+                AppLog.viewModel.info("Precise cost loaded: \(cost.totalCostKr, privacy: .public) kr")
+            } catch {
+                AppLog.viewModel.notice("Precise cost unavailable: \(error.localizedDescription, privacy: .public)")
+                preciseMonthlyCost = nil
+            }
+        } else {
+            powerPeaks = await loadPowerPeaks()
+            preciseMonthlyCost = await loadPreciseMonthlyCost()
+        }
 
         let consumptionResult = await consumption
         return ConsumptionLoadResult(
             monthlyConsumption: consumptionResult.monthlyConsumption,
-            powerPeaks: await powerPeaks,
-            preciseMonthlyCost: await preciseMonthlyCost,
+            powerPeaks: powerPeaks,
+            preciseMonthlyCost: preciseMonthlyCost,
+            quarterlyConsumption: quarterly,
             consumptionError: consumptionResult.errorMessage
         )
+    }
+
+    private func loadQuarterlyConsumption() async -> [QuarterlyConsumption]? {
+        let calendar = Calendar.energyHistory
+        let now = Date()
+        guard let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: now)) else {
+            return nil
+        }
+        do {
+            let quarterly = try await consumptionService.fetchQuarterlyConsumption(startDate: monthStart, endDate: now)
+            return quarterly.isEmpty ? nil : quarterly
+        } catch {
+            AppLog.viewModel.notice("Quarterly consumption unavailable: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
     }
 
     private func loadConsumption() async -> (
@@ -395,7 +577,8 @@ private final class HistoryRecordingCoordinator {
     func recordCurrentMonthConsumptionHistory(
         priceArea: String,
         providerID: String,
-        costProfile: CostProfile
+        costProfile: CostProfile,
+        quarterlyConsumption: [QuarterlyConsumption]?
     ) async {
         await historyRecorder?.recordCurrentMonthConsumptionHistory(
             consumptionService: consumptionService,
@@ -403,7 +586,8 @@ private final class HistoryRecordingCoordinator {
             priceArea: priceArea,
             providerID: providerID,
             costProfile: costProfile,
-            now: nowProvider()
+            now: nowProvider(),
+            quarterlyConsumption: quarterlyConsumption
         )
     }
 

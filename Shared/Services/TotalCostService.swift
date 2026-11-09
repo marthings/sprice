@@ -163,6 +163,18 @@ final class TotalCostService: Sendable {
         )
     }
 
+    /// Consumer-facing monthly amount if the peak were billed. Nil when the setting is off, or rate/peak is missing.
+    nonisolated func hypotheticalMonthlyEffectTariffCostKr(
+        peakKW: Double,
+        profile: CostProfile,
+        include: Bool
+    ) -> Double? {
+        guard include, peakKW > 0, let tariff = profile.effectTariff, tariff.monthlyPricePerKW > 0 else {
+            return nil
+        }
+        return tariff.monthlyPricePerKW * peakKW
+    }
+
     // MARK: - Provider-Enhanced Calculations (app only, @MainActor)
 
     /// Fetch current provider cost info from API.
@@ -341,13 +353,13 @@ enum CostBreakdownPresenter {
             otherComponents.append(("Elnät månadavgift", cost.fixedFeeCostKr))
         }
 
-        otherComponents.append(("Energiskatt", cost.energyTaxKr))
+        otherComponents.append(("Skatt på el", cost.energyTaxKr))
 
         if cost.certificateFeeKr > 0 {
             otherComponents.append(("Elcertifikat", cost.certificateFeeKr))
         }
         if cost.powerTariffCostKr > 0 {
-            otherComponents.append(("Effektavgift", cost.powerTariffCostKr))
+            otherComponents.append((EffectTariffCopy.lineTitle, cost.powerTariffCostKr))
         }
         if cost.vatKr > 0 {
             otherComponents.append(("Moms", cost.vatKr))
@@ -439,7 +451,7 @@ struct KilowattHourBreakdown: Sendable {
             )
         }
 
-        appendLine(&lines, kind: .energyTax, title: "Energiskatt", amount: cost.energyTaxKr)
+        appendLine(&lines, kind: .energyTax, title: "Skatt på el", amount: cost.energyTaxKr)
         appendLine(&lines, kind: .certificates, title: "Elcertifikat", amount: cost.certificateFeeKr)
 
         let monthlyShare = cost.fixedFeeCostKr + cost.providerMonthlyFeeKr
@@ -449,7 +461,7 @@ struct KilowattHourBreakdown: Sendable {
             title: "Andel av månadsavgifter",
             amount: monthlyShare
         )
-        appendLine(&lines, kind: .powerTariff, title: "Effektavgift", amount: cost.powerTariffCostKr)
+        appendLine(&lines, kind: .powerTariff, title: EffectTariffCopy.lineTitle, amount: cost.powerTariffCostKr)
         appendLine(&lines, kind: .vat, title: "Moms", amount: cost.vatKr)
 
         let missingGridMessage = includesGrid

@@ -25,6 +25,20 @@ struct ConsumptionData: Equatable, Sendable, Codable {
     var monthName: String {
         AppFormatters.monthAndYear(monthDate)
     }
+
+    func restricting(toDayOfMonth throughDay: Int, calendar: Calendar) -> ConsumptionData {
+        let sliced = values.filter {
+            calendar.isDate($0.date, equalTo: monthDate, toGranularity: .month)
+                && SameDayMonthComparison.date($0.date, isOnOrBeforeDay: throughDay, calendar: calendar)
+        }
+        return ConsumptionData(
+            totalKWh: sliced.reduce(0) { $0 + $1.kWh },
+            values: sliced,
+            meterName: meterName,
+            meterId: meterId,
+            monthDate: monthDate
+        )
+    }
 }
 
 // MARK: - Consumption Value
@@ -51,14 +65,14 @@ struct DailyConsumption: Equatable, Identifiable, Sendable {
 
 // MARK: - Hourly Consumption
 
-struct HourlyConsumption: Sendable {
+nonisolated struct HourlyConsumption: Sendable {
     let date: Date       // hour start
     let kWh: Double      // = kW for 1h interval
 }
 
 // MARK: - Quarterly Consumption (15-min intervals)
 
-struct QuarterlyConsumption: Identifiable, Sendable {
+nonisolated struct QuarterlyConsumption: Identifiable, Sendable {
     let date: Date
     let kWh: Double
     var id: Date { date }

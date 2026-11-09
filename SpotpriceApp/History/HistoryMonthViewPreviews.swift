@@ -52,7 +52,12 @@ private enum HistoryMonthPreviewData {
             confidence: .measured
         )
 
-        return historyView(months: [monthlySummary, previousSummary], selected: monthlySummary, dailySummaries: dailySummaries)
+        return historyView(
+            months: [monthlySummary, previousSummary],
+            selected: monthlySummary,
+            dailySummaries: dailySummaries,
+            previewInsights: ConsumptionInsightsSampleData.monthInsights()
+        )
     }
 
     static var mixedHistoryView: some View {
@@ -73,16 +78,21 @@ private enum HistoryMonthPreviewData {
     private static func historyView(
         months: [HistoricalEnergySummaryValue],
         selected: HistoricalEnergySummaryValue,
-        dailySummaries: [HistoricalEnergySummaryValue]
+        dailySummaries: [HistoricalEnergySummaryValue],
+        previewInsights: ConsumptionInsights? = nil
     ) -> some View {
         HistoryMonthView(
             priceArea: "SE3",
             costProfile: .swedishDefaultEstimate(),
-            previewState: .loaded(HistoryMonthData(
+            previewState: .loaded(HistoryMonthPresentation.make(
                 months: months,
                 selectedMonth: selected,
-                dailySummaries: dailySummaries
-            ))
+                dailySummaries: dailySummaries,
+                costProfile: .swedishDefaultEstimate(),
+                liveMonthlyConsumption: nil,
+                livePreciseCost: nil
+            )),
+            previewInsights: previewInsights
         )
     }
 

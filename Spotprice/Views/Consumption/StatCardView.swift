@@ -27,6 +27,6 @@ struct StatCardView: View {
         )
         .padding(.vertical, DS.Spacing.sm)
         .padding(.horizontal, DS.Spacing.xs)
-        .glassCard()
+        .spriceCard(tone: .cost)
     }
 }

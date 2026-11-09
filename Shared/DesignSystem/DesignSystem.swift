@@ -7,6 +7,9 @@
 
 import SwiftUI
 import CoreText
+#if os(iOS)
+import UIKit
+#endif
 
 // MARK: - Shared Formatters
 
@@ -78,7 +81,7 @@ enum AppFormatters {
         date.formatted(.dateTime.weekday(.wide).day().month(.abbreviated).locale(swedishLocale))
     }
 
-    static func csvNumber(_ value: Double) -> String {
+    nonisolated static func csvNumber(_ value: Double) -> String {
         value.formatted(.number.locale(posixLocale).precision(.fractionLength(0...6)))
     }
 
@@ -201,6 +204,46 @@ enum DS {
         static let callout = medium(14)
         static let caption = medium(12)
         static let micro = medium(11)
+
+        #if os(iOS)
+        /// Navigation titles can't take a SwiftUI `Font`, so UIKit chrome uses this.
+        static func configureNavigationBarAppearance() {
+            let titleAttributes: [NSAttributedString.Key: Any] = [
+                .font: uiHeavy(size: 17, textStyle: .headline),
+                .foregroundColor: UIColor.label
+            ]
+            let largeTitleAttributes: [NSAttributedString.Key: Any] = [
+                .font: uiHeavy(size: 34, textStyle: .largeTitle),
+                .foregroundColor: UIColor.label
+            ]
+
+            let standard = UINavigationBarAppearance()
+            standard.configureWithDefaultBackground()
+            standard.titleTextAttributes = titleAttributes
+            standard.largeTitleTextAttributes = largeTitleAttributes
+
+            let scrollEdge = UINavigationBarAppearance()
+            scrollEdge.configureWithTransparentBackground()
+            scrollEdge.titleTextAttributes = titleAttributes
+            scrollEdge.largeTitleTextAttributes = largeTitleAttributes
+
+            let compact = UINavigationBarAppearance()
+            compact.configureWithDefaultBackground()
+            compact.titleTextAttributes = titleAttributes
+            compact.largeTitleTextAttributes = largeTitleAttributes
+
+            let navigationBar = UINavigationBar.appearance()
+            navigationBar.standardAppearance = standard
+            navigationBar.scrollEdgeAppearance = scrollEdge
+            navigationBar.compactAppearance = compact
+        }
+
+        private static func uiHeavy(size: CGFloat, textStyle: UIFont.TextStyle) -> UIFont {
+            let base = UIFont(name: "PPObjectSans-Heavy", size: size)
+                ?? .systemFont(ofSize: size, weight: .heavy)
+            return UIFontMetrics(forTextStyle: textStyle).scaledFont(for: base)
+        }
+        #endif
     }
 
     // MARK: - Semantic Colors
@@ -212,6 +255,8 @@ enum DS {
         static let info = SwiftUI.Color("InfoColor")
         static let warning = SwiftUI.Color("WarningColor")
         static let danger = SwiftUI.Color("DangerColor")
+        /// Palette orange (`WarningColor`). App tint for toggles, links and selected tabs.
+        static let accent = warning
 
         static let secondary = SwiftUI.Color.primary.opacity(0.72)
         static let outline = SwiftUI.Color.primary.opacity(0.28)
@@ -260,6 +305,10 @@ enum DS {
         static let md: CGFloat = 12
         static let lg: CGFloat = 16
         static let xl: CGFloat = 24
+        /// Space from a navigation title down to the first content on iOS tabs
+        /// and pushed screens. Tight but not flush; Form screens use the same
+        /// value via `contentMargins` so they match ScrollView padding.
+        static let titleToContent: CGFloat = 10
     }
 
     // MARK: - Radius
@@ -510,7 +559,7 @@ struct AppStatusCard: View {
             messageLineLimit: messageLineLimit
         )
         .padding(DS.Spacing.lg)
-        .glassCard(interactive: interactive)
+        .spriceCard(tone: .default, interactive: interactive)
     }
 }
 
@@ -793,100 +842,329 @@ struct PriceLevelBadge: View {
 
 // MARK: - Canvas background
 
-/// Calm field behind dashboard content. Replaces the old photo background so
-/// materials and text keep contrast in light and dark mode.
+/// Calm field behind dashboard content. A soft 3×3 mesh of palette tints;
+/// falls back to the previous linear + radial wash below MeshGradient.
 struct AppCanvasBackground: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
+        canvas
+            .ignoresSafeArea()
+            .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private var canvas: some View {
+        if #available(iOS 18.0, macOS 15.0, *) {
+            MeshGradient(
+                width: 3,
+                height: 3,
+                points: Self.meshPoints,
+                colors: meshColors,
+                background: paper,
+                smoothsColors: true
+            )
+        } else {
+            fallbackCanvas
+        }
+    }
+
+    private static let meshPoints: [SIMD2<Float>] = [
+        SIMD2<Float>(0.00, 0.00), SIMD2<Float>(0.40, 0.00), SIMD2<Float>(1.00, 0.00),
+        SIMD2<Float>(0.00, 0.42), SIMD2<Float>(0.38, 0.40), SIMD2<Float>(1.00, 0.58),
+        SIMD2<Float>(0.00, 1.00), SIMD2<Float>(0.55, 1.00), SIMD2<Float>(1.00, 1.00)
+    ]
+
+    private var paper: Color {
+        colorScheme == .dark
+            ? Color(red: 0.045, green: 0.05, blue: 0.065)
+            : Color(red: 0.86, green: 0.88, blue: 0.92)
+    }
+
+    @available(iOS 18.0, macOS 15.0, *)
+    private var meshColors: [Color] {
+        let info = DS.Color.info
+        let warm = DS.Color.accent
+        if colorScheme == .dark {
+            let cool = Color(red: 0.07, green: 0.11, blue: 0.17)
+            return [
+                cool.mix(with: info, by: 0.34),
+                cool,
+                paper.mix(with: warm, by: 0.12),
+                cool.mix(with: paper, by: 0.22),
+                cool.mix(with: info, by: 0.18),
+                paper,
+                paper,
+                cool.mix(with: paper, by: 0.14),
+                cool.mix(with: info, by: 0.26)
+            ]
+        }
+        let cool = Color(red: 0.78, green: 0.86, blue: 0.94)
+        let cream = Color(red: 0.90, green: 0.86, blue: 0.80)
+        return [
+            cool.mix(with: info, by: 0.22),
+            cool,
+            cream.mix(with: warm, by: 0.10),
+            cool.mix(with: paper, by: 0.25),
+            paper.mix(with: info, by: 0.14),
+            cream,
+            cream,
+            paper,
+            cool.mix(with: info, by: 0.18)
+        ]
+    }
+
+    private var fallbackCanvas: some View {
         ZStack {
             LinearGradient(
-                colors: colorScheme == .dark ? darkBase : lightBase,
+                colors: colorScheme == .dark
+                    ? [Color(red: 0.07, green: 0.11, blue: 0.17), Color(red: 0.045, green: 0.05, blue: 0.065)]
+                    : [Color(red: 0.78, green: 0.86, blue: 0.94), Color(red: 0.90, green: 0.86, blue: 0.80)],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
-
             RadialGradient(
-                colors: colorScheme == .dark ? darkWash : lightWash,
+                colors: colorScheme == .dark
+                    ? [Color(red: 0.10, green: 0.16, blue: 0.24).opacity(0.62), .clear]
+                    : [Color(red: 0.68, green: 0.80, blue: 0.90).opacity(0.75), .clear],
                 center: .topLeading,
                 startRadius: 24,
                 endRadius: 520
             )
         }
-        .ignoresSafeArea()
-        .accessibilityHidden(true)
-    }
-
-    private var lightBase: [Color] {
-        [
-            Color(red: 0.89, green: 0.92, blue: 0.95),
-            Color(red: 0.94, green: 0.93, blue: 0.91)
-        ]
-    }
-
-    private var darkBase: [Color] {
-        [
-            Color(red: 0.10, green: 0.12, blue: 0.16),
-            Color(red: 0.07, green: 0.08, blue: 0.10)
-        ]
-    }
-
-    private var lightWash: [Color] {
-        [
-            Color(red: 0.80, green: 0.87, blue: 0.93).opacity(0.55),
-            .clear
-        ]
-    }
-
-    private var darkWash: [Color] {
-        [
-            Color(red: 0.18, green: 0.22, blue: 0.30).opacity(0.40),
-            .clear
-        ]
     }
 }
 
-// MARK: - Glass Card Modifier
+// MARK: - Palette-tinted cards
 
-/// Shared card surface: regular system glass over a material fill so body text
-/// keeps contrast against the canvas in both appearances.
-struct GlassCardModifier: ViewModifier {
-    let cornerRadius: CGFloat
-    let isInteractive: Bool
+/// Semantic card tones mapped to existing `DS.Color` / asset-catalog tokens.
+enum SpriceCardTone: Equatable {
+    case `default`
+    case accent
+    case price
+    case cost
+    case history
+
+    var paletteColor: Color {
+        // One shared tint for every card so all tabs look the same.
+        DS.Color.info
+    }
+
+    /// Gradient overlay on top of material.
+    func overlayOpacity(colorScheme: ColorScheme) -> Double {
+        switch (self, colorScheme) {
+        case (_, .light): return 0.14
+        case (_, .dark): return 0.16
+        @unknown default:
+            return 0.14
+        }
+    }
+
+    func reducedTransparencyOverlayOpacity(colorScheme: ColorScheme) -> Double {
+        overlayOpacity(colorScheme: colorScheme) + 0.04
+    }
+}
+
+/// Palette fill used by `spriceCard` and by Form `listRowBackground`.
+struct SpriceCardBackground: View {
+    var tone: SpriceCardTone = .default
+    var cornerRadius: CGFloat = DS.Glass.cardRadius
+    /// Flat fill for grouped Form rows: no per-row gradient, so rows share one wash.
+    var isListRow: Bool = false
 
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     private var cardShape: RoundedRectangle {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
     }
 
+    private var paletteColor: Color { tone.paletteColor }
+
+    /// Lifts body text onto the material so `.primary` and `DS.Color.secondary`
+    /// stay at WCAG AA (4.5:1) against the tinted fill in both appearances.
     private var contrastFill: Color {
         colorScheme == .dark
-            ? Color.black.opacity(0.28)
-            : Color.white.opacity(0.52)
+            ? Color.black.opacity(0.48)
+            : Color.white.opacity(0.70)
     }
 
-    func body(content: Content) -> some View {
-        content
-            .background {
+    private var opaqueBase: Color {
+        colorScheme == .dark ? Color.black : Color.white
+    }
+
+    private var washOpacity: Double {
+        reduceTransparency
+            ? tone.reducedTransparencyOverlayOpacity(colorScheme: colorScheme)
+            : tone.overlayOpacity(colorScheme: colorScheme)
+    }
+
+    private var paletteWash: LinearGradient {
+        LinearGradient(
+            colors: [
+                paletteColor.opacity(washOpacity),
+                paletteColor.opacity(washOpacity * 0.35)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+
+    private var flatPaletteFill: Color {
+        paletteColor.opacity(washOpacity)
+    }
+
+    var body: some View {
+        Group {
+            if isListRow {
+                listRowBackground
+            } else if reduceTransparency {
+                cardShape
+                    .fill(opaqueBase)
+                    .overlay {
+                        cardShape.fill(paletteWash)
+                    }
+            } else {
                 cardShape
                     .fill(.regularMaterial)
                     .overlay {
                         cardShape.fill(contrastFill)
                     }
+                    .overlay {
+                        cardShape.fill(paletteWash)
+                    }
             }
-            .clipShape(cardShape)
-            .glassEffect(isInteractive ? .regular.interactive() : .regular, in: cardShape)
-            .overlay {
-                cardShape.strokeBorder(Color.primary.opacity(colorScheme == .dark ? 0.16 : 0.10), lineWidth: 0.5)
+        }
+    }
+
+    @ViewBuilder
+    private var listRowBackground: some View {
+        if reduceTransparency {
+            cardShape
+                .fill(opaqueBase)
+                .overlay {
+                    cardShape.fill(flatPaletteFill)
+                }
+        } else {
+            cardShape
+                .fill(.regularMaterial)
+                .overlay {
+                    cardShape.fill(contrastFill)
+                }
+                .overlay {
+                    cardShape.fill(flatPaletteFill)
+                }
+        }
+    }
+}
+
+/// Palette-tinted material card. Only the background is clipped so chart
+/// callouts can overflow.
+struct SpriceCardModifier: ViewModifier {
+    let tone: SpriceCardTone
+    let cornerRadius: CGFloat
+
+    private var cardShape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .background {
+                SpriceCardBackground(
+                    tone: tone,
+                    cornerRadius: cornerRadius
+                )
+                .clipShape(cardShape)
             }
+            .containerShape(cardShape)
+    }
+}
+
+/// Discrete press for tappable cards that used to use interactive glass.
+struct SpriceCardPressButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .opacity(configuration.isPressed ? 0.92 : 1)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
     }
 }
 
 extension View {
-    /// Applies the shared glass card style used by iOS, macOS and widgets.
+    /// Palette-tinted material card used by iOS, macOS and widgets.
+    func spriceCard(
+        tone: SpriceCardTone = .default,
+        cornerRadius: CGFloat = DS.Glass.cardRadius,
+        interactive: Bool = false
+    ) -> some View {
+        let _ = interactive
+        return modifier(SpriceCardModifier(tone: tone, cornerRadius: cornerRadius))
+    }
+
+    /// Forwards to `spriceCard(tone: .default)` so older call sites keep compiling.
     func glassCard(cornerRadius: CGFloat = DS.Glass.cardRadius, interactive: Bool = false) -> some View {
-        modifier(GlassCardModifier(cornerRadius: cornerRadius, isInteractive: interactive))
+        spriceCard(tone: .default, cornerRadius: cornerRadius, interactive: interactive)
+    }
+
+    /// Same palette fill as `spriceCard`, for grouped Form rows. Corner radius is
+    /// 0 so the Form can clip the section as one card. Flat: no glass edge.
+    func spriceListRowBackground(tone: SpriceCardTone = .default) -> some View {
+        listRowBackground(
+            SpriceCardBackground(tone: tone, cornerRadius: 0, isListRow: true)
+        )
+    }
+
+    func spriceSettingsHeaderStyle() -> some View {
+        font(DS.Font.caption)
+            .foregroundStyle(DS.Color.secondary)
+            .textCase(.uppercase)
+    }
+
+    func spriceSettingsFooterStyle() -> some View {
+        font(DS.Font.micro)
+            .foregroundStyle(DS.Color.secondary)
+    }
+}
+
+/// Menu picker whose trailing value is a `DS.Font` `Text`, for grouped Forms.
+struct SpriceSettingsMenuPicker<Selection: Hashable, Options: View>: View {
+    let title: String
+    @Binding var selection: Selection
+    let valueText: String
+    var monospacedValue: Bool = false
+    let options: Options
+
+    init(
+        title: String,
+        selection: Binding<Selection>,
+        valueText: String,
+        monospacedValue: Bool = false,
+        @ViewBuilder options: () -> Options
+    ) {
+        self.title = title
+        self._selection = selection
+        self.valueText = valueText
+        self.monospacedValue = monospacedValue
+        self.options = options()
+    }
+
+    var body: some View {
+        LabeledContent(title) {
+            Menu {
+                Picker(title, selection: $selection) {
+                    options
+                }
+            } label: {
+                Text(valueText)
+                    .font(monospacedValue ? DS.Font.body.monospacedDigit() : DS.Font.body)
+                    .foregroundStyle(.primary)
+                    .multilineTextAlignment(.trailing)
+            }
+            .accessibilityLabel(title)
+            .accessibilityValue(valueText)
+        }
+        .spriceListRowBackground()
     }
 }
 

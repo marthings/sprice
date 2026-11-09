@@ -12,11 +12,13 @@ import WidgetKit
 struct SpotpriceApp: App {
     init() {
         WidgetReload.timelines()
+        DS.Font.configureNavigationBarAppearance()
     }
 
     var body: some Scene {
         WindowGroup {
             DashboardView()
+                .tint(DS.Color.accent)
         }
     }
 }

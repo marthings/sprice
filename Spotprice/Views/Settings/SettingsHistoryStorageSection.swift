@@ -13,6 +13,7 @@ struct SettingsHistoryStorageSection: View {
     @State private var historyExportDocument: HistoryCSVDocument?
     @State private var isExportingHistory = false
     @State private var isConfirmingHistoryDeletion = false
+    @State private var isPreparingExport = false
 
     var body: some View {
         Section {
@@ -25,6 +26,7 @@ struct SettingsHistoryStorageSection: View {
             Button("Exportera CSV") {
                 exportLocalHistory()
             }
+            .disabled(isPreparingExport)
 
             Button("Rensa äldre än 24 månader") {
                 pruneLocalHistory()
@@ -84,13 +86,22 @@ struct SettingsHistoryStorageSection: View {
     }
 
     private func exportLocalHistory() {
-        do {
-            let store = try EnergyHistoryStores.reader()
-            let csv = try store.exportHistoryCSV(priceArea: settings.priceArea)
-            historyExportDocument = HistoryCSVDocument(text: csv)
-            isExportingHistory = true
-        } catch {
-            historyStorageStatus = "Kunde inte exportera historik: \(error.localizedDescription)"
+        isPreparingExport = true
+        historyStorageStatus = "Exporterar historik..."
+        let priceArea = settings.priceArea
+        Task {
+            defer { isPreparingExport = false }
+            do {
+                let url = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("sprice-history-\(priceArea).csv", isDirectory: false)
+                let writer = try EnergyHistoryStores.writer()
+                try await writer.exportHistoryCSV(priceArea: priceArea, to: url)
+                historyExportDocument = HistoryCSVDocument(url: url)
+                isExportingHistory = true
+                historyStorageStatus = "Historiken är redo att sparas."
+            } catch {
+                historyStorageStatus = "Kunde inte exportera historik: \(error.userFacingMessage)"
+            }
         }
     }
 
@@ -124,22 +135,20 @@ struct SettingsHistoryStorageSection: View {
 struct HistoryCSVDocument: FileDocument {
     static var readableContentTypes: [UTType] { [.commaSeparatedText] }
 
-    var text: String
+    private let fileURL: URL?
 
-    init(text: String = "") {
-        self.text = text
+    init(url: URL) {
+        self.fileURL = url
     }
 
     init(configuration: ReadConfiguration) throws {
-        if let data = configuration.file.regularFileContents,
-           let text = String(data: data, encoding: .utf8) {
-            self.text = text
-        } else {
-            self.text = ""
-        }
+        self.fileURL = nil
     }
 
     func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
-        FileWrapper(regularFileWithContents: Data(text.utf8))
+        if let fileURL {
+            return try FileWrapper(url: fileURL, options: .immediate)
+        }
+        return FileWrapper(regularFileWithContents: Data())
     }
 }

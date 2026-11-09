@@ -9,9 +9,11 @@ struct HistoryMonthView: View {
     @State private var state: HistoryMonthLoadState = .loading
     @State private var selectedMonthKey: String?
     @State private var openedDay: HistoryDayRoute?
+    @State private var openedInsights: ConsumptionInsightsRoute?
 
     private let historyQuery: any EnergyHistoryQuerying
     private let initialState: HistoryMonthLoadState?
+    private let previewInsights: ConsumptionInsights?
     private var hasProvider: Bool {
         !ConsumptionSettings.shared.selectedProviderId.isEmpty
     }
@@ -21,6 +23,7 @@ struct HistoryMonthView: View {
         costProfile: CostProfile,
         historyQuery: (any EnergyHistoryQuerying)? = nil,
         previewState: HistoryMonthLoadState? = nil,
+        previewInsights: ConsumptionInsights? = nil,
         liveMonthlyConsumption: ConsumptionData? = nil,
         livePreciseCost: PreciseMonthlyCost? = nil
     ) {
@@ -28,6 +31,7 @@ struct HistoryMonthView: View {
         self.costProfile = costProfile
         self.historyQuery = historyQuery ?? EnergyHistoryQueryService()
         self.initialState = previewState
+        self.previewInsights = previewInsights
         self.liveMonthlyConsumption = liveMonthlyConsumption
         self.livePreciseCost = livePreciseCost
     }
@@ -44,15 +48,17 @@ struct HistoryMonthView: View {
                     message: message,
                     color: DS.Color.secondary
                 )
-            case .loaded(let data):
+            case .loaded(let presentation):
                 HistoryMonthLoadedContent(
-                    data: data,
-                    costProfile: costProfile,
-                    liveMonthlyConsumption: liveMonthlyConsumption,
-                    livePreciseCost: livePreciseCost,
+                    presentation: presentation,
                     hasProvider: hasProvider,
+                    priceArea: priceArea,
+                    costProfile: costProfile,
+                    historyQuery: historyQuery,
+                    previewInsights: previewInsights,
                     selectedMonthKey: $selectedMonthKey,
-                    openedDay: $openedDay
+                    openedDay: $openedDay,
+                    openedInsights: $openedInsights
                 )
             }
         }
@@ -64,6 +70,15 @@ struct HistoryMonthView: View {
                 costProfile: costProfile,
                 priceArea: priceArea,
                 historyQuery: historyQuery
+            )
+        }
+        .navigationDestination(item: $openedInsights) { route in
+            ConsumptionInsightsScreen(
+                route: route,
+                costProfile: costProfile,
+                dailySummaries: dailySummaries(for: route),
+                historyQuery: historyQuery,
+                previewInsights: previewInsights
             )
         }
         .task {
@@ -79,8 +94,15 @@ struct HistoryMonthView: View {
             guard oldValue != nil else { return }
             Task { await loadHistory() }
         }
+        .onChange(of: livePreciseCost) { _, _ in
+            applyLiveValuesIfNeeded()
+        }
+        .onChange(of: liveMonthlyConsumption) { _, _ in
+            applyLiveValuesIfNeeded()
+        }
         .onReceive(NotificationCenter.default.publisher(for: .energyHistoryDidUpdate)) { _ in
             guard initialState == nil else { return }
+            ConsumptionInsightsService.invalidate()
             Task { await loadHistory() }
         }
     }
@@ -102,8 +124,34 @@ struct HistoryMonthView: View {
     }
 
     private func dailySummary(for route: HistoryDayRoute) -> HistoricalEnergySummaryValue? {
-        guard case .loaded(let data) = state else { return nil }
-        return data.dailySummaries.first { $0.periodKey == route.dayKey }
+        guard case .loaded(let presentation) = state else { return nil }
+        return presentation.dailySummaries.first { $0.periodKey == route.dayKey }
+    }
+
+    private func dailySummaries(for route: ConsumptionInsightsRoute) -> [HistoricalEnergySummaryValue] {
+        guard case .loaded(let presentation) = state else { return [] }
+        switch route.period {
+        case .month:
+            return presentation.dailySummaries
+        case .day(let dayKey, _):
+            return presentation.dailySummaries.filter { $0.periodKey == dayKey }
+        }
+    }
+
+    private func applyLiveValuesIfNeeded() {
+        guard initialState == nil else { return }
+        guard case .loaded(let presentation) = state, presentation.isCurrentMonth else { return }
+        state = .loaded(
+            HistoryMonthPresentation.make(
+                months: presentation.months,
+                selectedMonth: presentation.selectedMonth,
+                dailySummaries: presentation.dailySummaries,
+                previousDailySummaries: presentation.previousDailySummaries,
+                costProfile: costProfile,
+                liveMonthlyConsumption: liveMonthlyConsumption,
+                livePreciseCost: livePreciseCost
+            )
+        )
     }
 
     @MainActor
@@ -121,11 +169,17 @@ struct HistoryMonthView: View {
             if history.months.isEmpty {
                 state = .empty(HistoryInsights.emptyHistoryMessage(hasProvider: hasProvider))
             } else {
-                state = .loaded(HistoryMonthData(
-                    months: history.months,
-                    selectedMonth: history.selectedMonth,
-                    dailySummaries: history.dailySummaries
-                ))
+                state = .loaded(
+                    HistoryMonthPresentation.make(
+                        months: history.months,
+                        selectedMonth: history.selectedMonth,
+                        dailySummaries: history.dailySummaries,
+                        previousDailySummaries: history.previousDailySummaries,
+                        costProfile: costProfile,
+                        liveMonthlyConsumption: liveMonthlyConsumption,
+                        livePreciseCost: livePreciseCost
+                    )
+                )
             }
         } catch {
             state = .empty(HistoryInsights.emptyHistoryMessage(hasProvider: hasProvider))

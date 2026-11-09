@@ -52,9 +52,10 @@ struct DashboardErrorView: View {
                 Label("Försök igen", systemImage: "arrow.clockwise")
             }
             .buttonStyle(.borderedProminent)
+            .foregroundStyle(Color.black)
         }
         .padding(DS.Spacing.xl)
         .frame(maxWidth: .infinity, minHeight: 360)
-        .glassCard()
+        .spriceCard()
     }
 }

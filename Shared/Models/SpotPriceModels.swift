@@ -141,66 +141,6 @@ nonisolated enum WidgetTimelineSchedule {
     }
 }
 
-nonisolated enum SpotPriceDayCache {
-    private static let folderName = "SpotPriceCache"
-
-    static func store(_ items: [SpotPriceItem], area: String, calendar: Calendar = .energyHistory) {
-        guard !items.isEmpty else { return }
-
-        let grouped = Dictionary(grouping: items) { item in
-            EnergyHistoryKey.dayKey(for: item.timeStart, calendar: calendar)
-        }
-
-        for (dayKey, dayItems) in grouped {
-            let payload = Payload(area: area, dayKey: dayKey, items: dayItems, savedAt: Date())
-            guard let data = try? JSONEncoder().encode(payload),
-                  let url = fileURL(area: area, dayKey: dayKey) else {
-                continue
-            }
-            try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try? data.write(to: url, options: .atomic)
-        }
-    }
-
-    static func items(for day: Date, area: String, calendar: Calendar = .energyHistory) -> [SpotPriceItem]? {
-        let dayKey = EnergyHistoryKey.dayKey(for: day, calendar: calendar)
-        guard let url = fileURL(area: area, dayKey: dayKey),
-              let data = try? Data(contentsOf: url),
-              let payload = try? JSONDecoder().decode(Payload.self, from: data),
-              !payload.items.isEmpty else {
-            return nil
-        }
-        return payload.items
-    }
-
-    static func lookup(for day: Date, area: String, calendar: Calendar = .energyHistory) -> [Date: Double]? {
-        guard let items = items(for: day, area: area, calendar: calendar) else {
-            return nil
-        }
-        var map: [Date: Double] = [:]
-        map.reserveCapacity(items.count)
-        for item in items {
-            map[item.timeStart] = item.sekPerKWh * 100.0
-        }
-        return map
-    }
-
-    private static func fileURL(area: String, dayKey: String) -> URL? {
-        FileManager.default
-            .containerURL(forSecurityApplicationGroupIdentifier: EnergyHistoryConstants.appGroupIdentifier)?
-            .appendingPathComponent(folderName, isDirectory: true)
-            .appendingPathComponent(area, isDirectory: true)
-            .appendingPathComponent("\(dayKey).json", isDirectory: false)
-    }
-
-    private struct Payload: Codable, Sendable {
-        let area: String
-        let dayKey: String
-        let items: [SpotPriceItem]
-        let savedAt: Date
-    }
-}
-
 // MARK: - Price Bucket Analytics
 
 nonisolated enum SpotPriceMatching: Sendable {

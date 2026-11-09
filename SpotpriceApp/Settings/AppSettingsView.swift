@@ -1,6 +1,9 @@
 import SwiftUI
 
 struct AppSettingsView: View {
+    @Environment(\.scenePhase) private var scenePhase
+    @FocusState private var focusedField: Field?
+
     @State private var priceArea = "SE3"
     @State private var contractType: RetailContractType = .spotPriceMarkup
     @State private var retailerMarkupOrePerKWh = 0.0
@@ -8,170 +11,264 @@ struct AppSettingsView: View {
     @State private var retailerMonthlyFee = 0.0
     @State private var selectedDSOOrgNo = ""
     @State private var fuseSize = 20
+    @State private var includeHypotheticalEffectTariff = false
     @State private var dsoOptions: [DSOOption] = []
     @State private var gridTariffError: String?
-    @State private var isSaving = false
+    @State private var fieldError: String?
+    @State private var showSaved = false
+    @State private var isReady = false
+    @State private var isCommitting = false
+    @State private var pendingSave: Task<Void, Never>?
+    @State private var hideSavedTask: Task<Void, Never>?
 
     private let settings = ConsumptionSettings.shared
     private let gridTariffService = GridTariffService()
     private let fuseSizes = [16, 20, 25, 35, 50, 63]
 
+    private enum Field: Hashable {
+        case markup
+        case contractPrice
+        case monthlyFee
+    }
+
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                Form {
-                    providerSection
-                    priceAreaSection
-                    retailContractSection
-                    gridTariffSection
-                    saveButton
-                        .listRowBackground(Color.clear)
-                }                
+        Form {
+            overviewSection
+            consumptionSection
+            priceAreaSection
+            retailContractSection
+            gridTariffSection
+        }
+        .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
+        .scrollDismissesKeyboard(.interactively)
+        .contentMargins(.top, DS.Spacing.titleToContent, for: .scrollContent)
+        .listSectionSpacing(DS.Spacing.md)
+        .environment(\.defaultMinListHeaderHeight, 0)
+        .font(DS.Font.body)
+        .textFieldStyle(.plain)
+        .onAppear {
+            guard !isReady else { return }
+            loadSettings()
+        }
+        .task {
+            await loadDSOOptions()
+        }
+        .onDisappear {
+            flushPendingSave()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active {
+                flushPendingSave()
             }
-            .navigationTitle("Inställningar")
-            .navigationBarTitleDisplayMode(.inline)
-            .onAppear(perform: loadSettings)
-            .task {
-                await loadDSOOptions()
+        }
+        .onChange(of: priceArea) { _, _ in commitImmediately() }
+        .onChange(of: contractType) { _, _ in commitImmediately() }
+        .onChange(of: selectedDSOOrgNo) { _, _ in commitImmediately() }
+        .onChange(of: fuseSize) { _, _ in commitImmediately() }
+        .onChange(of: includeHypotheticalEffectTariff) { _, _ in commitEffectTariffToggle() }
+        .onChange(of: retailerMarkupOrePerKWh) { _, _ in scheduleCommit() }
+        .onChange(of: contractPriceOrePerKWh) { _, _ in scheduleCommit() }
+        .onChange(of: retailerMonthlyFee) { _, _ in scheduleCommit() }
+        .onChange(of: focusedField) { _, newValue in
+            if newValue == nil {
+                flushPendingSave()
+            }
+        }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                if showSaved {
+                    SettingsSavedLabel()
+                }
+            }
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Klar") {
+                    focusedField = nil
+                }
             }
         }
     }
 
-    private var providerSection: some View {
+    private var overviewSection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
+                Text(overviewLine)
+                    .font(DS.Font.body)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let overviewStatus {
+                    Text(overviewStatus)
+                        .font(DS.Font.micro)
+                        .foregroundStyle(DS.Color.secondary)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .combine)
+            .spriceListRowBackground()
+        }
+    }
+
+    private var consumptionSection: some View {
         Section {
             NavigationLink {
                 ProviderSettingsView()
             } label: {
-                HStack(spacing: DS.Spacing.md) {
-                    Image(systemName: "bolt.badge.meter")
-                        .foregroundStyle(DS.Color.info)
-                    VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
-                        Text("Förbrukning")
-                            .font(DS.Font.callout)
-                        Text(providerStatusText)
-                            .font(DS.Font.micro)
-                            .foregroundStyle(DS.Color.secondary)
-                    }
+                LabeledContent("Datakälla") {
+                    Text(providerStatusText)
+                        .font(DS.Font.body)
+                        .foregroundStyle(DS.Color.secondary)
+                        .multilineTextAlignment(.trailing)
                 }
             }
+            .accessibilityHint("Öppnar inställningar för förbrukningsdata")
+            .spriceListRowBackground()
+        } header: {
+            Text("Förbrukning")
+                .spriceSettingsHeaderStyle()
+        } footer: {
+            Text("Används för månadsförbrukning, effekttoppar och mer träffsäkra kostnader.")
+                .spriceSettingsFooterStyle()
         }
     }
 
     private var priceAreaSection: some View {
         Section {
-            Picker("Elområde", selection: $priceArea) {
+            SpriceSettingsMenuPicker(title: "Elområde", selection: $priceArea, valueText: priceArea) {
                 ForEach(["SE1", "SE2", "SE3", "SE4"], id: \.self) { area in
                     Text(area).tag(area)
                 }
             }
-            .pickerStyle(.segmented)
         } header: {
             Text("Elområde")
-                .font(DS.Font.caption)
+                .spriceSettingsHeaderStyle()
         } footer: {
             Text("Spotpriser hämtas för valt elområde.")
-                .font(DS.Font.micro)
+                .spriceSettingsFooterStyle()
         }
     }
 
     private var retailContractSection: some View {
         Section {
-            Picker("Avtal", selection: $contractType) {
+            SpriceSettingsMenuPicker(title: "Avtal", selection: $contractType, valueText: contractOverviewName) {
                 Text("Kvartspris").tag(RetailContractType.spotPriceMarkup)
-                Text("Rörligt").tag(RetailContractType.variableMonthlyPrice)
-                Text("Fast").tag(RetailContractType.fixedPrice)
+                Text("Rörligt månadspris").tag(RetailContractType.variableMonthlyPrice)
+                Text("Fast pris").tag(RetailContractType.fixedPrice)
             }
-            .pickerStyle(.segmented)
 
             currencyField(
                 title: "Påslag",
                 value: $retailerMarkupOrePerKWh,
-                unit: "öre/kWh"
+                unit: "öre/kWh",
+                field: .markup
             )
 
             if contractType != .spotPriceMarkup {
                 currencyField(
                     title: contractType == .fixedPrice ? "Fast pris" : "Månadspris",
                     value: $contractPriceOrePerKWh,
-                    unit: "öre/kWh"
+                    unit: "öre/kWh",
+                    field: .contractPrice
                 )
             }
 
             currencyField(
                 title: "Månadsavgift",
                 value: $retailerMonthlyFee,
-                unit: "kr/mån"
+                unit: "kr/mån",
+                field: .monthlyFee
             )
+
+            if let fieldError {
+                Label(fieldError, systemImage: "exclamationmark.triangle.fill")
+                    .font(DS.Font.body)
+                    .foregroundStyle(DS.Color.warning)
+                    .spriceListRowBackground()
+            }
         } header: {
             Text("Elhandel")
-                .font(DS.Font.caption)
+                .spriceSettingsHeaderStyle()
         } footer: {
             Text(contractFooterText)
-                .font(DS.Font.micro)
+                .spriceSettingsFooterStyle()
         }
-    }
-
-    private var saveButton: some View {
-        Button {
-            Task {
-                await saveSettings()
-            }
-        } label: {
-            Label(isSaving ? "Sparar" : "Spara", systemImage: "checkmark.circle.fill")
-                .frame(maxWidth: .infinity)
-        }
-        .buttonStyle(BlackSaveButtonStyle())
-        .disabled(isSaving)
     }
 
     private var gridTariffSection: some View {
         Section {
-            Picker("Elnät", selection: $selectedDSOOrgNo) {
+            SpriceSettingsMenuPicker(title: "Elnät", selection: $selectedDSOOrgNo, valueText: selectedDSOName) {
                 Text("Inget valt").tag("")
                 ForEach(dsoOptions) { option in
                     Text(option.name).tag(option.id)
                 }
             }
 
-            Picker("Säkring", selection: $fuseSize) {
+            SpriceSettingsMenuPicker(
+                title: "Säkring",
+                selection: $fuseSize,
+                valueText: "\(fuseSize) A",
+                monospacedValue: true
+            ) {
                 ForEach(fuseSizes, id: \.self) { size in
                     Text("\(size) A").tag(size)
                 }
             }
 
+            Toggle(isOn: $includeHypotheticalEffectTariff) {
+                Text(EffectTariffCopy.toggleTitle)
+                    .font(DS.Font.body)
+            }
+            .accessibilityHint(EffectTariffCopy.explanation)
+            .spriceListRowBackground()
+
             if let gridTariffError {
                 Label(gridTariffError, systemImage: "exclamationmark.triangle.fill")
-                    .font(DS.Font.micro)
+                    .font(DS.Font.body)
                     .foregroundStyle(DS.Color.warning)
+                    .spriceListRowBackground()
             } else if let gridTariffSummary {
                 Label(gridTariffSummary, systemImage: "checkmark.circle.fill")
-                    .font(DS.Font.micro)
+                    .font(DS.Font.body)
                     .foregroundStyle(DS.Color.secondary)
+                    .spriceListRowBackground()
             }
         } header: {
             Text("Elnät")
-                .font(DS.Font.caption)
+                .spriceSettingsHeaderStyle()
         } footer: {
-            Text("Elnätskostnader används i totalpriset tillsammans med spotpris, elhandel och moms. Beloppen anges som på fakturan, inklusive moms.")
-                .font(DS.Font.micro)
+            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                Text("Elnätskostnader används i totalpriset tillsammans med spotpris, elhandel och moms. Beloppen anges som på fakturan, inklusive moms.")
+                Text(EffectTariffCopy.explanation)
+            }
+            .spriceSettingsFooterStyle()
         }
     }
 
-    private func currencyField(title: String, value: Binding<Double>, unit: String) -> some View {
-        HStack(spacing: DS.Spacing.md) {
-            Text(title)
-                .font(DS.Font.callout)
-            Spacer()
-            TextField(title, value: value, format: .number.precision(.fractionLength(2)))
-                .keyboardType(.decimalPad)
-                .multilineTextAlignment(.trailing)
-                .font(DS.Font.callout.monospacedDigit())
-                .frame(maxWidth: 110)
-            Text(unit)
-                .font(DS.Font.micro)
-                .foregroundStyle(DS.Color.secondary)
-                .frame(width: 56, alignment: .leading)
+    private func currencyField(
+        title: String,
+        value: Binding<Double>,
+        unit: String,
+        field: Field
+    ) -> some View {
+        LabeledContent(title) {
+            HStack(spacing: DS.Spacing.xs) {
+                TextField(title, value: value, format: .number.precision(.fractionLength(2)))
+                    .keyboardType(.decimalPad)
+                    .textFieldStyle(.plain)
+                    .multilineTextAlignment(.trailing)
+                    .font(DS.Font.body.monospacedDigit())
+                    .focused($focusedField, equals: field)
+                    .submitLabel(.done)
+                    .onSubmit {
+                        flushPendingSave()
+                    }
+                    .accessibilityLabel(title)
+                Text(unit)
+                    .font(DS.Font.caption)
+                    .foregroundStyle(DS.Color.secondary)
+                    .accessibilityHidden(true)
+            }
         }
+        .spriceListRowBackground()
     }
 
     private var contractFooterText: String {
@@ -185,9 +282,47 @@ struct AppSettingsView: View {
         }
     }
 
+    private var overviewLine: String {
+        "\(priceArea) · \(contractOverviewName) · \(providerOverviewName)"
+    }
+
+    private var contractOverviewName: String {
+        switch contractType {
+        case .spotPriceMarkup:
+            return "Kvartspris"
+        case .variableMonthlyPrice:
+            return "Rörligt månadspris"
+        case .fixedPrice:
+            return "Fast pris"
+        }
+    }
+
+    private var selectedDSOName: String {
+        if selectedDSOOrgNo.isEmpty {
+            return "Inget valt"
+        }
+        return dsoOptions.first(where: { $0.id == selectedDSOOrgNo })?.name ?? "Inget valt"
+    }
+
+    private var providerOverviewName: String {
+        providerMetadata?.displayName ?? "Ingen leverantör"
+    }
+
+    private var overviewStatus: String? {
+        guard let metadata = providerMetadata else { return nil }
+        let credentials = settings.getCredentials(for: metadata.identifier)
+        return credentials.isComplete(for: metadata.credentialFields)
+            ? "Konfigurerad"
+            : "Saknar uppgifter"
+    }
+
+    private var providerMetadata: ProviderMetadata? {
+        guard !settings.selectedProviderId.isEmpty else { return nil }
+        return ProviderRegistry.shared.metadata(for: settings.selectedProviderId)
+    }
+
     private var providerStatusText: String {
-        guard !settings.selectedProviderId.isEmpty,
-              let metadata = ProviderRegistry.shared.metadata(for: settings.selectedProviderId) else {
+        guard let metadata = providerMetadata else {
             return "Ingen leverantör vald"
         }
 
@@ -217,6 +352,8 @@ struct AppSettingsView: View {
         retailerMonthlyFee = profile.retailerMonthlyFee
         selectedDSOOrgNo = profile.gridCompanyId ?? settings.selectedDSOOrgNo
         fuseSize = profile.fuseSize ?? settings.fuseSize
+        includeHypotheticalEffectTariff = settings.includeHypotheticalEffectTariff
+        isReady = true
     }
 
     private func loadDSOOptions() async {
@@ -228,9 +365,53 @@ struct AppSettingsView: View {
         }
     }
 
-    private func saveSettings() async {
-        isSaving = true
-        defer { isSaving = false }
+    private func scheduleCommit() {
+        guard isReady else { return }
+        pendingSave?.cancel()
+        pendingSave = Task {
+            try? await Task.sleep(for: .milliseconds(600))
+            guard !Task.isCancelled else { return }
+            await commitSettings()
+        }
+    }
+
+    private func commitImmediately() {
+        guard isReady else { return }
+        pendingSave?.cancel()
+        Task { await commitSettings() }
+    }
+
+    private func commitEffectTariffToggle() {
+        guard isReady else { return }
+        let previous = settings.includeHypotheticalEffectTariff
+        settings.includeHypotheticalEffectTariff = includeHypotheticalEffectTariff
+        if previous != includeHypotheticalEffectTariff {
+            showSaved = true
+            hideSavedTask?.cancel()
+            hideSavedTask = Task {
+                try? await Task.sleep(for: .seconds(1.6))
+                guard !Task.isCancelled else { return }
+                showSaved = false
+            }
+        }
+    }
+
+    private func flushPendingSave() {
+        pendingSave?.cancel()
+        Task { await commitSettings() }
+    }
+
+    @MainActor
+    private func commitSettings() async {
+        guard isReady, !isCommitting else { return }
+        isCommitting = true
+        defer { isCommitting = false }
+
+        if let message = validationMessage {
+            fieldError = message
+            return
+        }
+        fieldError = nil
 
         var next = settings.costProfile.updating(priceArea: priceArea)
         next = next.settingRetailContract(
@@ -243,6 +424,10 @@ struct AppSettingsView: View {
             source: .userEntered
         )
 
+        let gridSelectionChanged =
+            selectedDSOOrgNo != (settings.costProfile.gridCompanyId ?? settings.selectedDSOOrgNo) ||
+            fuseSize != (settings.costProfile.fuseSize ?? settings.fuseSize)
+
         if selectedDSOOrgNo.isEmpty {
             settings.selectedDSOOrgNo = ""
             settings.fuseSize = fuseSize
@@ -252,10 +437,13 @@ struct AppSettingsView: View {
                 confidence: next.inferredConfidence(),
                 source: .userEntered
             )
-        } else {
+        } else if gridSelectionChanged {
             do {
                 guard let tariff = try await gridTariffService.fetchTariff(forDSO: selectedDSOOrgNo, fuseSize: fuseSize) else {
-                    gridTariffError = "Hittade ingen tariff för valt elnät."
+                    gridTariffError = "Hittade inga elnätspriser för valt elnät."
+                    let previous = settings.costProfile
+                    settings.costProfile = next.applyingInferredConfidence(configuredSource: .userEntered)
+                    flashSavedIfNeeded(previous: previous)
                     return
                 }
 
@@ -266,11 +454,34 @@ struct AppSettingsView: View {
                 gridTariffError = nil
             } catch {
                 gridTariffError = "Kunde inte spara elnätskostnader."
+                let previous = settings.costProfile
+                settings.costProfile = next.applyingInferredConfidence(configuredSource: .userEntered)
+                flashSavedIfNeeded(previous: previous)
                 return
             }
         }
 
+        let previous = settings.costProfile
         settings.costProfile = next.applyingInferredConfidence(configuredSource: .userEntered)
+        flashSavedIfNeeded(previous: previous)
+    }
+
+    private var validationMessage: String? {
+        if retailerMarkupOrePerKWh < 0 || retailerMonthlyFee < 0 || contractPriceOrePerKWh < 0 {
+            return "Ange 0 eller mer."
+        }
+        return nil
+    }
+
+    private func flashSavedIfNeeded(previous: CostProfile) {
+        guard settings.costProfile != previous else { return }
+        showSaved = true
+        hideSavedTask?.cancel()
+        hideSavedTask = Task {
+            try? await Task.sleep(for: .seconds(1.6))
+            guard !Task.isCancelled else { return }
+            showSaved = false
+        }
     }
 
     private func applyGridTariff(_ tariff: SimplifiedTariff, to profile: CostProfile) -> CostProfile {
@@ -305,23 +516,11 @@ struct AppSettingsView: View {
     }
 }
 
-private struct BlackSaveButtonStyle: ButtonStyle {
-    @Environment(\.isEnabled) private var isEnabled
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(DS.Font.callout)
-            .foregroundStyle(.white)
-            .padding(.horizontal, DS.Spacing.lg)
-            .padding(.vertical, DS.Spacing.md)
-            .background(
-                Color.black.opacity(isEnabled ? 1 : 0.35),
-                in: .rect(cornerRadius: DS.Radius.full)
-            )
-            .opacity(configuration.isPressed ? 0.82 : 1)
-    }
-}
-
 #Preview {
-    AppSettingsView()
+    NavigationStack {
+        AppSettingsView()
+            .background { AppCanvasBackground() }
+            .navigationTitle("Inställningar")
+            .navigationBarTitleDisplayMode(.large)
+    }
 }

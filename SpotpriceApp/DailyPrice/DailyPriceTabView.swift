@@ -97,7 +97,7 @@ private struct PriceChartCanvas: View {
                 RuleMark(x: .value("Vald tid", selectedPoint.start))
                     .foregroundStyle(DS.Color.secondary.opacity(0.65))
                     .lineStyle(StrokeStyle(lineWidth: 1.2))
-                    .annotation(position: .top, spacing: DS.Spacing.sm, overflowResolution: .init(x: .fit, y: .disabled)) {
+                    .annotation(position: .top, spacing: DS.Spacing.sm, overflowResolution: ChartCalloutOverflow.resolution) {
                         PriceChartSelectionCallout(
                             point: selectedPoint,
                             day: day,
@@ -141,9 +141,14 @@ private struct PriceChartCanvas: View {
         }
         .chartYScale(domain: series.yDomain)
         .chartXSelection(value: $selectedChartDate)
+        .chartPlotStyle { plot in
+            plot.padding(.top, DS.Spacing.sm)
+        }
         .frame(height: 260)
-        .padding()
-        .glassCard()
+        .padding(.top, DS.Spacing.md)
+        .padding(.horizontal)
+        .padding(.bottom)
+        .spriceCard(tone: .price)
         .zIndex(1)
         .accessibilityHint("Dra över grafen för att se pris vid en viss tid.")
     }
@@ -204,7 +209,7 @@ private struct MarketContractExplanation: View {
         }
         .padding(DS.Spacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassCard()
+        .spriceCard(tone: .price)
     }
 
     private var explanationText: String {

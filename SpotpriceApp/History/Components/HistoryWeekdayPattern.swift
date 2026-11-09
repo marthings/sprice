@@ -3,6 +3,7 @@ import Charts
 
 struct HistoryWeekdayPattern: View {
     let averages: [HistoryWeekdayAverage]
+    @State private var selectedLabel: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
@@ -23,15 +24,26 @@ struct HistoryWeekdayPattern: View {
                         )
                         .foregroundStyle(barColor(for: weekday))
                         .cornerRadius(3)
+                        .opacity(selectedLabel == nil || selectedLabel == weekday.label ? 1 : 0.4)
+                    }
+
+                    if let selected = averages.first(where: { $0.label == selectedLabel }),
+                       let cost = selected.averageCostKr {
+                        RuleMark(x: .value("Veckodag", selected.label))
+                            .foregroundStyle(DS.Color.secondary.opacity(0.35))
+                            .annotation(position: .top, spacing: DS.Spacing.xs, overflowResolution: ChartCalloutOverflow.resolution) {
+                                ChartValueCallout(value: "\(AppFormatters.wholeNumber(cost)) kr")
+                            }
                     }
                 }
+                .chartXSelection(value: $selectedLabel)
                 .chartXAxis {
                     AxisMarks { value in
+                        AxisTick()
+                            .foregroundStyle(.tertiary)
                         AxisValueLabel {
                             if let label = value.as(String.self) {
-                                Text(label)
-                                    .font(DS.Font.micro)
-                                    .foregroundStyle(DS.Color.secondary)
+                                HistoryChartAxis.label(label)
                             }
                         }
                     }
@@ -49,7 +61,9 @@ struct HistoryWeekdayPattern: View {
                         }
                     }
                 }
+                .historyChartPlotStyle()
                 .frame(height: 140)
+                .zIndex(1)
                 .accessibilityLabel("Stapeldiagram över snittkostnad per veckodag, i kronor")
                 .accessibilityRepresentation {
                     ForEach(averages) { weekday in
@@ -75,7 +89,7 @@ struct HistoryWeekdayPattern: View {
         }
         .padding(DS.Spacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassCard()
+        .spriceCard(tone: .history)
     }
 
     private var peakWeekday: HistoryWeekdayAverage? {

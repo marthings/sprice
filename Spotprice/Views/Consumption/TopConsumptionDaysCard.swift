@@ -49,7 +49,7 @@ struct TopConsumptionDaysCard: View {
                     )
                     .foregroundStyle(Color("InfoColor"))
                     .cornerRadius(DS.Radius.sm)
-                    .annotation(position: .top, spacing: DS.Spacing.xxs) {
+                    .annotation(position: .top, spacing: DS.Spacing.xxs, overflowResolution: ChartCalloutOverflow.resolution) {
                         Text(peak.kW, format: .number.precision(.fractionLength(1)))
                             .font(DS.Font.bold(11).monospacedDigit())
                             .foregroundStyle(.primary)
@@ -85,7 +85,7 @@ struct TopConsumptionDaysCard: View {
         .padding(.horizontal, DS.Spacing.lg)
         .padding(.vertical, DS.Spacing.md)
         .frame(maxWidth: .infinity)
-        .glassCard()
+        .spriceCard(tone: .cost)
     }
 
     private func peakLabel(_ date: Date) -> String {

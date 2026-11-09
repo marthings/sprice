@@ -12,6 +12,8 @@ struct HistoryDayView: View {
     private let previewSnapshot: HistoryDaySnapshot?
 
     @State private var snapshot: HistoryDaySnapshot?
+    @State private var insights: ConsumptionInsights?
+    @State private var openedInsights: HistoryDayInsightsRoute?
     @State private var loadFailed = false
 
     init(
@@ -41,6 +43,12 @@ struct HistoryDayView: View {
                 VStack(alignment: .leading, spacing: DS.Spacing.lg) {
                     if let snapshot {
                         HistoryDayTotals(snapshot: snapshot)
+                        if snapshot.hasMeasuredUse || insights != nil {
+                            ConsumptionInsightsDayTeaser(
+                                insights: insights,
+                                onOpen: openInsights
+                            )
+                        }
                         HistoryDayHourChart(snapshot: snapshot)
                         if snapshot.hasMeasuredUse {
                             HistoryDayExpensiveHours(hours: snapshot.expensiveHoursUsed)
@@ -61,18 +69,34 @@ struct HistoryDayView: View {
                     }
                 }
                 .padding(.horizontal, DS.Spacing.lg)
-                .padding(.top, DS.Spacing.lg)
                 .padding(.bottom, DS.Spacing.xl * 4)
             }
             .scrollContentBackground(.hidden)
+            .contentMargins(.top, DS.Spacing.titleToContent, for: .scrollContent)
         }
         .navigationTitle(AppFormatters.weekdayDayMonth(date))
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
-        .task {
+        .navigationDestination(item: $openedInsights) { route in
+            ConsumptionInsightsScreen(
+                route: route.insights,
+                costProfile: costProfile,
+                dailySummaries: dailySummary.map { [$0] } ?? [],
+                historyQuery: historyQuery
+            )
+        }
+        .task(id: ConsumptionSettings.shared.includeHypotheticalEffectTariff) {
             guard previewSnapshot == nil else { return }
             await loadDay()
         }
+    }
+
+    private func openInsights() {
+        openedInsights = HistoryDayInsightsRoute(
+            insights: ConsumptionInsightsRoute(
+                period: .day(dayKey: dayKey, date: date),
+                priceArea: priceArea
+            )
+        )
     }
 
     @MainActor
@@ -85,6 +109,7 @@ struct HistoryDayView: View {
                 intervals: intervals,
                 costProfile: costProfile
             )
+            insights = await dayInsights(intervals: intervals)
             loadFailed = false
         } catch {
             if dailySummary != nil {
@@ -94,13 +119,35 @@ struct HistoryDayView: View {
                     intervals: [],
                     costProfile: costProfile
                 )
+                insights = await dayInsights(intervals: [])
                 loadFailed = false
             } else {
                 snapshot = nil
+                insights = nil
                 loadFailed = true
             }
         }
     }
+
+    private func dayInsights(intervals: [HistoricalEnergyIntervalValue]) async -> ConsumptionInsights {
+        let calendar = Calendar.energyHistory
+        let start = calendar.startOfDay(for: date)
+        let end = calendar.date(byAdding: .day, value: 1, to: start) ?? start
+        return await ConsumptionInsightsService.insights(
+            intervals: intervals,
+            dailySummaries: dailySummary.map { [$0] } ?? [],
+            costProfile: costProfile,
+            periodStart: start,
+            periodEnd: end,
+            periodKind: .day
+        )
+    }
+}
+
+private struct HistoryDayInsightsRoute: Hashable, Identifiable {
+    let insights: ConsumptionInsightsRoute
+
+    var id: String { insights.id }
 }
 
 private struct HistoryDayTotals: View {
@@ -140,7 +187,7 @@ private struct HistoryDayTotals: View {
         }
         .padding(DS.Spacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassCard()
+        .spriceCard(tone: .history)
     }
 
     private func dayMetric(value: String, unit: String, label: String) -> some View {
@@ -164,6 +211,8 @@ private struct HistoryDayTotals: View {
 
 private struct HistoryDayHourChart: View {
     let snapshot: HistoryDaySnapshot
+    @State private var selectedCostHour: Date?
+    @State private var selectedSpotHour: Date?
 
     private var hasCost: Bool {
         !snapshot.costHours.isEmpty
@@ -188,17 +237,29 @@ private struct HistoryDayHourChart: View {
                         .foregroundStyle(costBarColor(for: hour))
                         .cornerRadius(2)
                     }
+
+                    if let selected = selectedCostHour.flatMap({ nearestHour(to: $0, in: snapshot.costHours) }),
+                       let cost = selected.costKr {
+                        RuleMark(x: .value("Vald timme", selected.start, unit: .hour))
+                            .foregroundStyle(DS.Color.secondary.opacity(0.4))
+                            .annotation(position: .top, spacing: DS.Spacing.xs, overflowResolution: ChartCalloutOverflow.resolution) {
+                                ChartValueCallout(
+                                    title: selected.hourRangeLabel,
+                                    value: "\(AppFormatters.wholeNumber(cost)) kr"
+                                )
+                            }
+                    }
                 }
                 .chartXScale(domain: hourDomain)
                 .chartXAxis {
-                    AxisMarks(values: .stride(by: .hour, count: 3)) { value in
+                    AxisMarks(values: .stride(by: .hour, count: HistoryChartAxis.hourStrideHours)) { value in
                         AxisGridLine()
+                            .foregroundStyle(.tertiary)
+                        AxisTick()
                             .foregroundStyle(.tertiary)
                         if let date = value.as(Date.self) {
                             AxisValueLabel {
-                                Text(date, format: .dateTime.hour(.defaultDigits(amPM: .omitted)))
-                                    .font(DS.Font.micro)
-                                    .foregroundStyle(DS.Color.secondary)
+                                HistoryChartAxis.hourLabel(date)
                             }
                         }
                     }
@@ -216,7 +277,10 @@ private struct HistoryDayHourChart: View {
                         }
                     }
                 }
+                .chartXSelection(value: $selectedCostHour)
+                .historyChartPlotStyle()
                 .frame(height: 160)
+                .zIndex(1)
                 .accessibilityLabel("Stapeldiagram över kostnad per timme, i kronor")
             } else {
                 Text("Ingen kostnad per timme att visa. Förbrukning saknas, så inga kronor räknas fram.")
@@ -245,17 +309,29 @@ private struct HistoryDayHourChart: View {
                         .foregroundStyle(DS.Color.warning.opacity(0.12))
                         .interpolationMethod(.stepStart)
                     }
+
+                    if let selected = selectedSpotHour.flatMap({ nearestHour(to: $0, in: snapshot.spotHours) }),
+                       let spot = selected.spotOrePerKWh {
+                        RuleMark(x: .value("Vald timme", selected.start, unit: .hour))
+                            .foregroundStyle(DS.Color.secondary.opacity(0.4))
+                            .annotation(position: .top, spacing: DS.Spacing.xs, overflowResolution: ChartCalloutOverflow.resolution) {
+                                ChartValueCallout(
+                                    title: selected.hourRangeLabel,
+                                    value: "\(AppFormatters.oreValue(spot)) öre"
+                                )
+                            }
+                    }
                 }
                 .chartXScale(domain: hourDomain)
                 .chartXAxis {
-                    AxisMarks(values: .stride(by: .hour, count: 3)) { value in
+                    AxisMarks(values: .stride(by: .hour, count: HistoryChartAxis.hourStrideHours)) { value in
                         AxisGridLine()
+                            .foregroundStyle(.tertiary)
+                        AxisTick()
                             .foregroundStyle(.tertiary)
                         if let date = value.as(Date.self) {
                             AxisValueLabel {
-                                Text(date, format: .dateTime.hour(.defaultDigits(amPM: .omitted)))
-                                    .font(DS.Font.micro)
-                                    .foregroundStyle(DS.Color.secondary)
+                                HistoryChartAxis.hourLabel(date)
                             }
                         }
                     }
@@ -273,13 +349,16 @@ private struct HistoryDayHourChart: View {
                         }
                     }
                 }
+                .chartXSelection(value: $selectedSpotHour)
+                .historyChartPlotStyle()
                 .frame(height: 96)
+                .zIndex(1)
                 .accessibilityLabel("Linjediagram över spotpris per timme, i öre per kilowattimme")
             }
         }
         .padding(DS.Spacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassCard()
+        .spriceCard(tone: .history)
     }
 
     private var hourDomain: ClosedRange<Date> {
@@ -293,6 +372,12 @@ private struct HistoryDayHourChart: View {
             return DS.Color.danger
         }
         return DS.Color.info
+    }
+
+    private func nearestHour(to date: Date, in hours: [HistoryHourCost]) -> HistoryHourCost? {
+        hours.min { lhs, rhs in
+            abs(lhs.start.timeIntervalSince(date)) < abs(rhs.start.timeIntervalSince(date))
+        }
     }
 }
 
@@ -339,7 +424,7 @@ private struct HistoryDayExpensiveHours: View {
         }
         .padding(DS.Spacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassCard()
+        .spriceCard(tone: .history)
     }
 
     private func accessibilityLabel(for hour: HistoryHourCost) -> String {
@@ -415,7 +500,7 @@ private struct HistoryDayCostSplitView: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             if split.usedCurrentTariffs {
-                Text("Äldre rader saknade uppdelning. Det här är räknat med dina nuvarande tariffer.")
+                Text("Äldre rader saknade uppdelning. Det här är räknat med de priser och avgifter du har i dag.")
                     .font(DS.Font.micro)
                     .foregroundStyle(DS.Color.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -423,6 +508,6 @@ private struct HistoryDayCostSplitView: View {
         }
         .padding(DS.Spacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassCard()
+        .spriceCard(tone: .history)
     }
 }

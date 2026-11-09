@@ -121,8 +121,15 @@ struct VaggerydProvider: ElectricityProvider, QuarterlyConsumptionProvider {
 
             return ConsumptionData(
                 totalKWh: totalKWh,
-                values: apiResponse.consumptionValues.map { value in
-                    ConsumptionValue(
+                values: apiResponse.consumptionValues.compactMap { value in
+                    guard let nextDay = calendar.date(byAdding: .day, value: 1, to: value.date) else {
+                        return nil
+                    }
+                    guard calendar.component(.year, from: nextDay) == year,
+                          calendar.component(.month, from: nextDay) == month else {
+                        return nil
+                    }
+                    return ConsumptionValue(
                         date: value.date,
                         kWh: value.consumption,
                         price: value.price ?? 0

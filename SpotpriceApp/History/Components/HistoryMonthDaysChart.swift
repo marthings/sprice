@@ -31,12 +31,12 @@ struct HistoryMonthDaysChart: View {
         }
         .padding(DS.Spacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassCard()
+        .spriceCard(tone: .history)
     }
 
     private var introCopy: String {
         if isCurrentMonth {
-            return "Så här har den pågående månaden kostat hittills. Tryck på en dag för att se timmarna. Hela månadens prognos finns under Kostnad."
+            return "Så här har den pågående månaden kostat hittills. Tryck på en dag för att se timmarna."
         }
         return "Tryck på en dag för att se hur kostnaden fördelades över timmarna."
     }
@@ -64,17 +64,28 @@ struct HistoryMonthDaysChart: View {
                 .cornerRadius(3)
                 .opacity(barOpacity(for: day))
             }
+
+            if let selectedDay {
+                RuleMark(x: .value("Vald dag", selectedDay.date, unit: .day))
+                    .foregroundStyle(DS.Color.secondary.opacity(0.4))
+                    .lineStyle(StrokeStyle(lineWidth: 1))
+                    .annotation(position: .top, spacing: DS.Spacing.xs, overflowResolution: ChartCalloutOverflow.resolution) {
+                        ChartValueCallout(
+                            title: AppFormatters.shortDayAndMonth(selectedDay.date),
+                            value: selectedDay.costKr.map { "\(AppFormatters.wholeNumber($0)) kr" } ?? "–"
+                        )
+                    }
+            }
         }
         .chartXAxis {
             AxisMarks(values: .stride(by: .day, count: xAxisStride)) { value in
                 AxisGridLine()
                     .foregroundStyle(.tertiary)
                 AxisTick()
+                    .foregroundStyle(.tertiary)
                 if let date = value.as(Date.self) {
                     AxisValueLabel {
-                        Text(date, format: .dateTime.day())
-                            .font(DS.Font.micro)
-                            .foregroundStyle(DS.Color.secondary)
+                        HistoryChartAxis.dayLabel(date)
                     }
                 }
             }
@@ -93,7 +104,9 @@ struct HistoryMonthDaysChart: View {
                 }
             }
         }
+        .historyChartPlotStyle()
         .frame(height: 180)
+        .zIndex(1)
         .overlay {
             GeometryReader { geometry in
                 Rectangle()
@@ -129,22 +142,6 @@ struct HistoryMonthDaysChart: View {
                 }
             }
         }
-
-        if let selectedDay {
-            Text(detailCopy(for: selectedDay))
-                .font(DS.Font.callout)
-                .foregroundStyle(.primary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Button("Öppna \(AppFormatters.weekdayDayMonth(selectedDay.date))") {
-                open(selectedDay)
-            }
-            .font(DS.Font.callout)
-        }
-
-        Text("Tryck på en dag")
-            .font(DS.Font.micro)
-            .foregroundStyle(DS.Color.secondary)
     }
 
     private var mostExpensiveDay: MonthDayCost? {
@@ -158,12 +155,7 @@ struct HistoryMonthDaysChart: View {
     }
 
     private var xAxisStride: Int {
-        switch days.count {
-        case ...7: return 1
-        case ...14: return 2
-        case ...21: return 3
-        default: return 5
-        }
+        HistoryChartAxis.monthDayStride(dayCount: days.count)
     }
 
     private func nearestDay(at location: CGPoint, chartWidth: CGFloat) -> MonthDayCost? {
@@ -203,25 +195,5 @@ struct HistoryMonthDaysChart: View {
             return "\(heading), \(AppFormatters.wholeNumber(cost)) kronor"
         }
         return "\(heading), ingen kostnad sparad"
-    }
-
-    private func detailCopy(for day: MonthDayCost) -> String {
-        let heading = AppFormatters.weekdayDayMonth(day.date)
-        if let cost = day.costKr {
-            let kWhText: String
-            if let kWh = day.kWh {
-                kWhText = ", \(AppFormatters.kWh(kWh, fractionLength: 0...1))"
-            } else {
-                kWhText = ""
-            }
-            if day.isToday {
-                return "Idag så långt: \(AppFormatters.wholeNumber(cost)) kr\(kWhText). Dagen är inte slut."
-            }
-            return "\(heading): \(AppFormatters.wholeNumber(cost)) kr\(kWhText)"
-        }
-        if day.isToday {
-            return "Idag så långt finns ingen förbrukning sparad ännu."
-        }
-        return "\(heading): ingen förbrukning sparad för den här dagen."
     }
 }

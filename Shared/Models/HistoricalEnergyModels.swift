@@ -5,6 +5,7 @@
 //  SwiftData models and value types for local electricity history.
 //
 
+import CryptoKit
 import Foundation
 import SwiftData
 
@@ -81,6 +82,15 @@ nonisolated struct HistoricalCostProfileSnapshot: Codable, Equatable, Sendable {
         self.tariffValidUntil = profile.tariffValidUntil
         self.capturedAt = capturedAt
     }
+
+    nonisolated static func encodedData(_ snapshot: HistoricalCostProfileSnapshot) -> Data? {
+        try? JSONEncoder().encode(snapshot)
+    }
+
+    nonisolated static func hash(of data: Data) -> String {
+        let digest = SHA256.hash(data: data)
+        return digest.map { String(format: "%02x", $0) }.joined()
+    }
 }
 
 // MARK: - Historical Energy Record
@@ -110,6 +120,7 @@ final class HistoricalEnergyRecord {
 
     @Attribute(.externalStorage)
     var costProfileSnapshotData: Data?
+    var snapshotHash: String?
 
     var sourceRawValue: String
     var confidenceRawValue: String
@@ -133,6 +144,7 @@ final class HistoricalEnergyRecord {
         vatCostSEK: Double?,
         totalCostSEK: Double?,
         costProfileSnapshotData: Data?,
+        snapshotHash: String? = nil,
         source: HistoricalEnergySource,
         confidence: HistoricalEnergyConfidence,
         createdAt: Date = Date(),
@@ -154,6 +166,7 @@ final class HistoricalEnergyRecord {
         self.vatCostSEK = vatCostSEK
         self.totalCostSEK = totalCostSEK
         self.costProfileSnapshotData = costProfileSnapshotData
+        self.snapshotHash = snapshotHash
         self.sourceRawValue = source.rawValue
         self.confidenceRawValue = confidence.rawValue
         self.createdAt = createdAt
@@ -168,7 +181,12 @@ final class HistoricalEnergyRecord {
         HistoricalEnergyConfidence(rawValue: confidenceRawValue) ?? .priceOnly
     }
 
-    func update(from draft: HistoricalEnergyRecordDraft, snapshotData: Data? = nil, updatedAt: Date = Date()) {
+    func update(
+        from draft: HistoricalEnergyRecordDraft,
+        snapshotData: Data? = nil,
+        snapshotHash: String? = nil,
+        updatedAt: Date = Date()
+    ) {
         intervalStart = draft.intervalStart
         intervalEnd = draft.intervalEnd
         dayKey = draft.dayKey
@@ -182,7 +200,12 @@ final class HistoricalEnergyRecord {
         taxCostSEK = draft.taxCostSEK
         vatCostSEK = draft.vatCostSEK
         totalCostSEK = draft.totalCostSEK
-        costProfileSnapshotData = snapshotData ?? costProfileSnapshotData
+        if let snapshotHash {
+            self.snapshotHash = snapshotHash
+            costProfileSnapshotData = nil
+        } else if let snapshotData {
+            costProfileSnapshotData = snapshotData
+        }
         sourceRawValue = draft.source.rawValue
         confidenceRawValue = draft.confidence.rawValue
         self.updatedAt = updatedAt
@@ -201,6 +224,22 @@ final class HistoricalEnergyRecord {
             vatCostSEK: vatCostSEK,
             totalCostSEK: totalCostSEK
         )
+    }
+}
+
+@Model
+final class HistoricalCostProfileSnapshotRecord {
+    #Unique<HistoricalCostProfileSnapshotRecord>([\.snapshotHash])
+    #Index<HistoricalCostProfileSnapshotRecord>([\.snapshotHash])
+
+    var snapshotHash: String
+    var snapshotData: Data
+    var createdAt: Date
+
+    init(snapshotHash: String, snapshotData: Data, createdAt: Date = Date()) {
+        self.snapshotHash = snapshotHash
+        self.snapshotData = snapshotData
+        self.createdAt = createdAt
     }
 }
 
@@ -499,7 +538,11 @@ nonisolated struct HistoricalEnergyRecordDraft: Sendable {
         )
     }
 
-    func makeRecord(createdAt: Date = Date(), snapshotData: Data? = nil) -> HistoricalEnergyRecord {
+    func makeRecord(
+        createdAt: Date = Date(),
+        snapshotData: Data? = nil,
+        snapshotHash: String? = nil
+    ) -> HistoricalEnergyRecord {
         HistoricalEnergyRecord(
             deduplicationKey: deduplicationKey,
             intervalStart: intervalStart,
@@ -515,7 +558,8 @@ nonisolated struct HistoricalEnergyRecordDraft: Sendable {
             taxCostSEK: taxCostSEK,
             vatCostSEK: vatCostSEK,
             totalCostSEK: totalCostSEK,
-            costProfileSnapshotData: snapshotData,
+            costProfileSnapshotData: snapshotHash == nil ? snapshotData : nil,
+            snapshotHash: snapshotHash,
             source: source,
             confidence: confidence,
             createdAt: createdAt,
@@ -754,6 +798,100 @@ nonisolated enum EnergyHistoryKey: Sendable {
         if value < 100 { return "00\(value)" }
         if value < 1000 { return "0\(value)" }
         return String(value)
+    }
+}
+
+/// Aligns an in-progress month with the same days of the previous month.
+nonisolated enum SameDayMonthComparison: Sendable {
+    /// Inclusive day-of-month cap, or `nil` when both months are complete (full vs full).
+    nonisolated static func throughDay(
+        currentMonthStart: Date,
+        lastMeasuredInCurrent: Date?,
+        previousMonthStart: Date,
+        now: Date,
+        calendar: Calendar = .energyHistory
+    ) -> Int? {
+        guard calendar.isDate(currentMonthStart, equalTo: now, toGranularity: .month) else {
+            return nil
+        }
+        guard let lastMeasuredInCurrent,
+              calendar.isDate(lastMeasuredInCurrent, equalTo: currentMonthStart, toGranularity: .month) else {
+            return nil
+        }
+        let measuredDay = calendar.component(.day, from: lastMeasuredInCurrent)
+        let previousDays = calendar.range(of: .day, in: .month, for: previousMonthStart)?.count ?? measuredDay
+        return max(min(measuredDay, previousDays), 1)
+    }
+
+    nonisolated static func lastMeasuredDay(
+        monthStart: Date,
+        dailySummaries: [HistoricalEnergySummaryValue],
+        extraDates: [Date] = [],
+        calendar: Calendar = .energyHistory
+    ) -> Date? {
+        let fromDays = dailySummaries.compactMap { summary -> Date? in
+            guard calendar.isDate(summary.periodStart, equalTo: monthStart, toGranularity: .month),
+                  (summary.totalConsumptionKWh ?? 0) > 0 else {
+                return nil
+            }
+            return summary.periodStart
+        }
+        let fromExtra = extraDates.filter { calendar.isDate($0, equalTo: monthStart, toGranularity: .month) }
+        return (fromDays + fromExtra).max()
+    }
+
+    nonisolated static func lastMeasuredDay(
+        fromIntervals intervals: [HistoricalEnergyIntervalValue]
+    ) -> Date? {
+        intervals.compactMap { interval -> Date? in
+            guard (interval.consumptionKWh ?? 0) > 0 else { return nil }
+            return interval.intervalStart
+        }.max()
+    }
+
+    nonisolated static func date(_ date: Date, isOnOrBeforeDay throughDay: Int, calendar: Calendar) -> Bool {
+        calendar.component(.day, from: date) <= throughDay
+    }
+
+    nonisolated static func swedishMonthName(_ date: Date) -> String {
+        date.formatted(Date.FormatStyle(locale: Locale(identifier: "sv_SE"), calendar: .energyHistory).month(.wide))
+    }
+
+    nonisolated static func rangeLabel(throughDay: Int, monthStart: Date) -> String {
+        "1–\(throughDay) \(swedishMonthName(monthStart))"
+    }
+
+    /// "oktober" when the dates cover that month, otherwise "1–9 oktober".
+    nonisolated static func previousPeriodLabel(from dates: [Date], calendar: Calendar = .energyHistory) -> String? {
+        guard let first = dates.min() else { return nil }
+        let monthStart = calendar.dateInterval(of: .month, for: first)?.start ?? first
+        let maxDay = dates.map { calendar.component(.day, from: $0) }.max() ?? 1
+        let daysInMonth = calendar.range(of: .day, in: .month, for: monthStart)?.count ?? maxDay
+        if maxDay < daysInMonth {
+            return rangeLabel(throughDay: maxDay, monthStart: monthStart)
+        }
+        return swedishMonthName(monthStart)
+    }
+
+    nonisolated static func restrictingPreviousIntervals(
+        _ previous: [HistoricalEnergyIntervalValue],
+        lastMeasuredInCurrent: Date?,
+        currentMonthStart: Date,
+        now: Date,
+        calendar: Calendar = .energyHistory
+    ) -> [HistoricalEnergyIntervalValue] {
+        guard let earliest = previous.map(\.intervalStart).min() else { return previous }
+        let previousMonthStart = calendar.dateInterval(of: .month, for: earliest)?.start ?? earliest
+        guard let throughDay = throughDay(
+            currentMonthStart: currentMonthStart,
+            lastMeasuredInCurrent: lastMeasuredInCurrent,
+            previousMonthStart: previousMonthStart,
+            now: now,
+            calendar: calendar
+        ) else {
+            return previous
+        }
+        return previous.filter { date($0.intervalStart, isOnOrBeforeDay: throughDay, calendar: calendar) }
     }
 }
 
