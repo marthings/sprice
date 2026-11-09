@@ -59,7 +59,7 @@ struct SpotPriceEntry: TimelineEntry {
 
 struct SpotPriceProvider: TimelineProvider {
     let service = SpotPriceService()
-    let totalCostService = TotalCostService()
+    let totalCostService = TotalCostService.shared
     let monthlyCostEstimator = MonthlyCostEstimator()
 
     func placeholder(in context: Context) -> SpotPriceEntry {
@@ -73,77 +73,91 @@ struct SpotPriceProvider: TimelineProvider {
         }
 
         Task {
-            completion(await fetchCurrentPrice())
+            let entries = await loadEntries()
+            completion(entries.first ?? .error)
         }
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<SpotPriceEntry>) -> Void) {
         Task {
-            let entry = await fetchCurrentPrice()
-            let timeline = Timeline(
-                entries: [entry],
-                policy: .after(WidgetTimelineSchedule.nextQuarterHourUpdate(from: entry.date))
-            )
-            completion(timeline)
+            let now = Date()
+            let entries = await loadEntries(now: now)
+            completion(Timeline(
+                entries: entries.isEmpty ? [.error] : entries,
+                policy: .after(WidgetTimelineSchedule.nextDayAheadRefresh(from: now))
+            ))
         }
     }
 
-    private func fetchCurrentPrice() async -> SpotPriceEntry {
-        do {
-            let now = Date()
+    private func loadEntries(now: Date = Date()) async -> [SpotPriceEntry] {
+        let (cachedConsumption, costProfile) = await MainActor.run {
+            let settings = ConsumptionSettings.shared
+            return (settings.cachedConsumption, settings.costProfile)
+        }
+        let calendar = Calendar.energyHistory
+        guard let today = await service.cachedOrFetchedDayChart(for: now, area: costProfile.priceArea) else {
+            AppLog.widget.error("No day chart data for widget timeline")
+            return [.error]
+        }
 
-            let (cachedConsumption, costProfile) = await MainActor.run {
-                let settings = ConsumptionSettings.shared
-                return (settings.cachedConsumption, settings.costProfile)
-            }
+        var tomorrow: DayChartData?
+        if let tomorrowDate = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now)) {
+            tomorrow = await service.cachedOrFetchedDayChart(for: tomorrowDate, area: costProfile.priceArea)
+        }
 
-            let items = try await service.fetchSpotPrices(for: now, area: costProfile.priceArea)
-            let dayData = try service.makeDayChartData(from: items, for: now)
-            let historySummary = WidgetHistorySummaryCache.summary(
-                monthKey: EnergyHistoryKey.monthKey(for: now),
-                priceArea: costProfile.priceArea
-            )
+        let historySummary = WidgetHistorySummaryCache.summary(
+            monthKey: EnergyHistoryKey.monthKey(for: now),
+            priceArea: costProfile.priceArea
+        )
+        let monthlyEstimate = monthlyCostEstimator.widgetMonthEstimate(
+            historySummary: historySummary,
+            cachedConsumption: cachedConsumption,
+            dayData: today,
+            profile: costProfile,
+            now: now
+        )
+        let remaining = WidgetTimelineSchedule.remainingBuckets(today: today, tomorrow: tomorrow, now: now)
+        let slots = remaining.isEmpty
+            ? [(date: now, day: today)]
+            : remaining.map { (date: $0.date, day: $0.day) }
 
-            let monthlyEstimate = monthlyCostEstimator.widgetMonthEstimate(
-                historySummary: historySummary,
-                cachedConsumption: cachedConsumption,
-                dayData: dayData,
+        return slots.compactMap { item in
+            entry(
+                at: item.date,
+                day: item.day,
                 profile: costProfile,
-                now: now
-            )
-
-            let dayCosts = totalCostService.dayTotalCostsPerKWh(from: dayData, profile: costProfile)
-
-            guard let currentBucketIndex = dayData.currentBucketIndex(at: now),
-                  dayCosts.indices.contains(currentBucketIndex) else {
-                AppLog.widget.error("No valid bucket found in dayData with \(dayData.buckets.count) buckets")
-                return .error
-            }
-
-            let currentBucket = dayData.buckets[currentBucketIndex]
-            let currentTotalCost = dayCosts[currentBucketIndex]
-            let retailContractLabel = costProfile.isSpotFollowingRetailContract
-                ? nil
-                : costProfile.retailContractDisplayName
-
-            AppLog.widget.info("Widget loaded successfully with price: \(Int(currentBucket.orePerKWh.rounded())) öre/kWh")
-
-            return SpotPriceEntry(
-                date: now,
-                currentPriceOre: Int(currentBucket.orePerKWh.rounded()),
-                currentTotalCostPerKWh: currentTotalCost,
-                priceCategory: currentBucket.category,
-                dayCosts: dayCosts,
-                currentBucketIndex: currentBucketIndex,
-                monthlyKWh: monthlyEstimate.kWh,
-                monthlyCostKr: monthlyEstimate.totalKr,
-                retailContractLabel: retailContractLabel,
+                monthlyEstimate: monthlyEstimate,
                 historySummary: historySummary
             )
-        } catch {
-            AppLog.widget.error("Error fetching price: \(error.localizedDescription, privacy: .public)")
-            return .error
         }
+    }
+
+    private func entry(
+        at date: Date,
+        day: DayChartData,
+        profile: CostProfile,
+        monthlyEstimate: MonthlyCostEstimate,
+        historySummary: WidgetHistorySummary?
+    ) -> SpotPriceEntry? {
+        let dayCosts = totalCostService.dayTotalCostsPerKWh(from: day, profile: profile)
+        guard let currentBucketIndex = day.currentBucketIndex(at: date),
+              dayCosts.indices.contains(currentBucketIndex) else {
+            return nil
+        }
+
+        let currentBucket = day.buckets[currentBucketIndex]
+        return SpotPriceEntry(
+            date: date,
+            currentPriceOre: Int(currentBucket.orePerKWh.rounded()),
+            currentTotalCostPerKWh: dayCosts[currentBucketIndex],
+            priceCategory: currentBucket.category,
+            dayCosts: dayCosts,
+            currentBucketIndex: currentBucketIndex,
+            monthlyKWh: monthlyEstimate.kWh,
+            monthlyCostKr: monthlyEstimate.totalKr,
+            retailContractLabel: profile.isSpotFollowingRetailContract ? nil : profile.retailContractDisplayName,
+            historySummary: historySummary
+        )
     }
 }
 
@@ -333,7 +347,7 @@ private struct SpotpriceWidgetErrorView: View {
 // MARK: - Widget Configuration
 
 struct SpotpriceWidget: Widget {
-    let kind: String = "SpotpriceWidget"
+    let kind: String = WidgetKind.macOSMenuBar
 
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: SpotPriceProvider()) { entry in

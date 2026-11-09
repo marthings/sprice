@@ -16,9 +16,13 @@ struct CostTabView: View {
             VStack(alignment: .leading, spacing: DS.Spacing.xl) {
                 CurrentCostHero(
                     payload: payload,
-                    trendPrices: state.trendPrices,
                     monthlyConsumption: monthlyConsumption,
                     preciseMonthlyCost: preciseMonthlyCost
+                )
+                MonthDailyCostSection(
+                    priceArea: ConsumptionSettings.shared.costProfile.priceArea,
+                    profile: ConsumptionSettings.shared.costProfile,
+                    hasProvider: !ConsumptionSettings.shared.selectedProviderId.isEmpty
                 )
                 CostExamplesSection(payload: payload, profile: ConsumptionSettings.shared.costProfile)
             }
@@ -29,11 +33,10 @@ struct CostTabView: View {
 
 private struct CurrentCostHero: View {
     let payload: SpotPriceViewModel.CurrentAndDay
-    let trendPrices: (current: Double, next: Double)?
     let monthlyConsumption: ConsumptionData?
     let preciseMonthlyCost: PreciseMonthlyCost?
 
-    private let totalCostService = TotalCostService()
+    private let totalCostService = TotalCostService.shared
     private let monthlyCostEstimator = MonthlyCostEstimator()
 
     var body: some View {
@@ -45,66 +48,49 @@ private struct CurrentCostHero: View {
         let forecast = monthlyForecast(spotPrice: spotPrice, profile: profile)
 
         VStack(alignment: .leading, spacing: DS.Spacing.lg) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                    PriceLevelBadge(category: category)
-                    HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xs) {
-                        Text(totalPrice, format: .number.precision(.fractionLength(2)))
-                            .font(DS.Font.bold(64).monospacedDigit())
-                            .foregroundStyle(DS.Color.forCategory(category))
-                        Text("kr/kWh")
-                            .font(DS.Font.callout)
-                            .fontWeight(.bold)
+            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                PriceLevelBadge(category: category)
+                HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xs) {
+                    Text(totalPrice, format: .number.precision(.fractionLength(2)))
+                        .font(DS.Font.bold(64).monospacedDigit())
+                        .foregroundStyle(DS.Color.forCategory(category))
+                    Text("kr/kWh")
+                        .font(DS.Font.callout)
+                        .fontWeight(.bold)
+                        .foregroundStyle(DS.Color.secondary)
+                }
+            }
+
+            if let forecast {
+                VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
+                    Text("Prognos")
+                        .font(DS.Font.callout)
+                        .foregroundStyle(DS.Color.secondary)
+                    HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
+                        Text(AppFormatters.wholeNumber(forecast))
+                            .font(DS.Font.title.monospacedDigit())
+                        Text("kr/mån")
+                            .font(DS.Font.micro)
                             .foregroundStyle(DS.Color.secondary)
                     }
                 }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Prognos för månaden")
+                .accessibilityValue("\(AppFormatters.wholeNumber(forecast)) kr/mån")
             }
 
-            HStack(spacing: DS.Spacing.lg) {
-                metricInline(title: "Spotpris", value: payload.currentDisplay, unit: "öre")
-                Spacer()
-                if let trendPrices {
-                    HStack(spacing: DS.Spacing.xs) {
-                        TrendIndicator(current: trendPrices.current, next: trendPrices.next)
-                        metricInline(
-                            title: "Nästa kvart",
-                            value: AppFormatters.oreValue(trendPrices.next),
-                            unit: "öre"
-                        )
-                    }
-                }
-                Spacer()
-
-                if let forecast {
-                    metricInline(
-                        title: "Prognos",
-                        value: AppFormatters.wholeNumber(forecast),
-                        unit: "kr/mån"
-                    )
-                }
-                Spacer(minLength: 0)
-            }
+            KilowattHourBreakdownView(
+                breakdown: KilowattHourBreakdown.make(
+                    from: totalCostService.calculateTotalCost(
+                        kWh: 1,
+                        spotPriceOre: spotPrice,
+                        profile: profile,
+                        hoursInPeriod: 1
+                    ),
+                    profile: profile
+                )
+            )
         }
-   
-    }
-
-    private func metricInline(title: String, value: String, unit: String) -> some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
-            Text(title)
-                .font(DS.Font.callout)
-                .foregroundStyle(DS.Color.secondary)
-            HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
-                Text(value)
-                    .font(DS.Font.title.monospacedDigit())
-                Text(unit)
-                    .font(DS.Font.micro)
-                    .foregroundStyle(DS.Color.secondary)
-            }
-        }
-    }
-
-    private func formattedMetric(_ value: Double) -> String {
-        value.formatted(.number.precision(.fractionLength(0...2)))
     }
 
     private func monthlyForecast(spotPrice: Double, profile: CostProfile) -> Double? {

@@ -317,12 +317,13 @@ struct TibberProvider: ElectricityProvider, PriceInfoProvider {
 
         // Get enough days to cover the target month
         let daysInMonth = calendar.range(of: .day, in: .month, for: targetDate)?.count ?? 31
+        let last = min(max(daysBack + daysInMonth, 60), 800)
 
         let query = """
         {
             viewer {
                 home(id: "\(homeId)") {
-                    consumption(resolution: DAILY, last: \(max(daysBack + daysInMonth, 60))) {
+                    consumption(resolution: DAILY, last: \(last)) {
                         nodes {
                             from
                             to
@@ -362,12 +363,15 @@ struct TibberProvider: ElectricityProvider, PriceInfoProvider {
 
         // Add buffer for the range
         let hoursInRange = calendar.dateComponents([.hour], from: startDate, to: endDate).hour ?? 24
+        // Tibber `last` counts backwards from now. Cap so old months skip hourly
+        // and the backfill can fall back to daily totals instead of pulling years of hours.
+        let last = min(max(hoursBack + hoursInRange, 168), 24 * 62)
 
         let query = """
         {
             viewer {
                 home(id: "\(homeId)") {
-                    consumption(resolution: HOURLY, last: \(max(hoursBack + hoursInRange, 168))) {
+                    consumption(resolution: HOURLY, last: \(last)) {
                         nodes {
                             from
                             to

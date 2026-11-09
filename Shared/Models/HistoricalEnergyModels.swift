@@ -10,14 +10,14 @@ import SwiftData
 
 // MARK: - Historical Energy Constants
 
-enum EnergyHistoryConstants {
+nonisolated enum EnergyHistoryConstants {
     static let appGroupIdentifier = "group.mb.Spotprice"
     static let storeName = "EnergyHistory"
 }
 
 // MARK: - Historical Energy Source
 
-enum HistoricalEnergySource: String, Codable, CaseIterable, Sendable {
+nonisolated enum HistoricalEnergySource: String, Codable, CaseIterable, Sendable {
     case spotPrice
     case estimatedCost
     case measuredConsumption
@@ -27,7 +27,7 @@ enum HistoricalEnergySource: String, Codable, CaseIterable, Sendable {
 
 // MARK: - Historical Energy Confidence
 
-enum HistoricalEnergyConfidence: String, Codable, CaseIterable, Equatable, Sendable {
+nonisolated enum HistoricalEnergyConfidence: String, Codable, CaseIterable, Equatable, Sendable {
     case priceOnly
     case estimated
     case measured
@@ -37,7 +37,7 @@ enum HistoricalEnergyConfidence: String, Codable, CaseIterable, Equatable, Senda
 
 // MARK: - Historical Cost Profile Snapshot
 
-struct HistoricalCostProfileSnapshot: Codable, Equatable, Sendable {
+nonisolated struct HistoricalCostProfileSnapshot: Codable, Equatable, Sendable {
     let priceArea: String
     let retailContractType: String
     let retailerMarkupOrePerKWh: Double
@@ -87,6 +87,9 @@ struct HistoricalCostProfileSnapshot: Codable, Equatable, Sendable {
 
 @Model
 final class HistoricalEnergyRecord {
+    #Unique<HistoricalEnergyRecord>([\.deduplicationKey])
+    #Index<HistoricalEnergyRecord>([\.deduplicationKey], [\.dayKey, \.priceArea], [\.monthKey, \.priceArea], [\.intervalStart])
+
     var id: UUID
     var deduplicationKey: String
     var intervalStart: Date
@@ -165,7 +168,7 @@ final class HistoricalEnergyRecord {
         HistoricalEnergyConfidence(rawValue: confidenceRawValue) ?? .priceOnly
     }
 
-    func update(from draft: HistoricalEnergyRecordDraft, updatedAt: Date = Date()) {
+    func update(from draft: HistoricalEnergyRecordDraft, snapshotData: Data? = nil, updatedAt: Date = Date()) {
         intervalStart = draft.intervalStart
         intervalEnd = draft.intervalEnd
         dayKey = draft.dayKey
@@ -179,17 +182,48 @@ final class HistoricalEnergyRecord {
         taxCostSEK = draft.taxCostSEK
         vatCostSEK = draft.vatCostSEK
         totalCostSEK = draft.totalCostSEK
-        costProfileSnapshotData = draft.costProfileSnapshotData
+        costProfileSnapshotData = snapshotData ?? costProfileSnapshotData
         sourceRawValue = draft.source.rawValue
         confidenceRawValue = draft.confidence.rawValue
         self.updatedAt = updatedAt
     }
+
+    func intervalValue() -> HistoricalEnergyIntervalValue {
+        HistoricalEnergyIntervalValue(
+            id: id,
+            intervalStart: intervalStart,
+            intervalEnd: intervalEnd,
+            spotPriceOrePerKWh: spotPriceOrePerKWh,
+            consumptionKWh: consumptionKWh,
+            energyCostSEK: energyCostSEK,
+            gridCostSEK: gridCostSEK,
+            taxCostSEK: taxCostSEK,
+            vatCostSEK: vatCostSEK,
+            totalCostSEK: totalCostSEK
+        )
+    }
+}
+
+nonisolated struct HistoricalEnergyIntervalValue: Identifiable, Equatable, Sendable {
+    let id: UUID
+    let intervalStart: Date
+    let intervalEnd: Date
+    let spotPriceOrePerKWh: Double
+    let consumptionKWh: Double?
+    let energyCostSEK: Double?
+    let gridCostSEK: Double?
+    let taxCostSEK: Double?
+    let vatCostSEK: Double?
+    let totalCostSEK: Double?
 }
 
 // MARK: - Historical Energy Summary Models
 
 @Model
 final class HistoricalDailyEnergySummary {
+    #Unique<HistoricalDailyEnergySummary>([\.summaryKey])
+    #Index<HistoricalDailyEnergySummary>([\.summaryKey], [\.monthKey], [\.date], [\.monthKey, \.priceArea])
+
     var id: UUID
     var summaryKey: String
     var dayKey: String
@@ -294,6 +328,9 @@ final class HistoricalDailyEnergySummary {
 
 @Model
 final class HistoricalMonthlyEnergySummary {
+    #Unique<HistoricalMonthlyEnergySummary>([\.summaryKey])
+    #Index<HistoricalMonthlyEnergySummary>([\.summaryKey], [\.monthKey], [\.monthStart])
+
     var id: UUID
     var summaryKey: String
     var monthKey: String
@@ -400,7 +437,7 @@ final class HistoricalMonthlyEnergySummary {
 
 // MARK: - Drafts
 
-struct HistoricalEnergyRecordDraft: Sendable {
+nonisolated struct HistoricalEnergyRecordDraft: Sendable {
     let deduplicationKey: String
     let intervalStart: Date
     let intervalEnd: Date
@@ -415,7 +452,7 @@ struct HistoricalEnergyRecordDraft: Sendable {
     let taxCostSEK: Double?
     let vatCostSEK: Double?
     let totalCostSEK: Double?
-    let costProfileSnapshotData: Data?
+    let costProfileSnapshot: HistoricalCostProfileSnapshot?
     let source: HistoricalEnergySource
     let confidence: HistoricalEnergyConfidence
 
@@ -449,7 +486,7 @@ struct HistoricalEnergyRecordDraft: Sendable {
         self.taxCostSEK = taxCostSEK
         self.vatCostSEK = vatCostSEK
         self.totalCostSEK = totalCostSEK
-        self.costProfileSnapshotData = costProfileSnapshot.flatMap { try? JSONEncoder().encode($0) }
+        self.costProfileSnapshot = costProfileSnapshot
         self.source = source
         self.confidence = confidence
         self.deduplicationKey = EnergyHistoryKey.recordKey(
@@ -462,7 +499,7 @@ struct HistoricalEnergyRecordDraft: Sendable {
         )
     }
 
-    func makeRecord(createdAt: Date = Date()) -> HistoricalEnergyRecord {
+    func makeRecord(createdAt: Date = Date(), snapshotData: Data? = nil) -> HistoricalEnergyRecord {
         HistoricalEnergyRecord(
             deduplicationKey: deduplicationKey,
             intervalStart: intervalStart,
@@ -478,7 +515,7 @@ struct HistoricalEnergyRecordDraft: Sendable {
             taxCostSEK: taxCostSEK,
             vatCostSEK: vatCostSEK,
             totalCostSEK: totalCostSEK,
-            costProfileSnapshotData: costProfileSnapshotData,
+            costProfileSnapshotData: snapshotData,
             source: source,
             confidence: confidence,
             createdAt: createdAt,
@@ -489,12 +526,12 @@ struct HistoricalEnergyRecordDraft: Sendable {
 
 // MARK: - Query Values
 
-struct HistoricalEnergyDateRange: Sendable {
+nonisolated struct HistoricalEnergyDateRange: Sendable {
     let start: Date
     let end: Date
 }
 
-struct HistoricalEnergySummaryValue: Equatable, Identifiable, Sendable {
+nonisolated struct HistoricalEnergySummaryValue: Equatable, Identifiable, Sendable {
     let id: UUID
     let periodKey: String
     let periodStart: Date
@@ -538,7 +575,7 @@ struct HistoricalEnergySummaryValue: Equatable, Identifiable, Sendable {
     }
 }
 
-enum HistoricalEnergyDataCoverage: String, Codable, CaseIterable, Sendable {
+nonisolated enum HistoricalEnergyDataCoverage: String, Codable, CaseIterable, Sendable {
     case priceOnly
     case estimatedCost
     case partialConsumption
@@ -559,7 +596,7 @@ enum HistoricalEnergyDataCoverage: String, Codable, CaseIterable, Sendable {
 }
 
 extension HistoricalEnergySummaryValue {
-    func isPreferred(over other: HistoricalEnergySummaryValue) -> Bool {
+    nonisolated func isPreferred(over other: HistoricalEnergySummaryValue) -> Bool {
         let lhsRank = dataCoverage.qualityRank
         let rhsRank = other.dataCoverage.qualityRank
 
@@ -571,7 +608,7 @@ extension HistoricalEnergySummaryValue {
 }
 
 extension Sequence where Element == HistoricalEnergySummaryValue {
-    func bestSummaries<Key: Hashable>(
+    nonisolated func bestSummaries<Key: Hashable>(
         groupedBy keyPath: KeyPath<HistoricalEnergySummaryValue, Key>
     ) -> [HistoricalEnergySummaryValue] {
         Dictionary(grouping: self, by: { $0[keyPath: keyPath] })
@@ -581,7 +618,7 @@ extension Sequence where Element == HistoricalEnergySummaryValue {
     }
 }
 
-struct WidgetHistorySummary: Codable, Equatable, Sendable {
+nonisolated struct WidgetHistorySummary: Codable, Equatable, Sendable {
     let monthKey: String
     let priceArea: String
     let periodStart: Date
@@ -609,17 +646,19 @@ struct WidgetHistorySummary: Codable, Equatable, Sendable {
     }
 }
 
-enum WidgetHistorySummaryCache {
-    private static let defaults = UserDefaults(suiteName: EnergyHistoryConstants.appGroupIdentifier) ?? .standard
+nonisolated enum WidgetHistorySummaryCache: Sendable {
+    private static var defaults: UserDefaults {
+        UserDefaults(suiteName: EnergyHistoryConstants.appGroupIdentifier) ?? .standard
+    }
     private static let key = "widget_historySummaries"
 
-    static func summary(monthKey: String, priceArea: String) -> WidgetHistorySummary? {
+    nonisolated static func summary(monthKey: String, priceArea: String) -> WidgetHistorySummary? {
         summaries().first { summary in
             summary.monthKey == monthKey && summary.priceArea == priceArea
         }
     }
 
-    static func store(_ summary: WidgetHistorySummary) {
+    nonisolated static func store(_ summary: WidgetHistorySummary) {
         var cached = summaries().filter { existing in
             !(existing.monthKey == summary.monthKey && existing.priceArea == summary.priceArea)
         }
@@ -633,7 +672,7 @@ enum WidgetHistorySummaryCache {
         }
     }
 
-    static func replaceAll(_ summaries: [WidgetHistorySummary]) {
+    nonisolated static func replaceAll(_ summaries: [WidgetHistorySummary]) {
         let cached = Array(summaries.sorted { $0.periodStart > $1.periodStart }.prefix(12))
         if let data = try? JSONEncoder().encode(cached) {
             defaults.set(data, forKey: key)
@@ -643,12 +682,12 @@ enum WidgetHistorySummaryCache {
         defaults.synchronize()
     }
 
-    static func clear() {
+    nonisolated static func clear() {
         defaults.removeObject(forKey: key)
         defaults.synchronize()
     }
 
-    private static func summaries() -> [WidgetHistorySummary] {
+    nonisolated private static func summaries() -> [WidgetHistorySummary] {
         guard let data = defaults.data(forKey: key),
               let summaries = try? JSONDecoder().decode([WidgetHistorySummary].self, from: data) else {
             return []
@@ -659,8 +698,8 @@ enum WidgetHistorySummaryCache {
 
 // MARK: - Keys
 
-enum EnergyHistoryKey {
-    static func recordKey(
+nonisolated enum EnergyHistoryKey: Sendable {
+    nonisolated static func recordKey(
         intervalStart: Date,
         intervalEnd: Date,
         priceArea: String,
@@ -677,35 +716,47 @@ enum EnergyHistoryKey {
         ].joined(separator: "|")
     }
 
-    static func summaryKey(periodKey: String, priceArea: String, providerID: String?) -> String {
+    nonisolated static func summaryKey(periodKey: String, priceArea: String, providerID: String?) -> String {
         [periodKey, priceArea, providerID ?? "none"].joined(separator: "|")
     }
 
-    static func dayKey(for date: Date, calendar: Calendar = .energyHistory) -> String {
+    nonisolated static func dayKey(for date: Date, calendar: Calendar = .energyHistory) -> String {
         let components = calendar.dateComponents([.year, .month, .day], from: date)
-        return String(format: "%04d-%02d-%02d", components.year ?? 0, components.month ?? 0, components.day ?? 0)
+        return "\(paddedYear(components.year ?? 0))-\(paddedTwo(components.month ?? 0))-\(paddedTwo(components.day ?? 0))"
     }
 
-    static func monthKey(for date: Date, calendar: Calendar = .energyHistory) -> String {
+    nonisolated static func monthKey(for date: Date, calendar: Calendar = .energyHistory) -> String {
         let components = calendar.dateComponents([.year, .month], from: date)
-        return String(format: "%04d-%02d", components.year ?? 0, components.month ?? 0)
+        return "\(paddedYear(components.year ?? 0))-\(paddedTwo(components.month ?? 0))"
     }
 
-    private static func instantKey(for date: Date, calendar: Calendar) -> String {
+    nonisolated static func preferredMonthKey(
+        from months: [HistoricalEnergySummaryValue],
+        now: Date = Date(),
+        calendar: Calendar = .energyHistory
+    ) -> String? {
+        let currentKey = monthKey(for: now, calendar: calendar)
+        return months.first { $0.periodKey != currentKey }?.periodKey ?? months.first?.periodKey
+    }
+
+    nonisolated private static func instantKey(for date: Date, calendar: Calendar) -> String {
         let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
-        return String(
-            format: "%04d-%02d-%02dT%02d:%02d",
-            components.year ?? 0,
-            components.month ?? 0,
-            components.day ?? 0,
-            components.hour ?? 0,
-            components.minute ?? 0
-        )
+        return "\(paddedYear(components.year ?? 0))-\(paddedTwo(components.month ?? 0))-\(paddedTwo(components.day ?? 0))T\(paddedTwo(components.hour ?? 0)):\(paddedTwo(components.minute ?? 0))"
+    }
+
+    nonisolated private static func paddedTwo(_ value: Int) -> String {
+        value < 10 ? "0\(value)" : String(value)
+    }
+
+    nonisolated private static func paddedYear(_ value: Int) -> String {
+        if value < 0 { return String(value) }
+        if value < 10 { return "000\(value)" }
+        if value < 100 { return "00\(value)" }
+        if value < 1000 { return "0\(value)" }
+        return String(value)
     }
 }
 
 extension Calendar {
-    static var energyHistory: Calendar {
-        AppFormatters.energyCalendar
-    }
+    nonisolated static let energyHistory = AppFormatters.energyCalendar
 }

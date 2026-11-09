@@ -102,6 +102,7 @@
 				CostProfile.swift,
 				GridTariffModels.swift,
 				HistoricalEnergyModels.swift,
+				HouseholdCostExamples.swift,
 				SpotPriceModels.swift,
 			);
 			target = 201EA1FC2FBCAC8C0036D7BF /* SpotpriceApp */;
@@ -229,6 +230,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				DesignSystem.swift,
+				KilowattHourBreakdownView.swift,
 			);
 			target = 201EA1FC2FBCAC8C0036D7BF /* SpotpriceApp */;
 		};

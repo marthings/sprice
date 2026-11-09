@@ -11,51 +11,59 @@ import CoreText
 // MARK: - Shared Formatters
 
 enum AppFormatters {
-    static let swedishLocale = Locale(identifier: "sv_SE")
-    static let swedishTimeZone = TimeZone(identifier: "Europe/Stockholm") ?? .current
-    static let posixLocale = Locale(identifier: "en_US_POSIX")
+    nonisolated static let swedishLocale = Locale(identifier: "sv_SE")
+    nonisolated static let swedishTimeZone = TimeZone(identifier: "Europe/Stockholm") ?? .current
+    nonisolated static let posixLocale = Locale(identifier: "en_US_POSIX")
 
-    static var energyCalendar: Calendar {
+    nonisolated static let energyCalendar: Calendar = {
         var calendar = Calendar(identifier: .gregorian)
         calendar.locale = swedishLocale
         calendar.timeZone = swedishTimeZone
         return calendar
-    }
+    }()
+
+    private static let swedishDate = Date.FormatStyle(
+        date: .omitted,
+        time: .omitted,
+        locale: swedishLocale,
+        calendar: energyCalendar,
+        timeZone: swedishTimeZone
+    )
 
     static func monthAndYear(_ date: Date) -> String {
-        string(from: date, dateFormat: "MMMM yyyy")
+        date.formatted(swedishDate.month(.wide).year())
     }
 
     static func monthName(_ date: Date) -> String {
-        string(from: date, dateFormat: "MMMM")
+        date.formatted(swedishDate.month(.wide))
     }
 
     static func shortDayAndMonth(_ date: Date) -> String {
-        string(from: date, dateFormat: "d MMM")
+        date.formatted(swedishDate.day().month(.abbreviated))
     }
 
     static func powerPeakLabel(_ date: Date) -> String {
-        string(from: date, dateFormat: "d MMM HH:mm")
+        date.formatted(swedishDate.day().month(.abbreviated).hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
     }
 
     static func powerPeakHourLabel(_ date: Date) -> String {
-        string(from: date, localizedTemplate: "d MMM HH")
+        date.formatted(swedishDate.day().month(.abbreviated).hour(.defaultDigits(amPM: .omitted)))
     }
 
     static func widgetMonthLabel(_ date: Date) -> String {
-        string(from: date, dateFormat: "MMM")
+        date.formatted(swedishDate.month(.abbreviated))
     }
 
     static func clockTime(_ date: Date) -> String {
-        string(from: date, dateFormat: "HH:mm:ss")
+        date.formatted(swedishDate.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits).second(.twoDigits))
     }
 
     static func apiDate(_ date: Date) -> String {
-        string(from: date, dateFormat: "yyyy-MM-dd")
+        apiDateFormatter.string(from: date)
     }
 
     static func apiDateTime(_ date: Date) -> String {
-        string(from: date, dateFormat: "yyyy-MM-dd HH:mm:ss")
+        apiDateTimeFormatter.string(from: date)
     }
 
     static func historyMonthLabel(_ date: Date) -> String {
@@ -64,6 +72,10 @@ enum AppFormatters {
 
     static func historyDayLabel(_ date: Date) -> String {
         date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).locale(swedishLocale))
+    }
+
+    static func weekdayDayMonth(_ date: Date) -> String {
+        date.formatted(.dateTime.weekday(.wide).day().month(.abbreviated).locale(swedishLocale))
     }
 
     static func csvNumber(_ value: Double) -> String {
@@ -112,29 +124,37 @@ enum AppFormatters {
     }
 
     static func vaggerydDateDecoder() -> JSONDecoder {
+        vaggerydJSONDecoder
+    }
+
+    private static let apiDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.calendar = energyCalendar
+        formatter.locale = posixLocale
+        formatter.timeZone = swedishTimeZone
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
+
+    private static let apiDateTimeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.calendar = energyCalendar
+        formatter.locale = posixLocale
+        formatter.timeZone = swedishTimeZone
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        return formatter
+    }()
+
+    private static let vaggerydJSONDecoder: JSONDecoder = {
         let decoder = JSONDecoder()
         let formatter = DateFormatter()
+        formatter.calendar = energyCalendar
+        formatter.locale = posixLocale
         formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
         formatter.timeZone = swedishTimeZone
         decoder.dateDecodingStrategy = .formatted(formatter)
         return decoder
-    }
-
-    private static func string(from date: Date, dateFormat: String) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = swedishLocale
-        formatter.timeZone = swedishTimeZone
-        formatter.dateFormat = dateFormat
-        return formatter.string(from: date)
-    }
-
-    private static func string(from date: Date, localizedTemplate: String) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = swedishLocale
-        formatter.timeZone = swedishTimeZone
-        formatter.setLocalizedDateFormatFromTemplate(localizedTemplate)
-        return formatter.string(from: date)
-    }
+    }()
 }
 
 // MARK: - Design System
@@ -253,7 +273,7 @@ enum DS {
         static let full: CGFloat = 999
     }
 
-    // MARK: - Glass Effects (macOS 26+)
+    // MARK: - Glass Effects (iOS 26 / macOS 26)
 
     enum Glass {
         /// Standard corner radius for glass cards
@@ -771,35 +791,100 @@ struct PriceLevelBadge: View {
     }
 }
 
+// MARK: - Canvas background
+
+/// Calm field behind dashboard content. Replaces the old photo background so
+/// materials and text keep contrast in light and dark mode.
+struct AppCanvasBackground: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: colorScheme == .dark ? darkBase : lightBase,
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+
+            RadialGradient(
+                colors: colorScheme == .dark ? darkWash : lightWash,
+                center: .topLeading,
+                startRadius: 24,
+                endRadius: 520
+            )
+        }
+        .ignoresSafeArea()
+        .accessibilityHidden(true)
+    }
+
+    private var lightBase: [Color] {
+        [
+            Color(red: 0.89, green: 0.92, blue: 0.95),
+            Color(red: 0.94, green: 0.93, blue: 0.91)
+        ]
+    }
+
+    private var darkBase: [Color] {
+        [
+            Color(red: 0.10, green: 0.12, blue: 0.16),
+            Color(red: 0.07, green: 0.08, blue: 0.10)
+        ]
+    }
+
+    private var lightWash: [Color] {
+        [
+            Color(red: 0.80, green: 0.87, blue: 0.93).opacity(0.55),
+            .clear
+        ]
+    }
+
+    private var darkWash: [Color] {
+        [
+            Color(red: 0.18, green: 0.22, blue: 0.30).opacity(0.40),
+            .clear
+        ]
+    }
+}
+
 // MARK: - Glass Card Modifier
 
-/// A modifier that applies glass effect on macOS 26+ with ultraThinMaterial fallback
+/// Shared card surface: regular system glass over a material fill so body text
+/// keeps contrast against the canvas in both appearances.
 struct GlassCardModifier: ViewModifier {
     let cornerRadius: CGFloat
     let isInteractive: Bool
+
+    @Environment(\.colorScheme) private var colorScheme
 
     private var cardShape: RoundedRectangle {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
     }
 
+    private var contrastFill: Color {
+        colorScheme == .dark
+            ? Color.black.opacity(0.28)
+            : Color.white.opacity(0.52)
+    }
+
     func body(content: Content) -> some View {
-        if #available(macOS 26, *) {
-            if isInteractive {
-                content
-                    .glassEffect(.clear.interactive(), in: cardShape)
-            } else {
-                content
-                    .glassEffect(.clear, in: cardShape)
+        content
+            .background {
+                cardShape
+                    .fill(.regularMaterial)
+                    .overlay {
+                        cardShape.fill(contrastFill)
+                    }
             }
-        } else {
-            content
-                .background(.ultraThinMaterial, in: cardShape)
-        }
+            .clipShape(cardShape)
+            .glassEffect(isInteractive ? .regular.interactive() : .regular, in: cardShape)
+            .overlay {
+                cardShape.strokeBorder(Color.primary.opacity(colorScheme == .dark ? 0.16 : 0.10), lineWidth: 0.5)
+            }
     }
 }
 
 extension View {
-    /// Applies a glass card style with automatic fallback for older macOS versions
+    /// Applies the shared glass card style used by iOS, macOS and widgets.
     func glassCard(cornerRadius: CGFloat = DS.Glass.cardRadius, interactive: Bool = false) -> some View {
         modifier(GlassCardModifier(cornerRadius: cornerRadius, isInteractive: interactive))
     }

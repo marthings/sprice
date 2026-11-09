@@ -51,7 +51,7 @@ private struct SpotPriceBarChartHeader: View {
     let dayData: DayChartData
     let costProfile: CostProfile
 
-    private let totalCostService = TotalCostService()
+    private let totalCostService = TotalCostService.shared
     private let totalCostBounds: (min: Double, max: Double)?
 
     init(dayData: DayChartData, costProfile: CostProfile) {
@@ -59,7 +59,7 @@ private struct SpotPriceBarChartHeader: View {
         self.costProfile = costProfile
 
         if costProfile.isSpotFollowingRetailContract {
-            let service = TotalCostService()
+            let service = TotalCostService.shared
             let costs = dayData.buckets.map {
                 service.calculatePricePerKWh(spotPriceOre: $0.orePerKWh, profile: costProfile) * 100
             }

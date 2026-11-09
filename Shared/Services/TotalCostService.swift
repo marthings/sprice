@@ -8,51 +8,64 @@
 import Foundation
 
 final class TotalCostService: Sendable {
+    nonisolated static let shared = TotalCostService()
+
     private let gridTariffService: GridTariffService
     private let consumptionService: ConsumptionService
 
-    init(gridTariffService: GridTariffService = GridTariffService(),
+    nonisolated init(gridTariffService: GridTariffService = GridTariffService(),
          consumptionService: ConsumptionService = ConsumptionService()) {
         self.gridTariffService = gridTariffService
         self.consumptionService = consumptionService
     }
 
     /// Calculate total cost from the central cost profile.
-    /// Profile values are consumer-facing values including VAT, matching the existing cost model.
-    func calculateTotalCost(
+    /// Nord Pool spot is excluding VAT. Markup, grid, tax, certificates and monthly
+    /// fees in the profile are consumer-facing amounts including VAT. Contract
+    /// prices (fast/rörligt) are also stored including VAT.
+    nonisolated func calculateTotalCost(
         kWh: Double,
         spotPriceOre: Double,
         profile: CostProfile,
         hoursInPeriod: Double,
         powerPeakKW: Double = 0
     ) -> EnhancedCost {
-        let retailEnergyCostKr = (retailEnergyPriceOrePerKWh(spotPriceOre: spotPriceOre, profile: profile) / 100.0) * kWh
-        let gridEnergyCostKr = ((profile.gridTransferOrePerKWh ?? 0) / 100.0) * kWh
-        let fixedFeeCostKr = proratedMonthlyCost(profile.gridMonthlyFee ?? 0, hoursInPeriod: hoursInPeriod)
-        let powerTariffCostKr = calculateEffectTariffCost(
+        let retailEnergyExcludingVAT = retailEnergyExcludingVAT(
+            kWh: kWh,
+            spotPriceOre: spotPriceOre,
+            profile: profile
+        )
+        let gridEnergyIncludingVAT = ((profile.gridTransferOrePerKWh ?? 0) / 100.0) * kWh
+        let fixedFeeIncludingVAT = proratedMonthlyCost(profile.gridMonthlyFee ?? 0, hoursInPeriod: hoursInPeriod)
+        let powerTariffIncludingVAT = calculateEffectTariffCost(
             profile.effectTariff,
             powerPeakKW: powerPeakKW,
             hoursInPeriod: hoursInPeriod
         )
-        let energyTaxKr = (profile.energyTaxOrePerKWh / 100.0) * kWh
-        let certificateFeeKr = (profile.certificateFeeOrePerKWh / 100.0) * kWh
-        let providerSurchargeKr = retailMarkupCost(kWh: kWh, profile: profile)
-        let providerMonthlyFeeKr = proratedMonthlyCost(profile.retailerMonthlyFee, hoursInPeriod: hoursInPeriod)
+        let energyTaxIncludingVAT = (profile.energyTaxOrePerKWh / 100.0) * kWh
+        let certificateFeeIncludingVAT = (profile.certificateFeeOrePerKWh / 100.0) * kWh
+        let surchargeIncludingVAT = retailMarkupCost(kWh: kWh, profile: profile)
+        let monthlyFeeIncludingVAT = proratedMonthlyCost(profile.retailerMonthlyFee, hoursInPeriod: hoursInPeriod)
 
-        return EnhancedCost(
-            spotCostKr: retailEnergyCostKr,
-            gridEnergyCostKr: gridEnergyCostKr,
-            fixedFeeCostKr: fixedFeeCostKr,
-            powerTariffCostKr: powerTariffCostKr,
-            energyTaxKr: energyTaxKr,
-            certificateFeeKr: certificateFeeKr,
-            providerSurchargeKr: providerSurchargeKr,
-            providerMonthlyFeeKr: providerMonthlyFeeKr
+        let cost = EnhancedCost.assembling(
+            spotExcludingVAT: retailEnergyExcludingVAT,
+            gridEnergyIncludingVAT: gridEnergyIncludingVAT,
+            fixedFeeIncludingVAT: fixedFeeIncludingVAT,
+            powerTariffIncludingVAT: powerTariffIncludingVAT,
+            energyTaxIncludingVAT: energyTaxIncludingVAT,
+            certificateFeeIncludingVAT: certificateFeeIncludingVAT,
+            surchargeIncludingVAT: surchargeIncludingVAT,
+            monthlyFeeIncludingVAT: monthlyFeeIncludingVAT,
+            vatRate: profile.vatRate
         )
+#if DEBUG
+        _ = WorkedExampleGuard.isValid
+#endif
+        return cost
     }
 
-    /// Calculate total price per kWh from the central cost profile.
-    func calculatePricePerKWh(
+    /// Calculate total price per kWh from the central cost profile, including VAT.
+    nonisolated func calculatePricePerKWh(
         spotPriceOre: Double,
         profile: CostProfile
     ) -> Double {
@@ -110,28 +123,35 @@ final class TotalCostService: Sendable {
         ).totalKr  // kr/kWh
     }
 
-    private func proratedMonthlyCost(_ monthlyCostKr: Double, hoursInPeriod: Double) -> Double {
+    nonisolated private func proratedMonthlyCost(_ monthlyCostKr: Double, hoursInPeriod: Double) -> Double {
         let hoursInMonth = 730.0
         return (monthlyCostKr / hoursInMonth) * hoursInPeriod
     }
 
-    private func retailEnergyPriceOrePerKWh(spotPriceOre: Double, profile: CostProfile) -> Double {
+    nonisolated private func retailEnergyExcludingVAT(
+        kWh: Double,
+        spotPriceOre: Double,
+        profile: CostProfile
+    ) -> Double {
         switch profile.retailContractType {
         case .spotPriceMarkup:
-            return spotPriceOre
+            return (spotPriceOre / 100.0) * kWh
         case .variableMonthlyPrice, .fixedPrice:
-            return profile.contractPriceOrePerKWh ?? spotPriceOre
+            if let contractOre = profile.contractPriceOrePerKWh {
+                return ElectricityCostMath.excludingVAT((contractOre / 100.0) * kWh, vatRate: profile.vatRate)
+            }
+            return (spotPriceOre / 100.0) * kWh
         }
     }
 
-    private func retailMarkupCost(kWh: Double, profile: CostProfile) -> Double {
+    nonisolated private func retailMarkupCost(kWh: Double, profile: CostProfile) -> Double {
         guard profile.retailContractType == .spotPriceMarkup else {
             return 0
         }
         return (profile.retailerMarkupOrePerKWh / 100.0) * kWh
     }
 
-    private func calculateEffectTariffCost(
+    nonisolated private func calculateEffectTariffCost(
         _ effectTariff: EffectTariff?,
         powerPeakKW: Double,
         hoursInPeriod: Double
@@ -221,7 +241,7 @@ struct MonthlyCostEstimator: Sendable {
     private let calendar: Calendar
 
     init(
-        totalCostService: TotalCostService = TotalCostService(),
+        totalCostService: TotalCostService = .shared,
         calendar: Calendar = .energyHistory
     ) {
         self.totalCostService = totalCostService
@@ -329,6 +349,9 @@ enum CostBreakdownPresenter {
         if cost.powerTariffCostKr > 0 {
             otherComponents.append(("Effektavgift", cost.powerTariffCostKr))
         }
+        if cost.vatKr > 0 {
+            otherComponents.append(("Moms", cost.vatKr))
+        }
 
         otherComponents.sort { $0.value > $1.value }
 
@@ -352,3 +375,124 @@ enum CostBreakdownPresenter {
         return components
     }
 }
+
+// MARK: - kr/kWh breakdown
+
+enum KilowattHourLineKind: String, Sendable {
+    case retailEnergy
+    case markup
+    case gridTransfer
+    case energyTax
+    case certificates
+    case monthlyFees
+    case powerTariff
+    case vat
+}
+
+struct KilowattHourLine: Identifiable, Sendable {
+    let kind: KilowattHourLineKind
+    let title: String
+    let amountKrPerKWh: Double
+
+    var id: String { kind.rawValue }
+
+    var amountOrePerKWh: Double {
+        amountKrPerKWh * 100
+    }
+}
+
+struct KilowattHourBreakdown: Sendable {
+    let lines: [KilowattHourLine]
+    let totalKrPerKWh: Double
+    let includesGrid: Bool
+    let missingGridMessage: String?
+
+    static func make(from cost: EnhancedCost, profile: CostProfile) -> KilowattHourBreakdown {
+        var lines: [KilowattHourLine] = []
+        let retailTitle = profile.retailContractType == .spotPriceMarkup
+            ? "Spotpris"
+            : profile.retailContractDisplayName
+
+        appendLine(
+            &lines,
+            kind: .retailEnergy,
+            title: retailTitle,
+            amount: cost.spotCostKr
+        )
+
+        if profile.retailContractType == .spotPriceMarkup {
+            appendLine(
+                &lines,
+                kind: .markup,
+                title: "Påslag",
+                amount: cost.providerSurchargeKr
+            )
+        }
+
+        let includesGrid = profile.hasConfiguredGridCosts
+        if includesGrid {
+            appendLine(
+                &lines,
+                kind: .gridTransfer,
+                title: "Överföring",
+                amount: cost.gridEnergyCostKr
+            )
+        }
+
+        appendLine(&lines, kind: .energyTax, title: "Energiskatt", amount: cost.energyTaxKr)
+        appendLine(&lines, kind: .certificates, title: "Elcertifikat", amount: cost.certificateFeeKr)
+
+        let monthlyShare = cost.fixedFeeCostKr + cost.providerMonthlyFeeKr
+        appendLine(
+            &lines,
+            kind: .monthlyFees,
+            title: "Andel av månadsavgifter",
+            amount: monthlyShare
+        )
+        appendLine(&lines, kind: .powerTariff, title: "Effektavgift", amount: cost.powerTariffCostKr)
+        appendLine(&lines, kind: .vat, title: "Moms", amount: cost.vatKr)
+
+        let missingGridMessage = includesGrid
+            ? nil
+            : "Elnätsavgift ingår inte. Välj elnätsbolag under Inställningar."
+
+        return KilowattHourBreakdown(
+            lines: lines,
+            totalKrPerKWh: cost.totalKr,
+            includesGrid: includesGrid,
+            missingGridMessage: missingGridMessage
+        )
+    }
+
+    private static func appendLine(
+        _ lines: inout [KilowattHourLine],
+        kind: KilowattHourLineKind,
+        title: String,
+        amount: Double
+    ) {
+        guard amount > 0.0000001 else { return }
+        lines.append(KilowattHourLine(kind: kind, title: title, amountKrPerKWh: amount))
+    }
+}
+
+#if DEBUG
+nonisolated private enum WorkedExampleGuard {
+    static let isValid: Bool = {
+        let profile = ElectricityCostMath.workedExampleSE3Jonkoping20A()
+        let cost = EnhancedCost.assembling(
+            spotExcludingVAT: ElectricityCostMath.workedExampleSpotOre / 100.0,
+            gridEnergyIncludingVAT: (profile.gridTransferOrePerKWh ?? 0) / 100.0,
+            fixedFeeIncludingVAT: (profile.gridMonthlyFee ?? 0) / 730.0,
+            powerTariffIncludingVAT: 0,
+            energyTaxIncludingVAT: profile.energyTaxOrePerKWh / 100.0,
+            certificateFeeIncludingVAT: profile.certificateFeeOrePerKWh / 100.0,
+            surchargeIncludingVAT: profile.retailerMarkupOrePerKWh / 100.0,
+            monthlyFeeIncludingVAT: profile.retailerMonthlyFee / 730.0,
+            vatRate: profile.vatRate
+        )
+        let delta = abs(cost.totalKr - ElectricityCostMath.workedExampleExpectedTotalKr)
+        assert(delta < 1e-9, "VAT worked example drifted: got \(cost.totalKr)")
+        return delta < 1e-9
+    }()
+}
+#endif

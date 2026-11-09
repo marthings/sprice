@@ -2,9 +2,7 @@ import SwiftUI
 
 struct DashboardView: View {
     @State private var viewModel = SpotPriceViewModel()
-    @State private var isShowingSettings = false
     @State private var selectedSection = 0
-    @State private var selectedChartDate: Date?
 
     var body: some View {
         TabView(selection: $selectedSection) {
@@ -14,7 +12,6 @@ struct DashboardView: View {
                     settingsSummary: settingsSummary,
                     monthlyConsumption: viewModel.monthlyConsumption,
                     preciseMonthlyCost: viewModel.preciseMonthlyCost,
-                    isShowingSettings: $isShowingSettings,
                     onRetry: reload
                 )
             }
@@ -24,8 +21,6 @@ struct DashboardView: View {
                     state: viewModel.state,
                     settingsSummary: settingsSummary,
                     costProfile: settingsSummaryCostProfile,
-                    selectedChartDate: $selectedChartDate,
-                    isShowingSettings: $isShowingSettings,
                     onRetry: reload
                 )
             }
@@ -35,16 +30,16 @@ struct DashboardView: View {
                     settingsSummary: settingsSummary,
                     priceArea: settingsSummaryPriceArea,
                     costProfile: settingsSummaryCostProfile,
-                    isShowingSettings: $isShowingSettings,
                     liveMonthlyConsumption: viewModel.monthlyConsumption,
                     livePreciseCost: viewModel.preciseMonthlyCost
                 )
             }
+
+            Tab("Inställningar", systemImage: "gearshape", value: 3) {
+                AppSettingsView()
+            }
         }
         .toolbarBackgroundVisibility(.hidden, for: .tabBar)
-        .sheet(isPresented: $isShowingSettings) {
-            AppSettingsView()
-        }
     }
     
     // MARK: - Tab Views
@@ -54,14 +49,12 @@ struct DashboardView: View {
         let settingsSummary: String
         let monthlyConsumption: ConsumptionData?
         let preciseMonthlyCost: PreciseMonthlyCost?
-        @Binding var isShowingSettings: Bool
         let onRetry: () -> Void
         
         var body: some View {
             DashboardTabShell(
                 title: "Kostnad",
-                settingsSummary: settingsSummary,
-                isShowingSettings: $isShowingSettings
+                settingsSummary: settingsSummary
             ) {
                 CostTabView(
                     state: state,
@@ -77,20 +70,16 @@ struct DashboardView: View {
         let state: SpotPriceViewModel.State
         let settingsSummary: String
         let costProfile: CostProfile
-        @Binding var selectedChartDate: Date?
-        @Binding var isShowingSettings: Bool
         let onRetry: () -> Void
         
         var body: some View {
             DashboardTabShell(
                 title: "Priser",
-                settingsSummary: settingsSummary,
-                isShowingSettings: $isShowingSettings
+                settingsSummary: settingsSummary
             ) {
                 DailyPriceTabView(
                     state: state,
                     costProfile: costProfile,
-                    selectedChartDate: $selectedChartDate,
                     onRetry: onRetry
                 )
             }
@@ -101,7 +90,6 @@ struct DashboardView: View {
         let settingsSummary: String
         let priceArea: String
         let costProfile: CostProfile
-        @Binding var isShowingSettings: Bool
 
         // Live current-month data so Historik can show *exactly* the same headline numbers
         // (Kostnad + Förbrukning) as the Förbrukning tab for the open month.
@@ -111,8 +99,7 @@ struct DashboardView: View {
         var body: some View {
             DashboardTabShell(
                 title: "Historik",
-                settingsSummary: settingsSummary,
-                isShowingSettings: $isShowingSettings
+                settingsSummary: settingsSummary
             ) {
                 HistoryMonthView(
                     priceArea: priceArea,
@@ -127,16 +114,12 @@ struct DashboardView: View {
     private struct DashboardTabShell<TabContent: View>: View {
         let title: String
         let settingsSummary: String
-        @Binding var isShowingSettings: Bool
         @ViewBuilder let tabContent: () -> TabContent
 
         var body: some View {
             NavigationStack {
                 ZStack {
-                    Image("bg")
-                        .resizable()
-                        .scaledToFill()
-                        .ignoresSafeArea()
+                    AppCanvasBackground()
 
                     ScrollView {
                         VStack(alignment: .leading, spacing: DS.Spacing.xl) {
@@ -150,16 +133,6 @@ struct DashboardView: View {
                     .scrollContentBackground(.hidden)
                 }
                 .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
-                .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            isShowingSettings = true
-                        } label: {
-                            Image(systemName: "gearshape.fill")
-                        }
-                        .accessibilityLabel("Inställningar")
-                    }
-                }
             }
         }
     }

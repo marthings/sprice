@@ -4,7 +4,6 @@
 //
 
 import SwiftUI
-import WidgetKit
 
 struct SettingsGridSection: View {
     @Bindable var settings: ConsumptionSettings
@@ -87,7 +86,7 @@ struct SettingsGridSection: View {
                 } header: {
                     Text("Egna nätavgifter")
                 } footer: {
-                    Text("Ange egna värden om tariffdata saknas eller avviker från din faktura.")
+                    Text("Ange egna värden om tariffdata saknas eller avviker från din faktura. Beloppen anges som på fakturan, inklusive moms.")
                 }
 
                 if !settings.selectedDSOOrgNo.isEmpty,
@@ -173,7 +172,6 @@ struct SettingsGridSection: View {
                 )
                 .applyingInferredConfidence(configuredSource: .userEntered)
             settings.cachedTariff = nil
-            WidgetCenter.shared.reloadAllTimelines()
             return
         }
 
@@ -216,8 +214,6 @@ struct SettingsGridSection: View {
                 )
             }
         }
-
-        WidgetCenter.shared.reloadAllTimelines()
     }
 
     private func updateFuseSize(_ fuseSize: Int) async {
@@ -226,7 +222,6 @@ struct SettingsGridSection: View {
                 fuseSize: fuseSize,
                 confidence: settings.costProfile.confidence
             )
-            WidgetCenter.shared.reloadAllTimelines()
             return
         }
 

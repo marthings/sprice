@@ -1,8 +1,6 @@
 import SwiftUI
 
 struct AppSettingsView: View {
-    @Environment(\.dismiss) private var dismiss
-
     @State private var priceArea = "SE3"
     @State private var contractType: RetailContractType = .spotPriceMarkup
     @State private var retailerMarkupOrePerKWh = 0.0
@@ -32,13 +30,6 @@ struct AppSettingsView: View {
             }
             .navigationTitle("Inställningar")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Avbryt") {
-                        dismiss()
-                    }
-                }
-            }
             .onAppear(perform: loadSettings)
             .task {
                 await loadDSOOptions()
@@ -161,7 +152,7 @@ struct AppSettingsView: View {
             Text("Elnät")
                 .font(DS.Font.caption)
         } footer: {
-            Text("Elnätskostnader används i totalpriset tillsammans med spotpris och elhandel.")
+            Text("Elnätskostnader används i totalpriset tillsammans med spotpris, elhandel och moms. Beloppen anges som på fakturan, inklusive moms.")
                 .font(DS.Font.micro)
         }
     }
@@ -186,11 +177,11 @@ struct AppSettingsView: View {
     private var contractFooterText: String {
         switch contractType {
         case .spotPriceMarkup:
-            return "Totalpriset följer spotpriset plus påslag, skatter och elnätskostnader."
+            return "Totalpriset följer spotpriset plus påslag, skatter, elnät och moms. Påslag, skatt och elnät anges som på fakturan, inklusive moms. Spotpriset hämtas utan moms."
         case .variableMonthlyPrice:
-            return "Totalpriset använder ditt rörliga månadspris för elhandeln."
+            return "Totalpriset använder ditt rörliga månadspris för elhandeln, inklusive moms."
         case .fixedPrice:
-            return "Totalpriset använder ditt fasta avtalade pris för elhandeln."
+            return "Totalpriset använder ditt fasta avtalade pris för elhandeln, inklusive moms."
         }
     }
 
@@ -280,7 +271,6 @@ struct AppSettingsView: View {
         }
 
         settings.costProfile = next.applyingInferredConfidence(configuredSource: .userEntered)
-        dismiss()
     }
 
     private func applyGridTariff(_ tariff: SimplifiedTariff, to profile: CostProfile) -> CostProfile {

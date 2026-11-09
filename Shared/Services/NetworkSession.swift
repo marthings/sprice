@@ -7,7 +7,7 @@
 import Foundation
 
 enum NetworkSession {
-    static let shared: URLSession = {
+    nonisolated static let shared: URLSession = {
         let config = URLSessionConfiguration.ephemeral
         config.requestCachePolicy = .reloadIgnoringLocalCacheData
         return URLSession(configuration: config)

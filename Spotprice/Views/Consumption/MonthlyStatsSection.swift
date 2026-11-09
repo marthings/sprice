@@ -131,7 +131,7 @@ struct MonthlyStatsSection: View {
     // MARK: - Helpers
     
     private func calculateTotalMonthCost(spotCostKr: Double, kWh: Double) -> EnhancedCost {
-        let service = TotalCostService()
+        let service = TotalCostService.shared
         // Calculate average spot price per kWh from total spot cost
         let avgSpotPriceOre = kWh > 0 ? (spotCostKr / kWh) * 100.0 : 0
 

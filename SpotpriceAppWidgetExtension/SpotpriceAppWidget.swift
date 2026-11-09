@@ -45,7 +45,7 @@ struct SpotpriceAppWidgetEntry: TimelineEntry {
 
 struct SpotpriceAppWidgetProvider: TimelineProvider {
     let service = SpotPriceService()
-    let totalCostService = TotalCostService()
+    let totalCostService = TotalCostService.shared
 
     func placeholder(in context: Context) -> SpotpriceAppWidgetEntry {
         .placeholder
@@ -57,53 +57,64 @@ struct SpotpriceAppWidgetProvider: TimelineProvider {
             return
         }
         Task {
-            completion(await fetchCurrentCost())
+            let entries = await loadEntries()
+            completion(entries.first ?? .error)
         }
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<SpotpriceAppWidgetEntry>) -> Void) {
         Task {
-            let entry = await fetchCurrentCost()
+            let now = Date()
+            let entries = await loadEntries(now: now)
             completion(Timeline(
-                entries: [entry],
-                policy: .after(WidgetTimelineSchedule.nextQuarterHourUpdate(from: entry.date))
+                entries: entries.isEmpty ? [.error] : entries,
+                policy: .after(WidgetTimelineSchedule.nextDayAheadRefresh(from: now))
             ))
         }
     }
 
-    private func fetchCurrentCost() async -> SpotpriceAppWidgetEntry {
-        do {
-            let now = Date()
-            let costProfile = await MainActor.run { ConsumptionSettings.shared.costProfile }
+    private func loadEntries(now: Date = Date()) async -> [SpotpriceAppWidgetEntry] {
+        let costProfile = await MainActor.run { ConsumptionSettings.shared.costProfile }
+        let calendar = Calendar.energyHistory
+        guard let today = await service.cachedOrFetchedDayChart(for: now, area: costProfile.priceArea) else {
+            AppLog.widget.error("iOS widget: no day chart data")
+            return [.error]
+        }
 
-            let items = try await service.fetchSpotPrices(for: now, area: costProfile.priceArea)
-            let dayData = try service.makeDayChartData(from: items, for: now)
-            let dayCosts = totalCostService.dayTotalCostsPerKWh(from: dayData, profile: costProfile)
+        var tomorrow: DayChartData?
+        if let tomorrowDate = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now)) {
+            tomorrow = await service.cachedOrFetchedDayChart(for: tomorrowDate, area: costProfile.priceArea)
+        }
 
-            guard let currentBucketIndex = dayData.currentBucketIndex(at: now),
-                  dayCosts.indices.contains(currentBucketIndex) else {
-                AppLog.widget.error("iOS widget: no valid bucket in dayData with \(dayData.buckets.count) buckets")
-                return .error
-            }
+        let remaining = WidgetTimelineSchedule.remainingBuckets(today: today, tomorrow: tomorrow, now: now)
+        guard !remaining.isEmpty else {
+            return [entry(at: now, day: today, profile: costProfile) ?? .error]
+        }
 
-            let totalCost = dayCosts[currentBucketIndex]
-            let category = DS.Color.categoryForPrice(
+        return remaining.compactMap { item in
+            entry(at: item.date, day: item.day, profile: costProfile)
+        }
+    }
+
+    private func entry(at date: Date, day: DayChartData, profile: CostProfile) -> SpotpriceAppWidgetEntry? {
+        let dayCosts = totalCostService.dayTotalCostsPerKWh(from: day, profile: profile)
+        guard let currentBucketIndex = day.currentBucketIndex(at: date),
+              dayCosts.indices.contains(currentBucketIndex) else {
+            return nil
+        }
+
+        let totalCost = dayCosts[currentBucketIndex]
+        return SpotpriceAppWidgetEntry(
+            date: date,
+            totalCostPerKWh: totalCost,
+            priceCategory: DS.Color.categoryForPrice(
                 totalCost,
                 min: dayCosts.min() ?? 0,
                 max: dayCosts.max() ?? 0
-            )
-
-            return SpotpriceAppWidgetEntry(
-                date: now,
-                totalCostPerKWh: totalCost,
-                priceCategory: category,
-                dayCosts: dayCosts,
-                currentIndex: currentBucketIndex
-            )
-        } catch {
-            AppLog.widget.error("iOS widget: error fetching price: \(error.localizedDescription, privacy: .public)")
-            return .error
-        }
+            ),
+            dayCosts: dayCosts,
+            currentIndex: currentBucketIndex
+        )
     }
 }
 
@@ -169,7 +180,7 @@ struct SpotpriceAppWidgetView: View {
 // MARK: - Widget
 
 struct SpotpriceAppWidget: Widget {
-    let kind: String = "SpotpriceAppWidgetV2"
+    let kind: String = WidgetKind.iOSApp
 
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: SpotpriceAppWidgetProvider()) { entry in

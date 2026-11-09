@@ -9,7 +9,7 @@ import Foundation
 
 // MARK: - Cost Profile
 
-struct CostProfile: Codable, Equatable, Sendable {
+nonisolated struct CostProfile: Codable, Equatable, Sendable {
     let priceArea: String
     let retailContractType: RetailContractType
     let retailerMarkupOrePerKWh: Double
@@ -75,6 +75,34 @@ struct CostProfile: Codable, Equatable, Sendable {
         self.tariffValidUntil = tariffValidUntil
     }
 
+    init?(historySnapshot snapshot: HistoricalCostProfileSnapshot) {
+        guard let retailContractType = RetailContractType(rawValue: snapshot.retailContractType) else {
+            return nil
+        }
+        self.init(
+            priceArea: snapshot.priceArea,
+            retailContractType: retailContractType,
+            retailerMarkupOrePerKWh: snapshot.retailerMarkupOrePerKWh,
+            contractPriceOrePerKWh: snapshot.contractPriceOrePerKWh,
+            retailerMonthlyFee: snapshot.retailerMonthlyFee,
+            retailContractSource: snapshot.retailContractSource.flatMap(TariffSource.init(rawValue:)),
+            gridCompanyId: snapshot.gridCompanyId,
+            gridCompanyName: snapshot.gridCompanyName,
+            fuseSize: snapshot.fuseSize,
+            gridMonthlyFee: snapshot.gridMonthlyFee,
+            gridTransferOrePerKWh: snapshot.gridTransferOrePerKWh,
+            gridCostSource: snapshot.gridCostSource.flatMap(TariffSource.init(rawValue:)),
+            energyTaxOrePerKWh: snapshot.energyTaxOrePerKWh,
+            certificateFeeOrePerKWh: snapshot.certificateFeeOrePerKWh,
+            vatRate: snapshot.vatRate,
+            effectTariff: nil,
+            confidence: CostConfidence(rawValue: snapshot.confidence) ?? .userConfigured,
+            source: TariffSource(rawValue: snapshot.source) ?? .userEntered,
+            tariffLastUpdated: snapshot.tariffLastUpdated,
+            tariffValidUntil: snapshot.tariffValidUntil
+        )
+    }
+
     private enum CodingKeys: String, CodingKey {
         case priceArea
         case retailContractType
@@ -131,12 +159,13 @@ struct CostProfile: Codable, Equatable, Sendable {
 }
 
 extension CostProfile {
-    enum SwedishDefaults {
+    nonisolated enum SwedishDefaults {
         static let priceArea = "SE3"
         static let retailerMarkupOrePerKWh = 4.0
         static let retailerMonthlyFee = 0.0
         static let energyTaxOrePerKWh = 54.875
         static let certificateFeeOrePerKWh = 1.75
+        /// Consumer VAT. Profile amounts other than Nord Pool spot are stored including this rate.
         static let vatRate = 0.25
     }
 
@@ -364,9 +393,9 @@ extension CostProfile {
         case .spotPriceMarkup:
             return nil
         case .variableMonthlyPrice:
-            return "Totalpriset använder rörligt månadspris för elhandeln."
+            return "Totalpriset använder rörligt månadspris för elhandeln, inklusive moms."
         case .fixedPrice:
-            return "Totalpriset använder fast pris för elhandeln."
+            return "Totalpriset använder fast pris för elhandeln, inklusive moms."
         }
     }
 
@@ -407,7 +436,7 @@ extension CostProfile {
 
 // MARK: - Retail Contract
 
-enum RetailContractType: String, Codable, Equatable, Sendable {
+nonisolated enum RetailContractType: String, Codable, Equatable, Sendable {
     case spotPriceMarkup
     case variableMonthlyPrice
     case fixedPrice
@@ -415,7 +444,7 @@ enum RetailContractType: String, Codable, Equatable, Sendable {
 
 // MARK: - Confidence
 
-enum CostConfidence: String, Codable, Equatable, Sendable {
+nonisolated enum CostConfidence: String, Codable, Equatable, Sendable {
     case estimated
     case userConfigured
     case providerConnected
@@ -434,7 +463,7 @@ enum CostConfidence: String, Codable, Equatable, Sendable {
 
 // MARK: - Source
 
-enum TariffSource: String, Codable, Equatable, Sendable {
+nonisolated enum TariffSource: String, Codable, Equatable, Sendable {
     case defaultEstimate
     case userEntered
     case localPreset
@@ -444,20 +473,20 @@ enum TariffSource: String, Codable, Equatable, Sendable {
 
 // MARK: - Effect Tariff
 
-struct EffectTariff: Codable, Equatable, Sendable {
+nonisolated struct EffectTariff: Codable, Equatable, Sendable {
     let monthlyPricePerKW: Double
     let model: EffectTariffModel
     let activeHours: EffectTariffActiveHours
 }
 
-enum EffectTariffModel: String, Codable, Equatable, Sendable {
+nonisolated enum EffectTariffModel: String, Codable, Equatable, Sendable {
     case singlePeak
     case averageTopThree
     case averageTopFive
     case manual
 }
 
-enum EffectTariffActiveHours: String, Codable, Equatable, Sendable {
+nonisolated enum EffectTariffActiveHours: String, Codable, Equatable, Sendable {
     case allHours
     case weekdaysDaytime
     case custom

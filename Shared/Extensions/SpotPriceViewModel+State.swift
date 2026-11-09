@@ -14,7 +14,7 @@ extension SpotPriceViewModel.State {
             return nil
         }
 
-        let service = TotalCostService()
+        let service = TotalCostService.shared
         let profile = ConsumptionSettings.shared.costProfile
         return service.calculatePricePerKWh(
             spotPriceOre: currentBucket.orePerKWh,

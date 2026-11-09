@@ -19,7 +19,7 @@ struct CostCalculationSection: View {
                     .foregroundStyle(.primary)
 
                 if let price = getCurrentPrice(payload) {
-                    let totalCostService = TotalCostService()
+                    let totalCostService = TotalCostService.shared
                     let totalCost = totalCostService.calculatePricePerKWh(spotPriceOre: price, profile: profile)
                     Text("(\(totalCost.formatted(.number.precision(.fractionLength(2)))) kr/kWh)")
                         .font(DS.Font.medium(11))
@@ -33,59 +33,39 @@ struct CostCalculationSection: View {
                     .foregroundStyle(DS.Color.secondary)
             }
 
+            KilowattHourBreakdownView(
+                breakdown: KilowattHourBreakdown.make(
+                    from: TotalCostService.shared.calculateTotalCost(
+                        kWh: 1,
+                        spotPriceOre: currentPrice,
+                        profile: profile,
+                        hoursInPeriod: 1
+                    ),
+                    profile: profile
+                ),
+                style: .compact
+            )
+
             LazyVGrid(columns: [GridItem(.flexible(), spacing: DS.Spacing.sm), GridItem(.flexible(), spacing: DS.Spacing.sm)], spacing: DS.Spacing.sm) {
-                CostCardView(
-                    title: "Dusch (10 min)",
-                    costBreakdown: CostCardView.calculateCost(
-                        kWh: 6.0,
-                        priceInOre: currentPrice,
-                        profile: profile,
-                        hoursInPeriod: 1.0
-                    ),
-                    description: "~6 kWh",
-                    color: .blue,
-                    retailEnergyLabel: profile.retailContractDisplayName
-                )
-
-                CostCardView(
-                    title: "Pizza i ugn",
-                    costBreakdown: CostCardView.calculateCost(
-                        kWh: 1.1,
-                        priceInOre: currentPrice,
-                        profile: profile,
-                        hoursInPeriod: 0.5
-                    ),
-                    description: "~1,1 kWh",
-                    color: DS.Color.warning,
-                    retailEnergyLabel: profile.retailContractDisplayName
-                )
-
-                CostCardView(
-                    title: "Värmepump/dag",
-                    costBreakdown: CostCardView.calculateCost(
-                        kWh: 24.0,
-                        priceInOre: currentPrice,
-                        profile: profile,
-                        hoursInPeriod: 24.0
-                    ),
-                    description: "~24 kWh",
-                    color: DS.Color.danger,
-                    retailEnergyLabel: profile.retailContractDisplayName
-                )
-
-                CostCardView(
-                    title: "Ladda bilen",
-                    costBreakdown: CostCardView.calculateCost(
-                        kWh: 45.0,
-                        priceInOre: currentPrice,
-                        profile: profile,
-                        hoursInPeriod: 8.0
-                    ),
-                    description: "~45 kWh",
-                    color: DS.Color.success,
-                    retailEnergyLabel: profile.retailContractDisplayName
-                )
+                ForEach(HouseholdCostExample.catalog) { example in
+                    CostCardView(
+                        title: example.title,
+                        costBreakdown: CostCardView.calculateCost(
+                            kWh: example.kWh,
+                            priceInOre: currentPrice,
+                            profile: profile,
+                            hoursInPeriod: example.hoursInPeriod
+                        ),
+                        description: example.subtitle,
+                        color: color(for: example.id),
+                        retailEnergyLabel: profile.retailContractDisplayName
+                    )
+                }
             }
+
+            Text(HouseholdCostExample.catalogFootnote)
+                .font(DS.Font.micro)
+                .foregroundStyle(DS.Color.secondary)
 
             if profile.gridMonthlyFee != nil || profile.gridTransferOrePerKWh != nil {
                 Label("Elnätskostnaden baseras på dina elnätsuppgifter och kan avvika från fakturan.", systemImage: "info.circle.fill")
@@ -105,5 +85,24 @@ struct CostCalculationSection: View {
 
     private func getCurrentPriceOrAverage(_ payload: SpotPriceViewModel.CurrentAndDay) -> Double {
         getCurrentPrice(payload) ?? PriceBucketAnalytics.averageSpotPrice(payload.day.buckets)
+    }
+
+    private func color(for exampleId: String) -> Color {
+        switch exampleId {
+        case "shower":
+            return .blue
+        case "oven":
+            return DS.Color.warning
+        case "dishwasher":
+            return DS.Color.info
+        case "laundry":
+            return .purple
+        case "heat-pump":
+            return DS.Color.danger
+        case "ev-charge":
+            return DS.Color.success
+        default:
+            return DS.Color.secondary
+        }
     }
 }

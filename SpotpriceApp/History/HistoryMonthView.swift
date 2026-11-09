@@ -8,11 +8,13 @@ struct HistoryMonthView: View {
 
     @State private var state: HistoryMonthLoadState = .loading
     @State private var selectedMonthKey: String?
-    @State private var viewMode: HistoryMonthViewMode = .chart
-    @State private var selectedDay: HistoricalEnergySummaryValue?
+    @State private var openedDay: HistoryDayRoute?
 
     private let historyQuery: any EnergyHistoryQuerying
     private let initialState: HistoryMonthLoadState?
+    private var hasProvider: Bool {
+        !ConsumptionSettings.shared.selectedProviderId.isEmpty
+    }
 
     init(
         priceArea: String,
@@ -35,12 +37,12 @@ struct HistoryMonthView: View {
             switch state {
             case .loading:
                 DashboardLoadingView()
-            case .failed(let message):
+            case .empty(let message):
                 AppStatusCard(
-                    icon: "exclamationmark.triangle.fill",
-                    title: "Kunde inte läsa historik",
+                    icon: "clock.badge",
+                    title: "Ingen historik att visa",
                     message: message,
-                    color: DS.Color.warning
+                    color: DS.Color.secondary
                 )
             case .loaded(let data):
                 HistoryMonthLoadedContent(
@@ -48,23 +50,60 @@ struct HistoryMonthView: View {
                     costProfile: costProfile,
                     liveMonthlyConsumption: liveMonthlyConsumption,
                     livePreciseCost: livePreciseCost,
+                    hasProvider: hasProvider,
                     selectedMonthKey: $selectedMonthKey,
-                    viewMode: $viewMode,
-                    selectedDay: $selectedDay
+                    openedDay: $openedDay
                 )
             }
+        }
+        .navigationDestination(item: $openedDay) { route in
+            HistoryDayView(
+                date: route.date,
+                dayKey: route.dayKey,
+                dailySummary: dailySummary(for: route),
+                costProfile: costProfile,
+                priceArea: priceArea,
+                historyQuery: historyQuery
+            )
         }
         .task {
             if let initialState {
                 state = initialState
             } else {
                 await loadHistory()
+                startBackfill()
             }
         }
-        .onChange(of: selectedMonthKey) { _, _ in
+        .onChange(of: selectedMonthKey) { oldValue, _ in
+            guard initialState == nil else { return }
+            guard oldValue != nil else { return }
+            Task { await loadHistory() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .energyHistoryDidUpdate)) { _ in
             guard initialState == nil else { return }
             Task { await loadHistory() }
         }
+    }
+
+    private func startBackfill() {
+        guard hasProvider else { return }
+        let providerID = ConsumptionSettings.shared.selectedProviderId
+        let costProfile = costProfile
+        let priceArea = priceArea
+        Task {
+            await EnergyHistoryBackfillController.shared.runIfNeeded(
+                consumptionService: ConsumptionService(),
+                spotPriceService: SpotPriceService(),
+                priceArea: priceArea,
+                providerID: providerID,
+                costProfile: costProfile
+            )
+        }
+    }
+
+    private func dailySummary(for route: HistoryDayRoute) -> HistoricalEnergySummaryValue? {
+        guard case .loaded(let data) = state else { return nil }
+        return data.dailySummaries.first { $0.periodKey == route.dayKey }
     }
 
     @MainActor
@@ -75,20 +114,21 @@ struct HistoryMonthView: View {
                 selectedMonthKey: selectedMonthKey
             )
 
-            // Only write back when the resolved key differs, so the initial
-            // .task load doesn't trip .onChange into a redundant second fetch.
             if selectedMonthKey != history.selectedMonthKey {
                 selectedMonthKey = history.selectedMonthKey
             }
-            state = .loaded(HistoryMonthData(
-                months: history.months,
-                selectedMonth: history.selectedMonth,
-                dailySummaries: history.dailySummaries,
-                topCostDays: history.topCostDays,
-                topConsumptionDays: history.topConsumptionDays
-            ))
+
+            if history.months.isEmpty {
+                state = .empty(HistoryInsights.emptyHistoryMessage(hasProvider: hasProvider))
+            } else {
+                state = .loaded(HistoryMonthData(
+                    months: history.months,
+                    selectedMonth: history.selectedMonth,
+                    dailySummaries: history.dailySummaries
+                ))
+            }
         } catch {
-            state = .failed(error.userFacingMessage)
+            state = .empty(HistoryInsights.emptyHistoryMessage(hasProvider: hasProvider))
         }
     }
 }

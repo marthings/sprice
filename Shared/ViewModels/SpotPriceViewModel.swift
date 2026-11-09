@@ -45,7 +45,10 @@ final class SpotPriceViewModel {
     @ObservationIgnored
     private var settingsRefreshTask: Task<Void, Never>?
     // Generation counter – stale loads discard their results
+    @ObservationIgnored
     private var loadGeneration = 0
+    @ObservationIgnored
+    private var isRefreshing = false
 
     init(
         service: SpotPriceService? = nil,
@@ -99,7 +102,22 @@ final class SpotPriceViewModel {
         // Bump generation so any in-flight load discards its stale results
         loadGeneration += 1
         let myGeneration = loadGeneration
-        state = .loading
+        let hasLoadedData: Bool
+        if case .loaded = state {
+            hasLoadedData = true
+        } else {
+            hasLoadedData = false
+        }
+        if hasLoadedData {
+            isRefreshing = true
+        } else {
+            state = .loading
+        }
+        defer {
+            if myGeneration == loadGeneration {
+                isRefreshing = false
+            }
+        }
 
         do {
             let priceArea = settings.priceArea
@@ -114,10 +132,14 @@ final class SpotPriceViewModel {
             state = .loaded(payload)
         } catch let error as DisplayableError {
             guard myGeneration == loadGeneration else { return }
-            state = .failed(error.message)
+            if !hasLoadedData {
+                state = .failed(error.message)
+            }
         } catch {
             guard myGeneration == loadGeneration else { return }
-            state = .failed("Ett oväntat fel inträffade. Försök igen senare.")
+            if !hasLoadedData {
+                state = .failed("Ett oväntat fel inträffade. Försök igen senare.")
+            }
         }
 
         // Also load consumption and tariff (don't block on errors)
@@ -140,8 +162,18 @@ final class SpotPriceViewModel {
             settings.cachedConsumption = consumption
         }
         
+        await historyRecordingCoordinator.repriceStoredHistoryIfNeeded(
+            priceArea: settings.priceArea,
+            costProfile: settings.costProfile
+        )
+
         if settings.isConfigured {
             await historyRecordingCoordinator.recordCurrentMonthConsumptionHistory(
+                priceArea: settings.priceArea,
+                providerID: settings.selectedProviderId,
+                costProfile: settings.costProfile
+            )
+            historyRecordingCoordinator.startPastMonthBackfill(
                 priceArea: settings.priceArea,
                 providerID: settings.selectedProviderId,
                 costProfile: settings.costProfile
@@ -352,6 +384,14 @@ private final class HistoryRecordingCoordinator {
         historyRecorder?.recordPriceHistory(dayData: dayData, priceArea: priceArea)
     }
 
+    func repriceStoredHistoryIfNeeded(priceArea: String, costProfile: CostProfile) async {
+        await historyRecorder?.repriceStoredHistoryIfNeeded(
+            spotPriceService: spotPriceService,
+            priceArea: priceArea,
+            costProfile: costProfile
+        )
+    }
+
     func recordCurrentMonthConsumptionHistory(
         priceArea: String,
         providerID: String,
@@ -365,6 +405,28 @@ private final class HistoryRecordingCoordinator {
             costProfile: costProfile,
             now: nowProvider()
         )
+    }
+
+    func startPastMonthBackfill(
+        priceArea: String,
+        providerID: String,
+        costProfile: CostProfile
+    ) {
+        let recorder = historyRecorder
+        let consumptionService = consumptionService
+        let spotPriceService = spotPriceService
+        let now = nowProvider()
+        Task {
+            await EnergyHistoryBackfillController.shared.runIfNeeded(
+                recorder: recorder,
+                consumptionService: consumptionService,
+                spotPriceService: spotPriceService,
+                priceArea: priceArea,
+                providerID: providerID,
+                costProfile: costProfile,
+                now: now
+            )
+        }
     }
 
     func loadCurrentMonthSummary(priceArea: String?, monthKey: String) throws -> HistoricalEnergySummaryValue? {

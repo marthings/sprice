@@ -11,7 +11,7 @@ import WidgetKit
 @main
 struct SpotpriceApp: App {
     init() {
-        WidgetCenter.shared.reloadAllTimelines()
+        WidgetReload.timelines()
     }
 
     var body: some Scene {

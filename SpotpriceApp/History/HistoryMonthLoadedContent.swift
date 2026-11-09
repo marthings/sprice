@@ -5,68 +5,121 @@ struct HistoryMonthLoadedContent: View {
     let costProfile: CostProfile
     let liveMonthlyConsumption: ConsumptionData?
     let livePreciseCost: PreciseMonthlyCost?
+    let hasProvider: Bool
 
     @Binding var selectedMonthKey: String?
-    @Binding var viewMode: HistoryMonthViewMode
-    @Binding var selectedDay: HistoricalEnergySummaryValue?
-
-    private var monthSelection: Binding<String> {
-        Binding(
-            get: { selectedMonthKey ?? data.months.first?.periodKey ?? "" },
-            set: { selectedMonthKey = $0 }
-        )
-    }
+    @Binding var openedDay: HistoryDayRoute?
 
     var body: some View {
         if data.months.isEmpty {
             AppStatusCard(
                 icon: "clock.badge",
-                title: "Ingen sparad historik än",
-                message: "Historik fylls på automatiskt efter lyckade prisuppdateringar. Förbrukning och kostnad visas när sådan data finns sparad.",
+                title: "Ingen historik att visa",
+                message: HistoryInsights.emptyHistoryMessage(hasProvider: hasProvider),
                 color: DS.Color.secondary
             )
         } else {
             VStack(alignment: .leading, spacing: DS.Spacing.lg) {
-                HistoryMonthPicker(months: data.months, selectedMonthKey: monthSelection)
+                HistoryMonthChrome(
+                    months: data.months,
+                    selectedMonth: data.selectedMonth,
+                    comparisonMonthName: previousSnapshot.map {
+                        AppFormatters.monthName($0.summary.periodStart)
+                    },
+                    selectedMonthKey: $selectedMonthKey
+                )
 
-                if let selectedMonth = data.selectedMonth {
-                    let isCurrent = HistoryMonthFormatting.isCurrentMonth(selectedMonth)
-
-                    HistoryMonthSummaryCards(
-                        summary: selectedMonth,
-                        costProfile: costProfile,
-                        isCurrentMonth: isCurrent,
-                        liveMonthlyConsumption: liveMonthlyConsumption,
-                        livePreciseCost: livePreciseCost
-                    )
-
-                    HistoryTopDaysSection(
-                        title: "Dyraste dagar",
-                        emptyMessage: "Kostnadsdagar visas när historiken innehåller beräknad kostnad.",
-                        days: data.topCostDays,
-                        value: { summary in
-                            HistoryMonthFormatting.topCostValue(
-                                for: summary,
-                                isCurrentMonth: isCurrent,
-                                costProfile: costProfile
-                            )
-                        }
-                    )
-
-                    HistoryTopDaysSection(
-                        title: "Högst förbrukning",
-                        emptyMessage: "Förbrukningsdagar visas när en datakälla har levererat mätvärden.",
-                        days: data.topConsumptionDays,
-                        value: HistoryMonthFormatting.topConsumptionValue(for:)
-                    )
+                if hasPastMonths {
+                    Text("Äldre månader räknas med dina nuvarande tariffer, inte med de som gällde då.")
+                        .font(DS.Font.micro)
+                        .foregroundStyle(DS.Color.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
-                HistoryDailyList(
-                    days: data.dailySummaries,
-                    viewMode: $viewMode,
-                    selectedDay: $selectedDay
-                )
+                if let snapshot {
+                    HistoryMonthHeroSection(
+                        snapshot: snapshot,
+                        comparison: comparison,
+                        hasProvider: hasProvider
+                    )
+
+                    if previousSnapshot != nil {
+                        HistoryPriceConsumptionEffect(
+                            split: split,
+                            previousMonthName: previousSnapshot.map {
+                                AppFormatters.monthName($0.summary.periodStart)
+                            }
+                        )
+                    }
+
+                    HistoryPaidVersusSpot(snapshot: snapshot)
+
+                    HistoryMonthDaysChart(
+                        days: dayBars,
+                        isCurrentMonth: snapshot.isCurrentMonth,
+                        hasProvider: hasProvider,
+                        openedDay: $openedDay
+                    )
+
+                    HistoryWeekdayPattern(averages: weekdayAverages)
+                }
             }
         }
+    }
+
+    private var hasPastMonths: Bool {
+        data.months.contains { !HistoryMonthFormatting.isCurrentMonth($0) }
+    }
+
+    private var snapshot: HistoryMonthSnapshot? {
+        guard let selected = data.selectedMonth else { return nil }
+        return HistoryInsights.snapshot(
+            summary: selected,
+            costProfile: costProfile,
+            liveMonthlyConsumption: liveMonthlyConsumption,
+            livePreciseCost: livePreciseCost
+        )
+    }
+
+    private var previousSnapshot: HistoryMonthSnapshot? {
+        guard let selected = data.selectedMonth,
+              let previous = HistoryInsights.previousMonth(of: selected, in: data.months) else {
+            return nil
+        }
+        return HistoryInsights.snapshot(
+            summary: previous,
+            costProfile: costProfile,
+            liveMonthlyConsumption: nil,
+            livePreciseCost: nil
+        )
+    }
+
+    private var comparison: HistoryMonthComparison? {
+        guard let snapshot else { return nil }
+        return HistoryInsights.comparison(current: snapshot, previous: previousSnapshot)
+    }
+
+    private var split: HistoryPriceConsumptionSplit? {
+        guard let snapshot else { return nil }
+        return HistoryInsights.priceConsumptionSplit(current: snapshot, previous: previousSnapshot)
+    }
+
+    private var dayBars: [MonthDayCost] {
+        guard let selected = data.selectedMonth else { return [] }
+        let calendar = Calendar.energyHistory
+        let now = Date()
+        let monthStart = calendar.dateInterval(of: .month, for: selected.periodStart)?.start ?? selected.periodStart
+        return MonthDailyCostBuilder.bars(
+            from: data.dailySummaries,
+            profile: costProfile,
+            monthStart: monthStart,
+            lastDay: HistoryInsights.lastDayOfMonth(containing: selected.periodStart, now: now, calendar: calendar),
+            now: now,
+            calendar: calendar
+        )
+    }
+
+    private var weekdayAverages: [HistoryWeekdayAverage] {
+        HistoryInsights.weekdayAverages(from: dayBars)
     }
 }

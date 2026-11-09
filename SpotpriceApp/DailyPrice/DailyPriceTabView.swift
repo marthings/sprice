@@ -4,7 +4,6 @@ import Charts
 struct DailyPriceTabView: View {
     let state: SpotPriceViewModel.State
     let costProfile: CostProfile
-    @Binding var selectedChartDate: Date?
     let onRetry: () -> Void
 
     var body: some View {
@@ -17,8 +16,7 @@ struct DailyPriceTabView: View {
             VStack(alignment: .leading, spacing: DS.Spacing.xl) {
                 PriceChartSection(
                     payload: payload,
-                    costProfile: costProfile,
-                    selectedChartDate: $selectedChartDate
+                    costProfile: costProfile
                 )
                 SharedPriceRangeSection(
                     dayData: payload.day,
@@ -36,7 +34,6 @@ struct DailyPriceTabView: View {
 private struct PriceChartSection: View {
     let payload: SpotPriceViewModel.CurrentAndDay
     let costProfile: CostProfile
-    @Binding var selectedChartDate: Date?
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
@@ -44,7 +41,7 @@ private struct PriceChartSection: View {
                 Text("Dagens totalpris")
                     .font(DS.Font.headline)
 
-                Text("Kurvan visar priset per kWh under dagen med spotpris, skatter och dina valda avgifter inräknade.")
+                Text("Kurvan visar vad en kWh kostar under dagen, inklusive skatt, avgifter och moms.")
                     .font(DS.Font.micro)
                     .foregroundStyle(DS.Color.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -52,8 +49,7 @@ private struct PriceChartSection: View {
 
             PriceChartPlot(
                 day: payload.day,
-                profile: costProfile,
-                selectedChartDate: $selectedChartDate
+                profile: costProfile
             )
         }
     }
@@ -62,17 +58,28 @@ private struct PriceChartSection: View {
 private struct PriceChartPlot: View {
     let day: DayChartData
     let profile: CostProfile
-    @Binding var selectedChartDate: Date?
 
     var body: some View {
-        let series = TotalPriceChartSeries(day: day, profile: profile)
-        let selectedBucket = selectedChartDate.flatMap { nearestBucket(to: $0, in: day.buckets) }
+        PriceChartCanvas(
+            series: TotalPriceChartSeries(day: day, profile: profile),
+            day: day,
+            profile: profile
+        )
+    }
+}
 
+private struct PriceChartCanvas: View {
+    let series: TotalPriceChartSeries
+    let day: DayChartData
+    let profile: CostProfile
+    @State private var selectedChartDate: Date?
+
+    var body: some View {
         Chart {
-            ForEach(series.buckets) { bucket in
+            ForEach(series.points) { point in
                 LineMark(
-                    x: .value("Tid", bucket.start),
-                    y: .value("kr/kWh", series.price(for: bucket)),
+                    x: .value("Tid", point.start),
+                    y: .value("kr/kWh", point.price),
                     series: .value("Pris", "Total")
                 )
                 .foregroundStyle(series.lineGradient)
@@ -86,24 +93,23 @@ private struct PriceChartPlot: View {
                     .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
             }
 
-            if let selectedBucket {
-                RuleMark(x: .value("Vald tid", selectedBucket.start))
+            if let selectedPoint = selectedChartDate.flatMap({ series.point(nearestTo: $0) }) {
+                RuleMark(x: .value("Vald tid", selectedPoint.start))
                     .foregroundStyle(DS.Color.secondary.opacity(0.65))
                     .lineStyle(StrokeStyle(lineWidth: 1.2))
                     .annotation(position: .top, spacing: DS.Spacing.sm, overflowResolution: .init(x: .fit, y: .disabled)) {
-                        ChartCalloutView(
-                            bucket: selectedBucket,
-                            dayData: day,
-                            profile: profile,
-                            style: .opaque
+                        PriceChartSelectionCallout(
+                            point: selectedPoint,
+                            day: day,
+                            profile: profile
                         )
                     }
 
                 PointMark(
-                    x: .value("Vald tid", selectedBucket.start),
-                    y: .value("kr/kWh", series.price(for: selectedBucket))
+                    x: .value("Vald tid", selectedPoint.start),
+                    y: .value("kr/kWh", selectedPoint.price)
                 )
-                .foregroundStyle(series.color(for: selectedBucket))
+                .foregroundStyle(selectedPoint.color)
                 .symbolSize(70)
             }
         }
@@ -141,18 +147,27 @@ private struct PriceChartPlot: View {
         .zIndex(1)
         .accessibilityHint("Dra över grafen för att se pris vid en viss tid.")
     }
+}
 
-    private func nearestBucket(to date: Date, in buckets: [PriceBucket]) -> PriceBucket? {
-        buckets.min { lhs, rhs in
-            abs(lhs.start.timeIntervalSince(date)) < abs(rhs.start.timeIntervalSince(date))
-        }
+private struct PriceChartSelectionCallout: View {
+    let point: TotalPriceChartPoint
+    let day: DayChartData
+    let profile: CostProfile
+
+    var body: some View {
+        ChartCalloutView(
+            bucket: point.bucket,
+            dayData: day,
+            profile: profile,
+            style: .opaque
+        )
     }
 }
 
 private struct MarketContractExplanation: View {
     let profile: CostProfile
 
-    private let totalCostService = TotalCostService()
+    private let totalCostService = TotalCostService.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
@@ -195,11 +210,11 @@ private struct MarketContractExplanation: View {
     private var explanationText: String {
         switch profile.retailContractType {
         case .spotPriceMarkup:
-            return "Grafen visar marknadens kvartspris. Din kostnad följer kurvan och lägger till påslag, skatter och valda elnätskostnader."
+            return "Grafen visar vad en kWh kostar under dagen. Där ingår spotpris, påslag, skatt, avgifter och moms. Elnät ingår om du har valt elnätsbolag."
         case .variableMonthlyPrice:
-            return "Grafen visar marknadens kvartspris som jämförelse. Din elhandelskostnad beräknas från ditt rörliga månadspris."
+            return "Grafen visar vad en kWh kostar under dagen. Elhandeln räknas från ditt rörliga månadspris, inte från kvartens spotpris. Skatt, avgifter och moms ingår. Elnät ingår om du har valt elnätsbolag."
         case .fixedPrice:
-            return "Grafen visar marknadens kvartspris som jämförelse. Din elhandelskostnad beräknas från ditt fasta avtalade pris."
+            return "Grafen visar vad en kWh kostar under dagen. Elhandeln räknas från ditt fasta avtalade pris, inte från kvartens spotpris. Skatt, avgifter och moms ingår. Elnät ingår om du har valt elnätsbolag."
         }
     }
 
@@ -236,6 +251,10 @@ private struct MarketContractExplanation: View {
         let taxesAndFees = baseCost.energyTaxKr + baseCost.certificateFeeKr
         if taxesAndFees > 0 {
             rows.append(("Skatt och avgifter", taxesAndFees))
+        }
+
+        if baseCost.vatKr > 0 {
+            rows.append(("Moms", baseCost.vatKr))
         }
 
         return rows
