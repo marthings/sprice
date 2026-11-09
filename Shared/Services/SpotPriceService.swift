@@ -44,9 +44,24 @@ struct SpotPriceService: Sendable {
         try validate(response: response)
 
         let items = try decoder.decode([SpotPriceItem].self, from: data)
+        SpotPriceDayCache.store(items, area: area, calendar: calendar)
         AppLog.spotPrice.info("Fetched \(items.count) price items")
 
         return items
+    }
+
+    func cachedOrFetchedDayChart(for date: Date, area: String) async -> DayChartData? {
+        let items: [SpotPriceItem]
+        if let cached = SpotPriceDayCache.items(for: date, area: area, calendar: calendar), !cached.isEmpty {
+            items = cached
+        } else {
+            do {
+                items = try await fetchSpotPrices(for: date, area: area)
+            } catch {
+                return nil
+            }
+        }
+        return try? makeDayChartData(from: items, for: date)
     }
     
     /// Creates display text for the current price

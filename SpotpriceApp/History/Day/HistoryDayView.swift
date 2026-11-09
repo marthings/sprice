@@ -166,11 +166,11 @@ private struct HistoryDayHourChart: View {
     let snapshot: HistoryDaySnapshot
 
     private var hasCost: Bool {
-        snapshot.hours.contains { $0.costKr != nil }
+        !snapshot.costHours.isEmpty
     }
 
     private var hasSpot: Bool {
-        snapshot.hours.contains { $0.spotOrePerKWh != nil }
+        !snapshot.spotHours.isEmpty
     }
 
     var body: some View {
@@ -180,7 +180,7 @@ private struct HistoryDayHourChart: View {
 
             if hasCost {
                 Chart {
-                    ForEach(costHours) { hour in
+                    ForEach(snapshot.costHours) { hour in
                         BarMark(
                             x: .value("Timme", hour.start, unit: .hour),
                             y: .value("kr", hour.costKr ?? 0)
@@ -231,7 +231,7 @@ private struct HistoryDayHourChart: View {
                     .foregroundStyle(.primary)
 
                 Chart {
-                    ForEach(spotHours) { hour in
+                    ForEach(snapshot.spotHours) { hour in
                         LineMark(
                             x: .value("Timme", hour.start, unit: .hour),
                             y: .value("öre/kWh", hour.spotOrePerKWh ?? 0)
@@ -280,14 +280,6 @@ private struct HistoryDayHourChart: View {
         .padding(DS.Spacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
         .glassCard()
-    }
-
-    private var costHours: [HistoryHourCost] {
-        snapshot.hours.filter { $0.costKr != nil }
-    }
-
-    private var spotHours: [HistoryHourCost] {
-        snapshot.hours.filter { $0.spotOrePerKWh != nil }
     }
 
     private var hourDomain: ClosedRange<Date> {
@@ -362,15 +354,22 @@ private struct HistoryDayExpensiveHours: View {
     }
 }
 
+private struct HistoryDayCostSplitRow: Identifiable {
+    let id: String
+    let title: String
+    let amount: Double
+    let color: Color
+}
+
 private struct HistoryDayCostSplitView: View {
     let split: HistoryDayCostSplit
 
-    private var rows: [(title: String, amount: Double)] {
+    private var rows: [HistoryDayCostSplitRow] {
         [
-            ("Elhandel", split.energyKr),
-            ("Nät", split.gridKr),
-            ("Skatt", split.taxKr),
-            ("Moms", split.vatKr)
+            HistoryDayCostSplitRow(id: "energy", title: "Elhandel", amount: split.energyKr, color: DS.Color.info),
+            HistoryDayCostSplitRow(id: "grid", title: "Nät", amount: split.gridKr, color: DS.Color.warning),
+            HistoryDayCostSplitRow(id: "tax", title: "Skatt", amount: split.taxKr, color: DS.Color.success),
+            HistoryDayCostSplitRow(id: "vat", title: "Moms", amount: split.vatKr, color: Color.gray)
         ]
     }
 
@@ -382,9 +381,9 @@ private struct HistoryDayCostSplitView: View {
             GeometryReader { geometry in
                 let total = max(split.totalKr, 0.0001)
                 HStack(spacing: 0) {
-                    ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
+                    ForEach(rows) { row in
                         Rectangle()
-                            .fill(color(for: index))
+                            .fill(row.color)
                             .frame(width: geometry.size.width * CGFloat(max(row.amount, 0) / total))
                     }
                 }
@@ -393,10 +392,10 @@ private struct HistoryDayCostSplitView: View {
             .clipShape(Capsule())
             .accessibilityHidden(true)
 
-            ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
+            ForEach(rows) { row in
                 HStack(spacing: DS.Spacing.sm) {
                     Circle()
-                        .fill(color(for: index))
+                        .fill(row.color)
                         .frame(width: 8, height: 8)
                     Text(row.title)
                         .font(DS.Font.micro)
@@ -425,14 +424,5 @@ private struct HistoryDayCostSplitView: View {
         .padding(DS.Spacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
         .glassCard()
-    }
-
-    private func color(for index: Int) -> Color {
-        switch index {
-        case 0: return DS.Color.info
-        case 1: return DS.Color.warning
-        case 2: return DS.Color.success
-        default: return Color.gray
-        }
     }
 }

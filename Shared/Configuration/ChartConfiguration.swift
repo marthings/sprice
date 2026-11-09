@@ -27,55 +27,40 @@ enum ChartConfiguration {
     }
 }
 
+struct TotalPriceChartPoint: Identifiable {
+    let start: Date
+    let price: Double
+    let color: Color
+    let bucket: PriceBucket
+
+    var id: Date { start }
+}
+
 /// Precomputed chart inputs for the iOS total-price line chart.
 struct TotalPriceChartSeries {
-    let buckets: [PriceBucket]
-    let prices: [Double]
+    let points: [TotalPriceChartPoint]
     let yDomain: ClosedRange<Double>
     let lineGradient: LinearGradient
 
-    private let minPrice: Double
-    private let maxPrice: Double
-
-    init(day: DayChartData, profile: CostProfile, service: TotalCostService = TotalCostService()) {
-        buckets = day.buckets
-        prices = day.buckets.map { service.calculatePricePerKWh(spotPriceOre: $0.orePerKWh, profile: profile) }
-
+    init(day: DayChartData, profile: CostProfile, service: TotalCostService = .shared) {
+        let prices = day.buckets.map { service.calculatePricePerKWh(spotPriceOre: $0.orePerKWh, profile: profile) }
         let minValue = prices.min() ?? 0
         let maxValue = prices.max() ?? minValue
-        minPrice = minValue
-        maxPrice = maxValue
         yDomain = Self.yDomain(for: prices)
         lineGradient = Self.lineGradient(prices: prices, min: minValue, max: maxValue)
-    }
-
-    func price(for bucket: PriceBucket) -> Double {
-        guard let index = buckets.firstIndex(where: { $0.id == bucket.id }) else { return 0 }
-        return prices[index]
-    }
-
-    func color(for bucket: PriceBucket) -> Color {
-        smoothPriceColor(for: price(for: bucket))
-    }
-
-    private func smoothPriceColor(for price: Double) -> Color {
-        let range = maxPrice - minPrice
-        guard range > 0 else { return DS.Color.warning }
-
-        let normalized = Swift.min(Swift.max((price - minPrice) / range, 0), 1)
-        switch normalized {
-        case ..<0.5:
-            return Self.interpolateColor(
-                from: Color(red: 0.02, green: 0.56, blue: 0.24),
-                to: Color(red: 0.95, green: 0.38, blue: 0.02),
-                progress: normalized / 0.5
+        points = zip(day.buckets, prices).map { bucket, price in
+            TotalPriceChartPoint(
+                start: bucket.start,
+                price: price,
+                color: Self.smoothPriceColor(for: price, min: minValue, max: maxValue),
+                bucket: bucket
             )
-        default:
-            return Self.interpolateColor(
-                from: Color(red: 0.95, green: 0.38, blue: 0.02),
-                to: Color(red: 0.82, green: 0.04, blue: 0.04),
-                progress: (normalized - 0.5) / 0.5
-            )
+        }
+    }
+
+    func point(nearestTo date: Date) -> TotalPriceChartPoint? {
+        points.min { lhs, rhs in
+            abs(lhs.start.timeIntervalSince(date)) < abs(rhs.start.timeIntervalSince(date))
         }
     }
 

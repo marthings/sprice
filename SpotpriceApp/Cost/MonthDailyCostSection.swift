@@ -41,15 +41,12 @@ struct MonthDailyCostSection: View {
         .onChange(of: hasProvider) { _, _ in
             Task { await loadDays() }
         }
-        .onAppear {
-            guard didLoad else { return }
-            Task { await loadDays() }
-        }
     }
 
     @ViewBuilder
     private var chartContent: some View {
-        if let expensive = mostExpensiveDay, let cost = expensive.costKr {
+        let expensive = mostExpensiveDay
+        if let expensive, let cost = expensive.costKr {
             Text("Dyrast: \(AppFormatters.weekdayDayMonth(expensive.date)), \(AppFormatters.wholeNumber(cost)) kr")
                 .font(DS.Font.semibold(12))
                 .foregroundStyle(.primary)
@@ -63,7 +60,7 @@ struct MonthDailyCostSection: View {
                     x: .value("Dag", day.date, unit: .day),
                     y: .value("kr", day.costKr ?? 0)
                 )
-                .foregroundStyle(barColor(for: day))
+                .foregroundStyle(barColor(for: day, expensiveID: expensive?.id))
                 .cornerRadius(3)
                 .opacity(barOpacity(for: day))
             }
@@ -105,7 +102,10 @@ struct MonthDailyCostSection: View {
                     .gesture(
                         DragGesture(minimumDistance: 0)
                             .onChanged { value in
-                                selectedDay = nearestDay(at: value.location, chartWidth: geometry.size.width)
+                                let day = nearestDay(at: value.location, chartWidth: geometry.size.width)
+                                if selectedDay?.id != day?.id {
+                                    selectedDay = day
+                                }
                             }
                     )
             }
@@ -166,8 +166,8 @@ struct MonthDailyCostSection: View {
         return days[clampedIndex]
     }
 
-    private func barColor(for day: MonthDayCost) -> Color {
-        if day.id == mostExpensiveDay?.id {
+    private func barColor(for day: MonthDayCost, expensiveID: Date?) -> Color {
+        if day.id == expensiveID {
             return DS.Color.danger
         }
         return DS.Color.info
@@ -270,7 +270,7 @@ enum MonthDailyCostBuilder {
             summaries.map { (EnergyHistoryKey.dayKey(for: $0.periodStart, calendar: calendar), $0) },
             uniquingKeysWith: { first, _ in first }
         )
-        let service = TotalCostService()
+        let service = TotalCostService.shared
         var bars: [MonthDayCost] = []
         var dayStart = monthStart
         let lastDayStart = calendar.startOfDay(for: lastDay)

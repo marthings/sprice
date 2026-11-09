@@ -20,7 +20,7 @@ struct ChartCalloutView: View {
 
     @Environment(\.colorScheme) private var colorScheme
 
-    private static let totalCostService = TotalCostService()
+    private static let totalCostService = TotalCostService.shared
 
     init(
         bucket: PriceBucket,

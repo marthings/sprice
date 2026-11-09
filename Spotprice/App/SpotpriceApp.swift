@@ -12,7 +12,7 @@ struct SpotpriceApp: App {
     @State private var viewModel = SpotPriceViewModel()
 
     init() {
-        WidgetCenter.shared.reloadAllTimelines()
+        WidgetReload.timelines()
     }
 
     var body: some Scene {

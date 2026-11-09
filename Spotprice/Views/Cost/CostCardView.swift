@@ -87,7 +87,7 @@ extension CostCardView {
         profile: CostProfile,
         hoursInPeriod: Double = 1.0
     ) -> CostBreakdown {
-        let service = TotalCostService()
+        let service = TotalCostService.shared
         let enhancedCost = service.calculateTotalCost(
             kWh: kWh,
             spotPriceOre: priceInOre,
@@ -109,7 +109,7 @@ extension CostCardView {
         tariff: SimplifiedTariff?,
         hoursInPeriod: Double = 1.0
     ) -> CostBreakdown {
-        let service = TotalCostService()
+        let service = TotalCostService.shared
         let settings = ConsumptionSettings.shared
         let enhancedCost = service.calculateTotalCost(
             kWh: kWh,

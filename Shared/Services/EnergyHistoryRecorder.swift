@@ -58,12 +58,12 @@ final class EnergyHistoryRecorder {
         calendar: Calendar? = nil
     ) {
         self.store = store
-        self.totalCostService = totalCostService ?? TotalCostService()
+        self.totalCostService = totalCostService ?? .shared
         self.calendar = calendar ?? .energyHistory
     }
 
     convenience init() throws {
-        try self.init(store: SwiftDataEnergyHistoryStore())
+        try self.init(store: EnergyHistoryStores.writer())
     }
 
     func recordPriceHistory(dayData: DayChartData, priceArea: String) {

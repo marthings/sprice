@@ -8,6 +8,8 @@
 import Foundation
 
 final class TotalCostService: Sendable {
+    static let shared = TotalCostService()
+
     private let gridTariffService: GridTariffService
     private let consumptionService: ConsumptionService
 
@@ -239,7 +241,7 @@ struct MonthlyCostEstimator: Sendable {
     private let calendar: Calendar
 
     init(
-        totalCostService: TotalCostService = TotalCostService(),
+        totalCostService: TotalCostService = .shared,
         calendar: Calendar = .energyHistory
     ) {
         self.totalCostService = totalCostService

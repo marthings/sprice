@@ -55,7 +55,7 @@ struct SettingsConsumptionVerificationSection: View {
 
                 NotificationCenter.default.post(name: .consumptionSettingsDidSave, object: nil)
 
-                WidgetCenter.shared.reloadAllTimelines()
+                WidgetReload.timelines()
 
                 AppLog.settings.info("Consumption provider verification succeeded")
             } catch {

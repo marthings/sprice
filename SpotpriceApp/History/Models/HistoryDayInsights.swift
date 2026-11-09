@@ -43,6 +43,8 @@ struct HistoryDaySnapshot {
     let kWh: Double?
     let paidKrPerKWh: Double?
     let hours: [HistoryHourCost]
+    let costHours: [HistoryHourCost]
+    let spotHours: [HistoryHourCost]
     let expensiveHoursUsed: [HistoryHourCost]
     let split: HistoryDayCostSplit?
     let isIncomplete: Bool
@@ -93,6 +95,8 @@ enum HistoryDayInsights {
             kWh: kWh,
             paidKrPerKWh: paid,
             hours: hours,
+            costHours: hours.filter { $0.costKr != nil },
+            spotHours: hours.filter { $0.spotOrePerKWh != nil },
             expensiveHoursUsed: Array(
                 measuredHours
                     .filter { ($0.costKr ?? 0) > 0 }
@@ -117,7 +121,7 @@ enum HistoryDayInsights {
         }
         let dayStart = calendar.startOfDay(for: dayDate)
         let isToday = calendar.isDate(dayDate, inSameDayAs: now)
-        let service = TotalCostService()
+        let service = TotalCostService.shared
         var hours: [HistoryHourCost] = []
 
         for hourIndex in 0..<24 {
@@ -176,7 +180,7 @@ enum HistoryDayInsights {
             let hoursInPeriod = isToday
                 ? max(now.timeIntervalSince(calendar.startOfDay(for: date)) / 3600, 1 / 60)
                 : 24
-            return TotalCostService().calculateTotalCost(
+            return TotalCostService.shared.calculateTotalCost(
                 kWh: kWh,
                 spotPriceOre: spot,
                 profile: costProfile,
@@ -217,7 +221,7 @@ enum HistoryDayInsights {
         let hoursInPeriod = isToday
             ? max(now.timeIntervalSince(calendar.startOfDay(for: date)) / 3600, 1 / 60)
             : 24
-        let cost = TotalCostService().calculateTotalCost(
+        let cost = TotalCostService.shared.calculateTotalCost(
             kWh: kWh,
             spotPriceOre: spot,
             profile: costProfile,

@@ -43,7 +43,8 @@ struct HistoryMonthDaysChart: View {
 
     @ViewBuilder
     private var chartContent: some View {
-        if let expensive = mostExpensiveDay, let cost = expensive.costKr {
+        let expensive = mostExpensiveDay
+        if let expensive, let cost = expensive.costKr {
             Text("Dyrast: \(AppFormatters.weekdayDayMonth(expensive.date)), \(AppFormatters.wholeNumber(cost)) kr")
                 .font(DS.Font.semibold(12))
                 .foregroundStyle(.primary)
@@ -59,7 +60,7 @@ struct HistoryMonthDaysChart: View {
                     x: .value("Dag", day.date, unit: .day),
                     y: .value("kr", day.costKr ?? 0)
                 )
-                .foregroundStyle(barColor(for: day))
+                .foregroundStyle(barColor(for: day, expensiveID: expensive?.id))
                 .cornerRadius(3)
                 .opacity(barOpacity(for: day))
             }
@@ -101,13 +102,18 @@ struct HistoryMonthDaysChart: View {
                     .gesture(
                         DragGesture(minimumDistance: 0)
                             .onChanged { value in
-                                selectedDay = nearestDay(at: value.location, chartWidth: geometry.size.width)
+                                let day = nearestDay(at: value.location, chartWidth: geometry.size.width)
+                                if selectedDay?.id != day?.id {
+                                    selectedDay = day
+                                }
                             }
                             .onEnded { value in
                                 guard let day = nearestDay(at: value.location, chartWidth: geometry.size.width) else {
                                     return
                                 }
-                                selectedDay = day
+                                if selectedDay?.id != day.id {
+                                    selectedDay = day
+                                }
                                 if abs(value.translation.width) < 8 && abs(value.translation.height) < 8 {
                                     open(day)
                                 }
@@ -167,8 +173,8 @@ struct HistoryMonthDaysChart: View {
         return days[clampedIndex]
     }
 
-    private func barColor(for day: MonthDayCost) -> Color {
-        if day.id == mostExpensiveDay?.id {
+    private func barColor(for day: MonthDayCost, expensiveID: Date?) -> Color {
+        if day.id == expensiveID {
             return DS.Color.danger
         }
         return DS.Color.info

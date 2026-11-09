@@ -120,16 +120,14 @@ final class ConsumptionSettings {
 
     var costProfile: CostProfile {
         didSet {
+            guard costProfile != oldValue else { return }
             saveCostProfile(costProfile)
             mirrorCostProfileToLegacyDefaults(costProfile)
             syncLegacyProperties(from: costProfile)
             NotificationCenter.default.post(name: .consumptionSettingsDidSave, object: nil)
-            
-            // Force UserDefaults to sync before reloading widget
+
             Self.defaults.synchronize()
-            
-            // Reload widgets immediately when cost profile changes
-            WidgetCenter.shared.reloadAllTimelines()
+            WidgetReload.timelines()
         }
     }
 
@@ -233,15 +231,14 @@ final class ConsumptionSettings {
             return try? JSONDecoder().decode(ConsumptionData.self, from: data)
         }
         set {
+            guard newValue != cachedConsumption else { return }
             if let newValue = newValue,
                let data = try? JSONEncoder().encode(newValue) {
                 Self.defaults.set(data, forKey: Keys.cachedConsumption)
             } else {
                 Self.defaults.removeObject(forKey: Keys.cachedConsumption)
             }
-            
-            // Reload widgets when consumption data changes
-            WidgetCenter.shared.reloadAllTimelines()
+            WidgetReload.timelines()
         }
     }
 
@@ -527,7 +524,6 @@ extension ConsumptionSettings {
         get { costProfile.priceArea }
         set {
             costProfile = costProfile.updating(priceArea: newValue)
-            WidgetCenter.shared.reloadAllTimelines()
         }
     }
 
@@ -580,7 +576,6 @@ extension ConsumptionSettings {
                 costProfile = costProfile
                     .settingEffectTariff(nil)
                     .applyingInferredConfidence()
-                WidgetCenter.shared.reloadAllTimelines()
             }
         }
     }
@@ -656,7 +651,6 @@ extension ConsumptionSettings {
             confidence: .userConfigured,
             source: .userEntered
         )
-        WidgetCenter.shared.reloadAllTimelines()
     }
 
     func setEffectTariffPrice(_ monthlyPricePerKW: Double) {
@@ -669,6 +663,17 @@ extension ConsumptionSettings {
             confidence: .userConfigured,
             source: .userEntered
         )
-        WidgetCenter.shared.reloadAllTimelines()
+    }
+}
+
+enum WidgetKind {
+    static let iOSApp = "SpotpriceAppWidgetV2"
+    static let macOSMenuBar = "SpotpriceWidget"
+}
+
+enum WidgetReload {
+    static func timelines() {
+        WidgetCenter.shared.reloadTimelines(ofKind: WidgetKind.iOSApp)
+        WidgetCenter.shared.reloadTimelines(ofKind: WidgetKind.macOSMenuBar)
     }
 }

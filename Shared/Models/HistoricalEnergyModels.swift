@@ -711,29 +711,32 @@ enum EnergyHistoryKey {
 
     static func dayKey(for date: Date, calendar: Calendar = .energyHistory) -> String {
         let components = calendar.dateComponents([.year, .month, .day], from: date)
-        return String(format: "%04d-%02d-%02d", components.year ?? 0, components.month ?? 0, components.day ?? 0)
+        return "\(paddedYear(components.year ?? 0))-\(paddedTwo(components.month ?? 0))-\(paddedTwo(components.day ?? 0))"
     }
 
     static func monthKey(for date: Date, calendar: Calendar = .energyHistory) -> String {
         let components = calendar.dateComponents([.year, .month], from: date)
-        return String(format: "%04d-%02d", components.year ?? 0, components.month ?? 0)
+        return "\(paddedYear(components.year ?? 0))-\(paddedTwo(components.month ?? 0))"
     }
 
     private static func instantKey(for date: Date, calendar: Calendar) -> String {
         let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
-        return String(
-            format: "%04d-%02d-%02dT%02d:%02d",
-            components.year ?? 0,
-            components.month ?? 0,
-            components.day ?? 0,
-            components.hour ?? 0,
-            components.minute ?? 0
-        )
+        return "\(paddedYear(components.year ?? 0))-\(paddedTwo(components.month ?? 0))-\(paddedTwo(components.day ?? 0))T\(paddedTwo(components.hour ?? 0)):\(paddedTwo(components.minute ?? 0))"
+    }
+
+    private static func paddedTwo(_ value: Int) -> String {
+        value < 10 ? "0\(value)" : String(value)
+    }
+
+    private static func paddedYear(_ value: Int) -> String {
+        if value < 0 { return String(value) }
+        if value < 10 { return "000\(value)" }
+        if value < 100 { return "00\(value)" }
+        if value < 1000 { return "0\(value)" }
+        return String(value)
     }
 }
 
 extension Calendar {
-    static var energyHistory: Calendar {
-        AppFormatters.energyCalendar
-    }
+    static let energyHistory = AppFormatters.energyCalendar
 }

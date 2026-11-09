@@ -99,11 +99,105 @@ struct DayChartData: Equatable, Sendable {
 
 enum WidgetTimelineSchedule {
     /// Next quarter-hour boundary for widget timeline refresh policy.
-    static func nextQuarterHourUpdate(from date: Date = Date(), calendar: Calendar = .current) -> Date {
+    static func nextQuarterHourUpdate(from date: Date = Date(), calendar: Calendar = .energyHistory) -> Date {
         let minute = calendar.component(.minute, from: date)
         let minutesToNextQuarter = 15 - (minute % 15)
         return calendar.date(byAdding: .minute, value: minutesToNextQuarter, to: date)
             ?? date.addingTimeInterval(15 * 60)
+    }
+
+    /// Tomorrow's day-ahead prices typically publish around 13:00 Europe/Stockholm.
+    static func nextDayAheadRefresh(from date: Date = Date(), calendar: Calendar = .energyHistory) -> Date {
+        var components = calendar.dateComponents([.year, .month, .day], from: date)
+        components.hour = 13
+        components.minute = 15
+        components.second = 0
+        let todayPublication = calendar.date(from: components) ?? date
+        if date < todayPublication {
+            return todayPublication
+        }
+        return calendar.date(byAdding: .day, value: 1, to: todayPublication)
+            ?? date.addingTimeInterval(24 * 60 * 60)
+    }
+
+    static func remainingBuckets(
+        today: DayChartData,
+        tomorrow: DayChartData?,
+        now: Date
+    ) -> [(date: Date, bucket: PriceBucket, day: DayChartData)] {
+        var result: [(Date, PriceBucket, DayChartData)] = []
+        for bucket in today.buckets where bucket.end > now {
+            result.append((max(bucket.start, now), bucket, today))
+        }
+        if let tomorrow {
+            for bucket in tomorrow.buckets {
+                result.append((bucket.start, bucket, tomorrow))
+            }
+        }
+        if result.isEmpty, let current = today.currentBucket(at: now) {
+            result.append((now, current, today))
+        }
+        return result
+    }
+}
+
+enum SpotPriceDayCache {
+    private static let folderName = "SpotPriceCache"
+
+    static func store(_ items: [SpotPriceItem], area: String, calendar: Calendar = .energyHistory) {
+        guard !items.isEmpty else { return }
+
+        let grouped = Dictionary(grouping: items) { item in
+            EnergyHistoryKey.dayKey(for: item.timeStart, calendar: calendar)
+        }
+
+        for (dayKey, dayItems) in grouped {
+            let payload = Payload(area: area, dayKey: dayKey, items: dayItems, savedAt: Date())
+            guard let data = try? JSONEncoder().encode(payload),
+                  let url = fileURL(area: area, dayKey: dayKey) else {
+                continue
+            }
+            try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try? data.write(to: url, options: .atomic)
+        }
+    }
+
+    static func items(for day: Date, area: String, calendar: Calendar = .energyHistory) -> [SpotPriceItem]? {
+        let dayKey = EnergyHistoryKey.dayKey(for: day, calendar: calendar)
+        guard let url = fileURL(area: area, dayKey: dayKey),
+              let data = try? Data(contentsOf: url),
+              let payload = try? JSONDecoder().decode(Payload.self, from: data),
+              !payload.items.isEmpty else {
+            return nil
+        }
+        return payload.items
+    }
+
+    static func lookup(for day: Date, area: String, calendar: Calendar = .energyHistory) -> [Date: Double]? {
+        guard let items = items(for: day, area: area, calendar: calendar) else {
+            return nil
+        }
+        var map: [Date: Double] = [:]
+        map.reserveCapacity(items.count)
+        for item in items {
+            map[item.timeStart] = item.sekPerKWh * 100.0
+        }
+        return map
+    }
+
+    private static func fileURL(area: String, dayKey: String) -> URL? {
+        FileManager.default
+            .containerURL(forSecurityApplicationGroupIdentifier: EnergyHistoryConstants.appGroupIdentifier)?
+            .appendingPathComponent(folderName, isDirectory: true)
+            .appendingPathComponent(area, isDirectory: true)
+            .appendingPathComponent("\(dayKey).json", isDirectory: false)
+    }
+
+    private struct Payload: Codable, Sendable {
+        let area: String
+        let dayKey: String
+        let items: [SpotPriceItem]
+        let savedAt: Date
     }
 }
 
@@ -118,7 +212,7 @@ enum PriceBucketAnalytics {
 
 // MARK: - Spot Price Item (API Response)
 
-struct SpotPriceItem: Decodable, Equatable, Sendable {
+struct SpotPriceItem: Codable, Equatable, Sendable {
     let sekPerKWh: Double
     let eurPerKWh: Double
     let exr: Double

@@ -297,7 +297,7 @@ enum HistoryInsights {
         now: Date,
         calendar: Calendar
     ) -> (amount: Double?, usedCurrentTariffs: Bool) {
-        let service = TotalCostService()
+        let service = TotalCostService.shared
 
         if isCurrentMonth {
             if let livePreciseCost, livePreciseCost.totalKWh > 0 {

@@ -36,7 +36,7 @@ private struct CurrentCostHero: View {
     let monthlyConsumption: ConsumptionData?
     let preciseMonthlyCost: PreciseMonthlyCost?
 
-    private let totalCostService = TotalCostService()
+    private let totalCostService = TotalCostService.shared
     private let monthlyCostEstimator = MonthlyCostEstimator()
 
     var body: some View {

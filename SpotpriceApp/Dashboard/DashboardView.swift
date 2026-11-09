@@ -3,7 +3,6 @@ import SwiftUI
 struct DashboardView: View {
     @State private var viewModel = SpotPriceViewModel()
     @State private var selectedSection = 0
-    @State private var selectedChartDate: Date?
 
     var body: some View {
         TabView(selection: $selectedSection) {
@@ -22,7 +21,6 @@ struct DashboardView: View {
                     state: viewModel.state,
                     settingsSummary: settingsSummary,
                     costProfile: settingsSummaryCostProfile,
-                    selectedChartDate: $selectedChartDate,
                     onRetry: reload
                 )
             }
@@ -72,7 +70,6 @@ struct DashboardView: View {
         let state: SpotPriceViewModel.State
         let settingsSummary: String
         let costProfile: CostProfile
-        @Binding var selectedChartDate: Date?
         let onRetry: () -> Void
         
         var body: some View {
@@ -83,7 +80,6 @@ struct DashboardView: View {
                 DailyPriceTabView(
                     state: state,
                     costProfile: costProfile,
-                    selectedChartDate: $selectedChartDate,
                     onRetry: onRetry
                 )
             }

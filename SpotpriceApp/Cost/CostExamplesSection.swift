@@ -4,7 +4,7 @@ struct CostExamplesSection: View {
     let payload: SpotPriceViewModel.CurrentAndDay
     let profile: CostProfile
 
-    private let totalCostService = TotalCostService()
+    private let totalCostService = TotalCostService.shared
 
     private var currentPrice: Double {
         payload.day.currentBucket?.orePerKWh ?? PriceBucketAnalytics.averageSpotPrice(payload.day.buckets)

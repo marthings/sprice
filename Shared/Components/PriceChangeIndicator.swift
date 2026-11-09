@@ -62,7 +62,7 @@ struct SharedPriceRangeSection: View {
     let profile: CostProfile
     var style: Style = .regular
 
-    private let totalCostService = TotalCostService()
+    private let totalCostService = TotalCostService.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {

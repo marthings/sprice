@@ -19,7 +19,7 @@ struct CostCalculationSection: View {
                     .foregroundStyle(.primary)
 
                 if let price = getCurrentPrice(payload) {
-                    let totalCostService = TotalCostService()
+                    let totalCostService = TotalCostService.shared
                     let totalCost = totalCostService.calculatePricePerKWh(spotPriceOre: price, profile: profile)
                     Text("(\(totalCost.formatted(.number.precision(.fractionLength(2)))) kr/kWh)")
                         .font(DS.Font.medium(11))
@@ -35,7 +35,7 @@ struct CostCalculationSection: View {
 
             KilowattHourBreakdownView(
                 breakdown: KilowattHourBreakdown.make(
-                    from: TotalCostService().calculateTotalCost(
+                    from: TotalCostService.shared.calculateTotalCost(
                         kWh: 1,
                         spotPriceOre: currentPrice,
                         profile: profile,

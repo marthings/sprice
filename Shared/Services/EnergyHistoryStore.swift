@@ -44,15 +44,49 @@ protocol EnergyHistoryQuerying {
 }
 
 @MainActor
-final class EnergyHistoryQueryService: EnergyHistoryQuerying {
-    private let storeFactory: () throws -> any EnergyHistoryStore
+enum EnergyHistoryStores {
+    private static var cachedContainer: ModelContainer?
+    private static var cachedReader: SwiftDataEnergyHistoryStore?
+    private static var cachedWriter: SwiftDataEnergyHistoryStore?
 
-    init(storeFactory: (() throws -> any EnergyHistoryStore)? = nil) {
-        self.storeFactory = storeFactory ?? { try SwiftDataEnergyHistoryStore() }
+    static func container() throws -> ModelContainer {
+        if let cachedContainer {
+            return cachedContainer
+        }
+        let container = try EnergyHistoryModelContainer.makeLocalContainer()
+        cachedContainer = container
+        return container
+    }
+
+    static func reader() throws -> SwiftDataEnergyHistoryStore {
+        if let cachedReader {
+            return cachedReader
+        }
+        let store = SwiftDataEnergyHistoryStore(container: try container())
+        cachedReader = store
+        return store
+    }
+
+    static func writer() throws -> SwiftDataEnergyHistoryStore {
+        if let cachedWriter {
+            return cachedWriter
+        }
+        let store = SwiftDataEnergyHistoryStore(container: try container())
+        cachedWriter = store
+        return store
+    }
+}
+
+@MainActor
+final class EnergyHistoryQueryService: EnergyHistoryQuerying {
+    private let store: (any EnergyHistoryStore)?
+
+    init(store: (any EnergyHistoryStore)? = nil) {
+        self.store = store
     }
 
     func loadMonthHistory(priceArea: String?, selectedMonthKey: String?) throws -> EnergyHistoryMonthQueryResult {
-        let store = try storeFactory()
+        let store = try resolvedStore()
         let months = uniqueBestMonthlySummaries(try store.fetchMonthlySummaries(priceArea: priceArea))
         let resolvedMonthKey = selectedMonthKey ?? months.first?.periodKey
         let dailySummaries: [HistoricalEnergySummaryValue]
@@ -81,15 +115,22 @@ final class EnergyHistoryQueryService: EnergyHistoryQuerying {
     }
 
     func loadCurrentMonthSummary(priceArea: String?, monthKey: String) throws -> HistoricalEnergySummaryValue? {
-        let store = try storeFactory()
+        let store = try resolvedStore()
         return try store.fetchMonthlySummaries(priceArea: priceArea)
             .filter { $0.periodKey == monthKey }
             .max { lhs, rhs in rhs.isPreferred(over: lhs) }
     }
 
     func loadDayIntervals(dayKey: String, priceArea: String?) throws -> [HistoricalEnergyIntervalValue] {
-        let store = try storeFactory()
+        let store = try resolvedStore()
         return Self.preferredIntervals(from: try store.fetchRecords(dayKey: dayKey, priceArea: priceArea))
+    }
+
+    private func resolvedStore() throws -> any EnergyHistoryStore {
+        if let store {
+            return store
+        }
+        return try EnergyHistoryStores.reader()
     }
 
     private func uniqueBestMonthlySummaries(_ summaries: [HistoricalEnergySummaryValue]) -> [HistoricalEnergySummaryValue] {
@@ -223,7 +264,7 @@ final class SwiftDataEnergyHistoryStore: EnergyHistoryStore {
     }
 
     convenience init() throws {
-        try self.init(container: EnergyHistoryModelContainer.makeLocalContainer())
+        try self.init(container: EnergyHistoryStores.container())
     }
 
     func upsertRecords(_ drafts: [HistoricalEnergyRecordDraft]) throws {

@@ -15,47 +15,55 @@ enum AppFormatters {
     static let swedishTimeZone = TimeZone(identifier: "Europe/Stockholm") ?? .current
     static let posixLocale = Locale(identifier: "en_US_POSIX")
 
-    static var energyCalendar: Calendar {
+    static let energyCalendar: Calendar = {
         var calendar = Calendar(identifier: .gregorian)
         calendar.locale = swedishLocale
         calendar.timeZone = swedishTimeZone
         return calendar
-    }
+    }()
+
+    private static let swedishDate = Date.FormatStyle(
+        date: .omitted,
+        time: .omitted,
+        locale: swedishLocale,
+        calendar: energyCalendar,
+        timeZone: swedishTimeZone
+    )
 
     static func monthAndYear(_ date: Date) -> String {
-        string(from: date, dateFormat: "MMMM yyyy")
+        date.formatted(swedishDate.month(.wide).year())
     }
 
     static func monthName(_ date: Date) -> String {
-        string(from: date, dateFormat: "MMMM")
+        date.formatted(swedishDate.month(.wide))
     }
 
     static func shortDayAndMonth(_ date: Date) -> String {
-        string(from: date, dateFormat: "d MMM")
+        date.formatted(swedishDate.day().month(.abbreviated))
     }
 
     static func powerPeakLabel(_ date: Date) -> String {
-        string(from: date, dateFormat: "d MMM HH:mm")
+        date.formatted(swedishDate.day().month(.abbreviated).hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
     }
 
     static func powerPeakHourLabel(_ date: Date) -> String {
-        string(from: date, localizedTemplate: "d MMM HH")
+        date.formatted(swedishDate.day().month(.abbreviated).hour(.defaultDigits(amPM: .omitted)))
     }
 
     static func widgetMonthLabel(_ date: Date) -> String {
-        string(from: date, dateFormat: "MMM")
+        date.formatted(swedishDate.month(.abbreviated))
     }
 
     static func clockTime(_ date: Date) -> String {
-        string(from: date, dateFormat: "HH:mm:ss")
+        date.formatted(swedishDate.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits).second(.twoDigits))
     }
 
     static func apiDate(_ date: Date) -> String {
-        string(from: date, dateFormat: "yyyy-MM-dd")
+        apiDateFormatter.string(from: date)
     }
 
     static func apiDateTime(_ date: Date) -> String {
-        string(from: date, dateFormat: "yyyy-MM-dd HH:mm:ss")
+        apiDateTimeFormatter.string(from: date)
     }
 
     static func historyMonthLabel(_ date: Date) -> String {
@@ -116,29 +124,37 @@ enum AppFormatters {
     }
 
     static func vaggerydDateDecoder() -> JSONDecoder {
+        vaggerydJSONDecoder
+    }
+
+    private static let apiDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.calendar = energyCalendar
+        formatter.locale = posixLocale
+        formatter.timeZone = swedishTimeZone
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
+
+    private static let apiDateTimeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.calendar = energyCalendar
+        formatter.locale = posixLocale
+        formatter.timeZone = swedishTimeZone
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        return formatter
+    }()
+
+    private static let vaggerydJSONDecoder: JSONDecoder = {
         let decoder = JSONDecoder()
         let formatter = DateFormatter()
+        formatter.calendar = energyCalendar
+        formatter.locale = posixLocale
         formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
         formatter.timeZone = swedishTimeZone
         decoder.dateDecodingStrategy = .formatted(formatter)
         return decoder
-    }
-
-    private static func string(from date: Date, dateFormat: String) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = swedishLocale
-        formatter.timeZone = swedishTimeZone
-        formatter.dateFormat = dateFormat
-        return formatter.string(from: date)
-    }
-
-    private static func string(from date: Date, localizedTemplate: String) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = swedishLocale
-        formatter.timeZone = swedishTimeZone
-        formatter.setLocalizedDateFormatFromTemplate(localizedTemplate)
-        return formatter.string(from: date)
-    }
+    }()
 }
 
 // MARK: - Design System

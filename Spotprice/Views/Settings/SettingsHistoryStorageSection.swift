@@ -5,7 +5,6 @@
 
 import SwiftUI
 import UniformTypeIdentifiers
-import WidgetKit
 
 struct SettingsHistoryStorageSection: View {
     @Bindable var settings: ConsumptionSettings
@@ -70,7 +69,7 @@ struct SettingsHistoryStorageSection: View {
 
     private func loadHistoryStorageStatus() {
         do {
-            let store = try SwiftDataEnergyHistoryStore()
+            let store = try EnergyHistoryStores.reader()
             let monthCount = try store.fetchMonthlySummaries(priceArea: settings.priceArea).count
             if monthCount == 0 {
                 historyStorageStatus = "Ingen sparad historik för \(settings.priceArea) ännu."
@@ -86,7 +85,7 @@ struct SettingsHistoryStorageSection: View {
 
     private func exportLocalHistory() {
         do {
-            let store = try SwiftDataEnergyHistoryStore()
+            let store = try EnergyHistoryStores.reader()
             let csv = try store.exportHistoryCSV(priceArea: settings.priceArea)
             historyExportDocument = HistoryCSVDocument(text: csv)
             isExportingHistory = true
@@ -97,10 +96,10 @@ struct SettingsHistoryStorageSection: View {
 
     private func deleteLocalHistory() {
         do {
-            let store = try SwiftDataEnergyHistoryStore()
+            let store = try EnergyHistoryStores.writer()
             try store.deleteAllHistory()
             historyStorageStatus = "Lokal historik är raderad."
-            WidgetCenter.shared.reloadAllTimelines()
+            WidgetReload.timelines()
         } catch {
             historyStorageStatus = "Kunde inte radera historik: \(error.userFacingMessage)"
         }
@@ -108,10 +107,10 @@ struct SettingsHistoryStorageSection: View {
 
     private func pruneLocalHistory() {
         do {
-            let store = try SwiftDataEnergyHistoryStore()
+            let store = try EnergyHistoryStores.writer()
             try store.pruneHistory(keepingRecentMonths: 24)
             loadHistoryStorageStatus()
-            WidgetCenter.shared.reloadAllTimelines()
+            WidgetReload.timelines()
         } catch {
             historyStorageStatus = "Kunde inte rensa historik: \(error.userFacingMessage)"
         }
