@@ -89,12 +89,7 @@ nonisolated struct HistoricalCostProfileSnapshot: Codable, Equatable, Sendable {
 
     nonisolated static func hash(of data: Data) -> String {
         let digest = SHA256.hash(data: data)
-        var hex = ""
-        hex.reserveCapacity(digest.count * 2)
-        for byte in digest {
-            hex.append(String(format: "%02x", byte))
-        }
-        return hex
+        return digest.map { String(format: "%02x", $0) }.joined()
     }
 }
 

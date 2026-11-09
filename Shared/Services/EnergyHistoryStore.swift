@@ -1337,12 +1337,14 @@ nonisolated enum EnergyHistoryWriting {
     }
 
     nonisolated private static func writeCSV(_ text: String, to stream: OutputStream) throws {
-        var bytes = Array(text.utf8)
+        let bytes = Array(text.utf8)
+        let total = bytes.count
         var written = 0
-        while written < bytes.count {
-            let result = bytes.withUnsafeMutableBytes { raw -> Int in
-                guard let base = raw.bindMemory(to: UInt8.self).baseAddress else { return -1 }
-                return stream.write(base + written, maxLength: bytes.count - written)
+        while written < total {
+            let offset = written
+            let result = bytes.withUnsafeBufferPointer { buffer -> Int in
+                guard let base = buffer.baseAddress else { return -1 }
+                return stream.write(base + offset, maxLength: total - offset)
             }
             if result < 0 {
                 throw stream.streamError ?? EnergyHistoryStoreError.exportFailed("csv")
