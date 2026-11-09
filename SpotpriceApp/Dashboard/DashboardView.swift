@@ -6,56 +6,49 @@ struct DashboardView: View {
     @State private var selectedSection = 0
 
     var body: some View {
-        ZStack {
-            // Full-screen landscape behind every tab, including under the
-            // floating tab bar. Per-tab backgrounds stop above the tab bar.
-            AppCanvasBackground()
+        TabView(selection: $selectedSection) {
+            Tab("Kostnad", systemImage: "wallet.bifold.fill", value: 0) {
+                CostTab(
+                    state: viewModel.state,
+                    monthlyConsumption: viewModel.monthlyConsumption,
+                    preciseMonthlyCost: viewModel.preciseMonthlyCost,
+                    powerPeaks: viewModel.powerPeaks,
+                    onRetry: reload,
+                    onRefresh: refresh
+                )
+            }
 
-            TabView(selection: $selectedSection) {
-                Tab("Kostnad", systemImage: "wallet.bifold.fill", value: 0) {
-                    CostTab(
-                        state: viewModel.state,
-                        monthlyConsumption: viewModel.monthlyConsumption,
-                        preciseMonthlyCost: viewModel.preciseMonthlyCost,
-                        powerPeaks: viewModel.powerPeaks,
-                        onRetry: reload,
-                        onRefresh: refresh
-                    )
-                }
+            Tab("Priser", systemImage: "chart.bar.fill", value: 1) {
+                PriceTab(
+                    state: viewModel.state,
+                    costProfile: settingsCostProfile,
+                    onRetry: reload,
+                    onRefresh: refresh
+                )
+            }
 
-                Tab("Priser", systemImage: "chart.bar.fill", value: 1) {
-                    PriceTab(
-                        state: viewModel.state,
-                        costProfile: settingsCostProfile,
-                        onRetry: reload,
-                        onRefresh: refresh
-                    )
-                }
+            Tab("Historik", systemImage: "clock.arrow.circlepath", value: 2) {
+                HistoryTab(
+                    priceArea: settingsPriceArea,
+                    costProfile: settingsCostProfile,
+                    liveMonthlyConsumption: viewModel.monthlyConsumption,
+                    livePreciseCost: viewModel.preciseMonthlyCost,
+                    onRefresh: refresh
+                )
+            }
 
-                Tab("Historik", systemImage: "clock.arrow.circlepath", value: 2) {
-                    HistoryTab(
-                        priceArea: settingsPriceArea,
-                        costProfile: settingsCostProfile,
-                        liveMonthlyConsumption: viewModel.monthlyConsumption,
-                        livePreciseCost: viewModel.preciseMonthlyCost,
-                        onRefresh: refresh
-                    )
-                }
-
-                Tab("Inställningar", systemImage: "gearshape", value: 3) {
-                    DashboardTabShell(
-                        title: "Inställningar",
-                        onRefresh: refresh,
-                        showsRefresh: false,
-                        embedsInScrollView: false
-                    ) {
-                        AppSettingsView()
-                    }
+            Tab("Inställningar", systemImage: "gearshape", value: 3) {
+                DashboardTabShell(
+                    title: "Inställningar",
+                    onRefresh: refresh,
+                    showsRefresh: false,
+                    embedsInScrollView: false
+                ) {
+                    AppSettingsView()
                 }
             }
-            .toolbarBackground(.hidden, for: .tabBar)
-            .toolbarBackgroundVisibility(.hidden, for: .tabBar)
         }
+        .toolbarBackgroundVisibility(.hidden, for: .tabBar)
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
             Task { await viewModel.handleForeground() }
@@ -143,9 +136,7 @@ struct DashboardView: View {
         var body: some View {
             NavigationStack {
                 tabBody
-                    // Let the root AppCanvasBackground (behind TabView) show through,
-                    // including the strip under the floating tab bar.
-                    .containerBackground(.clear, for: .navigation)
+                    .background { AppCanvasBackground().ignoresSafeArea() }
                     .navigationTitle(title)
                     .navigationBarTitleDisplayMode(.large)
             }

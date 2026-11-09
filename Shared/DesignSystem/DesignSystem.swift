@@ -853,11 +853,12 @@ struct AppCanvasBackground: View {
                 .resizable()
                 .scaledToFill()
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .clipped()
+                .ignoresSafeArea()
                 .allowsHitTesting(false)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .clipped()
-        .ignoresSafeArea(.all)
+        .ignoresSafeArea()
         .accessibilityHidden(true)
     }
 
@@ -870,6 +871,7 @@ struct AppCanvasBackground: View {
                 Color(red: 0.86, green: 0.88, blue: 0.92)
             }
         }
+        .ignoresSafeArea()
     }
 }
 
