@@ -877,8 +877,8 @@ struct AppCanvasBackground: View {
 
     private var paper: Color {
         colorScheme == .dark
-            ? Color(red: 0.07, green: 0.08, blue: 0.10)
-            : Color(red: 0.94, green: 0.94, blue: 0.96)
+            ? Color(red: 0.045, green: 0.05, blue: 0.065)
+            : Color(red: 0.86, green: 0.88, blue: 0.92)
     }
 
     @available(iOS 18.0, macOS 15.0, *)
@@ -886,31 +886,31 @@ struct AppCanvasBackground: View {
         let info = DS.Color.info
         let warm = DS.Color.accent
         if colorScheme == .dark {
-            let cool = Color(red: 0.11, green: 0.14, blue: 0.20)
+            let cool = Color(red: 0.07, green: 0.11, blue: 0.17)
             return [
-                cool.mix(with: info, by: 0.28),
+                cool.mix(with: info, by: 0.34),
                 cool,
-                paper.mix(with: warm, by: 0.08),
-                cool.mix(with: paper, by: 0.30),
-                cool.mix(with: info, by: 0.14),
+                paper.mix(with: warm, by: 0.12),
+                cool.mix(with: paper, by: 0.22),
+                cool.mix(with: info, by: 0.18),
                 paper,
                 paper,
-                cool.mix(with: paper, by: 0.20),
-                cool.mix(with: info, by: 0.20)
+                cool.mix(with: paper, by: 0.14),
+                cool.mix(with: info, by: 0.26)
             ]
         }
-        let cool = Color(red: 0.88, green: 0.92, blue: 0.97)
-        let cream = Color(red: 0.96, green: 0.94, blue: 0.91)
+        let cool = Color(red: 0.78, green: 0.86, blue: 0.94)
+        let cream = Color(red: 0.90, green: 0.86, blue: 0.80)
         return [
-            cool.mix(with: info, by: 0.18),
+            cool.mix(with: info, by: 0.22),
             cool,
-            cream.mix(with: warm, by: 0.06),
-            cool.mix(with: paper, by: 0.35),
-            paper.mix(with: info, by: 0.10),
+            cream.mix(with: warm, by: 0.10),
+            cool.mix(with: paper, by: 0.25),
+            paper.mix(with: info, by: 0.14),
             cream,
             cream,
             paper,
-            cool.mix(with: info, by: 0.14)
+            cool.mix(with: info, by: 0.18)
         ]
     }
 
@@ -918,15 +918,15 @@ struct AppCanvasBackground: View {
         ZStack {
             LinearGradient(
                 colors: colorScheme == .dark
-                    ? [Color(red: 0.10, green: 0.13, blue: 0.18), Color(red: 0.07, green: 0.08, blue: 0.10)]
-                    : [Color(red: 0.86, green: 0.91, blue: 0.96), Color(red: 0.95, green: 0.93, blue: 0.90)],
+                    ? [Color(red: 0.07, green: 0.11, blue: 0.17), Color(red: 0.045, green: 0.05, blue: 0.065)]
+                    : [Color(red: 0.78, green: 0.86, blue: 0.94), Color(red: 0.90, green: 0.86, blue: 0.80)],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
             RadialGradient(
                 colors: colorScheme == .dark
-                    ? [Color(red: 0.18, green: 0.24, blue: 0.32).opacity(0.50), .clear]
-                    : [Color(red: 0.76, green: 0.86, blue: 0.94).opacity(0.65), .clear],
+                    ? [Color(red: 0.10, green: 0.16, blue: 0.24).opacity(0.62), .clear]
+                    : [Color(red: 0.68, green: 0.80, blue: 0.90).opacity(0.75), .clear],
                 center: .topLeading,
                 startRadius: 24,
                 endRadius: 520
@@ -985,8 +985,8 @@ struct SpriceCardBackground: View {
     /// stay at WCAG AA (4.5:1) against the tinted fill in both appearances.
     private var contrastFill: Color {
         colorScheme == .dark
-            ? Color.black.opacity(0.42)
-            : Color.white.opacity(0.64)
+            ? Color.black.opacity(0.48)
+            : Color.white.opacity(0.70)
     }
 
     private var opaqueBase: Color {
