@@ -184,6 +184,34 @@ final class HistoricalEnergyRecord {
         confidenceRawValue = draft.confidence.rawValue
         self.updatedAt = updatedAt
     }
+
+    func intervalValue() -> HistoricalEnergyIntervalValue {
+        HistoricalEnergyIntervalValue(
+            id: id,
+            intervalStart: intervalStart,
+            intervalEnd: intervalEnd,
+            spotPriceOrePerKWh: spotPriceOrePerKWh,
+            consumptionKWh: consumptionKWh,
+            energyCostSEK: energyCostSEK,
+            gridCostSEK: gridCostSEK,
+            taxCostSEK: taxCostSEK,
+            vatCostSEK: vatCostSEK,
+            totalCostSEK: totalCostSEK
+        )
+    }
+}
+
+struct HistoricalEnergyIntervalValue: Identifiable, Equatable, Sendable {
+    let id: UUID
+    let intervalStart: Date
+    let intervalEnd: Date
+    let spotPriceOrePerKWh: Double
+    let consumptionKWh: Double?
+    let energyCostSEK: Double?
+    let gridCostSEK: Double?
+    let taxCostSEK: Double?
+    let vatCostSEK: Double?
+    let totalCostSEK: Double?
 }
 
 // MARK: - Historical Energy Summary Models

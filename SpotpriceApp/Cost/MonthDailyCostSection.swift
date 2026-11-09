@@ -26,9 +26,7 @@ struct MonthDailyCostSection: View {
             if !didLoad {
                 ProgressView()
                     .frame(maxWidth: .infinity, minHeight: 80)
-            } else if loadFailed {
-                emptyMessage("Kunde inte läsa den här månadens förbrukning. Försök igen senare.")
-            } else if days.allSatisfy({ $0.costKr == nil }) {
+            } else if loadFailed || days.allSatisfy({ $0.costKr == nil }) {
                 emptyMessage(emptyStateCopy)
             } else {
                 chartContent
@@ -250,7 +248,24 @@ enum MonthDailyCostBuilder {
         guard let monthStart = calendar.dateInterval(of: .month, for: now)?.start else {
             return []
         }
+        return bars(
+            from: summaries,
+            profile: profile,
+            monthStart: monthStart,
+            lastDay: now,
+            now: now,
+            calendar: calendar
+        )
+    }
 
+    static func bars(
+        from summaries: [HistoricalEnergySummaryValue],
+        profile: CostProfile,
+        monthStart: Date,
+        lastDay: Date,
+        now: Date,
+        calendar: Calendar
+    ) -> [MonthDayCost] {
         let summariesByDay = Dictionary(
             summaries.map { (EnergyHistoryKey.dayKey(for: $0.periodStart, calendar: calendar), $0) },
             uniquingKeysWith: { first, _ in first }
@@ -258,8 +273,9 @@ enum MonthDailyCostBuilder {
         let service = TotalCostService()
         var bars: [MonthDayCost] = []
         var dayStart = monthStart
+        let lastDayStart = calendar.startOfDay(for: lastDay)
 
-        while calendar.isDate(dayStart, inSameDayAs: now) || dayStart < now {
+        while dayStart <= lastDayStart {
             let key = EnergyHistoryKey.dayKey(for: dayStart, calendar: calendar)
             let isToday = calendar.isDate(dayStart, inSameDayAs: now)
             let summary = summariesByDay[key]

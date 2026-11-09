@@ -40,6 +40,7 @@ struct EnergyHistoryMonthQueryResult {
 protocol EnergyHistoryQuerying {
     func loadMonthHistory(priceArea: String?, selectedMonthKey: String?) throws -> EnergyHistoryMonthQueryResult
     func loadCurrentMonthSummary(priceArea: String?, monthKey: String) throws -> HistoricalEnergySummaryValue?
+    func loadDayIntervals(dayKey: String, priceArea: String?) throws -> [HistoricalEnergyIntervalValue]
 }
 
 @MainActor
@@ -86,9 +87,34 @@ final class EnergyHistoryQueryService: EnergyHistoryQuerying {
             .max { lhs, rhs in rhs.isPreferred(over: lhs) }
     }
 
+    func loadDayIntervals(dayKey: String, priceArea: String?) throws -> [HistoricalEnergyIntervalValue] {
+        let store = try storeFactory()
+        return Self.preferredIntervals(from: try store.fetchRecords(dayKey: dayKey, priceArea: priceArea))
+    }
+
     private func uniqueBestMonthlySummaries(_ summaries: [HistoricalEnergySummaryValue]) -> [HistoricalEnergySummaryValue] {
         summaries.bestSummaries(groupedBy: \.periodKey)
             .sorted { $0.periodStart > $1.periodStart }
+    }
+
+    static func preferredIntervals(from records: [HistoricalEnergyRecord]) -> [HistoricalEnergyIntervalValue] {
+        Dictionary(grouping: records, by: \.intervalStart)
+            .values
+            .compactMap { group -> HistoricalEnergyIntervalValue? in
+                guard let preferred = group.max(by: { intervalPreference($0) < intervalPreference($1) }) else {
+                    return nil
+                }
+                return preferred.intervalValue()
+            }
+            .sorted { $0.intervalStart < $1.intervalStart }
+    }
+
+    private static func intervalPreference(_ record: HistoricalEnergyRecord) -> Int {
+        var score = 0
+        if record.consumptionKWh != nil { score += 4 }
+        if record.totalCostSEK != nil { score += 2 }
+        if record.energyCostSEK != nil { score += 1 }
+        return score
     }
 }
 
@@ -96,13 +122,16 @@ final class EnergyHistoryQueryService: EnergyHistoryQuerying {
 final class StaticEnergyHistoryQueryService: EnergyHistoryQuerying {
     private let monthHistory: EnergyHistoryMonthQueryResult
     private let currentMonthSummary: HistoricalEnergySummaryValue?
+    private let dayIntervals: [HistoricalEnergyIntervalValue]
 
     init(
         monthHistory: EnergyHistoryMonthQueryResult,
-        currentMonthSummary: HistoricalEnergySummaryValue? = nil
+        currentMonthSummary: HistoricalEnergySummaryValue? = nil,
+        dayIntervals: [HistoricalEnergyIntervalValue] = []
     ) {
         self.monthHistory = monthHistory
         self.currentMonthSummary = currentMonthSummary
+        self.dayIntervals = dayIntervals
     }
 
     func loadMonthHistory(priceArea: String?, selectedMonthKey: String?) throws -> EnergyHistoryMonthQueryResult {
@@ -111,6 +140,10 @@ final class StaticEnergyHistoryQueryService: EnergyHistoryQuerying {
 
     func loadCurrentMonthSummary(priceArea: String?, monthKey: String) throws -> HistoricalEnergySummaryValue? {
         currentMonthSummary
+    }
+
+    func loadDayIntervals(dayKey: String, priceArea: String?) throws -> [HistoricalEnergyIntervalValue] {
+        dayIntervals
     }
 }
 
