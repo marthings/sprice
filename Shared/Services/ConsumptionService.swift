@@ -180,6 +180,15 @@ struct ConsumptionService: Sendable {
 
         let hourlyData = try await fetchHourlyConsumption(startDate: monthStart, endDate: now)
         logger.info("Power peaks: Got \(hourlyData.count) hourly entries")
+        return powerPeaks(fromHourly: hourlyData, calendar: calendar)
+    }
+
+    func powerPeaks(fromQuarterly quarterly: [QuarterlyConsumption], calendar: Calendar = .current) -> [PowerPeak] {
+        powerPeaks(fromHourly: Self.hourlyConsumption(from: quarterly, calendar: calendar), calendar: calendar)
+    }
+
+    func powerPeaks(fromHourly hourlyData: [HourlyConsumption], calendar: Calendar = .current) -> [PowerPeak] {
+        logger.info("Power peaks: Got \(hourlyData.count) hourly entries")
 
         // Filter to weekdays (Mon–Fri) and high-load hours (07–20)
         let filtered = hourlyData.filter { entry in
@@ -221,6 +230,23 @@ struct ConsumptionService: Sendable {
         return result
     }
 
+    nonisolated static func hourlyConsumption(
+        from quarterly: [QuarterlyConsumption],
+        calendar: Calendar = .current
+    ) -> [HourlyConsumption] {
+        var totals: [Date: Double] = [:]
+        totals.reserveCapacity(quarterly.count / 4 + 1)
+        for entry in quarterly {
+            guard let hourStart = calendar.date(
+                from: calendar.dateComponents([.year, .month, .day, .hour], from: entry.date)
+            ) else {
+                continue
+            }
+            totals[hourStart, default: 0] += entry.kWh
+        }
+        return totals.keys.sorted().map { HourlyConsumption(date: $0, kWh: totals[$0] ?? 0) }
+    }
+
     // MARK: - Precise Monthly Cost
 
     /// Calculates precise monthly cost by matching 15-min consumption against the matching 15-min spot price.
@@ -235,22 +261,30 @@ struct ConsumptionService: Sendable {
             throw ConsumptionError.notFound
         }
 
-        // Fetch quarterly consumption for the whole month
         let quarterlyData = try await fetchQuarterlyConsumption(startDate: monthStart, endDate: now)
+        return try await calculatePreciseMonthlyCost(
+            from: quarterlyData,
+            spotPriceService: spotPriceService,
+            calendar: calendar
+        )
+    }
+
+    func calculatePreciseMonthlyCost(
+        from quarterlyData: [QuarterlyConsumption],
+        spotPriceService: SpotPriceService,
+        calendar: Calendar = .energyHistory
+    ) async throws -> PreciseMonthlyCost {
         logger.info("Precise cost: Got \(quarterlyData.count) quarterly intervals")
 
         guard !quarterlyData.isEmpty else {
             throw ConsumptionError.notFound
         }
 
-        // Determine which days we need spot prices for
         var daysNeeded: Set<DateComponents> = []
         for entry in quarterlyData {
-            let comps = calendar.dateComponents([.year, .month, .day], from: entry.date)
-            daysNeeded.insert(comps)
+            daysNeeded.insert(calendar.dateComponents([.year, .month, .day], from: entry.date))
         }
 
-        // Fetch spot prices for all needed days in parallel
         let spotPriceLookup: [Date: Double] = try await withThrowingTaskGroup(of: [(Date, Double)].self) { group in
             for dayComps in daysNeeded {
                 guard let dayDate = calendar.date(from: dayComps) else { continue }

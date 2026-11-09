@@ -38,36 +38,44 @@ struct SpotPriceService: Sendable {
     }
 
     /// Fetches spot prices for the given date and price area.
-    func fetchSpotPrices(for date: Date = Date(), area: String) async throws -> [SpotPriceItem] {
-        let dayStart = calendar.startOfDay(for: date)
-        let isPastDay = dayStart < calendar.startOfDay(for: Date())
-        if isPastDay, let cached = SpotPriceDayCache.items(for: date, area: area, calendar: calendar), !cached.isEmpty {
+    func fetchSpotPrices(for date: Date = Date(), area: String, ignoreCache: Bool = false) async throws -> [SpotPriceItem] {
+        if !ignoreCache,
+           let cached = await SpotPriceCache.shared.cachedItemsIfFresh(for: date, area: area),
+           !cached.isEmpty {
             return cached
         }
 
-        let url = try endpointURL(for: date, area: area, timeZone: timeZone, calendar: calendar)
-        let (data, response) = try await session.data(from: url)
-        try validate(response: response)
+        do {
+            let url = try endpointURL(for: date, area: area, timeZone: timeZone, calendar: calendar)
+            let (data, response) = try await session.data(from: url)
+            try validate(response: response)
 
-        let items = try decoder.decode([SpotPriceItem].self, from: data)
-        SpotPriceDayCache.store(items, area: area, calendar: calendar)
-        AppLog.spotPrice.info("Fetched \(items.count) price items")
-
-        return items
+            let items = try decoder.decode([SpotPriceItem].self, from: data)
+            guard !items.isEmpty else {
+                throw DisplayableError("Inga prisdata hittades för den valda dagen.")
+            }
+            await SpotPriceCache.shared.store(items, area: area)
+            AppLog.spotPrice.info("Fetched \(items.count) price items")
+            return items
+        } catch {
+            if let stale = await SpotPriceCache.shared.items(for: date, area: area), !stale.isEmpty {
+                AppLog.spotPrice.error("Using stale spot cache after fetch failure: \(error.localizedDescription, privacy: .public)")
+                return stale
+            }
+            throw error
+        }
     }
 
     func cachedOrFetchedDayChart(for date: Date, area: String) async -> DayChartData? {
-        let items: [SpotPriceItem]
-        if let cached = SpotPriceDayCache.items(for: date, area: area, calendar: calendar), !cached.isEmpty {
-            items = cached
-        } else {
-            do {
-                items = try await fetchSpotPrices(for: date, area: area)
-            } catch {
-                return nil
-            }
+        if let cached = await SpotPriceCache.shared.items(for: date, area: area), !cached.isEmpty {
+            return try? makeDayChartData(from: cached, for: date)
         }
-        return try? makeDayChartData(from: items, for: date)
+        do {
+            let items = try await fetchSpotPrices(for: date, area: area)
+            return try? makeDayChartData(from: items, for: date)
+        } catch {
+            return nil
+        }
     }
     
     /// Creates display text for the current price

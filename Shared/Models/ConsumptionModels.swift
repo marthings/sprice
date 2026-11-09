@@ -51,14 +51,14 @@ struct DailyConsumption: Equatable, Identifiable, Sendable {
 
 // MARK: - Hourly Consumption
 
-struct HourlyConsumption: Sendable {
+nonisolated struct HourlyConsumption: Sendable {
     let date: Date       // hour start
     let kWh: Double      // = kW for 1h interval
 }
 
 // MARK: - Quarterly Consumption (15-min intervals)
 
-struct QuarterlyConsumption: Identifiable, Sendable {
+nonisolated struct QuarterlyConsumption: Identifiable, Sendable {
     let date: Date
     let kWh: Double
     var id: Date { date }

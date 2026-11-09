@@ -17,18 +17,9 @@ struct SpotpriceApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            ModernMenuBarView(
-                state: viewModel.state,
-                costProfile: ConsumptionSettings.shared.costProfile,
-                currentTariff: viewModel.currentTariff,
-                monthlyConsumption: viewModel.monthlyConsumption,
-                powerPeaks: viewModel.powerPeaks,
-                consumptionError: viewModel.consumptionError,
-                preciseMonthlyCost: viewModel.preciseMonthlyCost,
-                currentMonthHistorySummary: viewModel.currentMonthHistorySummary
-            )
+            ModernMenuBarView(viewModel: viewModel)
         } label: {
-            MenuBarLabel(state: viewModel.state)
+            MenuBarLabel(viewModel: viewModel)
         }
         .menuBarExtraStyle(.window)
 

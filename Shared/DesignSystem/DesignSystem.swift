@@ -78,7 +78,7 @@ enum AppFormatters {
         date.formatted(.dateTime.weekday(.wide).day().month(.abbreviated).locale(swedishLocale))
     }
 
-    static func csvNumber(_ value: Double) -> String {
+    nonisolated static func csvNumber(_ value: Double) -> String {
         value.formatted(.number.locale(posixLocale).precision(.fractionLength(0...6)))
     }
 

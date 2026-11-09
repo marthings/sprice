@@ -67,7 +67,6 @@ final class EnergyHistoryRecorder {
     private let writer: EnergyHistoryWriter?
     private let calendar: Calendar
     private let totalCostService: TotalCostService
-    private var spotPriceCache: [String: [Date: Double]] = [:]
     private var pendingHistoryNotification: Task<Void, Never>?
 
     init(
@@ -119,7 +118,8 @@ final class EnergyHistoryRecorder {
         priceArea: String,
         providerID: String,
         costProfile: CostProfile,
-        now: Date = Date()
+        now: Date = Date(),
+        quarterlyConsumption: [QuarterlyConsumption]? = nil
     ) async {
         guard let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: now)) else {
             AppLog.history.error("Could not calculate current month start")
@@ -148,7 +148,8 @@ final class EnergyHistoryRecorder {
             priceArea: priceArea,
             providerID: providerID,
             costProfile: costProfile,
-            now: now
+            now: now,
+            prefetchedQuarterly: quarterlyConsumption
         )
     }
 
@@ -234,7 +235,8 @@ final class EnergyHistoryRecorder {
                 priceArea: priceArea,
                 providerID: providerID,
                 costProfile: costProfile,
-                now: now
+                now: now,
+                prefetchedQuarterly: nil
             )
 
             switch result {
@@ -263,13 +265,15 @@ final class EnergyHistoryRecorder {
         priceArea: String,
         providerID: String,
         costProfile: CostProfile,
-        now: Date
+        now: Date,
+        prefetchedQuarterly: [QuarterlyConsumption]?
     ) async -> RecordResult {
         do {
             let fetched = try await fetchConsumptionIntervals(
                 consumptionService: consumptionService,
                 startDate: startDate,
-                endDate: endDate
+                endDate: endDate,
+                prefetchedQuarterly: prefetchedQuarterly
             )
 
             let intervals = fetched.intervals.filter { interval in
@@ -358,22 +362,17 @@ final class EnergyHistoryRecorder {
     private func fetchConsumptionIntervals(
         consumptionService: ConsumptionService,
         startDate: Date,
-        endDate: Date
+        endDate: Date,
+        prefetchedQuarterly: [QuarterlyConsumption]?
     ) async throws -> (intervals: [ConsumptionInterval], resolution: IntervalResolution) {
+        if let prefetchedQuarterly, !prefetchedQuarterly.isEmpty {
+            return (intervals(from: prefetchedQuarterly), .quarterly)
+        }
+
         do {
             let quarterly = try await consumptionService.fetchQuarterlyConsumption(startDate: startDate, endDate: endDate)
             if !quarterly.isEmpty {
-                return (
-                    quarterly.map { entry in
-                        ConsumptionInterval(
-                            start: entry.date,
-                            end: calendar.date(byAdding: .minute, value: 15, to: entry.date) ?? entry.date.addingTimeInterval(15 * 60),
-                            kWh: entry.kWh,
-                            hoursInPeriod: 0.25
-                        )
-                    },
-                    .quarterly
-                )
+                return (intervals(from: quarterly), .quarterly)
             }
         } catch let error as ConsumptionError {
             try rethrowCredentialError(error)
@@ -466,29 +465,37 @@ final class EnergyHistoryRecorder {
         area: String,
         service: SpotPriceService
     ) async -> [Date: Double] {
-        let key = "\(area)|\(EnergyHistoryKey.dayKey(for: day, calendar: calendar))"
-        if let cached = spotPriceCache[key], !cached.isEmpty {
+        if let cached = await SpotPriceCache.shared.lookup(for: day, area: area), !cached.isEmpty {
             return cached
         }
 
-        if let disk = SpotPriceDayCache.lookup(for: day, area: area, calendar: calendar), !disk.isEmpty {
-            spotPriceCache[key] = disk
-            return disk
+        let isPastDay = calendar.startOfDay(for: day) < calendar.startOfDay(for: Date())
+        if isPastDay {
+            let dayKey = EnergyHistoryKey.dayKey(for: day, calendar: calendar)
+            if let stored = try? store.spotPriceLookup(dayKey: dayKey, priceArea: area),
+               stored.count >= SpotPriceCachePolicy.minimumPersistedIntervals {
+                await SpotPriceCache.shared.store(lookup: stored, day: day, area: area)
+                return stored
+            }
         }
 
         do {
             let items = try await service.fetchSpotPrices(for: day, area: area)
-            var map: [Date: Double] = [:]
-            for item in items {
-                map[item.timeStart] = item.sekPerKWh * 100.0
-            }
-            if !map.isEmpty {
-                spotPriceCache[key] = map
-            }
-            return map
+            return SpotPriceCache.lookup(from: items)
         } catch {
             AppLog.history.error("Failed to fetch spot prices for \(day, privacy: .public): \(error.localizedDescription, privacy: .public)")
             return [:]
+        }
+    }
+
+    private func intervals(from quarterly: [QuarterlyConsumption]) -> [ConsumptionInterval] {
+        quarterly.map { entry in
+            ConsumptionInterval(
+                start: entry.date,
+                end: calendar.date(byAdding: .minute, value: 15, to: entry.date) ?? entry.date.addingTimeInterval(15 * 60),
+                kWh: entry.kWh,
+                hoursInPeriod: 0.25
+            )
         }
     }
 

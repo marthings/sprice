@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct DashboardView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @State private var viewModel = SpotPriceViewModel()
     @State private var selectedSection = 0
 
@@ -12,7 +13,8 @@ struct DashboardView: View {
                     settingsSummary: settingsSummary,
                     monthlyConsumption: viewModel.monthlyConsumption,
                     preciseMonthlyCost: viewModel.preciseMonthlyCost,
-                    onRetry: reload
+                    onRetry: reload,
+                    onRefresh: refresh
                 )
             }
 
@@ -21,7 +23,8 @@ struct DashboardView: View {
                     state: viewModel.state,
                     settingsSummary: settingsSummary,
                     costProfile: settingsSummaryCostProfile,
-                    onRetry: reload
+                    onRetry: reload,
+                    onRefresh: refresh
                 )
             }
 
@@ -31,7 +34,8 @@ struct DashboardView: View {
                     priceArea: settingsSummaryPriceArea,
                     costProfile: settingsSummaryCostProfile,
                     liveMonthlyConsumption: viewModel.monthlyConsumption,
-                    livePreciseCost: viewModel.preciseMonthlyCost
+                    livePreciseCost: viewModel.preciseMonthlyCost,
+                    onRefresh: refresh
                 )
             }
 
@@ -40,6 +44,10 @@ struct DashboardView: View {
             }
         }
         .toolbarBackgroundVisibility(.hidden, for: .tabBar)
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            Task { await viewModel.handleForeground() }
+        }
     }
     
     // MARK: - Tab Views
@@ -50,11 +58,13 @@ struct DashboardView: View {
         let monthlyConsumption: ConsumptionData?
         let preciseMonthlyCost: PreciseMonthlyCost?
         let onRetry: () -> Void
+        let onRefresh: () async -> Void
         
         var body: some View {
             DashboardTabShell(
                 title: "Kostnad",
-                settingsSummary: settingsSummary
+                settingsSummary: settingsSummary,
+                onRefresh: onRefresh
             ) {
                 CostTabView(
                     state: state,
@@ -71,11 +81,13 @@ struct DashboardView: View {
         let settingsSummary: String
         let costProfile: CostProfile
         let onRetry: () -> Void
+        let onRefresh: () async -> Void
         
         var body: some View {
             DashboardTabShell(
                 title: "Priser",
-                settingsSummary: settingsSummary
+                settingsSummary: settingsSummary,
+                onRefresh: onRefresh
             ) {
                 DailyPriceTabView(
                     state: state,
@@ -95,11 +107,13 @@ struct DashboardView: View {
         // (Kostnad + Förbrukning) as the Förbrukning tab for the open month.
         let liveMonthlyConsumption: ConsumptionData?
         let livePreciseCost: PreciseMonthlyCost?
+        let onRefresh: () async -> Void
 
         var body: some View {
             DashboardTabShell(
                 title: "Historik",
-                settingsSummary: settingsSummary
+                settingsSummary: settingsSummary,
+                onRefresh: onRefresh
             ) {
                 HistoryMonthView(
                     priceArea: priceArea,
@@ -114,6 +128,7 @@ struct DashboardView: View {
     private struct DashboardTabShell<TabContent: View>: View {
         let title: String
         let settingsSummary: String
+        let onRefresh: () async -> Void
         @ViewBuilder let tabContent: () -> TabContent
 
         var body: some View {
@@ -131,6 +146,9 @@ struct DashboardView: View {
                         .padding(.bottom, DS.Spacing.xl * 4)
                     }
                     .scrollContentBackground(.hidden)
+                    .refreshable {
+                        await onRefresh()
+                    }
                 }
                 .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
             }
@@ -158,6 +176,10 @@ struct DashboardView: View {
 
     private func reload() {
         Task { await viewModel.load() }
+    }
+
+    private func refresh() async {
+        await viewModel.refreshFromUser()
     }
 }
 

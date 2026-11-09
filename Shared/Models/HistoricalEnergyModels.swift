@@ -5,6 +5,7 @@
 //  SwiftData models and value types for local electricity history.
 //
 
+import CryptoKit
 import Foundation
 import SwiftData
 
@@ -81,6 +82,20 @@ nonisolated struct HistoricalCostProfileSnapshot: Codable, Equatable, Sendable {
         self.tariffValidUntil = profile.tariffValidUntil
         self.capturedAt = capturedAt
     }
+
+    nonisolated static func encodedData(_ snapshot: HistoricalCostProfileSnapshot) -> Data? {
+        try? JSONEncoder().encode(snapshot)
+    }
+
+    nonisolated static func hash(of data: Data) -> String {
+        let digest = SHA256.hash(data: data)
+        var hex = ""
+        hex.reserveCapacity(digest.count * 2)
+        for byte in digest {
+            hex.append(String(format: "%02x", byte))
+        }
+        return hex
+    }
 }
 
 // MARK: - Historical Energy Record
@@ -110,6 +125,7 @@ final class HistoricalEnergyRecord {
 
     @Attribute(.externalStorage)
     var costProfileSnapshotData: Data?
+    var snapshotHash: String?
 
     var sourceRawValue: String
     var confidenceRawValue: String
@@ -133,6 +149,7 @@ final class HistoricalEnergyRecord {
         vatCostSEK: Double?,
         totalCostSEK: Double?,
         costProfileSnapshotData: Data?,
+        snapshotHash: String? = nil,
         source: HistoricalEnergySource,
         confidence: HistoricalEnergyConfidence,
         createdAt: Date = Date(),
@@ -154,6 +171,7 @@ final class HistoricalEnergyRecord {
         self.vatCostSEK = vatCostSEK
         self.totalCostSEK = totalCostSEK
         self.costProfileSnapshotData = costProfileSnapshotData
+        self.snapshotHash = snapshotHash
         self.sourceRawValue = source.rawValue
         self.confidenceRawValue = confidence.rawValue
         self.createdAt = createdAt
@@ -168,7 +186,12 @@ final class HistoricalEnergyRecord {
         HistoricalEnergyConfidence(rawValue: confidenceRawValue) ?? .priceOnly
     }
 
-    func update(from draft: HistoricalEnergyRecordDraft, snapshotData: Data? = nil, updatedAt: Date = Date()) {
+    func update(
+        from draft: HistoricalEnergyRecordDraft,
+        snapshotData: Data? = nil,
+        snapshotHash: String? = nil,
+        updatedAt: Date = Date()
+    ) {
         intervalStart = draft.intervalStart
         intervalEnd = draft.intervalEnd
         dayKey = draft.dayKey
@@ -182,7 +205,12 @@ final class HistoricalEnergyRecord {
         taxCostSEK = draft.taxCostSEK
         vatCostSEK = draft.vatCostSEK
         totalCostSEK = draft.totalCostSEK
-        costProfileSnapshotData = snapshotData ?? costProfileSnapshotData
+        if let snapshotHash {
+            self.snapshotHash = snapshotHash
+            costProfileSnapshotData = nil
+        } else if let snapshotData {
+            costProfileSnapshotData = snapshotData
+        }
         sourceRawValue = draft.source.rawValue
         confidenceRawValue = draft.confidence.rawValue
         self.updatedAt = updatedAt
@@ -201,6 +229,22 @@ final class HistoricalEnergyRecord {
             vatCostSEK: vatCostSEK,
             totalCostSEK: totalCostSEK
         )
+    }
+}
+
+@Model
+final class HistoricalCostProfileSnapshotRecord {
+    #Unique<HistoricalCostProfileSnapshotRecord>([\.snapshotHash])
+    #Index<HistoricalCostProfileSnapshotRecord>([\.snapshotHash])
+
+    var snapshotHash: String
+    var snapshotData: Data
+    var createdAt: Date
+
+    init(snapshotHash: String, snapshotData: Data, createdAt: Date = Date()) {
+        self.snapshotHash = snapshotHash
+        self.snapshotData = snapshotData
+        self.createdAt = createdAt
     }
 }
 
@@ -499,7 +543,11 @@ nonisolated struct HistoricalEnergyRecordDraft: Sendable {
         )
     }
 
-    func makeRecord(createdAt: Date = Date(), snapshotData: Data? = nil) -> HistoricalEnergyRecord {
+    func makeRecord(
+        createdAt: Date = Date(),
+        snapshotData: Data? = nil,
+        snapshotHash: String? = nil
+    ) -> HistoricalEnergyRecord {
         HistoricalEnergyRecord(
             deduplicationKey: deduplicationKey,
             intervalStart: intervalStart,
@@ -515,7 +563,8 @@ nonisolated struct HistoricalEnergyRecordDraft: Sendable {
             taxCostSEK: taxCostSEK,
             vatCostSEK: vatCostSEK,
             totalCostSEK: totalCostSEK,
-            costProfileSnapshotData: snapshotData,
+            costProfileSnapshotData: snapshotHash == nil ? snapshotData : nil,
+            snapshotHash: snapshotHash,
             source: source,
             confidence: confidence,
             createdAt: createdAt,

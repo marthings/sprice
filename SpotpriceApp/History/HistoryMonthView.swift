@@ -44,12 +44,9 @@ struct HistoryMonthView: View {
                     message: message,
                     color: DS.Color.secondary
                 )
-            case .loaded(let data):
+            case .loaded(let presentation):
                 HistoryMonthLoadedContent(
-                    data: data,
-                    costProfile: costProfile,
-                    liveMonthlyConsumption: liveMonthlyConsumption,
-                    livePreciseCost: livePreciseCost,
+                    presentation: presentation,
                     hasProvider: hasProvider,
                     selectedMonthKey: $selectedMonthKey,
                     openedDay: $openedDay
@@ -79,6 +76,12 @@ struct HistoryMonthView: View {
             guard oldValue != nil else { return }
             Task { await loadHistory() }
         }
+        .onChange(of: livePreciseCost) { _, _ in
+            applyLiveValuesIfNeeded()
+        }
+        .onChange(of: liveMonthlyConsumption) { _, _ in
+            applyLiveValuesIfNeeded()
+        }
         .onReceive(NotificationCenter.default.publisher(for: .energyHistoryDidUpdate)) { _ in
             guard initialState == nil else { return }
             Task { await loadHistory() }
@@ -102,8 +105,23 @@ struct HistoryMonthView: View {
     }
 
     private func dailySummary(for route: HistoryDayRoute) -> HistoricalEnergySummaryValue? {
-        guard case .loaded(let data) = state else { return nil }
-        return data.dailySummaries.first { $0.periodKey == route.dayKey }
+        guard case .loaded(let presentation) = state else { return nil }
+        return presentation.dailySummaries.first { $0.periodKey == route.dayKey }
+    }
+
+    private func applyLiveValuesIfNeeded() {
+        guard initialState == nil else { return }
+        guard case .loaded(let presentation) = state, presentation.isCurrentMonth else { return }
+        state = .loaded(
+            HistoryMonthPresentation.make(
+                months: presentation.months,
+                selectedMonth: presentation.selectedMonth,
+                dailySummaries: presentation.dailySummaries,
+                costProfile: costProfile,
+                liveMonthlyConsumption: liveMonthlyConsumption,
+                livePreciseCost: livePreciseCost
+            )
+        )
     }
 
     @MainActor
@@ -121,11 +139,16 @@ struct HistoryMonthView: View {
             if history.months.isEmpty {
                 state = .empty(HistoryInsights.emptyHistoryMessage(hasProvider: hasProvider))
             } else {
-                state = .loaded(HistoryMonthData(
-                    months: history.months,
-                    selectedMonth: history.selectedMonth,
-                    dailySummaries: history.dailySummaries
-                ))
+                state = .loaded(
+                    HistoryMonthPresentation.make(
+                        months: history.months,
+                        selectedMonth: history.selectedMonth,
+                        dailySummaries: history.dailySummaries,
+                        costProfile: costProfile,
+                        liveMonthlyConsumption: liveMonthlyConsumption,
+                        livePreciseCost: livePreciseCost
+                    )
+                )
             }
         } catch {
             state = .empty(HistoryInsights.emptyHistoryMessage(hasProvider: hasProvider))

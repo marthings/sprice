@@ -3,17 +3,15 @@
 //  Spotprice
 //
 
+import AppKit
+import Observation
 import SwiftUI
 
 struct ModernMenuBarView: View {
-    let state: SpotPriceViewModel.State
-    let costProfile: CostProfile
-    let currentTariff: SimplifiedTariff?
-    let monthlyConsumption: ConsumptionData?
-    let powerPeaks: [PowerPeak]
-    let consumptionError: String?
-    let preciseMonthlyCost: PreciseMonthlyCost?
-    let currentMonthHistorySummary: HistoricalEnergySummaryValue?
+    @Bindable var viewModel: SpotPriceViewModel
+
+    private var state: SpotPriceViewModel.State { viewModel.state }
+    private var costProfile: CostProfile { ConsumptionSettings.shared.costProfile }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -27,13 +25,13 @@ struct ModernMenuBarView: View {
                     quickStats
                     historicalSummary
                     MonthlyStatsSection(
-                        consumption: monthlyConsumption,
-                        powerPeaks: powerPeaks,
-                        consumptionError: consumptionError,
+                        consumption: viewModel.monthlyConsumption,
+                        powerPeaks: viewModel.powerPeaks,
+                        consumptionError: viewModel.consumptionError,
                         isConfigured: ConsumptionSettings.shared.isConfigured,
                         averagePrice: loadedAveragePrice,
-                        preciseCost: preciseMonthlyCost,
-                        historySummary: currentMonthHistorySummary
+                        preciseCost: viewModel.preciseMonthlyCost,
+                        historySummary: viewModel.currentMonthHistorySummary
                     )
                 }
                 .padding(.horizontal, DS.Spacing.lg)
@@ -43,11 +41,14 @@ struct ModernMenuBarView: View {
         }
         .frame(width: DS.Size.menuBarWidth, height: DS.Size.menuBarHeight)
         .font(DS.Font.callout)
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            Task { await viewModel.handleForeground() }
+        }
     }
 
     @ViewBuilder
     private var historicalSummary: some View {
-        if let summary = currentMonthHistorySummary {
+        if let summary = viewModel.currentMonthHistorySummary {
             HStack(spacing: DS.Spacing.md) {
                 Image(systemName: "clock.arrow.circlepath")
                     .font(.system(size: DS.Size.iconMedium, weight: .semibold))
@@ -133,7 +134,7 @@ struct ModernMenuBarView: View {
                     dayData: payload.day,
                     costProfile: costProfile,
                     configuration: .menuBar,
-                    tariff: currentTariff
+                    tariff: viewModel.currentTariff
                 )
             } else {
                 loadingStateView
