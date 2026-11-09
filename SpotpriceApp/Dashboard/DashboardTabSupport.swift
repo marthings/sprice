@@ -55,6 +55,6 @@ struct DashboardErrorView: View {
         }
         .padding(DS.Spacing.xl)
         .frame(maxWidth: .infinity, minHeight: 360)
-        .glassCard()
+        .spriceCard()
     }
 }

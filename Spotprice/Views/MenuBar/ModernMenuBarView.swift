@@ -21,7 +21,7 @@ struct ModernMenuBarView: View {
                 VStack(alignment: .leading, spacing: DS.Spacing.lg) {
                     Text("Kostnad just nu").font(DS.Font.semibold(14))
                     chartSection
-                        .glassCard()
+                        .spriceCard(tone: .price)
                     quickStats
                     historicalSummary
                     MonthlyStatsSection(
@@ -74,7 +74,7 @@ struct ModernMenuBarView: View {
                 Spacer(minLength: 0)
             }
             .padding(DS.Spacing.md)
-            .glassCard()
+            .spriceCard(tone: .history)
         }
     }
 

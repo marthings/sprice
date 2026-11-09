@@ -140,7 +140,7 @@ private struct HistoryDayTotals: View {
         }
         .padding(DS.Spacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassCard()
+        .spriceCard(tone: .history)
     }
 
     private func dayMetric(value: String, unit: String, label: String) -> some View {
@@ -315,7 +315,7 @@ private struct HistoryDayHourChart: View {
         }
         .padding(DS.Spacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassCard()
+        .spriceCard(tone: .history)
     }
 
     private var hourDomain: ClosedRange<Date> {
@@ -381,7 +381,7 @@ private struct HistoryDayExpensiveHours: View {
         }
         .padding(DS.Spacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassCard()
+        .spriceCard(tone: .history)
     }
 
     private func accessibilityLabel(for hour: HistoryHourCost) -> String {
@@ -465,6 +465,6 @@ private struct HistoryDayCostSplitView: View {
         }
         .padding(DS.Spacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassCard()
+        .spriceCard(tone: .history)
     }
 }

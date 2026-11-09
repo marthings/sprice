@@ -70,7 +70,7 @@ struct HistoryMonthHeroSection: View {
         }
         .padding(DS.Spacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassCard()
+        .spriceCard(tone: .history)
     }
 
     private func heroValue(_ value: String, unit: String) -> some View {
@@ -129,7 +129,7 @@ struct HistoryPriceConsumptionEffect: View {
         }
         .padding(DS.Spacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassCard()
+        .spriceCard(tone: .history)
     }
 
     private var maxMagnitude: Double {
@@ -195,7 +195,7 @@ struct HistoryPaidVersusSpot: View {
         }
         .padding(DS.Spacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassCard()
+        .spriceCard(tone: .history)
     }
 
     private func labeledAmount(title: String, value: Double, unit: String, fractionLength: Int) -> some View {

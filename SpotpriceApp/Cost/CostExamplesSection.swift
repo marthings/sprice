@@ -110,7 +110,7 @@ private struct CostExampleCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(DS.Spacing.lg)
-        .glassCard()
+        .spriceCard(tone: .cost)
     }
 
     private func breakdownRow(_ title: String, _ value: Double) -> some View {

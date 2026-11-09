@@ -37,7 +37,7 @@ struct MonthDailyCostSection: View {
         }
         .padding(DS.Spacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassCard()
+        .spriceCard(tone: .cost)
         .task(id: priceArea) {
             await loadDays()
         }

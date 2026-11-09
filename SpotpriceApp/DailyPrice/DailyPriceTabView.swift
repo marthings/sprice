@@ -148,7 +148,7 @@ private struct PriceChartCanvas: View {
         .padding(.top, DS.Spacing.md)
         .padding(.horizontal)
         .padding(.bottom)
-        .glassCard()
+        .spriceCard(tone: .price)
         .zIndex(1)
         .accessibilityHint("Dra över grafen för att se pris vid en viss tid.")
     }
@@ -209,7 +209,7 @@ private struct MarketContractExplanation: View {
         }
         .padding(DS.Spacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassCard()
+        .spriceCard(tone: .price)
     }
 
     private var explanationText: String {

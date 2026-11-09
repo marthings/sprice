@@ -91,7 +91,7 @@ struct HistoryWeekdayPattern: View {
         }
         .padding(DS.Spacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassCard()
+        .spriceCard(tone: .history)
     }
 
     private var peakWeekday: HistoryWeekdayAverage? {

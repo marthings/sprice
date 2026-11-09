@@ -54,7 +54,7 @@ struct KilowattHourBreakdownView: View {
         }
         .padding(style == .compact ? DS.Spacing.md : DS.Spacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassCard()
+        .spriceCard(tone: .accent)
         .accessibilityElement(children: .contain)
     }
 

@@ -510,7 +510,7 @@ struct AppStatusCard: View {
             messageLineLimit: messageLineLimit
         )
         .padding(DS.Spacing.lg)
-        .glassCard(interactive: interactive)
+        .spriceCard(tone: .default, interactive: interactive)
     }
 }
 
@@ -846,48 +846,165 @@ struct AppCanvasBackground: View {
     }
 }
 
-// MARK: - Glass Card Modifier
+// MARK: - Palette-tinted cards
 
-/// Shared card surface: regular system glass over a material fill so body text
-/// keeps contrast against the canvas in both appearances.
-struct GlassCardModifier: ViewModifier {
+/// Semantic card tones mapped to existing `DS.Color` / asset-catalog tokens.
+enum SpriceCardTone: Equatable {
+    case `default`
+    case accent
+    case price
+    case cost
+    case history
+
+    var paletteColor: Color {
+        switch self {
+        case .default, .history:
+            return DS.Color.brand
+        case .accent, .cost:
+            return DS.Color.info
+        case .price:
+            return DS.Color.warning
+        }
+    }
+
+    /// GlassEffect tint. Louder chroma (warning) stays lower; accent is a bit stronger.
+    func glassTintOpacity(colorScheme: ColorScheme) -> Double {
+        switch (self, colorScheme) {
+        case (.accent, .light): return 0.20
+        case (.accent, .dark): return 0.22
+        case (.price, .light): return 0.14
+        case (.price, .dark): return 0.16
+        case (_, .light): return 0.16
+        case (_, .dark): return 0.20
+        @unknown default:
+            return 0.16
+        }
+    }
+
+    /// Gradient overlay on top of material, kept below the glass tint.
+    func overlayOpacity(colorScheme: ColorScheme) -> Double {
+        switch (self, colorScheme) {
+        case (.accent, .light): return 0.12
+        case (.accent, .dark): return 0.14
+        case (.price, .light): return 0.08
+        case (.price, .dark): return 0.10
+        case (_, .light): return 0.10
+        case (_, .dark): return 0.12
+        @unknown default:
+            return 0.10
+        }
+    }
+
+    func reducedTransparencyOverlayOpacity(colorScheme: ColorScheme) -> Double {
+        overlayOpacity(colorScheme: colorScheme) + 0.04
+    }
+}
+
+/// Palette-tinted material card. Native glass stays underneath; only the
+/// background is clipped so chart callouts can overflow.
+struct SpriceCardModifier: ViewModifier {
+    let tone: SpriceCardTone
     let cornerRadius: CGFloat
     let isInteractive: Bool
 
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     private var cardShape: RoundedRectangle {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
     }
 
+    private var paletteColor: Color { tone.paletteColor }
+
+    /// Lifts body text onto the material so `.primary` and `DS.Color.secondary`
+    /// stay at WCAG AA (4.5:1) against the tinted fill in both appearances.
     private var contrastFill: Color {
         colorScheme == .dark
-            ? Color.black.opacity(0.28)
-            : Color.white.opacity(0.52)
+            ? Color.black.opacity(0.36)
+            : Color.white.opacity(0.58)
+    }
+
+    private var opaqueBase: Color {
+        colorScheme == .dark ? Color.black : Color.white
+    }
+
+    private var glassTintOpacity: Double {
+        tone.glassTintOpacity(colorScheme: colorScheme)
+    }
+
+    private var washOpacity: Double {
+        reduceTransparency
+            ? tone.reducedTransparencyOverlayOpacity(colorScheme: colorScheme)
+            : tone.overlayOpacity(colorScheme: colorScheme)
+    }
+
+    private var glassStyle: Glass {
+        let tinted: Glass = .regular.tint(paletteColor.opacity(glassTintOpacity))
+        return isInteractive ? tinted.interactive() : tinted
+    }
+
+    private var paletteWash: LinearGradient {
+        LinearGradient(
+            colors: [
+                paletteColor.opacity(washOpacity),
+                paletteColor.opacity(washOpacity * 0.35)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
     }
 
     func body(content: Content) -> some View {
         content
             .background {
-                cardShape
-                    .fill(.regularMaterial)
-                    .overlay {
-                        cardShape.fill(contrastFill)
-                    }
-                    .glassEffect(isInteractive ? .regular.interactive() : .regular, in: cardShape)
+                cardBackground
                     .clipShape(cardShape)
             }
             .overlay {
-                cardShape.strokeBorder(Color.primary.opacity(colorScheme == .dark ? 0.16 : 0.10), lineWidth: 0.5)
+                cardShape.strokeBorder(strokeColor, lineWidth: 0.5)
             }
             .containerShape(cardShape)
+    }
+
+    @ViewBuilder
+    private var cardBackground: some View {
+        if reduceTransparency {
+            cardShape
+                .fill(opaqueBase)
+                .overlay {
+                    cardShape.fill(paletteWash)
+                }
+        } else {
+            cardShape
+                .fill(.regularMaterial)
+                .overlay {
+                    cardShape.fill(contrastFill)
+                }
+                .overlay {
+                    cardShape.fill(paletteWash)
+                }
+                .glassEffect(glassStyle, in: cardShape)
+        }
+    }
+
+    private var strokeColor: Color {
+        paletteColor.opacity(colorScheme == .dark ? 0.28 : 0.16)
     }
 }
 
 extension View {
-    /// Applies the shared glass card style used by iOS, macOS and widgets.
+    /// Palette-tinted material card used by iOS, macOS and widgets.
+    func spriceCard(
+        tone: SpriceCardTone = .default,
+        cornerRadius: CGFloat = DS.Glass.cardRadius,
+        interactive: Bool = false
+    ) -> some View {
+        modifier(SpriceCardModifier(tone: tone, cornerRadius: cornerRadius, isInteractive: isInteractive))
+    }
+
+    /// Forwards to `spriceCard(tone: .default)` so older call sites keep compiling.
     func glassCard(cornerRadius: CGFloat = DS.Glass.cardRadius, interactive: Bool = false) -> some View {
-        modifier(GlassCardModifier(cornerRadius: cornerRadius, isInteractive: interactive))
+        spriceCard(tone: .default, cornerRadius: cornerRadius, interactive: interactive)
     }
 }
 

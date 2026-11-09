@@ -165,6 +165,6 @@ struct MonthlyCostCard: View {
             }
         }
         .padding(DS.Spacing.lg)
-        .glassCard()
+        .spriceCard(tone: .cost)
     }
 }
