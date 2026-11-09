@@ -89,16 +89,16 @@ enum ConsumptionInsightsSampleData {
     }
 
     private static func monthIntervals() -> [HistoricalEnergyIntervalValue] {
-        var intervals: [HistoricalEnergyIntervalValue] = []
-        for dayOffset in 0..<7 {
+        var result: [HistoricalEnergyIntervalValue] = []
+        for dayOffset in 0..<31 {
             guard let day = calendar.date(byAdding: .day, value: dayOffset, to: monthStart) else {
                 continue
             }
             let isFriday = calendar.isDate(day, inSameDayAs: friday)
             let isSaturday = calendar.isDate(day, inSameDayAs: saturday)
-            intervals.append(contentsOf: intervals(forDay: day, includeOven: isFriday, includeCharge: isSaturday))
+            result.append(contentsOf: intervals(forDay: day, includeOven: isFriday, includeCharge: isSaturday))
         }
-        return intervals
+        return result
     }
 
     private static func previousMonthNightIntervals() -> [HistoricalEnergyIntervalValue] {

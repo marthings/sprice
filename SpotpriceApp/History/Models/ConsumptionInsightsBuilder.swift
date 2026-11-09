@@ -252,7 +252,7 @@ nonisolated enum ConsumptionInsightsBuilder: Sendable {
             energyKWh: energyKWh,
             costKr: costKr,
             previousPowerKW: previousPowerKW,
-            previousMonthName: previousIntervals.first.map { monthName($0.start) },
+            previousMonthName: previousIntervals.first.map { monthName($0.intervalStart) },
             usedNightPercentile: false
         )
     }

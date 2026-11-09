@@ -54,7 +54,7 @@ enum ConsumptionInsightsService {
         periodKind: ConsumptionInsightsPeriodKind
     ) async -> ConsumptionInsights {
         let now = Date()
-        await buildDetached(
+        return await buildDetached(
             intervals: intervals,
             previousIntervals: [],
             dailySummaries: dailySummaries,
