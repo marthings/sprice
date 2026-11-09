@@ -66,6 +66,10 @@ enum AppFormatters {
         date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).locale(swedishLocale))
     }
 
+    static func weekdayDayMonth(_ date: Date) -> String {
+        date.formatted(.dateTime.weekday(.wide).day().month(.abbreviated).locale(swedishLocale))
+    }
+
     static func csvNumber(_ value: Double) -> String {
         value.formatted(.number.locale(posixLocale).precision(.fractionLength(0...6)))
     }
@@ -253,7 +257,7 @@ enum DS {
         static let full: CGFloat = 999
     }
 
-    // MARK: - Glass Effects (macOS 26+)
+    // MARK: - Glass Effects (iOS 26 / macOS 26)
 
     enum Glass {
         /// Standard corner radius for glass cards
@@ -771,35 +775,100 @@ struct PriceLevelBadge: View {
     }
 }
 
+// MARK: - Canvas background
+
+/// Calm field behind dashboard content. Replaces the old photo background so
+/// materials and text keep contrast in light and dark mode.
+struct AppCanvasBackground: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: colorScheme == .dark ? darkBase : lightBase,
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+
+            RadialGradient(
+                colors: colorScheme == .dark ? darkWash : lightWash,
+                center: .topLeading,
+                startRadius: 24,
+                endRadius: 520
+            )
+        }
+        .ignoresSafeArea()
+        .accessibilityHidden(true)
+    }
+
+    private var lightBase: [Color] {
+        [
+            Color(red: 0.89, green: 0.92, blue: 0.95),
+            Color(red: 0.94, green: 0.93, blue: 0.91)
+        ]
+    }
+
+    private var darkBase: [Color] {
+        [
+            Color(red: 0.10, green: 0.12, blue: 0.16),
+            Color(red: 0.07, green: 0.08, blue: 0.10)
+        ]
+    }
+
+    private var lightWash: [Color] {
+        [
+            Color(red: 0.80, green: 0.87, blue: 0.93).opacity(0.55),
+            .clear
+        ]
+    }
+
+    private var darkWash: [Color] {
+        [
+            Color(red: 0.18, green: 0.22, blue: 0.30).opacity(0.40),
+            .clear
+        ]
+    }
+}
+
 // MARK: - Glass Card Modifier
 
-/// A modifier that applies glass effect on macOS 26+ with ultraThinMaterial fallback
+/// Shared card surface: regular system glass over a material fill so body text
+/// keeps contrast against the canvas in both appearances.
 struct GlassCardModifier: ViewModifier {
     let cornerRadius: CGFloat
     let isInteractive: Bool
+
+    @Environment(\.colorScheme) private var colorScheme
 
     private var cardShape: RoundedRectangle {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
     }
 
+    private var contrastFill: Color {
+        colorScheme == .dark
+            ? Color.black.opacity(0.28)
+            : Color.white.opacity(0.52)
+    }
+
     func body(content: Content) -> some View {
-        if #available(macOS 26, *) {
-            if isInteractive {
-                content
-                    .glassEffect(.clear.interactive(), in: cardShape)
-            } else {
-                content
-                    .glassEffect(.clear, in: cardShape)
+        content
+            .background {
+                cardShape
+                    .fill(.regularMaterial)
+                    .overlay {
+                        cardShape.fill(contrastFill)
+                    }
             }
-        } else {
-            content
-                .background(.ultraThinMaterial, in: cardShape)
-        }
+            .clipShape(cardShape)
+            .glassEffect(isInteractive ? .regular.interactive() : .regular, in: cardShape)
+            .overlay {
+                cardShape.strokeBorder(Color.primary.opacity(colorScheme == .dark ? 0.16 : 0.10), lineWidth: 0.5)
+            }
     }
 }
 
 extension View {
-    /// Applies a glass card style with automatic fallback for older macOS versions
+    /// Applies the shared glass card style used by iOS, macOS and widgets.
     func glassCard(cornerRadius: CGFloat = DS.Glass.cardRadius, interactive: Bool = false) -> some View {
         modifier(GlassCardModifier(cornerRadius: cornerRadius, isInteractive: interactive))
     }

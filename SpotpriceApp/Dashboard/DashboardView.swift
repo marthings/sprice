@@ -133,10 +133,7 @@ struct DashboardView: View {
         var body: some View {
             NavigationStack {
                 ZStack {
-                    Image("bg")
-                        .resizable()
-                        .scaledToFill()
-                        .ignoresSafeArea()
+                    AppCanvasBackground()
 
                     ScrollView {
                         VStack(alignment: .leading, spacing: DS.Spacing.xl) {
