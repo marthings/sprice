@@ -113,7 +113,7 @@ struct ProviderSettingsView: View {
             } header: {
                 Text("Inloggningsuppgifter")
             } footer: {
-                Text(metadata.credentialHelpText)
+                if let help = metadata.credentialHelpText { Text(help) }
             }
         }
     }
