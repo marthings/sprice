@@ -3,9 +3,14 @@ import SwiftUI
 struct HistoryMonthLoadedContent: View {
     let presentation: HistoryMonthPresentation
     let hasProvider: Bool
+    let priceArea: String
+    let costProfile: CostProfile
+    let historyQuery: (any EnergyHistoryQuerying)?
+    var previewInsights: ConsumptionInsights? = nil
 
     @Binding var selectedMonthKey: String?
     @Binding var openedDay: HistoryDayRoute?
+    @Binding var openedInsights: ConsumptionInsightsRoute?
 
     var body: some View {
         if presentation.months.isEmpty {
@@ -46,6 +51,15 @@ struct HistoryMonthLoadedContent: View {
                     }
 
                     HistoryPaidVersusSpot(snapshot: snapshot)
+
+                    ConsumptionInsightsMonthSection(
+                        presentation: presentation,
+                        priceArea: priceArea,
+                        costProfile: costProfile,
+                        historyQuery: historyQuery,
+                        openedInsights: $openedInsights,
+                        previewInsights: previewInsights
+                    )
 
                     HistoryMonthDaysChart(
                         days: presentation.dayBars,

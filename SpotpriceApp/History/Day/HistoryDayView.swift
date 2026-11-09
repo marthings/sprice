@@ -12,6 +12,7 @@ struct HistoryDayView: View {
     private let previewSnapshot: HistoryDaySnapshot?
 
     @State private var snapshot: HistoryDaySnapshot?
+    @State private var insights: ConsumptionInsights?
     @State private var loadFailed = false
 
     init(
@@ -41,6 +42,15 @@ struct HistoryDayView: View {
                 VStack(alignment: .leading, spacing: DS.Spacing.lg) {
                     if let snapshot {
                         HistoryDayTotals(snapshot: snapshot)
+                        if snapshot.hasMeasuredUse || insights != nil {
+                            ConsumptionInsightsDayTeaser(
+                                insights: insights,
+                                route: ConsumptionInsightsRoute(
+                                    period: .day(dayKey: dayKey, date: date),
+                                    priceArea: priceArea
+                                )
+                            )
+                        }
                         HistoryDayHourChart(snapshot: snapshot)
                         if snapshot.hasMeasuredUse {
                             HistoryDayExpensiveHours(hours: snapshot.expensiveHoursUsed)
@@ -85,6 +95,7 @@ struct HistoryDayView: View {
                 intervals: intervals,
                 costProfile: costProfile
             )
+            insights = await dayInsights(intervals: intervals)
             loadFailed = false
         } catch {
             if dailySummary != nil {
@@ -94,12 +105,28 @@ struct HistoryDayView: View {
                     intervals: [],
                     costProfile: costProfile
                 )
+                insights = await dayInsights(intervals: [])
                 loadFailed = false
             } else {
                 snapshot = nil
+                insights = nil
                 loadFailed = true
             }
         }
+    }
+
+    private func dayInsights(intervals: [HistoricalEnergyIntervalValue]) async -> ConsumptionInsights {
+        let calendar = Calendar.energyHistory
+        let start = calendar.startOfDay(for: date)
+        let end = calendar.date(byAdding: .day, value: 1, to: start) ?? start
+        return await ConsumptionInsightsService.insights(
+            intervals: intervals,
+            dailySummaries: dailySummary.map { [$0] } ?? [],
+            costProfile: costProfile,
+            periodStart: start,
+            periodEnd: end,
+            periodKind: .day
+        )
     }
 }
 

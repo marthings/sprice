@@ -45,6 +45,7 @@ protocol EnergyHistoryQuerying {
     func loadMonthHistory(priceArea: String?, selectedMonthKey: String?) throws -> EnergyHistoryMonthQueryResult
     func loadCurrentMonthSummary(priceArea: String?, monthKey: String) throws -> HistoricalEnergySummaryValue?
     func loadDayIntervals(dayKey: String, priceArea: String?) throws -> [HistoricalEnergyIntervalValue]
+    func loadPreferredIntervals(monthKey: String, priceArea: String?) throws -> [HistoricalEnergyIntervalValue]
 }
 
 @MainActor
@@ -123,19 +124,12 @@ final class EnergyHistoryQueryService: EnergyHistoryQuerying {
         return Self.preferredIntervals(from: try store.fetchRecords(dayKey: dayKey, priceArea: priceArea))
     }
 
-    private func resolvedStore() throws -> any EnergyHistoryStore {
-        if let store {
-            return store
-        }
-        return try EnergyHistoryStores.reader()
+    func loadPreferredIntervals(monthKey: String, priceArea: String?) throws -> [HistoricalEnergyIntervalValue] {
+        let store = try resolvedStore()
+        return Self.preferredIntervals(from: try store.fetchRecords(monthKey: monthKey, priceArea: priceArea))
     }
 
-    private func uniqueBestMonthlySummaries(_ summaries: [HistoricalEnergySummaryValue]) -> [HistoricalEnergySummaryValue] {
-        summaries.bestSummaries(groupedBy: \.periodKey)
-            .sorted { $0.periodStart > $1.periodStart }
-    }
-
-    static func preferredIntervals(from records: [HistoricalEnergyRecord]) -> [HistoricalEnergyIntervalValue] {
+    private static func preferredIntervals(from records: [HistoricalEnergyRecord]) -> [HistoricalEnergyIntervalValue] {
         Dictionary(grouping: records, by: \.intervalStart)
             .values
             .compactMap { group -> HistoricalEnergyIntervalValue? in
@@ -154,6 +148,19 @@ final class EnergyHistoryQueryService: EnergyHistoryQuerying {
         if record.energyCostSEK != nil { score += 1 }
         return score
     }
+
+    private func resolvedStore() throws -> any EnergyHistoryStore {
+        if let store {
+            return store
+        }
+        return try EnergyHistoryStores.reader()
+    }
+
+    private func uniqueBestMonthlySummaries(_ summaries: [HistoricalEnergySummaryValue]) -> [HistoricalEnergySummaryValue] {
+        summaries.bestSummaries(groupedBy: \.periodKey)
+            .sorted { $0.periodStart > $1.periodStart }
+    }
+
 }
 
 @MainActor
@@ -161,15 +168,18 @@ final class StaticEnergyHistoryQueryService: EnergyHistoryQuerying {
     private let monthHistory: EnergyHistoryMonthQueryResult
     private let currentMonthSummary: HistoricalEnergySummaryValue?
     private let dayIntervals: [HistoricalEnergyIntervalValue]
+    private let monthIntervals: [HistoricalEnergyIntervalValue]
 
     init(
         monthHistory: EnergyHistoryMonthQueryResult,
         currentMonthSummary: HistoricalEnergySummaryValue? = nil,
-        dayIntervals: [HistoricalEnergyIntervalValue] = []
+        dayIntervals: [HistoricalEnergyIntervalValue] = [],
+        monthIntervals: [HistoricalEnergyIntervalValue] = []
     ) {
         self.monthHistory = monthHistory
         self.currentMonthSummary = currentMonthSummary
         self.dayIntervals = dayIntervals
+        self.monthIntervals = monthIntervals
     }
 
     func loadMonthHistory(priceArea: String?, selectedMonthKey: String?) throws -> EnergyHistoryMonthQueryResult {
@@ -182,6 +192,10 @@ final class StaticEnergyHistoryQueryService: EnergyHistoryQuerying {
 
     func loadDayIntervals(dayKey: String, priceArea: String?) throws -> [HistoricalEnergyIntervalValue] {
         dayIntervals
+    }
+
+    func loadPreferredIntervals(monthKey: String, priceArea: String?) throws -> [HistoricalEnergyIntervalValue] {
+        monthIntervals
     }
 }
 
@@ -930,9 +944,56 @@ actor EnergyHistoryWriter {
     func exportHistoryCSV(priceArea: String?, to url: URL) throws {
         try EnergyHistoryWriting.exportHistoryCSV(priceArea: priceArea, to: url, context: modelContext)
     }
+
+    func loadPreferredIntervals(monthKey: String, priceArea: String?) throws -> [HistoricalEnergyIntervalValue] {
+        try EnergyHistoryWriting.preferredIntervals(
+            monthKey: monthKey,
+            priceArea: priceArea,
+            context: modelContext
+        )
+    }
 }
 
 nonisolated enum EnergyHistoryWriting {
+    nonisolated static func preferredIntervals(
+        monthKey: String,
+        priceArea: String?,
+        context: ModelContext
+    ) throws -> [HistoricalEnergyIntervalValue] {
+        preferredIntervals(from: try fetchRecords(monthKey: monthKey, priceArea: priceArea, context: context))
+    }
+
+    nonisolated static func preferredIntervals(from records: [HistoricalEnergyRecord]) -> [HistoricalEnergyIntervalValue] {
+        Dictionary(grouping: records, by: \.intervalStart)
+            .values
+            .compactMap { group -> HistoricalEnergyIntervalValue? in
+                guard let preferred = group.max(by: { intervalPreference($0) < intervalPreference($1) }) else {
+                    return nil
+                }
+                return HistoricalEnergyIntervalValue(
+                    id: preferred.id,
+                    intervalStart: preferred.intervalStart,
+                    intervalEnd: preferred.intervalEnd,
+                    spotPriceOrePerKWh: preferred.spotPriceOrePerKWh,
+                    consumptionKWh: preferred.consumptionKWh,
+                    energyCostSEK: preferred.energyCostSEK,
+                    gridCostSEK: preferred.gridCostSEK,
+                    taxCostSEK: preferred.taxCostSEK,
+                    vatCostSEK: preferred.vatCostSEK,
+                    totalCostSEK: preferred.totalCostSEK
+                )
+            }
+            .sorted { $0.intervalStart < $1.intervalStart }
+    }
+
+    nonisolated private static func intervalPreference(_ record: HistoricalEnergyRecord) -> Int {
+        var score = 0
+        if record.consumptionKWh != nil { score += 4 }
+        if record.totalCostSEK != nil { score += 2 }
+        if record.energyCostSEK != nil { score += 1 }
+        return score
+    }
+
     nonisolated static func upsertRecords(
         _ drafts: [HistoricalEnergyRecordDraft],
         context: ModelContext,
