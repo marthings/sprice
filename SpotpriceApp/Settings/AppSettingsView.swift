@@ -11,6 +11,7 @@ struct AppSettingsView: View {
     @State private var retailerMonthlyFee = 0.0
     @State private var selectedDSOOrgNo = ""
     @State private var fuseSize = 20
+    @State private var includeHypotheticalEffectTariff = false
     @State private var dsoOptions: [DSOOption] = []
     @State private var gridTariffError: String?
     @State private var fieldError: String?
@@ -58,6 +59,7 @@ struct AppSettingsView: View {
         .onChange(of: contractType) { _, _ in commitImmediately() }
         .onChange(of: selectedDSOOrgNo) { _, _ in commitImmediately() }
         .onChange(of: fuseSize) { _, _ in commitImmediately() }
+        .onChange(of: includeHypotheticalEffectTariff) { _, _ in commitEffectTariffToggle() }
         .onChange(of: retailerMarkupOrePerKWh) { _, _ in scheduleCommit() }
         .onChange(of: contractPriceOrePerKWh) { _, _ in scheduleCommit() }
         .onChange(of: retailerMonthlyFee) { _, _ in scheduleCommit() }
@@ -207,6 +209,15 @@ struct AppSettingsView: View {
                 .pickerStyle(.menu)
                 .accessibilityLabel("Säkring")
 
+                Toggle(EffectTariffCopy.toggleTitle, isOn: $includeHypotheticalEffectTariff)
+                    .font(DS.Font.callout)
+                    .accessibilityHint(EffectTariffCopy.explanation)
+
+                Text(EffectTariffCopy.explanation)
+                    .font(DS.Font.micro)
+                    .foregroundStyle(DS.Color.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
                 if let gridTariffError {
                     Label(gridTariffError, systemImage: "exclamationmark.triangle.fill")
                         .font(DS.Font.micro)
@@ -294,6 +305,7 @@ struct AppSettingsView: View {
         retailerMonthlyFee = profile.retailerMonthlyFee
         selectedDSOOrgNo = profile.gridCompanyId ?? settings.selectedDSOOrgNo
         fuseSize = profile.fuseSize ?? settings.fuseSize
+        includeHypotheticalEffectTariff = settings.includeHypotheticalEffectTariff
         isReady = true
     }
 
@@ -320,6 +332,21 @@ struct AppSettingsView: View {
         guard isReady else { return }
         pendingSave?.cancel()
         Task { await commitSettings() }
+    }
+
+    private func commitEffectTariffToggle() {
+        guard isReady else { return }
+        let previous = settings.includeHypotheticalEffectTariff
+        settings.includeHypotheticalEffectTariff = includeHypotheticalEffectTariff
+        if previous != includeHypotheticalEffectTariff {
+            showSaved = true
+            hideSavedTask?.cancel()
+            hideSavedTask = Task {
+                try? await Task.sleep(for: .seconds(1.6))
+                guard !Task.isCancelled else { return }
+                showSaved = false
+            }
+        }
     }
 
     private func flushPendingSave() {

@@ -13,24 +13,12 @@ struct SettingsAdvancedSection: View {
             SettingsSummaryRow(title: "Energiskatt", value: energyTaxText)
             SettingsSummaryRow(title: "Elcertifikat", value: "1,75 öre/kWh")
 
-            Toggle("Effektavgift", isOn: $settings[effectTariffEnabled: SettingsBind.effectTariffEnabled])
-
-            if settings.costProfile.effectTariff != nil {
-                LabeledContent("Effektpris") {
-                    HStack(spacing: DS.Spacing.xs) {
-                        TextField("0", value: $settings[effectTariffPrice: SettingsBind.effectTariffPrice], format: .number)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(maxWidth: DS.Size.settingsFieldWidth)
-                        Text("kr/kW/mån")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
+            Toggle(EffectTariffCopy.toggleTitle, isOn: $settings.includeHypotheticalEffectTariff)
         } header: {
             Text("Skatt och avgifter")
         } footer: {
             VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                Text("Effektavgift används bara om ditt elnätsbolag har det.")
+                Text(EffectTariffCopy.explanation)
                 Text(taxInfoText)
             }
         }

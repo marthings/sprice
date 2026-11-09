@@ -13,6 +13,7 @@ struct DashboardView: View {
                     settingsSummary: settingsSummary,
                     monthlyConsumption: viewModel.monthlyConsumption,
                     preciseMonthlyCost: viewModel.preciseMonthlyCost,
+                    powerPeaks: viewModel.powerPeaks,
                     onRetry: reload,
                     onRefresh: refresh
                 )
@@ -64,6 +65,7 @@ struct DashboardView: View {
         let settingsSummary: String
         let monthlyConsumption: ConsumptionData?
         let preciseMonthlyCost: PreciseMonthlyCost?
+        let powerPeaks: [PowerPeak]
         let onRetry: () -> Void
         let onRefresh: () async -> Void
         
@@ -77,6 +79,7 @@ struct DashboardView: View {
                     state: state,
                     monthlyConsumption: monthlyConsumption,
                     preciseMonthlyCost: preciseMonthlyCost,
+                    powerPeaks: powerPeaks,
                     onRetry: onRetry
                 )
             }

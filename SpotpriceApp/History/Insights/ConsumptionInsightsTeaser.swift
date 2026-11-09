@@ -11,13 +11,17 @@ struct ConsumptionInsightsMonthSection: View {
     @State private var insights: ConsumptionInsights?
     @State private var isLoading = false
 
+    private var includeHypotheticalEffectTariff: Bool {
+        ConsumptionSettings.shared.includeHypotheticalEffectTariff
+    }
+
     var body: some View {
         ConsumptionInsightsTeaserCard(
             insights: insights,
             isLoading: isLoading,
             onOpen: open
         )
-        .task(id: route?.id) {
+        .task(id: "\(route?.id ?? "")-\(includeHypotheticalEffectTariff)") {
             await load()
         }
     }

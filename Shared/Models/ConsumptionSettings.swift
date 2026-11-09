@@ -54,6 +54,8 @@ final class ConsumptionSettings {
 
         // Central cost profile
         static let costProfile = "settings_costProfile"
+
+        static let includeHypotheticalEffectTariff = "settings_includeHypotheticalEffectTariff"
     }
 
     // MARK: - Observable Properties
@@ -135,6 +137,18 @@ final class ConsumptionSettings {
             syncLegacyProperties(from: costProfile)
             NotificationCenter.default.post(name: .consumptionSettingsDidSave, object: nil)
 
+            Self.defaults.synchronize()
+            WidgetReload.timelines()
+        }
+    }
+
+    /// When false (default), effect tariff is omitted from shown costs.
+    /// When true, peak × kr/kW is shown as a hypothetical extra.
+    var includeHypotheticalEffectTariff: Bool {
+        didSet {
+            guard includeHypotheticalEffectTariff != oldValue else { return }
+            Self.defaults.set(includeHypotheticalEffectTariff, forKey: Keys.includeHypotheticalEffectTariff)
+            NotificationCenter.default.post(name: .consumptionSettingsDidSave, object: nil)
             Self.defaults.synchronize()
             WidgetReload.timelines()
         }
@@ -440,6 +454,7 @@ final class ConsumptionSettings {
         // Load fuse size (default 20A - common for Swedish homes)
         let savedFuseSize = Self.defaults.integer(forKey: Keys.fuseSize)
         self.fuseSize = savedFuseSize > 0 ? savedFuseSize : 20
+        self.includeHypotheticalEffectTariff = Self.defaults.bool(forKey: Keys.includeHypotheticalEffectTariff)
 
         // Load or migrate central cost profile
         self.costProfile = Self.loadCostProfile() ?? Self.migratedCostProfile(

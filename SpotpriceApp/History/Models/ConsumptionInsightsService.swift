@@ -18,12 +18,14 @@ enum ConsumptionInsightsService {
         let now = Date()
         let bounds = periodBounds(for: route, now: now, calendar: calendar)
 
+        let includeHypotheticalEffectTariff = ConsumptionSettings.shared.includeHypotheticalEffectTariff
         let intervals = await loadIntervals(for: route, historyQuery: historyQuery)
         let previousIntervals = await loadPreviousIntervals(for: route, historyQuery: historyQuery)
         let cacheKey = key(
             route: route,
             costProfile: costProfile,
             intervals: intervals,
+            includeHypotheticalEffectTariff: includeHypotheticalEffectTariff,
             now: now,
             calendar: calendar
         )
@@ -39,7 +41,8 @@ enum ConsumptionInsightsService {
             periodStart: bounds.start,
             periodEnd: bounds.end,
             now: now,
-            periodKind: route.periodKind
+            periodKind: route.periodKind,
+            includeHypotheticalEffectTariff: includeHypotheticalEffectTariff
         )
         cache[cacheKey] = built
         return built
@@ -62,7 +65,8 @@ enum ConsumptionInsightsService {
             periodStart: periodStart,
             periodEnd: periodEnd,
             now: now,
-            periodKind: periodKind
+            periodKind: periodKind,
+            includeHypotheticalEffectTariff: ConsumptionSettings.shared.includeHypotheticalEffectTariff
         )
     }
 
@@ -74,7 +78,8 @@ enum ConsumptionInsightsService {
         periodStart: Date,
         periodEnd: Date,
         now: Date,
-        periodKind: ConsumptionInsightsPeriodKind
+        periodKind: ConsumptionInsightsPeriodKind,
+        includeHypotheticalEffectTariff: Bool
     ) async -> ConsumptionInsights {
         await Task.detached(priority: .userInitiated) {
             buildOffMain(
@@ -85,7 +90,8 @@ enum ConsumptionInsightsService {
                 periodStart: periodStart,
                 periodEnd: periodEnd,
                 now: now,
-                periodKind: periodKind
+                periodKind: periodKind,
+                includeHypotheticalEffectTariff: includeHypotheticalEffectTariff
             )
         }.value
     }
@@ -98,7 +104,8 @@ enum ConsumptionInsightsService {
         periodStart: Date,
         periodEnd: Date,
         now: Date,
-        periodKind: ConsumptionInsightsPeriodKind
+        periodKind: ConsumptionInsightsPeriodKind,
+        includeHypotheticalEffectTariff: Bool
     ) -> ConsumptionInsights {
         ConsumptionInsightsBuilder.make(
             intervals: intervals,
@@ -109,6 +116,7 @@ enum ConsumptionInsightsService {
             periodEnd: periodEnd,
             now: now,
             periodKind: periodKind,
+            includeHypotheticalEffectTariff: includeHypotheticalEffectTariff,
             factors: .none
         )
     }
@@ -171,11 +179,13 @@ enum ConsumptionInsightsService {
         route: ConsumptionInsightsRoute,
         costProfile: CostProfile,
         intervals: [HistoricalEnergyIntervalValue],
+        includeHypotheticalEffectTariff: Bool,
         now: Date,
         calendar: Calendar
     ) -> String {
         let lastStart = intervals.last?.intervalStart.timeIntervalSince1970 ?? 0
         let tariff = costProfile.effectTariff.map { "\($0.monthlyPricePerKW)-\($0.model.rawValue)" } ?? "none"
+        let effectFlag = includeHypotheticalEffectTariff ? "effectOn" : "effectOff"
         let bucket: String
         switch route.period {
         case .month(_, _, let periodStart):
@@ -191,6 +201,6 @@ enum ConsumptionInsightsService {
                 bucket = "closed"
             }
         }
-        return "\(route.id)|\(intervals.count)|\(lastStart)|\(tariff)|\(bucket)"
+        return "\(route.id)|\(intervals.count)|\(lastStart)|\(tariff)|\(effectFlag)|\(bucket)"
     }
 }

@@ -32,7 +32,8 @@ enum ConsumptionInsightsSampleData {
             periodStart: monthStart,
             periodEnd: calendar.date(byAdding: .month, value: 1, to: monthStart)!,
             now: calendar.date(byAdding: .month, value: 1, to: monthStart)!,
-            periodKind: .month
+            periodKind: .month,
+            includeHypotheticalEffectTariff: includeEffectTariff
         )
     }
 

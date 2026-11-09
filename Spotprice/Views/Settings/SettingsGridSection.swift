@@ -57,9 +57,14 @@ struct SettingsGridSection: View {
                             await updateFuseSize(newValue)
                         }
                     }
+
+                    Toggle(EffectTariffCopy.toggleTitle, isOn: $settings.includeHypotheticalEffectTariff)
                 } footer: {
-                    if settings.selectedDSOOrgNo.isEmpty {
-                        Text("Elnätskostnad ingår först när du väljer nätägare eller anger nätavgifter.")
+                    VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                        if settings.selectedDSOOrgNo.isEmpty {
+                            Text("Elnätskostnad ingår först när du väljer nätägare eller anger nätavgifter.")
+                        }
+                        Text(EffectTariffCopy.explanation)
                     }
                 }
 

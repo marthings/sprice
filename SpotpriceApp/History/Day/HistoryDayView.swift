@@ -79,7 +79,7 @@ struct HistoryDayView: View {
         .navigationTitle(AppFormatters.weekdayDayMonth(date))
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
-        .task {
+        .task(id: ConsumptionSettings.shared.includeHypotheticalEffectTariff) {
             guard previewSnapshot == nil else { return }
             await loadDay()
         }

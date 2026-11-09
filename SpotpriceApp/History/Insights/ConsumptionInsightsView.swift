@@ -11,6 +11,10 @@ struct ConsumptionInsightsScreen: View {
     @State private var insights: ConsumptionInsights?
     @State private var isLoading = true
 
+    private var includeHypotheticalEffectTariff: Bool {
+        ConsumptionSettings.shared.includeHypotheticalEffectTariff
+    }
+
     var body: some View {
         ZStack {
             AppCanvasBackground()
@@ -41,7 +45,7 @@ struct ConsumptionInsightsScreen: View {
         .navigationTitle("Vad drog?")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
-        .task(id: route.id) {
+        .task(id: "\(route.id)-\(includeHypotheticalEffectTariff)") {
             await load()
         }
     }
@@ -175,7 +179,7 @@ struct ConsumptionInsightsContent: View {
             Text("Toppar")
                 .font(DS.Font.headline)
 
-            Text("Korta höga toppar kan vara ugn, tvätt eller torktumlare. Långa jämna laster kan vara laddning, bastu eller uppvärmning. Det är gissningar, inte fakta.")
+            Text("Vid varje topp står en gissning utifrån när den kom och hur den såg ut. Det är inte fakta.")
                 .font(DS.Font.micro)
                 .foregroundStyle(DS.Color.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -206,14 +210,14 @@ struct ConsumptionInsightsContent: View {
             Text("\(AppFormatters.wholeNumber(event.costKr)) kr · \(AppFormatters.kWh(event.energyKWh)) · topp \(ConsumptionInsightsBuilder.powerPhrase(event.peakKW))")
                 .font(DS.Font.callout.monospacedDigit())
                 .foregroundStyle(.primary)
-            Text("\(event.shape.shapeLabel) — \(event.guess)")
+            Text("\(event.shape.shapeLabel) — \(event.guess())")
                 .font(DS.Font.micro)
                 .foregroundStyle(DS.Color.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
-            "Topp \(rank), \(eventTimeSpan(event)), \(AppFormatters.wholeNumber(event.costKr)) kronor, \(AppFormatters.kWh(event.energyKWh)), topp \(ConsumptionInsightsBuilder.powerPhrase(event.peakKW)). \(event.shape.shapeLabel), kanske \(event.guess)"
+            "Topp \(rank), \(eventTimeSpan(event)), \(AppFormatters.wholeNumber(event.costKr)) kronor, \(AppFormatters.kWh(event.energyKWh)), topp \(ConsumptionInsightsBuilder.powerPhrase(event.peakKW)). \(event.shape.shapeLabel), kanske \(event.guess())"
         )
     }
 
@@ -300,10 +304,10 @@ struct ConsumptionInsightsContent: View {
                     "Högsta timmen \(ConsumptionInsightsBuilder.powerPhrase(peak.powerKW)), \(AppFormatters.powerPeakHourLabel(peak.hourStart))"
                 )
 
-                if let cost = peak.effectTariffCostKr {
-                    Text("Effektavgiften för den toppen är ca \(AppFormatters.wholeNumber(cost)) kr.")
+                if peak.includeHypotheticalCost, let cost = peak.effectTariffCostKr {
+                    Text("\(EffectTariffCopy.lineTitle): ca \(AppFormatters.wholeNumber(cost)) kr.")
                         .font(DS.Font.callout)
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(DS.Color.warning)
                         .fixedSize(horizontal: false, vertical: true)
                     if peak.usesAveragePeaks {
                         Text("Din tariff räknar på medel av flera toppar. Här visas den högsta timmen, och avgiften på det medel som tariffen använder.")
@@ -311,8 +315,8 @@ struct ConsumptionInsightsContent: View {
                             .foregroundStyle(DS.Color.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
-                } else {
-                    Text("Ingen effektavgift i dina elnätsuppgifter, så toppen syns bara som kW.")
+                } else if peak.includeHypotheticalCost {
+                    Text(EffectTariffCopy.missingRate)
                         .font(DS.Font.callout)
                         .foregroundStyle(.primary)
                         .fixedSize(horizontal: false, vertical: true)

@@ -108,17 +108,6 @@ nonisolated enum ConsumptionLoadEventShape: String, Sendable, Equatable {
     case longEvenLoad
     case other
 
-    var guess: String {
-        switch self {
-        case .shortHighPeak:
-            return "ugn, tvätt, torktumlare?"
-        case .longEvenLoad:
-            return "laddning, bastu, uppvärmning?"
-        case .other:
-            return "något extra, oklart vad"
-        }
-    }
-
     var shapeLabel: String {
         switch self {
         case .shortHighPeak:
@@ -142,7 +131,39 @@ nonisolated struct ConsumptionLoadEvent: Sendable, Equatable, Identifiable {
 
     var id: Date { start }
 
-    var guess: String { shape.guess }
+    /// One guess per peak, based on shape and time of day. Never treat as fact.
+    nonisolated func guess(calendar: Calendar = .energyHistory) -> String {
+        let hour = calendar.component(.hour, from: start)
+        let weekday = calendar.component(.weekday, from: start)
+        let isWeekend = weekday == 1 || weekday == 7
+
+        switch shape {
+        case .shortHighPeak:
+            if hour >= 6 && hour < 10 {
+                return "morgonrusch: kaffe, dusch eller spis?"
+            }
+            if hour >= 16 && hour < 20 {
+                return "middagslagning, ugn eller disk?"
+            }
+            if hour >= 20 || hour < 6 {
+                return "tvätt eller torktumlare på kvällen?"
+            }
+            return "något som drog mycket en kort stund?"
+        case .longEvenLoad:
+            if hour >= 21 || hour < 6 {
+                return "laddning över natten?"
+            }
+            if isWeekend {
+                return "bastu eller uppvärmning en helg?"
+            }
+            return "något som gick länge på jämn last?"
+        case .other:
+            if hour >= 16 && hour < 22 {
+                return "kvällssysslor, oklart vad"
+            }
+            return "något extra, oklart vad"
+        }
+    }
 }
 
 nonisolated enum ConsumptionHourBand: String, Sendable, Equatable, CaseIterable, Identifiable {
@@ -227,4 +248,5 @@ nonisolated struct ConsumptionPowerPeakInsight: Sendable, Equatable {
     let powerKW: Double
     let effectTariffCostKr: Double?
     let usesAveragePeaks: Bool
+    let includeHypotheticalCost: Bool
 }

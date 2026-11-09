@@ -14,6 +14,11 @@ struct MonthlyCostCard: View {
     var showPrecisionHint: Bool = false
     var costBasisNote: String? = nil
     var retailEnergyLabel: String = "Kvartspris"
+    var hypotheticalEffectTariffKr: Double? = nil
+
+    private var displayedTotalKr: Double {
+        enhancedCost.totalKr + (hypotheticalEffectTariffKr ?? 0)
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
@@ -24,7 +29,7 @@ struct MonthlyCostCard: View {
             
             // Total cost - primary focus
             HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
-                Text(enhancedCost.totalKr, format: .number.precision(.fractionLength(0)))
+                Text(displayedTotalKr, format: .number.precision(.fractionLength(0)))
                     .font(DS.Font.bold(28).monospacedDigit())
                     .foregroundStyle(.primary)
                 Text("kr")
@@ -34,7 +39,7 @@ struct MonthlyCostCard: View {
             
             // Consumption info
             if kWh > 0 {
-                Text("\(Int(kWh.rounded())) kWh • \((enhancedCost.totalKr / kWh).formatted(.number.precision(.fractionLength(2)))) kr/kWh")
+                Text("\(Int(kWh.rounded())) kWh • \((displayedTotalKr / kWh).formatted(.number.precision(.fractionLength(2)))) kr/kWh")
                     .font(DS.Font.micro)
                     .foregroundStyle(.tertiary)
             }
@@ -128,10 +133,18 @@ struct MonthlyCostCard: View {
                     }
                     if enhancedCost.powerTariffCostKr > 0 {
                         CostBreakdownSubRow(
-                            label: "Effekttariff",
+                            label: EffectTariffCopy.lineTitle,
                             amount: enhancedCost.powerTariffCostKr
                         )
                     }
+                }
+
+                if let hypotheticalEffectTariffKr {
+                    CostBreakdownRow(
+                        label: EffectTariffCopy.lineTitle,
+                        amount: hypotheticalEffectTariffKr,
+                        color: DS.Color.warning
+                    )
                 }
                 
                 // Skatter & avgifter

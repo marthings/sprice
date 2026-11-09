@@ -6,6 +6,7 @@ struct MonthDailyCostSection: View {
     let profile: CostProfile
     let hasProvider: Bool
     var forecastKr: Double? = nil
+    var hypotheticalEffectTariffKr: Double? = nil
 
     @State private var days: [MonthDayCost] = []
     @State private var selectedDay: MonthDayCost?
@@ -24,6 +25,16 @@ struct MonthDailyCostSection: View {
                     .font(DS.Font.micro)
                     .foregroundStyle(DS.Color.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+
+                if let hypotheticalEffectTariffKr {
+                    Text("\(EffectTariffCopy.lineTitle): ca \(AppFormatters.wholeNumber(hypotheticalEffectTariffKr)) kr för månaden. \(EffectTariffCopy.dailyBarsNote)")
+                        .font(DS.Font.micro)
+                        .foregroundStyle(DS.Color.warning)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityLabel(
+                            "\(EffectTariffCopy.lineTitle), \(AppFormatters.wholeNumber(hypotheticalEffectTariffKr)) kronor för månaden"
+                        )
+                }
             }
 
             if !didLoad {

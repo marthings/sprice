@@ -16,6 +16,7 @@ nonisolated enum ConsumptionInsightsBuilder: Sendable {
         periodEnd: Date,
         now: Date,
         periodKind: ConsumptionInsightsPeriodKind,
+        includeHypotheticalEffectTariff: Bool = false,
         factors: ConsumptionInsightsFactors = .none
     ) -> ConsumptionInsights {
         let calendar = Calendar.energyHistory
@@ -77,7 +78,12 @@ nonisolated enum ConsumptionInsightsBuilder: Sendable {
             powerPeak = nil
             powerPeakUnavailableReason = "Timtoppen saknas när bara dygnsvärden finns."
         } else {
-            powerPeak = hourPeak(from: samples, costProfile: costProfile, calendar: calendar)
+            powerPeak = hourPeak(
+                from: samples,
+                costProfile: costProfile,
+                includeHypotheticalEffectTariff: includeHypotheticalEffectTariff,
+                calendar: calendar
+            )
             powerPeakUnavailableReason = powerPeak == nil ? "Ingen timme med förbrukning att mäta topp på." : nil
         }
 
@@ -461,6 +467,7 @@ nonisolated enum ConsumptionInsightsBuilder: Sendable {
     nonisolated private static func hourPeak(
         from samples: [Sample],
         costProfile: CostProfile,
+        includeHypotheticalEffectTariff: Bool,
         calendar: Calendar
     ) -> ConsumptionPowerPeakInsight? {
         var hours: [Date: (kWh: Double, hours: Double)] = [:]
@@ -492,12 +499,17 @@ nonisolated enum ConsumptionInsightsBuilder: Sendable {
             billedKW = top.1
             usesAveragePeaks = false
         }
-        let effectCost = tariff.map { $0.monthlyPricePerKW * billedKW }
+        let effectCost = TotalCostService.shared.hypotheticalMonthlyEffectTariffCostKr(
+            peakKW: billedKW,
+            profile: costProfile,
+            include: includeHypotheticalEffectTariff
+        )
         return ConsumptionPowerPeakInsight(
             hourStart: top.0,
             powerKW: top.1,
             effectTariffCostKr: effectCost,
-            usesAveragePeaks: usesAveragePeaks
+            usesAveragePeaks: usesAveragePeaks,
+            includeHypotheticalCost: includeHypotheticalEffectTariff
         )
     }
 
@@ -546,7 +558,7 @@ nonisolated enum ConsumptionInsightsBuilder: Sendable {
 
         if let event = events.first {
             sentences.append(
-                "Största toppen var \(powerPhrase(event.peakKW)) \(dayLabel(event.start)) — \(event.guess)"
+                "Största toppen var \(powerPhrase(event.peakKW)) \(dayLabel(event.start))."
             )
         } else if let peak = powerPeak {
             sentences.append(

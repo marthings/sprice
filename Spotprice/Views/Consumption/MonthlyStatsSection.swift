@@ -64,7 +64,8 @@ struct MonthlyStatsSection: View {
                         kWh: preciseCost.totalKWh,
                         showPrecisionHint: shouldShowPrecisionHint,
                         costBasisNote: settings.costProfile.retailContractCostBasisText,
-                        retailEnergyLabel: settings.costProfile.retailContractDisplayName
+                        retailEnergyLabel: settings.costProfile.retailContractDisplayName,
+                        hypotheticalEffectTariffKr: hypotheticalEffectTariffKr
                     )
                 } else if let avgPrice = averagePrice {
                     let estimatedSpotCost = (avgPrice / 100.0) * consumption.totalKWh
@@ -79,7 +80,8 @@ struct MonthlyStatsSection: View {
                         kWh: consumption.totalKWh,
                         showPrecisionHint: shouldShowPrecisionHint,
                         costBasisNote: settings.costProfile.retailContractCostBasisText,
-                        retailEnergyLabel: settings.costProfile.retailContractDisplayName
+                        retailEnergyLabel: settings.costProfile.retailContractDisplayName,
+                        hypotheticalEffectTariffKr: hypotheticalEffectTariffKr
                     )
                 }
 
@@ -130,6 +132,14 @@ struct MonthlyStatsSection: View {
     
     // MARK: - Helpers
     
+    private var hypotheticalEffectTariffKr: Double? {
+        TotalCostService.shared.hypotheticalMonthlyEffectTariffCostKr(
+            peakKW: powerPeaks.first?.kW ?? 0,
+            profile: settings.costProfile,
+            include: settings.includeHypotheticalEffectTariff
+        )
+    }
+
     private func calculateTotalMonthCost(spotCostKr: Double, kWh: Double) -> EnhancedCost {
         let service = TotalCostService.shared
         // Calculate average spot price per kWh from total spot cost
