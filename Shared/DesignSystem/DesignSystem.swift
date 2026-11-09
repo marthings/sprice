@@ -908,17 +908,7 @@ enum SpriceCardTone: Equatable {
         DS.Color.info
     }
 
-    /// GlassEffect tint, the same for every tone.
-    func glassTintOpacity(colorScheme: ColorScheme) -> Double {
-        switch (self, colorScheme) {
-        case (_, .light): return 0.16
-        case (_, .dark): return 0.20
-        @unknown default:
-            return 0.16
-        }
-    }
-
-    /// Gradient overlay on top of material, kept below the glass tint.
+    /// Gradient overlay on top of material.
     func overlayOpacity(colorScheme: ColorScheme) -> Double {
         switch (self, colorScheme) {
         case (_, .light): return 0.10
@@ -937,9 +927,7 @@ enum SpriceCardTone: Equatable {
 struct SpriceCardBackground: View {
     var tone: SpriceCardTone = .default
     var cornerRadius: CGFloat = DS.Glass.cardRadius
-    var isInteractive: Bool = false
-    /// Flat fill for grouped Form rows: no `glassEffect` and no per-row gradient,
-    /// so Liquid Glass does not draw a seam under each field.
+    /// Flat fill for grouped Form rows: no per-row gradient, so rows share one wash.
     var isListRow: Bool = false
 
     @Environment(\.colorScheme) private var colorScheme
@@ -963,19 +951,10 @@ struct SpriceCardBackground: View {
         colorScheme == .dark ? Color.black : Color.white
     }
 
-    private var glassTintOpacity: Double {
-        tone.glassTintOpacity(colorScheme: colorScheme)
-    }
-
     private var washOpacity: Double {
         reduceTransparency
             ? tone.reducedTransparencyOverlayOpacity(colorScheme: colorScheme)
             : tone.overlayOpacity(colorScheme: colorScheme)
-    }
-
-    private var glassStyle: Glass {
-        let tinted: Glass = .regular.tint(paletteColor.opacity(glassTintOpacity))
-        return isInteractive ? tinted.interactive() : tinted
     }
 
     private var paletteWash: LinearGradient {
@@ -1012,7 +991,6 @@ struct SpriceCardBackground: View {
                     .overlay {
                         cardShape.fill(paletteWash)
                     }
-                    .glassEffect(glassStyle, in: cardShape)
             }
         }
     }
@@ -1038,14 +1016,11 @@ struct SpriceCardBackground: View {
     }
 }
 
-/// Palette-tinted material card. Native glass stays underneath; only the
-/// background is clipped so chart callouts can overflow.
+/// Palette-tinted material card. Only the background is clipped so chart
+/// callouts can overflow.
 struct SpriceCardModifier: ViewModifier {
     let tone: SpriceCardTone
     let cornerRadius: CGFloat
-    let isInteractive: Bool
-
-    @Environment(\.colorScheme) private var colorScheme
 
     private var cardShape: RoundedRectangle {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -1056,19 +1031,21 @@ struct SpriceCardModifier: ViewModifier {
             .background {
                 SpriceCardBackground(
                     tone: tone,
-                    cornerRadius: cornerRadius,
-                    isInteractive: isInteractive
+                    cornerRadius: cornerRadius
                 )
                 .clipShape(cardShape)
             }
-            .overlay {
-                cardShape.strokeBorder(strokeColor, lineWidth: 0.5)
-            }
             .containerShape(cardShape)
     }
+}
 
-    private var strokeColor: Color {
-        tone.paletteColor.opacity(colorScheme == .dark ? 0.28 : 0.16)
+/// Discrete press for tappable cards that used to use interactive glass.
+struct SpriceCardPressButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .opacity(configuration.isPressed ? 0.92 : 1)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
     }
 }
 
@@ -1079,7 +1056,8 @@ extension View {
         cornerRadius: CGFloat = DS.Glass.cardRadius,
         interactive: Bool = false
     ) -> some View {
-        modifier(SpriceCardModifier(tone: tone, cornerRadius: cornerRadius, isInteractive: interactive))
+        let _ = interactive
+        return modifier(SpriceCardModifier(tone: tone, cornerRadius: cornerRadius))
     }
 
     /// Forwards to `spriceCard(tone: .default)` so older call sites keep compiling.

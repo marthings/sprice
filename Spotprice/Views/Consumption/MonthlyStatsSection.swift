@@ -115,7 +115,7 @@ struct MonthlyStatsSection: View {
                     messageLineLimit: 2
                 )
             }
-            .buttonStyle(.plain)
+            .buttonStyle(SpriceCardPressButtonStyle())
         } else if let error = consumptionError {
             AppStatusRow(
                 icon: "exclamationmark.triangle.fill",
