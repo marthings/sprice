@@ -13,6 +13,7 @@ struct HistoryDayView: View {
 
     @State private var snapshot: HistoryDaySnapshot?
     @State private var insights: ConsumptionInsights?
+    @State private var openedInsights: HistoryDayInsightsRoute?
     @State private var loadFailed = false
 
     init(
@@ -45,10 +46,7 @@ struct HistoryDayView: View {
                         if snapshot.hasMeasuredUse || insights != nil {
                             ConsumptionInsightsDayTeaser(
                                 insights: insights,
-                                route: ConsumptionInsightsRoute(
-                                    period: .day(dayKey: dayKey, date: date),
-                                    priceArea: priceArea
-                                )
+                                onOpen: openInsights
                             )
                         }
                         HistoryDayHourChart(snapshot: snapshot)
@@ -78,10 +76,27 @@ struct HistoryDayView: View {
         }
         .navigationTitle(AppFormatters.weekdayDayMonth(date))
         .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(item: $openedInsights) { route in
+            ConsumptionInsightsScreen(
+                route: route.insights,
+                costProfile: costProfile,
+                dailySummaries: dailySummary.map { [$0] } ?? [],
+                historyQuery: historyQuery
+            )
+        }
         .task(id: ConsumptionSettings.shared.includeHypotheticalEffectTariff) {
             guard previewSnapshot == nil else { return }
             await loadDay()
         }
+    }
+
+    private func openInsights() {
+        openedInsights = HistoryDayInsightsRoute(
+            insights: ConsumptionInsightsRoute(
+                period: .day(dayKey: dayKey, date: date),
+                priceArea: priceArea
+            )
+        )
     }
 
     @MainActor
@@ -127,6 +142,12 @@ struct HistoryDayView: View {
             periodKind: .day
         )
     }
+}
+
+private struct HistoryDayInsightsRoute: Hashable, Identifiable {
+    let insights: ConsumptionInsightsRoute
+
+    var id: String { insights.id }
 }
 
 private struct HistoryDayTotals: View {

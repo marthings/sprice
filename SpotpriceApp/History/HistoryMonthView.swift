@@ -81,15 +81,6 @@ struct HistoryMonthView: View {
                 previewInsights: previewInsights
             )
         }
-        .navigationDestination(for: ConsumptionInsightsRoute.self) { route in
-            ConsumptionInsightsScreen(
-                route: route,
-                costProfile: costProfile,
-                dailySummaries: dailySummaries(for: route),
-                historyQuery: historyQuery,
-                previewInsights: previewInsights
-            )
-        }
         .task {
             if let initialState {
                 state = initialState

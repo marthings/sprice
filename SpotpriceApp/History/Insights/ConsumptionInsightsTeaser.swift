@@ -117,10 +117,10 @@ struct ConsumptionInsightsTeaserCard: View {
 
 struct ConsumptionInsightsDayTeaser: View {
     let insights: ConsumptionInsights?
-    let route: ConsumptionInsightsRoute
+    let onOpen: () -> Void
 
     var body: some View {
-        NavigationLink(value: route) {
+        Button(action: onOpen) {
             VStack(alignment: .leading, spacing: DS.Spacing.md) {
                 HStack {
                     Text("Vad drog?")
