@@ -146,6 +146,11 @@ final class SpotPriceViewModel {
                 providerID: settings.selectedProviderId,
                 costProfile: settings.costProfile
             )
+            historyRecordingCoordinator.startPastMonthBackfill(
+                priceArea: settings.priceArea,
+                providerID: settings.selectedProviderId,
+                costProfile: settings.costProfile
+            )
         }
 
         loadCurrentMonthHistorySummary()
@@ -365,6 +370,28 @@ private final class HistoryRecordingCoordinator {
             costProfile: costProfile,
             now: nowProvider()
         )
+    }
+
+    func startPastMonthBackfill(
+        priceArea: String,
+        providerID: String,
+        costProfile: CostProfile
+    ) {
+        let recorder = historyRecorder
+        let consumptionService = consumptionService
+        let spotPriceService = spotPriceService
+        let now = nowProvider()
+        Task {
+            await EnergyHistoryBackfillController.shared.runIfNeeded(
+                recorder: recorder,
+                consumptionService: consumptionService,
+                spotPriceService: spotPriceService,
+                priceArea: priceArea,
+                providerID: providerID,
+                costProfile: costProfile,
+                now: now
+            )
+        }
     }
 
     func loadCurrentMonthSummary(priceArea: String?, monthKey: String) throws -> HistoricalEnergySummaryValue? {

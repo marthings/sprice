@@ -71,11 +71,32 @@ struct HistoryMonthView: View {
                 state = initialState
             } else {
                 await loadHistory()
+                startBackfill()
             }
         }
         .onChange(of: selectedMonthKey) { _, _ in
             guard initialState == nil else { return }
             Task { await loadHistory() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .energyHistoryDidUpdate)) { _ in
+            guard initialState == nil else { return }
+            Task { await loadHistory() }
+        }
+    }
+
+    private func startBackfill() {
+        guard hasProvider else { return }
+        let providerID = ConsumptionSettings.shared.selectedProviderId
+        let costProfile = costProfile
+        let priceArea = priceArea
+        Task {
+            await EnergyHistoryBackfillController.shared.runIfNeeded(
+                consumptionService: ConsumptionService(),
+                spotPriceService: SpotPriceService(),
+                priceArea: priceArea,
+                providerID: providerID,
+                costProfile: costProfile
+            )
         }
     }
 

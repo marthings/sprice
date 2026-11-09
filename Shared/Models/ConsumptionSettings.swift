@@ -9,6 +9,7 @@ import WidgetKit
 
 extension Notification.Name {
     static let consumptionSettingsDidSave = Notification.Name("consumptionSettingsDidSave")
+    static let energyHistoryDidUpdate = Notification.Name("energyHistoryDidUpdate")
 }
 
 @Observable @MainActor

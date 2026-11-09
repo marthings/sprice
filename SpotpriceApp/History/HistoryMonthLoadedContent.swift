@@ -29,6 +29,13 @@ struct HistoryMonthLoadedContent: View {
                     selectedMonthKey: $selectedMonthKey
                 )
 
+                if hasPastMonths {
+                    Text("Äldre månader räknas med dina nuvarande tariffer, inte med de som gällde då.")
+                        .font(DS.Font.micro)
+                        .foregroundStyle(DS.Color.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
                 if let snapshot {
                     HistoryMonthHeroSection(
                         snapshot: snapshot,
@@ -58,6 +65,10 @@ struct HistoryMonthLoadedContent: View {
                 }
             }
         }
+    }
+
+    private var hasPastMonths: Bool {
+        data.months.contains { !HistoryMonthFormatting.isCurrentMonth($0) }
     }
 
     private var snapshot: HistoryMonthSnapshot? {
