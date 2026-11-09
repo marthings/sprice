@@ -85,25 +85,8 @@ struct MonthDailyCostSection: View {
         .zIndex(1)
         .accessibilityLabel(chartAccessibilityLabel)
 
-        if let forecastKr {
+        if forecastKr != nil {
             seriesLegend
-            Text("Staplarna använder vänster skala (kr per dag). Linjen använder höger skala (kr totalt).")
-                .font(DS.Font.micro)
-                .foregroundStyle(DS.Color.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            Text("Månaden ser ut att landa på cirka \(AppFormatters.wholeNumber(forecastKr)) kr")
-                .font(DS.Font.callout)
-                .foregroundStyle(.primary)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityLabel("Månaden ser ut att landa på cirka \(AppFormatters.wholeNumber(forecastKr)) kronor")
-        }
-
-        if let selectedDay {
-            Text(detailCopy(for: selectedDay))
-                .font(DS.Font.callout)
-                .foregroundStyle(.primary)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityAddTraits(.updatesFrequently)
         }
 
         Text("Stapeln för idag visar bara det som har hänt hittills.")
@@ -441,26 +424,6 @@ struct MonthDailyCostSection: View {
             return 1
         }
         return 0.35
-    }
-
-    private func detailCopy(for day: MonthDayCost) -> String {
-        let heading = AppFormatters.weekdayDayMonth(day.date)
-        if let cost = day.costKr {
-            let kWhText: String
-            if let kWh = day.kWh {
-                kWhText = " · \(AppFormatters.kWh(kWh, fractionLength: 0...1))"
-            } else {
-                kWhText = ""
-            }
-            if day.isToday {
-                return "Idag så långt: \(AppFormatters.wholeNumber(cost)) kr\(kWhText). Dagen är inte slut."
-            }
-            return "\(heading): \(AppFormatters.wholeNumber(cost)) kr\(kWhText)"
-        }
-        if day.isToday {
-            return "Idag så långt finns ingen förbrukning sparad ännu."
-        }
-        return "\(heading): ingen förbrukning sparad för den här dagen."
     }
 
     @MainActor

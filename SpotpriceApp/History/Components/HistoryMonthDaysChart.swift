@@ -142,22 +142,6 @@ struct HistoryMonthDaysChart: View {
                 }
             }
         }
-
-        if let selectedDay {
-            Text(detailCopy(for: selectedDay))
-                .font(DS.Font.callout)
-                .foregroundStyle(.primary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Button("Öppna \(AppFormatters.weekdayDayMonth(selectedDay.date))") {
-                open(selectedDay)
-            }
-            .font(DS.Font.callout)
-        }
-
-        Text("Tryck på en dag")
-            .font(DS.Font.micro)
-            .foregroundStyle(DS.Color.secondary)
     }
 
     private var mostExpensiveDay: MonthDayCost? {
@@ -211,25 +195,5 @@ struct HistoryMonthDaysChart: View {
             return "\(heading), \(AppFormatters.wholeNumber(cost)) kronor"
         }
         return "\(heading), ingen kostnad sparad"
-    }
-
-    private func detailCopy(for day: MonthDayCost) -> String {
-        let heading = AppFormatters.weekdayDayMonth(day.date)
-        if let cost = day.costKr {
-            let kWhText: String
-            if let kWh = day.kWh {
-                kWhText = ", \(AppFormatters.kWh(kWh, fractionLength: 0...1))"
-            } else {
-                kWhText = ""
-            }
-            if day.isToday {
-                return "Idag så långt: \(AppFormatters.wholeNumber(cost)) kr\(kWhText). Dagen är inte slut."
-            }
-            return "\(heading): \(AppFormatters.wholeNumber(cost)) kr\(kWhText)"
-        }
-        if day.isToday {
-            return "Idag så långt finns ingen förbrukning sparad ännu."
-        }
-        return "\(heading): ingen förbrukning sparad för den här dagen."
     }
 }
