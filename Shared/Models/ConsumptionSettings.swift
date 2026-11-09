@@ -60,6 +60,7 @@ final class ConsumptionSettings {
 
     var selectedProviderId: String {
         didSet {
+            guard selectedProviderId != oldValue else { return }
             Self.defaults.set(selectedProviderId, forKey: Keys.selectedProviderId)
             // Clear cached consumption when switching providers (different home/meter)
             Self.defaults.removeObject(forKey: Keys.cachedConsumption)
@@ -67,11 +68,15 @@ final class ConsumptionSettings {
     }
 
     var priceArea: String {
-        didSet { Self.defaults.set(priceArea, forKey: Keys.priceArea) }
+        didSet {
+            guard priceArea != oldValue else { return }
+            Self.defaults.set(priceArea, forKey: Keys.priceArea)
+        }
     }
     
     var selectedDSOOrgNo: String {
         didSet {
+            guard selectedDSOOrgNo != oldValue else { return }
             Self.defaults.set(selectedDSOOrgNo, forKey: Keys.selectedDSOOrgNo)
             // Clear cached tariff when DSO changes
             Self.defaults.removeObject(forKey: Keys.cachedTariff)
@@ -87,6 +92,7 @@ final class ConsumptionSettings {
             return try? JSONDecoder().decode(SimplifiedTariff.self, from: data)
         }
         set {
+            guard newValue != cachedTariff else { return }
             if let newValue = newValue,
                let data = try? JSONEncoder().encode(newValue) {
                 Self.defaults.set(data, forKey: Keys.cachedTariff)
@@ -99,12 +105,14 @@ final class ConsumptionSettings {
     // Electricity provider costs
     var providerSurchargePerKWh: Double {
         didSet {
+            guard providerSurchargePerKWh != oldValue else { return }
             Self.defaults.set(providerSurchargePerKWh, forKey: Keys.providerSurcharge)
         }
     }
     
     var providerMonthlyFee: Double {
         didSet {
+            guard providerMonthlyFee != oldValue else { return }
             Self.defaults.set(providerMonthlyFee, forKey: Keys.providerMonthlyFee)
         }
     }
@@ -112,6 +120,7 @@ final class ConsumptionSettings {
     // Fuse size in amperes (default 20A, common for Swedish homes)
     var fuseSize: Int {
         didSet {
+            guard fuseSize != oldValue else { return }
             Self.defaults.set(fuseSize, forKey: Keys.fuseSize)
             // Clear cached tariff when fuse size changes
             Self.defaults.removeObject(forKey: Keys.cachedTariff)
@@ -263,6 +272,7 @@ final class ConsumptionSettings {
 
     /// Sets credentials for a specific provider
     func setCredentials(_ credentials: ProviderCredentials, for providerId: String) {
+        guard getCredentials(for: providerId) != credentials else { return }
         credentialsCache[providerId] = credentials
 
         var allCredentials = loadAllCredentials()
@@ -515,6 +525,7 @@ extension ConsumptionSettings {
         get { getCredentials(for: providerId)[field] }
         set {
             var credentials = getCredentials(for: providerId)
+            guard credentials[field] != newValue else { return }
             credentials[field] = newValue
             setCredentials(credentials, for: providerId)
         }

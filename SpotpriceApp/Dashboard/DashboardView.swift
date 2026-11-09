@@ -40,7 +40,14 @@ struct DashboardView: View {
             }
 
             Tab("Inställningar", systemImage: "gearshape", value: 3) {
-                AppSettingsView()
+                DashboardTabShell(
+                    title: "Inställningar",
+                    settingsSummary: settingsSummary,
+                    onRefresh: refresh,
+                    showsRefresh: false
+                ) {
+                    AppSettingsView()
+                }
             }
         }
         .toolbarBackgroundVisibility(.hidden, for: .tabBar)
@@ -129,6 +136,7 @@ struct DashboardView: View {
         let title: String
         let settingsSummary: String
         let onRefresh: () async -> Void
+        var showsRefresh: Bool = true
         @ViewBuilder let tabContent: () -> TabContent
 
         var body: some View {
@@ -146,9 +154,8 @@ struct DashboardView: View {
                         .padding(.bottom, DS.Spacing.xl * 4)
                     }
                     .scrollContentBackground(.hidden)
-                    .refreshable {
-                        await onRefresh()
-                    }
+                    .scrollDismissesKeyboard(.interactively)
+                    .modifier(DashboardRefreshModifier(isEnabled: showsRefresh, onRefresh: onRefresh))
                 }
                 .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
             }
@@ -180,6 +187,19 @@ struct DashboardView: View {
 
     private func refresh() async {
         await viewModel.refreshFromUser()
+    }
+}
+
+private struct DashboardRefreshModifier: ViewModifier {
+    let isEnabled: Bool
+    let onRefresh: () async -> Void
+
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content.refreshable { await onRefresh() }
+        } else {
+            content
+        }
     }
 }
 
