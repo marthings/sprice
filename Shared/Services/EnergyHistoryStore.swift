@@ -5,6 +5,7 @@
 //  Local SwiftData persistence for historical electricity records.
 //
 
+import CoreData
 import Foundation
 import SwiftData
 
@@ -197,19 +198,14 @@ enum EnergyHistoryStoreError: LocalizedError {
 
 // MARK: - SwiftData Model Container
 
-enum EnergyHistorySchemaV1: VersionedSchema {
-    static let versionIdentifier = Schema.Version(1, 0, 0)
-
-    static var models: [any PersistentModel.Type] {
-        [
-            HistoricalEnergyRecord.self,
-            HistoricalDailyEnergySummary.self,
-            HistoricalMonthlyEnergySummary.self
-        ]
-    }
-}
-
-enum EnergyHistorySchemaV1_1: VersionedSchema {
+/// Current on-disk schema. History is a refillable cache, so incompatible stores
+/// are deleted and rebuilt instead of migrated.
+///
+/// 7dfbb6c wrote version 1.0.0 with `Schema(CurrentSchema.models, version:)` and
+/// no `#Unique` / `#Index`. 009eb2b then pointed both 1.0.0 and 1.1.0 at the
+/// current model types (which now have those macros), so the shipped store's
+/// hashes never matched the source model and the custom stage never ran.
+enum EnergyHistorySchema: VersionedSchema {
     static let versionIdentifier = Schema.Version(1, 1, 0)
 
     static var models: [any PersistentModel.Type] {
@@ -221,88 +217,21 @@ enum EnergyHistorySchemaV1_1: VersionedSchema {
     }
 }
 
-enum EnergyHistoryMigrationPlan: SchemaMigrationPlan {
-    static var schemas: [any VersionedSchema.Type] {
-        [EnergyHistorySchemaV1.self, EnergyHistorySchemaV1_1.self]
-    }
-
-    static var stages: [MigrationStage] {
-        [migrateV1toV1_1]
-    }
-
-    static let migrateV1toV1_1 = MigrationStage.custom(
-        fromVersion: EnergyHistorySchemaV1.self,
-        toVersion: EnergyHistorySchemaV1_1.self,
-        willMigrate: { context in
-            try deduplicateRecords(in: context)
-            try deduplicateDailySummaries(in: context)
-            try deduplicateMonthlySummaries(in: context)
-            try context.save()
-        },
-        didMigrate: nil
-    )
-
-    private static func deduplicateRecords(in context: ModelContext) throws {
-        let records = try context.fetch(FetchDescriptor<HistoricalEnergyRecord>())
-        var kept: [String: HistoricalEnergyRecord] = [:]
-        kept.reserveCapacity(records.count)
-        for record in records {
-            if let existing = kept[record.deduplicationKey] {
-                if record.updatedAt >= existing.updatedAt {
-                    context.delete(existing)
-                    kept[record.deduplicationKey] = record
-                } else {
-                    context.delete(record)
-                }
-            } else {
-                kept[record.deduplicationKey] = record
-            }
-        }
-    }
-
-    private static func deduplicateDailySummaries(in context: ModelContext) throws {
-        let summaries = try context.fetch(FetchDescriptor<HistoricalDailyEnergySummary>())
-        var kept: [String: HistoricalDailyEnergySummary] = [:]
-        for summary in summaries {
-            if let existing = kept[summary.summaryKey] {
-                if summary.updatedAt >= existing.updatedAt {
-                    context.delete(existing)
-                    kept[summary.summaryKey] = summary
-                } else {
-                    context.delete(summary)
-                }
-            } else {
-                kept[summary.summaryKey] = summary
-            }
-        }
-    }
-
-    private static func deduplicateMonthlySummaries(in context: ModelContext) throws {
-        let summaries = try context.fetch(FetchDescriptor<HistoricalMonthlyEnergySummary>())
-        var kept: [String: HistoricalMonthlyEnergySummary] = [:]
-        for summary in summaries {
-            if let existing = kept[summary.summaryKey] {
-                if summary.updatedAt >= existing.updatedAt {
-                    context.delete(existing)
-                    kept[summary.summaryKey] = summary
-                } else {
-                    context.delete(summary)
-                }
-            } else {
-                kept[summary.summaryKey] = summary
-            }
-        }
-    }
-}
-
 enum EnergyHistoryModelContainer {
+    private static let storeGenerationKey = "energyHistory.storeGeneration"
+    /// Bumped when the on-disk schema cannot open stores written before 1.1.0.
+    private static let currentStoreGeneration = 2
+
+    private static var defaults: UserDefaults {
+        UserDefaults(suiteName: EnergyHistoryConstants.appGroupIdentifier) ?? .standard
+    }
+
     static func makeLocalContainer() throws -> ModelContainer {
         guard FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: EnergyHistoryConstants.appGroupIdentifier) != nil else {
             throw EnergyHistoryStoreError.missingAppGroupContainer(EnergyHistoryConstants.appGroupIdentifier)
         }
 
-        let schema = Schema(versionedSchema: EnergyHistorySchemaV1_1.self)
-
+        let schema = Schema(versionedSchema: EnergyHistorySchema.self)
         let configuration = ModelConfiguration(
             EnergyHistoryConstants.storeName,
             schema: schema,
@@ -313,16 +242,26 @@ enum EnergyHistoryModelContainer {
             cloudKitDatabase: .none
         )
 
-        return try ModelContainer(
-            for: schema,
-            migrationPlan: EnergyHistoryMigrationPlan.self,
-            configurations: [configuration]
-        )
+        if shouldResetPersistentStore(at: configuration.url) {
+            resetPersistentStore(configuration, reason: "incompatible history store from a previous schema")
+        }
+
+        do {
+            return try openPersistentStore(schema: schema, configuration: configuration)
+        } catch {
+            AppLog.history.error("History store failed to open: \(error.localizedDescription, privacy: .public)")
+            resetPersistentStore(configuration, reason: error.localizedDescription)
+            do {
+                return try openPersistentStore(schema: schema, configuration: configuration)
+            } catch {
+                AppLog.history.error("History store rebuild failed: \(error.localizedDescription, privacy: .public). Using an in-memory store for this launch.")
+                return try makeInMemoryContainer()
+            }
+        }
     }
 
     static func makeInMemoryContainer() throws -> ModelContainer {
-        let schema = Schema(versionedSchema: EnergyHistorySchemaV1_1.self)
-
+        let schema = Schema(versionedSchema: EnergyHistorySchema.self)
         let configuration = ModelConfiguration(
             EnergyHistoryConstants.storeName,
             schema: schema,
@@ -330,12 +269,68 @@ enum EnergyHistoryModelContainer {
             allowsSave: true,
             cloudKitDatabase: .none
         )
+        return try ModelContainer(for: schema, configurations: [configuration])
+    }
 
-        return try ModelContainer(
-            for: schema,
-            migrationPlan: EnergyHistoryMigrationPlan.self,
-            configurations: [configuration]
-        )
+    private static func openPersistentStore(schema: Schema, configuration: ModelConfiguration) throws -> ModelContainer {
+        let container = try ModelContainer(for: schema, configurations: [configuration])
+        markStoreCompatible()
+        return container
+    }
+
+    private static func shouldResetPersistentStore(at url: URL) -> Bool {
+        let storedGeneration = defaults.integer(forKey: storeGenerationKey)
+        if storedGeneration >= currentStoreGeneration {
+            return storeMetadataLooksUnreadable(at: url)
+        }
+        return storeFileExists(at: url)
+    }
+
+    private static func storeFileExists(at url: URL) -> Bool {
+        let path = url.path(percentEncoded: false)
+        return FileManager.default.fileExists(atPath: path)
+            || FileManager.default.fileExists(atPath: path + "-wal")
+    }
+
+    private static func storeMetadataLooksUnreadable(at url: URL) -> Bool {
+        guard storeFileExists(at: url) else {
+            return false
+        }
+        do {
+            _ = try NSPersistentStoreCoordinator.metadataForPersistentStore(type: .sqlite, at: url)
+            return false
+        } catch {
+            AppLog.history.error("History store metadata unreadable: \(error.localizedDescription, privacy: .public)")
+            return true
+        }
+    }
+
+    private static func resetPersistentStore(_ configuration: ModelConfiguration, reason: String) {
+        AppLog.history.error("Resetting history store: \(reason, privacy: .public)")
+        let url = configuration.url
+        do {
+            try NSPersistentStoreCoordinator.destroyPersistentStore(at: url, type: .sqlite)
+        } catch {
+            AppLog.history.error("destroyPersistentStore failed: \(error.localizedDescription, privacy: .public)")
+        }
+        deleteStoreFiles(around: url)
+        WidgetHistorySummaryCache.clear()
+        EnergyHistoryBackfillController.resetAfterStoreRebuild()
+        defaults.removeObject(forKey: storeGenerationKey)
+    }
+
+    private static func deleteStoreFiles(around url: URL) {
+        let fileManager = FileManager.default
+        let directory = url.deletingLastPathComponent()
+        let prefix = url.lastPathComponent
+        let contents = (try? fileManager.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? [url]
+        for file in contents where file.lastPathComponent.hasPrefix(prefix) {
+            try? fileManager.removeItem(at: file)
+        }
+    }
+
+    private static func markStoreCompatible() {
+        defaults.set(currentStoreGeneration, forKey: storeGenerationKey)
     }
 }
 

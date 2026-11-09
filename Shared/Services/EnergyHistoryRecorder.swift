@@ -546,7 +546,12 @@ final class EnergyHistoryBackfillController {
     private var inFlight: Task<Void, Never>?
 
     private static let defaults = UserDefaults(suiteName: EnergyHistoryConstants.appGroupIdentifier) ?? .standard
-    private static let lastSuccessKey = "energyHistory.backfill.lastSuccessAt"
+    nonisolated private static let lastSuccessKey = "energyHistory.backfill.lastSuccessAt"
+
+    nonisolated static func resetAfterStoreRebuild() {
+        UserDefaults(suiteName: EnergyHistoryConstants.appGroupIdentifier)?
+            .removeObject(forKey: lastSuccessKey)
+    }
 
     func runIfNeeded(
         recorder: EnergyHistoryRecorder? = nil,
