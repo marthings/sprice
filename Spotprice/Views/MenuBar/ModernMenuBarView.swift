@@ -68,7 +68,7 @@ struct ModernMenuBarView: View {
                         )
                     }
                     Text(historySummaryText(summary))
-                        .font(DS.Font.micro)
+                        .font(DS.Font.footnote)
                         .foregroundStyle(DS.Color.secondary)
                         .lineLimit(2)
                 }

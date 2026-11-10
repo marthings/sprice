@@ -102,7 +102,7 @@ private struct SpotPriceBarChartHeader: View {
 
             VStack(alignment: .trailing, spacing: DS.Spacing.xxs) {
                 Text("Nästa kvart")
-                    .font(DS.Font.micro)
+                    .font(DS.Font.footnote)
                     .foregroundStyle(DS.Color.secondary)
 
                 if let next = nextPrice, let current = currentPrice {
@@ -114,7 +114,7 @@ private struct SpotPriceBarChartHeader: View {
                             .font(DS.Font.semibold(12).monospacedDigit())
                             .foregroundStyle(nextValue.color)
                         Text(nextValue.unit)
-                            .font(DS.Font.micro)
+                            .font(DS.Font.footnote)
                             .foregroundStyle(DS.Color.secondary)
                     }
                 } else if let next = nextPrice {
@@ -125,7 +125,7 @@ private struct SpotPriceBarChartHeader: View {
                             .font(DS.Font.semibold(12).monospacedDigit())
                             .foregroundStyle(nextValue.color)
                         Text(nextValue.unit)
-                            .font(DS.Font.micro)
+                            .font(DS.Font.footnote)
                             .foregroundStyle(DS.Color.secondary)
                     }
                 } else {
@@ -253,7 +253,7 @@ private struct SpotPriceBarChartPlot: View {
                     .lineStyle(StrokeStyle(lineWidth: 2, dash: [6, 4]))
                     .annotation(position: .top, alignment: .trailing, overflowResolution: ChartCalloutOverflow.resolution) {
                         Text("Ditt avtal: \((contractPrice / 100).formatted(.number.precision(.fractionLength(2)))) kr/kWh")
-                            .font(DS.Font.micro)
+                            .font(DS.Font.footnote)
                             .foregroundStyle(.blue)
                             .padding(.horizontal, DS.Spacing.xs)
                             .padding(.vertical, DS.Spacing.xxs)
@@ -315,7 +315,7 @@ private struct SpotPriceBarChartPlot: View {
                     if let date = value.as(Date.self) {
                         AxisValueLabel {
                             Text(date.formatted(.dateTime.hour()))
-                                .font(DS.Font.micro)
+                                .font(DS.Font.footnote)
                                 .foregroundStyle(DS.Color.secondary)
                         }
                     }
@@ -332,7 +332,7 @@ private struct SpotPriceBarChartPlot: View {
                     AxisValueLabel {
                         if let price = value.as(Double.self) {
                             Text((price / 100), format: .number.precision(.fractionLength(2)))
-                                .font(DS.Font.micro)
+                                .font(DS.Font.footnote)
                                 .foregroundStyle(DS.Color.secondary)
                         }
                     }

@@ -9,6 +9,8 @@ import SwiftUI
 import CoreText
 #if os(iOS)
 import UIKit
+#elseif os(macOS)
+import AppKit
 #endif
 
 // MARK: - Shared Formatters
@@ -245,30 +247,64 @@ enum DS {
             }
         }()
 
-        static func regular(_ size: CGFloat) -> SwiftUI.Font {
-            .custom("PPObjectSans-Regular", size: size)
+        /// Text style a custom size scales with, so Dynamic Type grows big numbers
+        /// and small notes in proportion to Apple's own hierarchy.
+        static func textStyle(forSize size: CGFloat) -> SwiftUI.Font.TextStyle {
+            switch size {
+            case 40...: return .largeTitle
+            case 28..<40: return .title
+            case 22..<28: return .title2
+            case 20..<22: return .title3
+            case 17..<20: return .headline
+            case 16..<17: return .body
+            case 14..<16: return .subheadline
+            case 13..<14: return .footnote
+            case 12..<13: return .caption
+            default: return .caption2
+            }
         }
 
-        static func medium(_ size: CGFloat) -> SwiftUI.Font {
-            .custom("PPObjectSans-Regular", size: size).weight(.medium)
+        /// Smallest size used for text that carries information (13 pt).
+        static let minimumInformationSize: CGFloat = 13
+
+        private static func informative(_ size: CGFloat) -> CGFloat {
+            max(size, minimumInformationSize)
         }
 
-        static func semibold(_ size: CGFloat) -> SwiftUI.Font {
-            .custom("PPObjectSans-Heavy", size: size)
+        static func regular(_ size: CGFloat, relativeTo style: SwiftUI.Font.TextStyle? = nil) -> SwiftUI.Font {
+            let size = informative(size)
+            return .custom("PPObjectSans-Regular", size: size, relativeTo: style ?? textStyle(forSize: size))
         }
 
-        static func bold(_ size: CGFloat) -> SwiftUI.Font {
-            .custom("PPObjectSans-Heavy", size: size)
+        static func medium(_ size: CGFloat, relativeTo style: SwiftUI.Font.TextStyle? = nil) -> SwiftUI.Font {
+            let size = informative(size)
+            return .custom("PPObjectSans-Regular", size: size, relativeTo: style ?? textStyle(forSize: size)).weight(.medium)
+        }
+
+        static func semibold(_ size: CGFloat, relativeTo style: SwiftUI.Font.TextStyle? = nil) -> SwiftUI.Font {
+            let size = informative(size)
+            return .custom("PPObjectSans-Heavy", size: size, relativeTo: style ?? textStyle(forSize: size))
+        }
+
+        static func bold(_ size: CGFloat, relativeTo style: SwiftUI.Font.TextStyle? = nil) -> SwiftUI.Font {
+            let size = informative(size)
+            return .custom("PPObjectSans-Heavy", size: size, relativeTo: style ?? textStyle(forSize: size))
+        }
+
+        /// Decoration only (never for text people need to read).
+        static func decorative(_ size: CGFloat) -> SwiftUI.Font {
+            .custom("PPObjectSans-Regular", size: size, relativeTo: .caption2)
         }
 
         // Preset sizes
-        static let largeTitle = bold(32)
-        static let title = bold(20)
-        static let headline = semibold(17)
-        static let body = regular(15)
-        static let callout = medium(14)
-        static let caption = medium(12)
-        static let micro = medium(11)
+        static let largeTitle = bold(32, relativeTo: .largeTitle)
+        static let title = bold(20, relativeTo: .title3)
+        static let headline = semibold(17, relativeTo: .headline)
+        static let body = regular(15, relativeTo: .body)
+        static let callout = medium(14, relativeTo: .callout)
+        static let caption = medium(13, relativeTo: .footnote)
+        /// Small notes and axis labels. 13 pt, the smallest size for readable text.
+        static let footnote = medium(13, relativeTo: .footnote)
 
         #if os(iOS)
         /// Navigation titles can't take a SwiftUI `Font`, so UIKit chrome uses this.
@@ -323,6 +359,17 @@ enum DS {
         /// Palette orange (`WarningColor`). App tint for toggles, links and selected tabs.
         static let accent = warning
 
+        // Text variants. The fill colors above are tuned for shapes and fills and
+        // are too light to read as text on the cards (about 2.3 to 3.5 to 1). These
+        // reach at least 4.5 to 1 against the card in light and dark mode, and get
+        // another step darker (light) or lighter (dark) with Increase Contrast.
+        static let warningText = adaptive(light: 0x964608, dark: 0xF5A35C)
+        static let infoText = adaptive(light: 0x005580, dark: 0x5CCBEF)
+        static let successText = adaptive(light: 0x245810, dark: 0x86CC5A)
+        static let dangerText = adaptive(light: 0xA8161A, dark: 0xFF8A80)
+        /// Orange for text and links. The brighter `accent` stays for fills and tint.
+        static let accentText = warningText
+
         static let secondary = SwiftUI.Color.primary.opacity(0.72)
         static let outline = SwiftUI.Color.primary.opacity(0.28)
 
@@ -332,6 +379,48 @@ enum DS {
             case .medium: return warning
             case .high: return danger
             }
+        }
+
+        /// Same mapping as `forCategory`, for text.
+        static func textForCategory(_ category: PriceCategory) -> SwiftUI.Color {
+            switch category {
+            case .low: return successText
+            case .medium: return warningText
+            case .high: return dangerText
+            }
+        }
+
+        nonisolated private static func rgb(_ hex: UInt32) -> (CGFloat, CGFloat, CGFloat) {
+            (CGFloat((hex >> 16) & 0xFF) / 255, CGFloat((hex >> 8) & 0xFF) / 255, CGFloat(hex & 0xFF) / 255)
+        }
+
+        /// Moves a color a third of the way toward black (light) or white (dark).
+        nonisolated private static func stronger(_ value: (CGFloat, CGFloat, CGFloat), isDark: Bool) -> (CGFloat, CGFloat, CGFloat) {
+            let target: CGFloat = isDark ? 1 : 0
+            let amount: CGFloat = 0.33
+            return (
+                value.0 + (target - value.0) * amount,
+                value.1 + (target - value.1) * amount,
+                value.2 + (target - value.2) * amount
+            )
+        }
+
+        private static func adaptive(light: UInt32, dark: UInt32) -> SwiftUI.Color {
+            #if os(iOS)
+            return SwiftUI.Color(uiColor: UIColor { traits in
+                let isDark = traits.userInterfaceStyle == .dark
+                var value = rgb(isDark ? dark : light)
+                if traits.accessibilityContrast == .high { value = stronger(value, isDark: isDark) }
+                return UIColor(red: value.0, green: value.1, blue: value.2, alpha: 1)
+            })
+            #else
+            return SwiftUI.Color(nsColor: NSColor(name: nil) { appearance in
+                let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+                var value = rgb(isDark ? dark : light)
+                if NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast { value = stronger(value, isDark: isDark) }
+                return NSColor(red: value.0, green: value.1, blue: value.2, alpha: 1)
+            })
+            #endif
         }
 
         /// Returns a color based on where the price falls in the day's range
@@ -530,6 +619,20 @@ extension HistoricalEnergyDataCoverage {
             return DS.Color.success
         }
     }
+
+    /// Same tones as `displayColor`, dark enough to read as text.
+    var displayTextColor: Color {
+        switch self {
+        case .priceOnly:
+            return DS.Color.secondary
+        case .estimatedCost:
+            return DS.Color.warningText
+        case .partialConsumption:
+            return DS.Color.infoText
+        case .measuredConsumption:
+            return DS.Color.successText
+        }
+    }
 }
 
 extension HistoricalEnergySummaryValue {
@@ -620,7 +723,7 @@ struct AppStatusRow: View {
                     .font(titleFont)
                     .foregroundStyle(.primary)
                 Text(message)
-                    .font(DS.Font.micro)
+                    .font(DS.Font.footnote)
                     .foregroundStyle(DS.Color.secondary)
                     .lineLimit(messageLineLimit)
                     .fixedSize(horizontal: false, vertical: true)
@@ -678,7 +781,7 @@ struct FetchNoticeBanner: View {
                     .fixedSize(horizontal: false, vertical: true)
                 if let detail = notice.detail, !detail.isEmpty {
                     Text(detail)
-                        .font(DS.Font.micro)
+                        .font(DS.Font.footnote)
                         .foregroundStyle(DS.Color.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -769,7 +872,7 @@ private struct FetchNoticeFooterLine: View {
                         .font(DS.Font.caption)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                .foregroundStyle(DS.Color.warning)
+                .foregroundStyle(DS.Color.warningText)
             } else {
                 Text(notice.accessibilityText)
                     .font(DS.Font.caption)
@@ -813,7 +916,7 @@ struct InsightRow: View {
                     .fixedSize(horizontal: false, vertical: true)
                 if let detail, !detail.isEmpty {
                     Text(detail)
-                        .font(DS.Font.micro)
+                        .font(DS.Font.footnote)
                         .foregroundStyle(DS.Color.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -850,8 +953,8 @@ struct HistoryCoverageBadge: View {
 
     var body: some View {
         Text(coverage.displayTitle)
-            .font(DS.Font.micro)
-            .foregroundStyle(coverage.displayColor)
+            .font(DS.Font.footnote)
+            .foregroundStyle(coverage.displayTextColor)
             .padding(.horizontal, horizontalPadding)
             .padding(.vertical, DS.Spacing.xxs)
             .background(coverage.displayColor.opacity(0.12), in: Capsule())
@@ -870,7 +973,7 @@ struct CostPrecisionNote: View {
             "Beräknat från faktisk förbrukning och matchade spotpriser: \(matchedRatio.formatted(.percent.precision(.fractionLength(0)))).",
             systemImage: "checkmark.seal.fill"
         )
-        .font(DS.Font.micro)
+        .font(DS.Font.footnote)
         .foregroundStyle(DS.Color.secondary)
         .fixedSize(horizontal: false, vertical: true)
     }
@@ -968,7 +1071,7 @@ struct MetricCard: View {
     var color: Color = .primary
     var titleColor: Color = DS.Color.secondary
     var valueFont: Font = DS.Font.bold(20).monospacedDigit()
-    var unitFont: Font = DS.Font.micro
+    var unitFont: Font = DS.Font.footnote
     var iconSize: CGFloat = DS.Size.iconMedium
     var layout: Layout = .horizontal
     var subtitle: String? = nil
@@ -1013,7 +1116,7 @@ struct MetricCard: View {
     private func textContent(alignment: HorizontalAlignment) -> some View {
         VStack(alignment: alignment, spacing: DS.Spacing.xxs) {
             Text(title)
-                .font(DS.Font.micro)
+                .font(DS.Font.footnote)
                 .foregroundStyle(titleColor)
                 .multilineTextAlignment(alignment == .center ? .center : .leading)
                 .lineLimit(layout == .horizontal ? 1 : nil)
@@ -1031,7 +1134,7 @@ struct MetricCard: View {
 
             if let subtitle {
                 Text(subtitle)
-                    .font(DS.Font.micro)
+                    .font(DS.Font.footnote)
                     .foregroundStyle(.tertiary)
                     .lineLimit(2)
             }
@@ -1058,7 +1161,7 @@ struct PriceDisplay: View {
 
         var unitFont: Font {
             switch self {
-            case .small: return DS.Font.micro
+            case .small: return DS.Font.footnote
             case .medium: return DS.Font.caption
             case .large: return DS.Font.callout
             }
@@ -1070,7 +1173,7 @@ struct PriceDisplay: View {
             Text("\(price)")
                 .font(size.priceFont)
                 .monospacedDigit()
-                .foregroundStyle(useSemanticColor ? DS.Color.forCategory(category) : .primary)
+                .foregroundStyle(useSemanticColor ? DS.Color.textForCategory(category) : .primary)
             Text("öre")
                 .font(size.unitFont)
                 .foregroundStyle(DS.Color.secondary)
@@ -1107,17 +1210,19 @@ struct PriceLevelBadge: View {
         HStack(spacing: DS.Spacing.xxs) {
             if style != .label {
                 Image(systemName: category.accessibilityIcon)
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(DS.Font.semibold(13))
             }
             if style != .compact {
                 Text(category.label)
-                    .font(DS.Font.semibold(10))
+                    .font(DS.Font.semibold(13))
             }
         }
-        .foregroundStyle(DS.Color.forCategory(category))
+        .foregroundStyle(DS.Color.textForCategory(category))
         .padding(.horizontal, style == .compact ? DS.Spacing.xs : DS.Spacing.sm)
         .padding(.vertical, DS.Spacing.xxs)
         .background(DS.Color.forCategory(category).opacity(0.15), in: Capsule())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Prisnivå \(category.label)")
     }
 }
 
@@ -1190,6 +1295,7 @@ struct SpriceCardBackground: View {
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var contrast
 
     private var cardShape: RoundedRectangle {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -1201,9 +1307,15 @@ struct SpriceCardBackground: View {
     /// WCAG AA (4.5:1) against the landscape in both appearances, without
     /// making the card look solid.
     private var contrastFill: Color {
-        colorScheme == .dark
-            ? Color.black.opacity(0.32)
-            : Color.white.opacity(0.40)
+        let increased = contrast == .increased
+        return colorScheme == .dark
+            ? Color.black.opacity(increased ? 0.5 : 0.32)
+            : Color.white.opacity(increased ? 0.62 : 0.40)
+    }
+
+    /// With Increase Contrast on, cards get a clear edge so they stand out from the landscape.
+    private var increasedContrastEdge: some View {
+        cardShape.strokeBorder(Color.primary.opacity(contrast == .increased ? 0.5 : 0), lineWidth: 1)
     }
 
     private var opaqueBase: Color {
@@ -1241,6 +1353,7 @@ struct SpriceCardBackground: View {
                     .overlay {
                         cardShape.fill(paletteWash)
                     }
+                    .overlay { increasedContrastEdge }
             } else {
                 cardShape
                     .fill(contrastFill)
@@ -1250,6 +1363,7 @@ struct SpriceCardBackground: View {
                     .overlay {
                         cardShape.fill(paletteWash)
                     }
+                    .overlay { increasedContrastEdge }
             }
         }
     }
@@ -1368,7 +1482,7 @@ extension View {
     }
 
     func spriceSettingsFooterStyle() -> some View {
-        font(DS.Font.micro)
+        font(DS.Font.footnote)
             .foregroundStyle(DS.Color.secondary)
     }
 
@@ -1405,6 +1519,24 @@ extension View {
         )
     }
 #endif
+}
+
+/// One line above a chart that says what the chart shows and in which unit.
+/// It replaces the axis titles, which stay hidden to keep the plot calm.
+struct ChartCaption: View {
+    let text: String
+
+    init(_ text: String) {
+        self.text = text
+    }
+
+    var body: some View {
+        Text(text)
+            .font(DS.Font.footnote)
+            .foregroundStyle(DS.Color.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
 }
 
 /// Menu picker whose trailing value is a `DS.Font` `Text`, for grouped Forms.
@@ -1521,6 +1653,7 @@ struct SectionInfoHeader: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .layoutPriority(1)
+                .accessibilityAddTraits(.isHeader)
 
             SectionInfoButton(
                 title: accessibilityName ?? title,

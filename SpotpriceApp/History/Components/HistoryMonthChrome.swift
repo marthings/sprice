@@ -33,7 +33,7 @@ struct HistoryMonthChrome: View {
 
                         if selectedMonth.map({ HistoryMonthFormatting.isCurrentMonth($0) }) == true {
                             Text("Pågår")
-                                .font(DS.Font.micro)
+                                .font(DS.Font.footnote)
                                 .foregroundStyle(.primary)
                                 .padding(.horizontal, DS.Spacing.sm)
                                 .padding(.vertical, DS.Spacing.xxs)
@@ -44,7 +44,7 @@ struct HistoryMonthChrome: View {
 
                     if let comparisonMonthName {
                         Text("Jämförd med \(comparisonMonthName)")
-                            .font(DS.Font.micro)
+                            .font(DS.Font.footnote)
                             .foregroundStyle(DS.Color.secondary)
                     }
                 }

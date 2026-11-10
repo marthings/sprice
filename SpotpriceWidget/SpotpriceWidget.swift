@@ -217,13 +217,13 @@ private struct SpotpriceWidgetPriceRow: View {
     private var currentPriceColor: Color {
         guard let currentBucketIndex,
               dayCosts.indices.contains(currentBucketIndex) else {
-            return DS.Color.warning
+            return DS.Color.warningText
         }
-        return DS.Color.forPrice(
+        return DS.Color.textForCategory(DS.Color.categoryForPrice(
             dayCosts[currentBucketIndex],
             min: dayCosts.min() ?? 0,
             max: dayCosts.max() ?? 0
-        )
+        ))
     }
 
     var body: some View {
@@ -235,25 +235,25 @@ private struct SpotpriceWidgetPriceRow: View {
                             .font(DS.Font.bold(24))
                             .monospacedDigit()
                             .foregroundStyle(renderingMode == .accented ? .primary : currentPriceColor)
-                        Text("kr")
-                            .font(DS.Font.micro)
+                        Text("kr/kWh")
+                            .font(DS.Font.footnote)
                             .foregroundStyle(DS.Color.secondary)
                     }
                     if let retailContractLabel {
                         Text(retailContractLabel)
-                            .font(DS.Font.micro)
+                            .font(DS.Font.footnote)
                             .foregroundStyle(DS.Color.secondary)
                     }
                 }
                 .padding(.horizontal)
             } else if let spotPriceOre {
                 HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
-                    Text("\(spotPriceOre)")
+                    Text(Double(spotPriceOre) / 100, format: .number.precision(.fractionLength(2)))
                         .font(DS.Font.bold(24))
                         .monospacedDigit()
                         .foregroundStyle(renderingMode == .accented ? .primary : currentPriceColor)
-                    Text("öre")
-                        .font(DS.Font.micro)
+                    Text("kr/kWh")
+                        .font(DS.Font.footnote)
                         .foregroundStyle(DS.Color.secondary)
                 }
                 .padding()
@@ -319,7 +319,7 @@ struct SpotpriceWidgetEntryView: View {
                 } else {
                     Spacer()
                     Text("Ingen data")
-                        .font(DS.Font.micro)
+                        .font(DS.Font.footnote)
                         .foregroundStyle(DS.Color.secondary)
                 }
             }

@@ -37,7 +37,7 @@ struct MonthlyCostCard: View {
         VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
             SectionInfoHeader(
                 title: title,
-                titleFont: DS.Font.micro,
+                titleFont: DS.Font.footnote,
                 titleColor: DS.Color.secondary,
                 accessibilityName: "månadskostnaden",
                 paragraphs: monthlyInfoParagraphs
@@ -57,7 +57,7 @@ struct MonthlyCostCard: View {
             // Consumption info
             if kWh > 0 {
                 Text("\(Int(kWh.rounded())) kWh, \((displayedTotalKr / kWh).formatted(.number.precision(.fractionLength(2)))) kr/kWh")
-                    .font(DS.Font.micro)
+                    .font(DS.Font.footnote)
                     .foregroundStyle(.tertiary)
             }
             
@@ -68,7 +68,7 @@ struct MonthlyCostCard: View {
                         .font(.system(size: 11))
                         .foregroundStyle(.blue)
                     Text("Lägg till elhandelsavtal eller elnätsuppgifter för bättre uppskattning")
-                        .font(DS.Font.micro)
+                        .font(DS.Font.footnote)
                         .foregroundStyle(.blue)
                 }
                 .padding(.top, DS.Spacing.xxs)
@@ -81,7 +81,7 @@ struct MonthlyCostCard: View {
             // Full breakdown
             VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                 Text("Nedbrytning")
-                    .font(DS.Font.micro)
+                    .font(DS.Font.footnote)
                     .foregroundStyle(DS.Color.secondary)
                     .padding(.bottom, DS.Spacing.xxs)
                 
