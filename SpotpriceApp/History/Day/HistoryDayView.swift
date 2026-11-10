@@ -220,10 +220,14 @@ private struct HistoryDayTotals: View {
             HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
                 Text(value)
                     .font(DS.Font.bold(28).monospacedDigit())
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.55)
                     .spriceNumericText(amount)
                 Text(unit)
                     .font(DS.Font.micro)
                     .foregroundStyle(DS.Color.secondary)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
             }
             Text(label)
                 .font(DS.Font.micro)
