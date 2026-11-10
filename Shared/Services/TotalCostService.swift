@@ -248,6 +248,13 @@ struct MonthlyCostEstimate: Sendable {
     let monthDate: Date
 }
 
+struct MonthBillForecast: Sendable {
+    let spentKr: Double
+    let forecastKr: Double
+    let measuredThrough: Date
+    let monthDate: Date
+}
+
 struct MonthlyCostEstimator: Sendable {
     private let totalCostService: TotalCostService
     private let calendar: Calendar
@@ -263,7 +270,6 @@ struct MonthlyCostEstimator: Sendable {
     func widgetMonthEstimate(
         historySummary: WidgetHistorySummary?,
         cachedConsumption: ConsumptionData?,
-        dayData: DayChartData,
         profile: CostProfile,
         now: Date
     ) -> MonthlyCostEstimate {
@@ -274,45 +280,72 @@ struct MonthlyCostEstimator: Sendable {
             return MonthlyCostEstimate(totalKr: historyCost, kWh: monthlyKWh, monthDate: monthDate)
         }
 
-        guard monthlyKWh > 0 else {
+        guard monthlyKWh > 0, let averageSpot = historySummary?.averageSpotPriceOrePerKWh else {
             return MonthlyCostEstimate(totalKr: 0, kWh: monthlyKWh, monthDate: monthDate)
         }
 
-        let avgPrice = averageSpotPrice(dayData.buckets)
-        let energyCost = totalCostService.calculateTotalCost(
-            kWh: monthlyKWh,
-            spotPriceOre: avgPrice,
+        let measuredThrough = min(historySummary?.updatedAt ?? now, now)
+        let forecast = forecastMonth(
+            spentKr: nil,
+            consumptionKWh: monthlyKWh,
+            spotPriceOre: averageSpot,
             profile: profile,
-            hoursInPeriod: 1.0
+            measuredThrough: measuredThrough,
+            now: now
         )
-        let monthlyFees = profile.retailerMonthlyFee + (profile.gridMonthlyFee ?? 0)
-        let monthlyCostKr = energyCost.totalKr + monthlyFees
-
-        return MonthlyCostEstimate(totalKr: monthlyCostKr, kWh: monthlyKWh, monthDate: monthDate)
+        return MonthlyCostEstimate(totalKr: forecast?.spentKr ?? 0, kWh: monthlyKWh, monthDate: monthDate)
     }
 
     func forecastMonthTotal(
         consumptionKWh: Double,
         spotPriceOre: Double,
         profile: CostProfile,
-        now: Date = Date()
+        now: Date = Date(),
+        measuredThrough: Date? = nil
     ) -> Double? {
+        forecastMonth(
+            spentKr: nil,
+            consumptionKWh: consumptionKWh,
+            spotPriceOre: spotPriceOre,
+            profile: profile,
+            measuredThrough: measuredThrough,
+            now: now
+        )?.forecastKr
+    }
+
+    func forecastMonth(
+        spentKr: Double?,
+        consumptionKWh: Double,
+        spotPriceOre: Double,
+        profile: CostProfile,
+        measuredThrough: Date?,
+        now: Date = Date()
+    ) -> MonthBillForecast? {
         guard let monthInterval = calendar.dateInterval(of: .month, for: now) else { return nil }
 
-        let elapsedSeconds = max(now.timeIntervalSince(monthInterval.start), 1)
+        let through = min(measuredThrough ?? now, now)
+        guard through >= monthInterval.start else { return nil }
+
+        let elapsedSeconds = max(through.timeIntervalSince(monthInterval.start), 1)
         let monthSeconds = monthInterval.end.timeIntervalSince(monthInterval.start)
         guard monthSeconds > 0 else { return nil }
 
         let elapsedRatio = min(max(elapsedSeconds / monthSeconds, 0), 1)
         let elapsedHours = elapsedSeconds / 3600
-        let costToDate = totalCostService.calculateTotalCost(
+        let spent = spentKr ?? totalCostService.calculateTotalCost(
             kWh: consumptionKWh,
             spotPriceOre: spotPriceOre,
             profile: profile,
             hoursInPeriod: elapsedHours
-        )
+        ).totalKr
+        guard elapsedRatio > 0 else { return nil }
 
-        return costToDate.totalKr / elapsedRatio
+        return MonthBillForecast(
+            spentKr: spent,
+            forecastKr: spent / elapsedRatio,
+            measuredThrough: through,
+            monthDate: monthInterval.start
+        )
     }
 
     func averageSpotPrice(_ buckets: [PriceBucket]) -> Double {

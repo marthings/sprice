@@ -4,6 +4,7 @@ struct CostTabView: View {
     let state: SpotPriceViewModel.State
     let monthlyConsumption: ConsumptionData?
     let preciseMonthlyCost: PreciseMonthlyCost?
+    let measuredThrough: Date?
     let powerPeaks: [PowerPeak]
     let notices: [FetchNotice]
     let onRetry: () -> Void
@@ -37,12 +38,13 @@ struct CostTabView: View {
                     hasProvider: !settings.selectedProviderId.isEmpty,
                     hidesEmptyExplanation: notices.contains { $0.kind == .consumption },
                     forecastKr: CostTabForecast.monthTotal(
-                        payload: payload,
                         monthlyConsumption: monthlyConsumption,
                         preciseMonthlyCost: preciseMonthlyCost,
                         profile: profile,
+                        measuredThrough: measuredThrough,
                         hypotheticalEffectTariffKr: hypotheticalKr
                     ),
+                    measuredThrough: measuredThrough,
                     hypotheticalEffectTariffKr: hypotheticalKr
                 )
                 CostExamplesSection(payload: payload, profile: profile)
@@ -54,27 +56,27 @@ struct CostTabView: View {
 
 private enum CostTabForecast {
     static func monthTotal(
-        payload: SpotPriceViewModel.CurrentAndDay,
         monthlyConsumption: ConsumptionData?,
         preciseMonthlyCost: PreciseMonthlyCost?,
         profile: CostProfile,
+        measuredThrough: Date?,
         hypotheticalEffectTariffKr: Double? = nil
     ) -> Double? {
         guard let monthlyConsumption else { return nil }
+        guard let measuredThrough else { return nil }
 
-        let currentBucket = payload.day.currentBucket
-        let fallbackSpot = currentBucket?.orePerKWh ?? PriceBucketAnalytics.averageSpotPrice(payload.day.buckets)
         let spotPriceOre: Double
         if let preciseMonthlyCost, preciseMonthlyCost.totalKWh > 0 {
             spotPriceOre = (preciseMonthlyCost.totalCostKr / preciseMonthlyCost.totalKWh) * 100
         } else {
-            spotPriceOre = fallbackSpot
+            return nil
         }
 
         guard let forecast = MonthlyCostEstimator().forecastMonthTotal(
             consumptionKWh: preciseMonthlyCost?.totalKWh ?? monthlyConsumption.totalKWh,
             spotPriceOre: spotPriceOre,
-            profile: profile
+            profile: profile,
+            measuredThrough: measuredThrough
         ) else {
             return nil
         }

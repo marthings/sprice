@@ -7,6 +7,7 @@ struct MonthDailyCostSection: View {
     let hasProvider: Bool
     var hidesEmptyExplanation: Bool = false
     var forecastKr: Double? = nil
+    var measuredThrough: Date? = nil
     var hypotheticalEffectTariffKr: Double? = nil
 
     @State private var days: [MonthDayCost] = []
@@ -61,7 +62,7 @@ struct MonthDailyCostSection: View {
     }
 
     private var introCopy: String {
-        if forecastKr != nil {
+        if resolvedForecastKr != nil {
             return "Staplarna visar vad varje dag har kostat. Linjen är kostnaden hittills, den streckade delen är prognosen till månadens slut."
         }
         return "Så här har månaden kostat hittills. Tryck på en stapel för att se den dagen."
@@ -80,7 +81,7 @@ struct MonthDailyCostSection: View {
 
         ZStack {
             dailyBarsChart(expensive: expensive)
-            if forecastKr != nil || !cumulativePoints.isEmpty {
+            if resolvedForecastKr != nil || !cumulativePoints.isEmpty {
                 cumulativeLineChart
             }
         }
@@ -88,7 +89,7 @@ struct MonthDailyCostSection: View {
         .zIndex(1)
         .accessibilityLabel(chartAccessibilityLabel)
 
-        if forecastKr != nil {
+        if resolvedForecastKr != nil {
             seriesLegend
         }
 
@@ -248,9 +249,9 @@ struct MonthDailyCostSection: View {
                 .foregroundStyle(DS.Color.brand)
                 .symbolSize(40)
                 .annotation(position: .top, alignment: .trailing, spacing: DS.Spacing.xs, overflowResolution: ChartCalloutOverflow.resolution) {
-                    if let forecastKr {
+                    if let resolvedForecastKr {
                         ChartValueCallout(
-                            value: "Prognos: \(AppFormatters.wholeNumber(forecastKr)) kr"
+                            value: "Prognos: \(AppFormatters.wholeNumber(resolvedForecastKr)) kr"
                         )
                     }
                 }
@@ -388,12 +389,39 @@ struct MonthDailyCostSection: View {
         cumulativePoints.last?.value ?? 0
     }
 
+    private var resolvedForecastKr: Double? {
+        if let fromBars = forecastFromSpentBars {
+            return fromBars + (hypotheticalEffectTariffKr ?? 0)
+        }
+        return forecastKr
+    }
+
+    private var forecastFromSpentBars: Double? {
+        guard spentSoFarKr > 0 else { return nil }
+        let through: Date?
+        if let measuredThrough {
+            through = measuredThrough
+        } else if let lastDay = days.last(where: { $0.costKr != nil })?.date {
+            through = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: lastDay))
+                ?? lastDay
+        } else {
+            through = nil
+        }
+        return MonthlyCostEstimator().forecastMonth(
+            spentKr: spentSoFarKr,
+            consumptionKWh: 0,
+            spotPriceOre: 0,
+            profile: profile,
+            measuredThrough: through
+        )?.forecastKr
+    }
+
     private var lineYMax: Double {
-        max(forecastKr ?? 0, spentSoFarKr, 1) * 1.12
+        max(resolvedForecastKr ?? 0, spentSoFarKr, 1) * 1.12
     }
 
     private var projectionSegment: MonthProjectionSegment? {
-        guard let forecastKr, let last = cumulativePoints.last, let monthRange else { return nil }
+        guard let forecastKr = resolvedForecastKr, let last = cumulativePoints.last, let monthRange else { return nil }
         if calendar.isDate(last.date, inSameDayAs: monthRange.upperBound) {
             return nil
         }
@@ -406,8 +434,8 @@ struct MonthDailyCostSection: View {
     }
 
     private var chartAccessibilityLabel: String {
-        if let forecastKr {
-            return "Stapeldiagram över kostnad per dag den här månaden, med ackumulerad kostnad och prognos \(AppFormatters.wholeNumber(forecastKr)) kronor"
+        if let resolvedForecastKr {
+            return "Stapeldiagram över kostnad per dag den här månaden, med ackumulerad kostnad och prognos \(AppFormatters.wholeNumber(resolvedForecastKr)) kronor"
         }
         return "Stapeldiagram över kostnad per dag den här månaden"
     }
