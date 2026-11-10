@@ -267,7 +267,7 @@ struct MonthDailyCostSection: View {
                 )
                 .foregroundStyle(DS.Color.brand)
                 .symbolSize(40)
-                .annotation(position: .top, alignment: .trailing, spacing: DS.Spacing.xs, overflowResolution: ChartCalloutOverflow.resolution) {
+                .annotation(position: .top, alignment: .leading, spacing: DS.Spacing.xs, overflowResolution: ChartCalloutOverflow.resolution) {
                     if let resolvedForecastKr {
                         ChartValueCallout(
                             value: "Prognos: \(AppFormatters.wholeNumber(resolvedForecastKr)) kr"
@@ -458,7 +458,7 @@ struct MonthDailyCostSection: View {
     }
 
     private var lineYMax: Double {
-        max(resolvedForecastKr ?? 0, spentSoFarKr, 1) * 1.12
+        max(resolvedForecastKr ?? 0, spentSoFarKr, 1) * 1.28
     }
 
     private var projectionSegment: MonthProjectionSegment? {
