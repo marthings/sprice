@@ -733,11 +733,11 @@ nonisolated enum ConsumptionInsightsBuilder: Sendable {
 
         if let event = events.first {
             sentences.append(
-                "Största toppen var \(powerPhrase(event.peakKW)) \(dayLabel(event.start))."
+                "Största toppen var \(powerPhrase(event.peakKW)), \(AppFormatters.sentenceWeekdayDayMonth(event.start))."
             )
         } else if let peak = powerPeak {
             sentences.append(
-                "Högsta timmen var \(powerPhrase(peak.powerKW)) \(hourLabel(peak.hourStart))."
+                "Högsta timmen var \(powerPhrase(peak.powerKW)), \(AppFormatters.sentenceDayMonthAndHour(peak.hourStart))."
             )
         }
 
@@ -785,36 +785,6 @@ nonisolated enum ConsumptionInsightsBuilder: Sendable {
 
     nonisolated private static func wholeNumber(_ value: Double) -> String {
         Int(value.rounded()).formatted(.number.locale(AppFormatters.swedishLocale))
-    }
-
-    nonisolated private static func dayLabel(_ date: Date) -> String {
-        date.formatted(
-            Date.FormatStyle(
-                date: .omitted,
-                time: .omitted,
-                locale: AppFormatters.swedishLocale,
-                calendar: .energyHistory,
-                timeZone: AppFormatters.swedishTimeZone
-            )
-            .weekday(.abbreviated)
-            .day()
-            .month(.abbreviated)
-        )
-    }
-
-    nonisolated private static func hourLabel(_ date: Date) -> String {
-        date.formatted(
-            Date.FormatStyle(
-                date: .omitted,
-                time: .omitted,
-                locale: AppFormatters.swedishLocale,
-                calendar: .energyHistory,
-                timeZone: AppFormatters.swedishTimeZone
-            )
-            .day()
-            .month(.abbreviated)
-            .hour(.defaultDigits(amPM: .omitted))
-        )
     }
 
     nonisolated static func percentile(_ values: [Double], _ p: Double) -> Double? {
