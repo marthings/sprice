@@ -19,6 +19,9 @@ struct ModernMenuBarView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: DS.Spacing.lg) {
+                    FetchNoticeStack(notices: viewModel.costNotices.filter {
+                        ConsumptionSettings.shared.isConfigured || $0.id != "consumption-error"
+                    })
                     Text("Kostnad just nu").font(DS.Font.semibold(14))
                     chartSection
                         .spriceCard(tone: .price)
@@ -27,7 +30,6 @@ struct ModernMenuBarView: View {
                     MonthlyStatsSection(
                         consumption: viewModel.monthlyConsumption,
                         powerPeaks: viewModel.powerPeaks,
-                        consumptionError: viewModel.consumptionError,
                         isConfigured: ConsumptionSettings.shared.isConfigured,
                         averagePrice: loadedAveragePrice,
                         preciseCost: viewModel.preciseMonthlyCost,
@@ -196,8 +198,8 @@ struct ModernMenuBarView: View {
             return "Tryck Uppdatera för att ladda dagens kvartspriser"
         case .loading:
             return "Hämtar aktuella kvartspriser..."
-        case .failed(let message):
-            return message
+        case .failed(let notice):
+            return notice.title
         case .loaded:
             return ""
         }

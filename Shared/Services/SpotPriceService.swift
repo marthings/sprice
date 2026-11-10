@@ -39,10 +39,22 @@ struct SpotPriceService: Sendable {
 
     /// Fetches spot prices for the given date and price area.
     func fetchSpotPrices(for date: Date = Date(), area: String, ignoreCache: Bool = false) async throws -> [SpotPriceItem] {
-        if !ignoreCache,
-           let cached = await SpotPriceCache.shared.cachedItemsIfFresh(for: date, area: area),
-           !cached.isEmpty {
-            return cached
+        try await fetchSpotPricesReporting(for: date, area: area, ignoreCache: ignoreCache).items
+    }
+
+    /// Fetches spot prices and reports whether stale cache was used after a failure.
+    func fetchSpotPricesReporting(
+        for date: Date = Date(),
+        area: String,
+        ignoreCache: Bool = false
+    ) async throws -> SpotPriceFetchReport {
+        if !ignoreCache, let cached = await SpotPriceCache.shared.cachedPayloadIfFresh(for: date, area: area) {
+            return SpotPriceFetchReport(
+                items: cached.items,
+                savedAt: cached.savedAt,
+                usedStaleCache: false,
+                failure: nil
+            )
         }
 
         do {
@@ -52,17 +64,29 @@ struct SpotPriceService: Sendable {
 
             let items = try decoder.decode([SpotPriceItem].self, from: data)
             guard !items.isEmpty else {
-                throw DisplayableError("Inga prisdata hittades för den valda dagen.")
+                throw FetchFailure.empty
             }
-            await SpotPriceCache.shared.store(items, area: area)
+            let now = Date()
+            await SpotPriceCache.shared.store(items, area: area, now: now)
             AppLog.spotPrice.info("Fetched \(items.count) price items")
-            return items
+            return SpotPriceFetchReport(
+                items: items,
+                savedAt: now,
+                usedStaleCache: false,
+                failure: nil
+            )
         } catch {
-            if let stale = await SpotPriceCache.shared.items(for: date, area: area), !stale.isEmpty {
-                AppLog.spotPrice.error("Using stale spot cache after fetch failure: \(error.localizedDescription, privacy: .public)")
-                return stale
+            let failure = FetchFailure.classify(error)
+            if let stale = await SpotPriceCache.shared.payload(for: date, area: area), !stale.items.isEmpty {
+                AppLog.spotPrice.error("Using stale spot cache after fetch failure: \(failure.localizedDescription, privacy: .public)")
+                return SpotPriceFetchReport(
+                    items: stale.items,
+                    savedAt: stale.savedAt,
+                    usedStaleCache: true,
+                    failure: failure
+                )
             }
-            throw error
+            throw failure
         }
     }
 
@@ -144,10 +168,16 @@ struct SpotPriceService: Sendable {
     
     private func validate(response: URLResponse) throws {
         guard let http = response as? HTTPURLResponse else {
-            throw DisplayableError("Ogiltigt serversvar.")
+            throw FetchFailure.unknown
         }
         guard (200..<300).contains(http.statusCode) else {
-            throw DisplayableError("Servern svarade med fel (\(http.statusCode)).")
+            if http.statusCode == 404 {
+                throw FetchFailure.notFound
+            }
+            if http.statusCode == 401 || http.statusCode == 403 {
+                throw FetchFailure.unauthorized
+            }
+            throw FetchFailure.server(http.statusCode)
         }
     }
     
@@ -178,4 +208,12 @@ struct SpotPriceService: Sendable {
         let mediumUpper = max(lowUpper, sorted[medIndex]) // ensure non-decreasing cutoffs
         return Thresholds(lowUpper: lowUpper, mediumUpper: mediumUpper)
     }
+}
+
+
+nonisolated struct SpotPriceFetchReport: Sendable {
+    let items: [SpotPriceItem]
+    let savedAt: Date
+    let usedStaleCache: Bool
+    let failure: FetchFailure?
 }

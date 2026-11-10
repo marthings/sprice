@@ -32,20 +32,24 @@ struct DashboardLoadingView: View {
 }
 
 struct DashboardErrorView: View {
-    let message: String
+    let notice: FetchNotice
     let onRetry: () -> Void
 
     var body: some View {
         VStack(spacing: DS.Spacing.md) {
-            Image(systemName: "bolt.slash.fill")
+            Image(systemName: notice.icon)
                 .font(.system(size: DS.Size.iconXL, weight: .light))
-                .foregroundStyle(DS.Color.secondary)
-            Text("Kunde inte hämta priser")
+                .foregroundStyle(DS.Color.danger)
+                .accessibilityHidden(true)
+            Text(notice.title)
                 .font(DS.Font.headline)
-            Text(message)
-                .font(DS.Font.callout)
-                .foregroundStyle(DS.Color.secondary)
                 .multilineTextAlignment(.center)
+            if let detail = notice.detail, !detail.isEmpty {
+                Text(detail)
+                    .font(DS.Font.callout)
+                    .foregroundStyle(DS.Color.secondary)
+                    .multilineTextAlignment(.center)
+            }
             Button {
                 onRetry()
             } label: {
@@ -57,5 +61,7 @@ struct DashboardErrorView: View {
         .padding(DS.Spacing.xl)
         .frame(maxWidth: .infinity, minHeight: 360)
         .spriceCard()
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(notice.accessibilityText)
     }
 }

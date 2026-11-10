@@ -13,7 +13,7 @@ final class SpotPriceViewModel {
         case idle
         case loading
         case loaded(CurrentAndDay)  // carries current display text and chart-ready day data
-        case failed(String)
+        case failed(FetchNotice)
     }
 
     struct CurrentAndDay: Equatable {
@@ -26,6 +26,10 @@ final class SpotPriceViewModel {
     private(set) var powerPeaks: [PowerPeak] = []
     private(set) var preciseMonthlyCost: PreciseMonthlyCost?
     private(set) var consumptionError: String?
+    private(set) var priceNotice: FetchNotice?
+    private(set) var consumptionNotice: FetchNotice?
+    private(set) var tomorrowNotice: FetchNotice?
+    private(set) var priceUpdatedAt: Date?
     private(set) var currentTariff: SimplifiedTariff?
     private(set) var currentMonthHistorySummary: HistoricalEnergySummaryValue?
     private(set) var menuBarPricePerKWh: Double?
@@ -141,15 +145,30 @@ final class SpotPriceViewModel {
 
     func loadConsumption() async {
         let result = await consumptionLoadService.load()
-        monthlyConsumption = result.monthlyConsumption ?? monthlyConsumption
-        consumptionError = result.consumptionError
+let showingCached: Bool
+        if let fresh = result.monthlyConsumption {
+            monthlyConsumption = fresh
+            settings.cachedConsumption = fresh
+            showingCached = false
+        } else if monthlyConsumption != nil || settings.cachedConsumption != nil {
+            monthlyConsumption = monthlyConsumption ?? settings.cachedConsumption
+            showingCached = result.consumptionFailure != nil
+        } else {
+            showingCached = false
+        }
+        consumptionNotice = ConsumptionFreshness.notice(
+            failure: result.consumptionFailure,
+            providerName: ProviderRegistry.shared.metadata(for: settings.selectedProviderId)?.displayName,
+            isConfigured: settings.isConfigured,
+            showingCached: showingCached,
+            quarterly: result.quarterlyConsumption,
+            values: monthlyConsumption?.values
+        )
+        consumptionError = consumptionNotice?.title
         powerPeaks = result.powerPeaks ?? powerPeaks
         preciseMonthlyCost = result.preciseMonthlyCost
         lastConsumptionFetchAt = nowProvider()
-
-        if let consumption = result.monthlyConsumption {
-            settings.cachedConsumption = consumption
-        }
+        applyFetchStatusPreviewIfNeeded()
         
         await historyRecordingCoordinator.repriceStoredHistoryIfNeeded(
             priceArea: settings.priceArea,
@@ -269,19 +288,32 @@ final class SpotPriceViewModel {
             cachedTomorrow = result.tomorrow
             hasTomorrowPrices = result.tomorrow != nil
             lastPriceDayKey = EnergyHistoryKey.dayKey(for: now)
+            priceUpdatedAt = result.savedAt
+            if result.usedStaleCache, let failure = result.failure {
+                priceNotice = FetchNotice.price(for: failure, staleFrom: result.savedAt)
+            } else {
+                priceNotice = nil
+            }
+            tomorrowNotice = Self.tomorrowNotice(
+                includeTomorrow: includeTomorrow,
+                hasTomorrow: result.tomorrow != nil,
+                tomorrowFailure: result.tomorrowFailure,
+                updatedAt: result.usedStaleCache ? nil : result.savedAt,
+                now: now
+            )
             historyRecordingCoordinator.recordPriceHistory(dayData: result.payload.day, priceArea: priceArea)
             loadCurrentMonthHistorySummary()
             applyLoadedPrices(result.payload, now: now)
-        } catch let error as DisplayableError {
-            guard myGeneration == loadGeneration else { return }
-            if !hasLoadedData {
-                state = .failed(error.message)
-            }
+            applyFetchStatusPreviewIfNeeded()
         } catch {
             guard myGeneration == loadGeneration else { return }
+            let failure = FetchFailure.classify(error)
+            let notice = FetchNotice.price(for: failure, staleFrom: nil)
+            priceNotice = notice
             if !hasLoadedData {
-                state = .failed("Ett oväntat fel inträffade. Försök igen senare.")
+                state = .failed(notice)
             }
+            applyFetchStatusPreviewIfNeeded()
         }
     }
 
@@ -356,6 +388,86 @@ final class SpotPriceViewModel {
         )
     }
 
+    var costNotices: [FetchNotice] {
+        var notices: [FetchNotice] = []
+        if let priceNotice {
+            notices.append(priceNotice)
+        }
+        if let consumptionNotice {
+            notices.append(consumptionNotice)
+        }
+        if priceNotice == nil, tomorrowNotice == nil, let priceUpdatedAt {
+            notices.append(.updated(at: priceUpdatedAt))
+        }
+        return notices
+    }
+
+    var priceTabNotices: [FetchNotice] {
+        var notices: [FetchNotice] = []
+        if let priceNotice {
+            notices.append(priceNotice)
+        }
+        if let tomorrowNotice {
+            notices.append(tomorrowNotice)
+        } else if priceNotice == nil, let priceUpdatedAt {
+            notices.append(.updated(at: priceUpdatedAt))
+        }
+        return notices
+    }
+
+    private static func tomorrowNotice(
+        includeTomorrow: Bool,
+        hasTomorrow: Bool,
+        tomorrowFailure: FetchFailure?,
+        updatedAt: Date?,
+        now: Date
+    ) -> FetchNotice? {
+        if hasTomorrow {
+            return nil
+        }
+        if includeTomorrow {
+            if let tomorrowFailure, tomorrowFailure != .notFound, tomorrowFailure != .empty {
+                return .tomorrowFailed(failure: tomorrowFailure, updatedAt: updatedAt)
+            }
+            return .tomorrowMissing(updatedAt: updatedAt)
+        }
+        return .tomorrowComing(updatedAt: updatedAt)
+    }
+
+    private func applyFetchStatusPreviewIfNeeded() {
+        #if DEBUG
+        let prefix = "-FetchStatusPreview="
+        guard let raw = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix(prefix) }) else {
+            return
+        }
+        let value = String(raw.dropFirst(prefix.count))
+        let hourAgo = nowProvider().addingTimeInterval(-60 * 60)
+        let lastEvening = Calendar.energyHistory.date(
+            bySettingHour: 23,
+            minute: 0,
+            second: 0,
+            of: nowProvider().addingTimeInterval(-24 * 60 * 60)
+        ) ?? nowProvider().addingTimeInterval(-24 * 60 * 60)
+        switch value {
+        case "stalePrices":
+            priceNotice = FetchNotice.price(for: .offline, staleFrom: hourAgo)
+        case "tomorrowLate":
+            tomorrowNotice = FetchNotice.tomorrowMissing(updatedAt: nowProvider())
+        case "consumptionAuth":
+            consumptionNotice = FetchNotice.consumption(
+                for: .unauthorized,
+                providerName: "Vaggeryds Energi",
+                stale: false,
+                lastMeasurement: nil
+            )
+        case "consumptionLag":
+            consumptionNotice = FetchNotice.consumptionLag(lastMeasurement: lastEvening)
+        default:
+            break
+        }
+        #endif
+    }
+
     private func observeSettingsChanges() {
         settingsRefreshTask?.cancel()
         settingsRefreshTask = Task { [weak self] in
@@ -398,24 +510,41 @@ private final class SpotPriceRefreshCoordinator {
 
     func load(priceArea: String, includeTomorrow: Bool, ignoreCache: Bool) async throws -> PriceLoadResult {
         let now = nowProvider()
-        let items = try await service.fetchSpotPrices(for: now, area: priceArea, ignoreCache: ignoreCache)
+        let report = try await service.fetchSpotPricesReporting(for: now, area: priceArea, ignoreCache: ignoreCache)
         let currentDisplay = try service.makeDisplayText(
-            from: items,
+            from: report.items,
             now: now,
             formatter: numberFormatter
         )
-        let dayData = try service.makeDayChartData(from: items, for: now)
+        let dayData = try service.makeDayChartData(from: report.items, for: now)
         var tomorrow: DayChartData?
+        var tomorrowFailure: FetchFailure?
         if includeTomorrow {
             let calendar = Calendar.energyHistory
             if let tomorrowDate = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now)) {
-                tomorrow = await service.cachedOrFetchedDayChart(for: tomorrowDate, area: priceArea)
+                do {
+                    let tomorrowReport = try await service.fetchSpotPricesReporting(
+                        for: tomorrowDate,
+                        area: priceArea,
+                        ignoreCache: false
+                    )
+                    tomorrow = try? service.makeDayChartData(from: tomorrowReport.items, for: tomorrowDate)
+                    if tomorrow == nil {
+                        tomorrowFailure = tomorrowReport.failure ?? .empty
+                    }
+                } catch {
+                    tomorrowFailure = FetchFailure.classify(error)
+                }
             }
         }
 
         return PriceLoadResult(
             payload: SpotPriceViewModel.CurrentAndDay(currentDisplay: currentDisplay, day: dayData),
-            tomorrow: tomorrow
+            tomorrow: tomorrow,
+            savedAt: report.savedAt,
+            usedStaleCache: report.usedStaleCache,
+            failure: report.failure,
+            tomorrowFailure: tomorrowFailure
         )
     }
 
@@ -431,6 +560,10 @@ private final class SpotPriceRefreshCoordinator {
 private struct PriceLoadResult {
     let payload: SpotPriceViewModel.CurrentAndDay
     let tomorrow: DayChartData?
+    let savedAt: Date
+    let usedStaleCache: Bool
+    let failure: FetchFailure?
+    let tomorrowFailure: FetchFailure?
 }
 
 private struct ConsumptionLoadResult {
@@ -439,6 +572,7 @@ private struct ConsumptionLoadResult {
     let preciseMonthlyCost: PreciseMonthlyCost?
     let quarterlyConsumption: [QuarterlyConsumption]?
     let consumptionError: String?
+    let consumptionFailure: FetchFailure?
 }
 
 @MainActor
@@ -484,7 +618,8 @@ private final class ConsumptionLoadService {
             powerPeaks: powerPeaks,
             preciseMonthlyCost: preciseMonthlyCost,
             quarterlyConsumption: quarterly,
-            consumptionError: consumptionResult.errorMessage
+            consumptionError: consumptionResult.errorMessage,
+            consumptionFailure: consumptionResult.failure
         )
     }
 
@@ -505,15 +640,17 @@ private final class ConsumptionLoadService {
 
     private func loadConsumption() async -> (
         monthlyConsumption: ConsumptionData?,
-        errorMessage: String?
+        errorMessage: String?,
+        failure: FetchFailure?
     ) {
         do {
             let monthlyConsumption = try await consumptionService.fetchCurrentMonthConsumption()
             AppLog.viewModel.info("Consumption loaded: \(monthlyConsumption.totalKWh, privacy: .public) kWh")
-            return (monthlyConsumption, nil)
+            return (monthlyConsumption, nil, nil)
         } catch {
-            AppLog.viewModel.error("Consumption error: \(error.localizedDescription, privacy: .public)")
-            return (nil, error.userFacingMessage)
+            let failure = FetchFailure.classify(error)
+            AppLog.viewModel.error("Consumption error: \(failure.localizedDescription, privacy: .public)")
+            return (nil, FetchNotice.consumption(for: failure, providerName: nil, stale: false, lastMeasurement: nil).title, failure)
         }
     }
 

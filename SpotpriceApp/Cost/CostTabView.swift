@@ -5,14 +5,15 @@ struct CostTabView: View {
     let monthlyConsumption: ConsumptionData?
     let preciseMonthlyCost: PreciseMonthlyCost?
     let powerPeaks: [PowerPeak]
+    let notices: [FetchNotice]
     let onRetry: () -> Void
 
     var body: some View {
         switch state {
         case .idle, .loading:
             DashboardLoadingView()
-        case .failed(let message):
-            DashboardErrorView(message: message, onRetry: onRetry)
+        case .failed(let notice):
+            DashboardErrorView(notice: notice, onRetry: onRetry)
         case .loaded(let payload):
             let settings = ConsumptionSettings.shared
             let profile = settings.costProfile
@@ -22,6 +23,7 @@ struct CostTabView: View {
                 include: settings.includeHypotheticalEffectTariff
             )
             VStack(alignment: .leading, spacing: DS.Spacing.xl) {
+                FetchNoticeStack(notices: notices)
                 CurrentCostHero(payload: payload)
                 if settings.includeHypotheticalEffectTariff {
                     HypotheticalEffectTariffCard(
@@ -33,6 +35,7 @@ struct CostTabView: View {
                     priceArea: profile.priceArea,
                     profile: profile,
                     hasProvider: !settings.selectedProviderId.isEmpty,
+                    hidesEmptyExplanation: notices.contains { $0.kind == .consumption },
                     forecastKr: CostTabForecast.monthTotal(
                         payload: payload,
                         monthlyConsumption: monthlyConsumption,

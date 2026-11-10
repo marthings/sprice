@@ -4,16 +4,18 @@ import Charts
 struct DailyPriceTabView: View {
     let state: SpotPriceViewModel.State
     let costProfile: CostProfile
+    let notices: [FetchNotice]
     let onRetry: () -> Void
 
     var body: some View {
         switch state {
         case .idle, .loading:
             DashboardLoadingView()
-        case .failed(let message):
-            DashboardErrorView(message: message, onRetry: onRetry)
+        case .failed(let notice):
+            DashboardErrorView(notice: notice, onRetry: onRetry)
         case .loaded(let payload):
             VStack(alignment: .leading, spacing: DS.Spacing.xl) {
+                FetchNoticeStack(notices: notices)
                 PriceChartSection(
                     payload: payload,
                     costProfile: costProfile

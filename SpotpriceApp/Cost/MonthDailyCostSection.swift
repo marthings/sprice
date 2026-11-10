@@ -5,6 +5,7 @@ struct MonthDailyCostSection: View {
     let priceArea: String
     let profile: CostProfile
     let hasProvider: Bool
+    var hidesEmptyExplanation: Bool = false
     var forecastKr: Double? = nil
     var hypotheticalEffectTariffKr: Double? = nil
 
@@ -41,7 +42,9 @@ struct MonthDailyCostSection: View {
                 ProgressView()
                     .frame(maxWidth: .infinity, minHeight: 80)
             } else if loadFailed || days.allSatisfy({ $0.costKr == nil }) {
-                emptyMessage(emptyStateCopy)
+                if !hidesEmptyExplanation {
+                    emptyMessage(emptyStateCopy)
+                }
             } else {
                 chartContent
             }

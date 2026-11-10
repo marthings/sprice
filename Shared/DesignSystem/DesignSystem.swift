@@ -61,6 +61,35 @@ enum AppFormatters {
         date.formatted(swedishDate.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits).second(.twoDigits))
     }
 
+    nonisolated static func shortClock(_ date: Date) -> String {
+        let style = Date.FormatStyle(
+            date: .omitted,
+            time: .omitted,
+            locale: swedishLocale,
+            calendar: energyCalendar,
+            timeZone: swedishTimeZone
+        ).hour(.twoDigits(amPM: .omitted)).minute(.twoDigits)
+        return date.formatted(style)
+    }
+
+    nonisolated static func relativeStamp(_ date: Date, now: Date = Date()) -> String {
+        if energyCalendar.isDate(date, inSameDayAs: now) {
+            return shortClock(date)
+        }
+        if let yesterday = energyCalendar.date(byAdding: .day, value: -1, to: energyCalendar.startOfDay(for: now)),
+           energyCalendar.isDate(date, inSameDayAs: yesterday) {
+            return "i går \(shortClock(date))"
+        }
+        let dayStyle = Date.FormatStyle(
+            date: .omitted,
+            time: .omitted,
+            locale: swedishLocale,
+            calendar: energyCalendar,
+            timeZone: swedishTimeZone
+        ).day().month(.abbreviated)
+        return "\(date.formatted(dayStyle)) \(shortClock(date))"
+    }
+
     static func apiDate(_ date: Date) -> String {
         apiDateFormatter.string(from: date)
     }
@@ -560,6 +589,73 @@ struct AppStatusCard: View {
         )
         .padding(DS.Spacing.lg)
         .spriceCard(tone: .default, interactive: interactive)
+    }
+}
+
+struct FetchNoticeBanner: View {
+    let notice: FetchNotice
+
+    var body: some View {
+        HStack(alignment: .top, spacing: DS.Spacing.sm) {
+            Image(systemName: notice.icon)
+                .font(.system(size: DS.Size.iconSmall, weight: .semibold))
+                .foregroundStyle(toneColor)
+                .frame(width: 16, alignment: .center)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(notice.title)
+                    .font(DS.Font.callout)
+                    .foregroundStyle(notice.tone == .info ? DS.Color.secondary : .primary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let detail = notice.detail, !detail.isEmpty {
+                    Text(detail)
+                        .font(DS.Font.micro)
+                        .foregroundStyle(DS.Color.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, DS.Spacing.md)
+        .padding(.vertical, DS.Spacing.sm)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            RoundedRectangle(cornerRadius: DS.Glass.smallRadius, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .overlay {
+                    RoundedRectangle(cornerRadius: DS.Glass.smallRadius, style: .continuous)
+                        .fill(toneColor.opacity(notice.tone == .info ? 0.06 : 0.12))
+                }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(notice.accessibilityText)
+    }
+
+    private var toneColor: Color {
+        switch notice.tone {
+        case .info:
+            return DS.Color.secondary
+        case .warning:
+            return DS.Color.warning
+        case .error:
+            return DS.Color.danger
+        }
+    }
+}
+
+struct FetchNoticeStack: View {
+    let notices: [FetchNotice]
+
+    var body: some View {
+        if !notices.isEmpty {
+            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                ForEach(notices) { notice in
+                    FetchNoticeBanner(notice: notice)
+                }
+            }
+        }
     }
 }
 
