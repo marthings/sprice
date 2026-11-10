@@ -510,6 +510,8 @@ struct AppSettingsView: View {
                 confidence: .userConfigured,
                 source: .userEntered
             )
+        } else {
+            next = next.settingEffectTariff(nil)
         }
 
         return next

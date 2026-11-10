@@ -185,7 +185,7 @@ struct SettingsGridSection: View {
 
         if let tariff {
             let shouldPreserveManualGridCosts = settings.costProfile.hasUserEnteredGridCosts && !preferImportedValues
-            settings.costProfile = settings.costProfile.updating(
+            var next = settings.costProfile.updating(
                 gridCompanyId: dsoId,
                 gridCompanyName: tariff.dsoName,
                 fuseSize: settings.fuseSize,
@@ -199,6 +199,20 @@ struct SettingsGridSection: View {
                 tariffLastUpdated: Date(),
                 tariffValidUntil: tariff.validTo
             )
+            if let powerTariffPerKW = tariff.powerTariffPerKW {
+                next = next.settingEffectTariff(
+                    EffectTariff(
+                        monthlyPricePerKW: powerTariffPerKW,
+                        model: .manual,
+                        activeHours: .custom
+                    ),
+                    confidence: .userConfigured,
+                    source: shouldPreserveManualGridCosts ? settings.costProfile.source : .localPreset
+                )
+            } else {
+                next = next.settingEffectTariff(nil)
+            }
+            settings.costProfile = next
         } else {
             if settings.costProfile.hasUserEnteredGridCosts {
                 settings.costProfile = settings.costProfile.updating(

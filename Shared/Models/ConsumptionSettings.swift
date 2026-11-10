@@ -336,6 +336,64 @@ final class ConsumptionSettings {
         }
     }
 
+    // MARK: - 2026 rate refresh
+
+    /// Old 2025 energy tax stored including VAT. Exact match only, so a custom value is left alone.
+    private static let legacyEnergyTax2025InclVAT = 54.875
+    private static let legacyVaggerydMonthlyFees: [Int: Double] = [
+        16: 187.50, 20: 225.00, 25: 270.00, 35: 360.00, 50: 495.00, 63: 612.50
+    ]
+    private static let legacyVaggerydTransferOrePerKWh = 28.13
+    private static let legacyVaggerydPowerTariff = 45.00
+
+    private static func refreshing2026Rates(
+        _ profile: CostProfile,
+        cachedTariff: SimplifiedTariff?
+    ) -> (profile: CostProfile, cachedTariff: SimplifiedTariff?) {
+        var next = profile
+        var nextTariff = cachedTariff
+
+        if abs(next.energyTaxOrePerKWh - legacyEnergyTax2025InclVAT) < 0.001 {
+            next = next.updating(energyTaxOrePerKWh: CostProfile.SwedishDefaults.energyTaxOrePerKWh)
+        }
+
+        if (next.gridCompanyId ?? "") == "vaggeryd" {
+            let fuse = next.fuseSize ?? 20
+            let hasLegacyFee = next.gridMonthlyFee.map { fee in
+                legacyVaggerydMonthlyFees.values.contains { abs($0 - fee) < 0.01 }
+            } ?? false
+            let hasLegacyTransfer = next.gridTransferOrePerKWh.map {
+                abs($0 - legacyVaggerydTransferOrePerKWh) < 0.01
+            } ?? false
+            if hasLegacyFee || hasLegacyTransfer {
+                let fees: [Int: Double] = [16: 458, 20: 742, 25: 975, 35: 1_233, 50: 1_967, 63: 2_475]
+                next = next.updating(
+                    gridMonthlyFee: fees[fuse] ?? 742,
+                    gridTransferOrePerKWh: 29.75,
+                    energyTaxOrePerKWh: CostProfile.SwedishDefaults.energyTaxOrePerKWh
+                )
+            }
+            if let power = next.effectTariff?.monthlyPricePerKW,
+               abs(power - legacyVaggerydPowerTariff) < 0.01 {
+                next = next.settingEffectTariff(nil)
+            }
+        }
+
+        if var tariff = nextTariff, tariff.dsoOrgNo == "vaggeryd" {
+            let hasLegacyFee = legacyVaggerydMonthlyFees.values.contains {
+                abs($0 - tariff.monthlyFixedFee) < 0.01
+            }
+            let hasLegacyTransfer = abs(tariff.energyTariffPerKWh - 0.2813) < 0.0001
+            if hasLegacyFee || hasLegacyTransfer || abs((tariff.energyTaxPerKWh) - legacyEnergyTax2025InclVAT) < 0.001 {
+                if let fresh = GridTariffService().localPresetTariff(forDSO: "vaggeryd", fuseSize: tariff.fuseSize ?? next.fuseSize ?? 20) {
+                    nextTariff = fresh
+                }
+            }
+        }
+
+        return (next, nextTariff)
+    }
+
     // MARK: - Cost Profile Persistence
 
     private static func loadCostProfile() -> CostProfile? {
@@ -468,6 +526,12 @@ final class ConsumptionSettings {
 
         // Migrate legacy credentials if needed
         migrateFromLegacyIfNeeded()
+
+        let refreshed = Self.refreshing2026Rates(costProfile, cachedTariff: Self.loadCachedTariff())
+        self.costProfile = refreshed.profile
+        if let tariff = refreshed.cachedTariff {
+            self.cachedTariff = tariff
+        }
 
         saveCostProfile(costProfile)
         mirrorCostProfileToLegacyDefaults(costProfile)

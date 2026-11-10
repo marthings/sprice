@@ -104,7 +104,7 @@ final class GridTariffService: Sendable {
             let providerMonthlyFeeKr = (providerMonthlyFee / hoursInMonth) * hoursInPeriod
 
             // Swedish standard taxes (2025/2026)
-            let standardEnergyTax = 54.875  // öre/kWh incl. VAT
+            let standardEnergyTax = 45.0    // öre/kWh incl. VAT, 2026
             let standardCertificateFee = 1.75  // öre/kWh incl. VAT
             let energyTaxKr = (standardEnergyTax / 100.0) * kWh
             let certificateFeeKr = (standardCertificateFee / 100.0) * kWh
@@ -158,6 +158,10 @@ final class GridTariffService: Sendable {
         )
     }
 
+    func localPresetTariff(forDSO orgNo: String, fuseSize: Int) -> SimplifiedTariff? {
+        getLocalPresetTariff(forDSO: orgNo, fuseSize: fuseSize)
+    }
+
     // MARK: - Local Tariff Presets
     
     private func getLocalPresetDSOs() -> [DSOOption] {
@@ -181,59 +185,59 @@ final class GridTariffService: Sendable {
         let fuseTariffs: [String: (name: String, fuseFees: [Int: Double], energy: Double, power: Double?, energyTax: Double)] = [
             "vaggeryd": (
                 "Vaggeryds Elnät",
-                [16: 187.50, 20: 225.00, 25: 270.00, 35: 360.00, 50: 495.00, 63: 612.50],
-                0.2813,  // Energy tariff (SEK/kWh)
-                45.00,   // Power tariff (SEK/kW/month)
-                54.875   // Energy tax 2025
+                [16: 458, 20: 742, 25: 975, 35: 1_233, 50: 1_967, 63: 2_475],
+                0.2975,  // Transfer 29.75 öre/kWh incl. VAT, from 2026-01-01
+                nil,     // No residential power tariff (Vaggeryds Energi, 2026)
+                45.0     // Energy tax 2026, 36.0 öre excl. VAT
             ),
             "jonkoping": (
                 "Jönköping Energi Elnät",
                 [16: 328.53, 20: 393.43, 25: 474.36, 35: 636.45, 50: 879.46, 63: 1090.20],
                 0.0608,  // Energy tariff (SEK/kWh) - 6.08 öre
                 46.68,   // Power tariff average (27.70 base + 65.66 peak) / 2
-                45.0     // Energy tax 2026 (reduced)
+                45.0     // Energy tax 2026, 36.0 öre excl. VAT
             ),
             "eon": (
                 "E.ON Energidistribution",
                 [16: 220.00, 20: 264.00, 25: 318.00, 35: 424.00, 50: 584.00, 63: 722.00],
                 0.3250,
                 55.00,
-                54.875
+                45.0     // Energy tax 2026, 36.0 öre excl. VAT
             ),
             "vattenfall": (
                 "Vattenfall Eldistribution",
                 [16: 210.00, 20: 252.00, 25: 304.00, 35: 406.00, 50: 560.00, 63: 693.00],
                 0.3100,
                 52.00,
-                54.875
+                45.0     // Energy tax 2026, 36.0 öre excl. VAT
             ),
             "ellevio": (
                 "Ellevio",
                 [16: 230.00, 20: 276.00, 25: 333.00, 35: 444.00, 50: 612.00, 63: 758.00],
                 0.3375,
                 58.00,
-                54.875
+                45.0     // Energy tax 2026, 36.0 öre excl. VAT
             ),
             "goteborg": (
                 "Göteborg Energi Nät",
                 [16: 195.00, 20: 234.00, 25: 282.00, 35: 376.00, 50: 518.00, 63: 641.00],
                 0.2950,
                 48.00,
-                54.875
+                45.0     // Energy tax 2026, 36.0 öre excl. VAT
             ),
             "fortum": (
                 "Fortum Distribution",
                 [16: 215.00, 20: 258.00, 25: 311.00, 35: 415.00, 50: 572.00, 63: 708.00],
                 0.3200,
                 51.00,
-                54.875
+                45.0     // Energy tax 2026, 36.0 öre excl. VAT
             ),
             "skelleftea": (
                 "Skellefteå Kraft Elnät",
                 [16: 175.00, 20: 210.00, 25: 253.00, 35: 338.00, 50: 466.00, 63: 577.00],
                 0.2625,
                 42.00,
-                54.875
+                33.0     // Reduced 2026 rate, 26.4 öre excl. VAT (Västerbotten)
             )
         ]
         
@@ -324,7 +328,7 @@ final class GridTariffService: Sendable {
             powerTariffPerKW: powerTariffPerKW,
             validFrom: validFrom,
             validTo: validTo,
-            energyTaxPerKWh: 54.875,        // Swedish energy tax 2025 (öre/kWh incl. VAT)
+            energyTaxPerKWh: CostProfile.SwedishDefaults.energyTaxOrePerKWh,
             certificateFeePerKWh: 1.75,     // Electricity certificate fee (öre/kWh incl. VAT)
             fuseSize: nil                   // Unknown for API tariffs
         )
