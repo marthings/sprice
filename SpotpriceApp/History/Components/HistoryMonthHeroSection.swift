@@ -1,4 +1,5 @@
 import SwiftUI
+import BorderBeam
 
 struct HistoryMonthHeroSection: View {
     let snapshot: HistoryMonthSnapshot
@@ -9,6 +10,21 @@ struct HistoryMonthHeroSection: View {
     var temperatureInsights: [TemperatureInsight] = []
 
     var body: some View {
+        if snapshot.isCurrentMonth {
+            card
+                .borderBeam(
+                    shape: .rounded(DS.Glass.cardRadius),
+                    style: .small,
+                    colors: BeamPalette.single(DS.Color.warning),
+                    intensity: 0.45,
+                    timing: BeamTiming(rotateDuration: 8)
+                )
+        } else {
+            card
+        }
+    }
+
+    private var card: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
             SectionInfoHeader(
                 title: "Månadens siffror",
