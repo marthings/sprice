@@ -35,6 +35,8 @@ struct HistoryDayView: View {
         _snapshot = State(initialValue: previewSnapshot)
     }
 
+    @State private var debugScroll = ScrollPosition(edge: .top)
+
     var body: some View {
         ZStack {
             AppCanvasBackground()
@@ -70,6 +72,14 @@ struct HistoryDayView: View {
                 }
                 .padding(.horizontal, DS.Spacing.lg)
             }
+            .scrollPosition($debugScroll)
+#if DEBUG
+            .task {
+                guard DebugLaunch.scrollY > 0 else { return }
+                try? await Task.sleep(for: .seconds(2))
+                debugScroll.scrollTo(y: DebugLaunch.scrollY)
+            }
+#endif
             .scrollContentBackground(.hidden)
             .spriceScrollContentMargins()
         }
@@ -179,20 +189,12 @@ private struct HistoryDayTotals: View {
                 ]
             )
 
-            HStack(alignment: .top, spacing: DS.Spacing.md) {
-                if let cost = snapshot.costKr {
-                    dayMetric(value: AppFormatters.wholeNumber(cost), unit: "kr", label: "Kostnad", amount: cost)
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .top, spacing: DS.Spacing.md) {
+                    dayMetrics
                 }
-                if let kWh = snapshot.kWh {
-                    dayMetric(value: AppFormatters.kWhValue(kWh), unit: "kWh", label: "Förbrukning", amount: kWh)
-                }
-                if let paid = snapshot.paidKrPerKWh {
-                    dayMetric(
-                        value: paid.formatted(.number.precision(.fractionLength(2))),
-                        unit: "kr/kWh",
-                        label: "Betalt pris",
-                        amount: paid
-                    )
+                VStack(alignment: .leading, spacing: DS.Spacing.md) {
+                    dayMetrics
                 }
             }
 
@@ -205,7 +207,7 @@ private struct HistoryDayTotals: View {
 
             if snapshot.isIncomplete {
                 Text("Dagen är inte komplett.")
-                    .font(DS.Font.micro)
+                    .font(DS.Font.footnote)
                     .foregroundStyle(DS.Color.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -215,27 +217,61 @@ private struct HistoryDayTotals: View {
         .spriceCard(tone: .history)
     }
 
+    @ViewBuilder
+    private var dayMetrics: some View {
+        if let cost = snapshot.costKr {
+            dayMetric(value: AppFormatters.wholeNumber(cost), unit: "kr", label: "Kostnad", amount: cost)
+        }
+        if let kWh = snapshot.kWh {
+            dayMetric(value: AppFormatters.kWhValue(kWh), unit: "kWh", label: "Förbrukning", amount: kWh)
+        }
+        if let paid = snapshot.paidKrPerKWh {
+            dayMetric(
+                value: paid.formatted(.number.precision(.fractionLength(2))),
+                unit: "kr/kWh",
+                label: "Betalt pris",
+                amount: paid
+            )
+        }
+    }
+
+    /// The number is never wrapped or squeezed. If the unit does not fit beside it,
+    /// the unit goes on the next line.
     private func dayMetric(value: String, unit: String, label: String, amount: Double) -> some View {
         VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
-            HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
-                Text(value)
-                    .font(DS.Font.bold(28).monospacedDigit())
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.55)
-                    .spriceNumericText(amount)
-                Text(unit)
-                    .font(DS.Font.micro)
-                    .foregroundStyle(DS.Color.secondary)
-                    .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
+                    dayMetricNumber(value, amount: amount)
+                    dayMetricUnit(unit)
+                }
+                VStack(alignment: .leading, spacing: 0) {
+                    dayMetricNumber(value, amount: amount)
+                    dayMetricUnit(unit)
+                }
             }
             Text(label)
-                .font(DS.Font.micro)
+                .font(DS.Font.footnote)
                 .foregroundStyle(DS.Color.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(label) \(value) \(unit)")
+    }
+
+    private func dayMetricNumber(_ value: String, amount: Double) -> some View {
+        Text(value)
+            .font(DS.Font.bold(28).monospacedDigit())
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+            .spriceNumericText(amount)
+    }
+
+    private func dayMetricUnit(_ unit: String) -> some View {
+        Text(unit)
+            .font(DS.Font.footnote)
+            .foregroundStyle(DS.Color.secondary)
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
     }
 }
 
@@ -244,6 +280,9 @@ private struct HistoryDayHourChart: View {
     var evCharging: ConsumptionEVChargingInsight? = nil
     @State private var selectedCostHour: Date?
     @State private var selectedSpotHour: Date?
+    @ScaledMetric(relativeTo: .body) private var costChartHeight: CGFloat = 160
+    @ScaledMetric(relativeTo: .body) private var spotChartHeight: CGFloat = 96
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
 
     private var hasCost: Bool {
         !snapshot.costHours.isEmpty
@@ -275,13 +314,15 @@ private struct HistoryDayHourChart: View {
             }
 
             if hasCost {
+                ChartCaption("Kostnad per timme, i kronor")
+
                 Chart {
                     ForEach(snapshot.costHours) { hour in
                         BarMark(
                             x: .value("Timme", hour.start, unit: .hour),
                             y: .value("kr", hour.costKr ?? 0)
                         )
-                        .foregroundStyle(costBarColor(for: hour))
+                        .foregroundStyle(costBarStyle(for: hour))
                         .cornerRadius(2)
                     }
 
@@ -318,7 +359,7 @@ private struct HistoryDayHourChart: View {
                         AxisValueLabel {
                             if let amount = value.as(Double.self) {
                                 Text(amount, format: .number.precision(.fractionLength(0)))
-                                    .font(DS.Font.micro)
+                                    .font(DS.Font.footnote)
                                     .foregroundStyle(DS.Color.secondary)
                             }
                         }
@@ -327,9 +368,16 @@ private struct HistoryDayHourChart: View {
                 .chartXSelection(value: $selectedCostHour)
                 .historyChartPlotStyle()
                 .spriceChartMotion(snapshot.costHours.map(\.costKr), selectedCostHour)
-                .frame(height: 160)
+                .frame(height: costChartHeight)
                 .zIndex(1)
                 .accessibilityLabel("Stapeldiagram över kostnad per timme, i kronor")
+
+                if let legend = costLegend {
+                    Text(legend)
+                        .font(DS.Font.footnote)
+                        .foregroundStyle(DS.Color.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             } else {
                 Text("Ingen kostnad per timme att visa. Förbrukning saknas, så inga kronor räknas fram.")
                     .font(DS.Font.callout)
@@ -338,21 +386,19 @@ private struct HistoryDayHourChart: View {
             }
 
             if hasSpot {
-                Text("Spotpris, öre/kWh")
-                    .font(DS.Font.callout)
-                    .foregroundStyle(.primary)
+                ChartCaption("Spotpris per kWh, i kronor")
 
                 Chart {
                     ForEach(snapshot.spotHours) { hour in
                         LineMark(
                             x: .value("Timme", hour.start, unit: .hour),
-                            y: .value("öre/kWh", hour.spotOrePerKWh ?? 0)
+                            y: .value("kr/kWh", (hour.spotOrePerKWh ?? 0) / 100)
                         )
                         .foregroundStyle(DS.Color.warning)
                         .interpolationMethod(.stepStart)
                         AreaMark(
                             x: .value("Timme", hour.start, unit: .hour),
-                            y: .value("öre/kWh", hour.spotOrePerKWh ?? 0)
+                            y: .value("kr/kWh", (hour.spotOrePerKWh ?? 0) / 100)
                         )
                         .foregroundStyle(DS.Color.warning.opacity(0.12))
                         .interpolationMethod(.stepStart)
@@ -365,7 +411,7 @@ private struct HistoryDayHourChart: View {
                             .annotation(position: .top, spacing: DS.Spacing.xs, overflowResolution: ChartCalloutOverflow.resolution) {
                                 ChartValueCallout(
                                     title: selected.hourRangeLabel,
-                                    value: "\(AppFormatters.oreValue(spot)) öre"
+                                    value: AppFormatters.krPerKWh(spot / 100)
                                 )
                             }
                     }
@@ -390,19 +436,20 @@ private struct HistoryDayHourChart: View {
                             .foregroundStyle(.tertiary)
                         AxisValueLabel {
                             if let amount = value.as(Double.self) {
-                                Text(amount, format: .number.precision(.fractionLength(0)))
-                                    .font(DS.Font.micro)
+                                Text(amount, format: .number.precision(.fractionLength(0...1)))
+                                    .font(DS.Font.footnote)
                                     .foregroundStyle(DS.Color.secondary)
                             }
                         }
                     }
                 }
+                .chartYScale(domain: 0...spotYMax)
                 .chartXSelection(value: $selectedSpotHour)
                 .historyChartPlotStyle()
                 .spriceChartMotion(snapshot.spotHours.map(\.spotOrePerKWh), selectedSpotHour)
-                .frame(height: 96)
+                .frame(height: spotChartHeight)
                 .zIndex(1)
-                .accessibilityLabel("Linjediagram över spotpris per timme, i öre per kilowattimme")
+                .accessibilityLabel("Linjediagram över spotpris per timme, i kronor per kilowattimme")
             }
         }
         .padding(DS.Spacing.card)
@@ -416,14 +463,37 @@ private struct HistoryDayHourChart: View {
         return start...last.addingTimeInterval(3600)
     }
 
-    private func costBarColor(for hour: HistoryHourCost) -> Color {
-        if evCharging?.containsHour(startingAt: hour.start) == true {
-            return DS.Color.warning
+    private var spotYMax: Double {
+        max((snapshot.spotHours.compactMap(\.spotOrePerKWh).max() ?? 100) / 100, 0.1) * 1.1
+    }
+
+    private func isCharging(_ hour: HistoryHourCost) -> Bool {
+        evCharging?.containsHour(startingAt: hour.start) == true
+    }
+
+    private func costBarStyle(for hour: HistoryHourCost) -> AnyShapeStyle {
+        if isCharging(hour) {
+            // Striped when color alone must not carry the meaning.
+            return differentiateWithoutColor ? AnyShapeStyle(ChargingHatch.paint) : AnyShapeStyle(DS.Color.warning)
         }
         if snapshot.expensiveHoursUsed.contains(where: { $0.id == hour.id }) {
-            return DS.Color.danger
+            return AnyShapeStyle(DS.Color.danger)
         }
-        return DS.Color.info
+        return AnyShapeStyle(DS.Color.info)
+    }
+
+    /// Says in words what the colors mean, so the chart works without seeing them.
+    private var costLegend: String? {
+        var parts: [String] = []
+        if evCharging != nil {
+            parts.append("Orange: troligen elbilsladdning")
+        }
+        if !snapshot.expensiveHoursUsed.isEmpty {
+            parts.append("Röd: timmar du drog el när det var dyrt")
+        }
+        guard !parts.isEmpty else { return nil }
+        parts.append("Blå: övriga timmar")
+        return parts.joined(separator: ". ") + "."
     }
 
     private func nearestHour(to date: Date, in hours: [HistoryHourCost]) -> HistoryHourCost? {
@@ -452,20 +522,20 @@ private struct HistoryDayExpensiveHours: View {
                     .fixedSize(horizontal: false, vertical: true)
             } else {
                 ForEach(hours) { hour in
-                    HStack {
-                        Text(hour.hourRangeLabel)
-                            .font(DS.Font.callout)
-                            .frame(width: 56, alignment: .leading)
-                        Spacer(minLength: DS.Spacing.sm)
-                        if let cost = hour.costKr {
-                            Text("\(AppFormatters.wholeNumber(cost)) kr")
-                                .font(DS.Font.semibold(16).monospacedDigit())
+                    ViewThatFits(in: .horizontal) {
+                        HStack {
+                            Text(hour.hourRangeLabel)
+                                .font(DS.Font.callout)
+                                .lineLimit(1)
+                            Spacer(minLength: DS.Spacing.sm)
+                            expensiveHourValues(hour)
                         }
-                        if let kWh = hour.kWh {
-                            Text(AppFormatters.kWh(kWh, fractionLength: 0...1))
-                                .font(DS.Font.micro)
-                                .foregroundStyle(DS.Color.secondary)
-                                .frame(width: 72, alignment: .trailing)
+                        VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
+                            Text(hour.hourRangeLabel)
+                                .font(DS.Font.callout)
+                            HStack(spacing: DS.Spacing.sm) {
+                                expensiveHourValues(hour)
+                            }
                         }
                     }
                     .accessibilityElement(children: .combine)
@@ -476,6 +546,21 @@ private struct HistoryDayExpensiveHours: View {
         .padding(DS.Spacing.card)
         .frame(maxWidth: .infinity, alignment: .leading)
         .spriceCard(tone: .history)
+    }
+
+    @ViewBuilder
+    private func expensiveHourValues(_ hour: HistoryHourCost) -> some View {
+        if let cost = hour.costKr {
+            Text("\(AppFormatters.wholeNumber(cost)) kr")
+                .font(DS.Font.semibold(16).monospacedDigit())
+                .lineLimit(1)
+        }
+        if let kWh = hour.kWh {
+            Text(AppFormatters.kWh(kWh, fractionLength: 0...1))
+                .font(DS.Font.footnote)
+                .foregroundStyle(DS.Color.secondary)
+                .lineLimit(1)
+        }
     }
 
     private func accessibilityLabel(for hour: HistoryHourCost) -> String {
@@ -514,8 +599,8 @@ private struct HistoryDayCostSplitView: View {
     private var rows: [HistoryDayCostSplitRow] {
         [
             HistoryDayCostSplitRow(id: "energy", title: "Elhandel", amount: split.energyKr, color: DS.Color.info),
-            HistoryDayCostSplitRow(id: "grid", title: "Nät", amount: split.gridKr, color: DS.Color.warning),
-            HistoryDayCostSplitRow(id: "tax", title: "Skatt", amount: split.taxKr, color: DS.Color.success),
+            HistoryDayCostSplitRow(id: "grid", title: "Elnät", amount: split.gridKr, color: DS.Color.warning),
+            HistoryDayCostSplitRow(id: "tax", title: "Skatt på el", amount: split.taxKr, color: DS.Color.success),
             HistoryDayCostSplitRow(id: "vat", title: "Moms", amount: split.vatKr, color: Color.gray)
         ]
     }
@@ -542,17 +627,32 @@ private struct HistoryDayCostSplitView: View {
             .accessibilityHidden(true)
 
             ForEach(rows) { row in
-                HStack(spacing: DS.Spacing.sm) {
-                    Circle()
-                        .fill(row.color)
-                        .frame(width: 8, height: 8)
-                    Text(row.title)
-                        .font(DS.Font.micro)
-                        .foregroundStyle(DS.Color.secondary)
-                    Spacer(minLength: DS.Spacing.sm)
-                    Text(AppFormatters.kr(row.amount, fractionLength: 2))
-                        .font(DS.Font.micro.monospacedDigit())
-                        .foregroundStyle(.primary)
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: DS.Spacing.sm) {
+                        Circle()
+                            .fill(row.color)
+                            .frame(width: 8, height: 8)
+                        Text(row.title)
+                            .font(DS.Font.footnote)
+                            .foregroundStyle(DS.Color.secondary)
+                        Spacer(minLength: DS.Spacing.sm)
+                        Text(AppFormatters.kr(row.amount, fractionLength: 2))
+                            .font(DS.Font.footnote.monospacedDigit())
+                            .foregroundStyle(.primary)
+                    }
+                    HStack(alignment: .firstTextBaseline, spacing: DS.Spacing.sm) {
+                        Circle()
+                            .fill(row.color)
+                            .frame(width: 8, height: 8)
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text(row.title)
+                                .font(DS.Font.footnote)
+                                .foregroundStyle(DS.Color.secondary)
+                            Text(AppFormatters.kr(row.amount, fractionLength: 2))
+                                .font(DS.Font.footnote.monospacedDigit())
+                                .foregroundStyle(.primary)
+                        }
+                    }
                 }
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel("\(row.title) \(AppFormatters.kr(row.amount, fractionLength: 2))")
