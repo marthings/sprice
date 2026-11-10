@@ -98,6 +98,13 @@ struct HistoryMonthView: View {
                 startBackfill()
             }
             await loadTemperature()
+#if DEBUG
+            // `-OpenDay 2` opens the day two days ago, for screenshots.
+            if let daysAgo = DebugLaunch.value(after: "-OpenDay"), openedDay == nil,
+               let date = Calendar.energyHistory.date(byAdding: .day, value: -Int(daysAgo), to: Date()) {
+                openedDay = HistoryDayRoute(dayKey: EnergyHistoryKey.dayKey(for: date), date: date)
+            }
+#endif
         }
         .onChange(of: ConsumptionSettings.shared.temperaturePlaceId) { _, _ in
             Task { await loadTemperature() }

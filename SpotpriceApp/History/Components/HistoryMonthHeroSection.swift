@@ -60,14 +60,18 @@ struct HistoryMonthHeroSection: View {
                     .foregroundStyle(.primary)
                     .fixedSize(horizontal: false, vertical: true)
             } else if let spot = snapshot.spotOrePerKWh {
-                heroValue(AppFormatters.oreValue(spot), unit: "öre/kWh", amount: spot)
-                    .accessibilityLabel("Snitt spotpris \(AppFormatters.ore(spot)) per kilowattimme")
+                heroValue(
+                    (spot / 100).formatted(.number.precision(.fractionLength(2))),
+                    unit: "kr/kWh",
+                    amount: spot / 100
+                )
+                .accessibilityLabel("Snitt spotpris \((spot / 100).formatted(.number.precision(.fractionLength(2)))) kronor per kilowattimme")
                 Text("Förbrukning saknas. Det här är bara spotpriset.")
                     .font(DS.Font.callout)
                     .foregroundStyle(.primary)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(HistoryInsights.missingConsumptionMessage(hasProvider: hasProvider))
-                    .font(DS.Font.micro)
+                    .font(DS.Font.footnote)
                     .foregroundStyle(DS.Color.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
@@ -86,7 +90,7 @@ struct HistoryMonthHeroSection: View {
             }
 
             Text(snapshot.coverageText)
-                .font(DS.Font.micro)
+                .font(DS.Font.footnote)
                 .foregroundStyle(DS.Color.secondary)
         }
         .spriceRevealMotion(temperatureInsights.map(\.id))
@@ -124,22 +128,39 @@ struct HistoryMonthHeroSection: View {
         return parts
     }
 
+    /// The number never wraps. When number and unit do not fit side by side,
+    /// as at large Dynamic Type sizes, the unit moves under the number.
     private func heroValue(_ value: String, unit: String, amount: Double) -> some View {
-        HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xs) {
-            Text(value)
-                .font(DS.Font.bold(48).monospacedDigit())
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.55)
-                .spriceNumericText(amount)
-            Text(unit)
-                .font(DS.Font.callout)
-                .fontWeight(.bold)
-                .foregroundStyle(DS.Color.secondary)
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xs) {
+                heroNumber(value, amount: amount)
+                heroUnit(unit)
+            }
+            VStack(alignment: .leading, spacing: 0) {
+                heroNumber(value, amount: amount, allowsShrink: true)
+                heroUnit(unit)
+            }
         }
         .accessibilityElement(children: .combine)
+    }
+
+    private func heroNumber(_ value: String, amount: Double, allowsShrink: Bool = false) -> some View {
+        Text(value)
+            .font(DS.Font.bold(48).monospacedDigit())
+            .foregroundStyle(.primary)
+            .lineLimit(1)
+            .minimumScaleFactor(allowsShrink ? 0.6 : 1)
+            .fixedSize(horizontal: !allowsShrink, vertical: false)
+            .spriceNumericText(amount)
+    }
+
+    private func heroUnit(_ unit: String) -> some View {
+        Text(unit)
+            .font(DS.Font.callout)
+            .fontWeight(.bold)
+            .foregroundStyle(DS.Color.secondary)
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
     }
 }
 
@@ -207,12 +228,21 @@ struct HistoryPriceConsumptionEffect: View {
     private func effectBar(title: String, value: Double, maxMagnitude: Double) -> some View {
         let amount = HistoryInsights.signedKr(value)
         return VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-            HStack {
-                Text(title)
-                    .font(DS.Font.callout)
-                Spacer(minLength: DS.Spacing.sm)
-                Text(amount)
-                    .font(DS.Font.semibold(14).monospacedDigit())
+            ViewThatFits(in: .horizontal) {
+                HStack {
+                    Text(title)
+                        .font(DS.Font.callout)
+                    Spacer(minLength: DS.Spacing.sm)
+                    Text(amount)
+                        .font(DS.Font.semibold(14).monospacedDigit())
+                }
+                VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
+                    Text(title)
+                        .font(DS.Font.callout)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(amount)
+                        .font(DS.Font.semibold(14).monospacedDigit())
+                }
             }
 
             GeometryReader { geometry in
@@ -254,7 +284,7 @@ struct HistoryPaidVersusSpot: View {
 
             if let spotKr = snapshot.spotKrPerKWh {
                 labeledAmount(
-                    title: "Spot i snitt",
+                    title: "Spotpris i snitt",
                     value: spotKr,
                     unit: "kr/kWh",
                     fractionLength: 2
@@ -282,7 +312,7 @@ struct HistoryPaidVersusSpot: View {
     private var infoParagraphs: [String] {
         var parts = [
             "Du betalade är vad kilowattimmen kostade i snitt, med allt inräknat. Spot i snitt är börsens elpris, utan påslag, nät, skatt och moms.",
-            "Spotpriset visas i kronor, och samma siffra i öre per kilowattimme."
+            "Båda siffrorna är i kronor per kilowattimme (kr/kWh)."
         ]
         if let comparison {
             parts.append(comparison.title)
@@ -322,26 +352,44 @@ struct HistoryPaidVersusSpot: View {
     }
 
     private func labeledAmount(title: String, value: Double, unit: String, fractionLength: Int) -> some View {
-        HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xs) {
-            Text(title)
-                .font(DS.Font.callout)
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-            Spacer(minLength: DS.Spacing.sm)
-            Text(value, format: .number.precision(.fractionLength(fractionLength)))
-                .font(DS.Font.semibold(20).monospacedDigit())
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-                .spriceNumericText(value)
-                .layoutPriority(1)
-            Text(unit)
-                .font(DS.Font.micro)
-                .foregroundStyle(DS.Color.secondary)
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xs) {
+                Text(title)
+                    .font(DS.Font.callout)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                Spacer(minLength: DS.Spacing.sm)
+                labeledNumber(value, fractionLength: fractionLength)
+                labeledUnit(unit)
+            }
+            VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
+                Text(title)
+                    .font(DS.Font.callout)
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xs) {
+                    labeledNumber(value, fractionLength: fractionLength)
+                    labeledUnit(unit)
+                }
+            }
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(title) \(value.formatted(.number.precision(.fractionLength(fractionLength)))) \(unit)")
+    }
+
+    private func labeledNumber(_ value: Double, fractionLength: Int) -> some View {
+        Text(value, format: .number.precision(.fractionLength(fractionLength)))
+            .font(DS.Font.semibold(20).monospacedDigit())
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+            .spriceNumericText(value)
+    }
+
+    private func labeledUnit(_ unit: String) -> some View {
+        Text(unit)
+            .font(DS.Font.footnote)
+            .foregroundStyle(DS.Color.secondary)
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
     }
 }

@@ -50,7 +50,7 @@ struct ChartCalloutView: View {
     }
 
     private var priceColor: Color {
-        DS.Color.forCategory(priceCategory)
+        DS.Color.textForCategory(priceCategory)
     }
 
     private var totalCostPerKWh: Double {
@@ -89,14 +89,19 @@ struct ChartCalloutView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-            HStack(spacing: DS.Spacing.sm) {
-                Text("\(timeLabel(bucket.start))–\(timeLabel(bucket.end))")
-                    .font(DS.Font.semibold(11))
-                    .foregroundStyle(primaryTextColor)
-
-                spotPriceLabel
-
-                PriceLevelBadge(category: priceCategory, style: .compact)
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: DS.Spacing.sm) {
+                    calloutTime
+                    spotPriceLabel
+                    PriceLevelBadge(category: priceCategory, style: .compact)
+                }
+                VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
+                    HStack(spacing: DS.Spacing.sm) {
+                        calloutTime
+                        PriceLevelBadge(category: priceCategory, style: .compact)
+                    }
+                    spotPriceLabel
+                }
             }
 
             if profile.isSpotFollowingRetailContract {
@@ -106,9 +111,9 @@ struct ChartCalloutView: View {
                 HStack(spacing: DS.Spacing.xs) {
                     Text(totalCostPerKWh, format: .number.precision(.fractionLength(2)))
                         .font(DS.Font.bold(16).monospacedDigit())
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(DS.Color.infoText)
                     Text("kr/kWh totalt")
-                        .font(DS.Font.micro)
+                        .font(DS.Font.footnote)
                         .foregroundStyle(secondaryTextColor)
                 }
 
@@ -120,17 +125,17 @@ struct ChartCalloutView: View {
                 let difference = bucket.orePerKWh - contractPrice
                 let percentDiff = abs((difference / contractPrice) * 100)
                 let isGoodDeal = difference > 0
-                let displayColor = isGoodDeal ? DS.Color.success : DS.Color.danger
+                let displayColor = isGoodDeal ? DS.Color.successText : DS.Color.dangerText
                 let iconName = isGoodDeal ? "checkmark.circle.fill" : "xmark.circle.fill"
                 let labelText = isGoodDeal ? "Sparar:" : "Förlorar:"
 
                 HStack {
                     HStack(spacing: DS.Spacing.xs) {
                         Image(systemName: iconName)
-                            .font(.system(size: 10))
+                            .font(.system(size: 13))
                             .foregroundStyle(displayColor)
                         Text(labelText)
-                            .font(DS.Font.micro)
+                            .font(DS.Font.footnote)
                             .foregroundStyle(secondaryTextColor)
                         Text("\(percentDiff, specifier: "%.0f")%")
                             .font(DS.Font.medium(11).monospacedDigit())
@@ -140,9 +145,9 @@ struct ChartCalloutView: View {
                     HStack(spacing: DS.Spacing.xs) {
                         Text(totalCostPerKWh, format: .number.precision(.fractionLength(2)))
                             .font(DS.Font.bold(14).monospacedDigit())
-                            .foregroundStyle(.blue)
+                            .foregroundStyle(DS.Color.infoText)
                         Text("kr/kWh")
-                            .font(DS.Font.micro)
+                            .font(DS.Font.footnote)
                             .foregroundStyle(secondaryTextColor)
                     }
                 }
@@ -160,25 +165,21 @@ struct ChartCalloutView: View {
         )
     }
 
+    private var calloutTime: some View {
+        Text("\(timeLabel(bucket.start))–\(timeLabel(bucket.end))")
+            .font(DS.Font.semibold(13))
+            .foregroundStyle(primaryTextColor)
+    }
+
     @ViewBuilder
     private var spotPriceLabel: some View {
         HStack(spacing: DS.Spacing.xs) {
-            switch style {
-            case .material:
-                Text(bucket.orePerKWh / 100, format: .number.precision(.fractionLength(2)))
-                    .font(DS.Font.medium(11).monospacedDigit())
-                    .foregroundStyle(priceColor)
-                Text("kr/kWh")
-                    .font(DS.Font.micro)
-                    .foregroundStyle(secondaryTextColor)
-            case .opaque:
-                Text("\(Int(bucket.orePerKWh.rounded()))")
-                    .font(DS.Font.medium(11).monospacedDigit())
-                    .foregroundStyle(priceColor)
-                Text("öre/kWh")
-                    .font(DS.Font.micro)
-                    .foregroundStyle(secondaryTextColor)
-            }
+            Text(bucket.orePerKWh / 100, format: .number.precision(.fractionLength(2)))
+                .font(DS.Font.medium(13).monospacedDigit())
+                .foregroundStyle(priceColor)
+            Text("kr/kWh spotpris")
+                .font(DS.Font.footnote)
+                .foregroundStyle(secondaryTextColor)
         }
     }
 
@@ -237,7 +238,7 @@ struct ChartValueCallout: View {
         VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
             if let title, !title.isEmpty {
                 Text(title)
-                    .font(DS.Font.micro)
+                    .font(DS.Font.footnote)
                     .foregroundStyle(secondaryText)
             }
             Text(value)
@@ -280,14 +281,14 @@ private struct ChartCalloutBreakdownRow: View {
     var body: some View {
         HStack(spacing: DS.Spacing.xs) {
             Text(label)
-                .font(DS.Font.micro)
+                .font(DS.Font.footnote)
                 .foregroundStyle(isMainComponent ? primaryTextColor : secondaryTextColor)
             Spacer()
             Text(value, format: .number.precision(.fractionLength(2)))
                 .font(DS.Font.medium(10).monospacedDigit())
                 .foregroundStyle(isMainComponent ? primaryTextColor : secondaryTextColor)
             Text("kr")
-                .font(DS.Font.micro)
+                .font(DS.Font.footnote)
                 .foregroundStyle(secondaryTextColor)
         }
     }

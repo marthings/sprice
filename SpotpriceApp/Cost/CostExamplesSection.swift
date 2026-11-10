@@ -5,6 +5,7 @@ struct CostExamplesSection: View {
     let profile: CostProfile
 
     private let totalCostService = TotalCostService.shared
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var currentPrice: Double {
         payload.day.currentBucket?.orePerKWh ?? PriceBucketAnalytics.averageSpotPrice(payload.day.buckets)
@@ -52,8 +53,12 @@ struct CostExamplesSection: View {
         return parts
     }
 
+    /// One card per row at the larger text sizes, so nothing is squeezed.
     private var columns: [GridItem] {
-        [
+        if dynamicTypeSize >= .xxxLarge {
+            return [GridItem(.flexible())]
+        }
+        return [
             GridItem(.flexible(), spacing: DS.Spacing.sm),
             GridItem(.flexible(), spacing: DS.Spacing.sm)
         ]
@@ -76,7 +81,7 @@ private struct CostExampleCard: View {
                         .foregroundStyle(.primary)
                         .lineLimit(2)
                     Text(example.subtitle)
-                        .font(DS.Font.micro)
+                        .font(DS.Font.footnote)
                         .foregroundStyle(DS.Color.secondary)
                 }
 
@@ -90,7 +95,7 @@ private struct CostExampleCard: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.78)
                 Text("kr")
-                    .font(DS.Font.micro)
+                    .font(DS.Font.footnote)
                     .foregroundStyle(DS.Color.secondary)
             }
 
@@ -99,7 +104,7 @@ private struct CostExampleCard: View {
             VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
                 breakdownRow("Elhandel", cost.providerTotalKr)
                 breakdownRow("Elnät", cost.gridTotalKr)
-                breakdownRow("Skatt/avg.", cost.taxesAndFeesKr)
+                breakdownRow("Skatt och avgifter", cost.taxesAndFeesKr)
                 breakdownRow("Moms", cost.vatKr)
             }
         }
@@ -109,16 +114,17 @@ private struct CostExampleCard: View {
     }
 
     private func breakdownRow(_ title: String, _ value: Double) -> some View {
-        HStack(spacing: DS.Spacing.xs) {
+        HStack(alignment: .firstTextBaseline, spacing: DS.Spacing.xs) {
             Text(title)
-                .font(DS.Font.micro)
+                .font(DS.Font.footnote)
                 .foregroundStyle(DS.Color.secondary)
-                .lineLimit(1)
+                .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: DS.Spacing.xs)
             Text(value, format: .number.precision(.fractionLength(2)))
-                .font(DS.Font.micro.monospacedDigit())
+                .font(DS.Font.footnote.monospacedDigit())
                 .foregroundStyle(DS.Color.secondary)
                 .lineLimit(1)
+                .fixedSize()
         }
     }
 }
