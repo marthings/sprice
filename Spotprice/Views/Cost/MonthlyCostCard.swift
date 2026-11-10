@@ -34,7 +34,7 @@ struct MonthlyCostCard: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
+        VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
             SectionInfoHeader(
                 title: title,
                 titleFont: DS.Font.micro,
@@ -174,7 +174,7 @@ struct MonthlyCostCard: View {
                 }
             }
         }
-        .padding(DS.Spacing.lg)
+        .padding(DS.Spacing.card)
         .spriceCard(tone: .cost)
     }
 }

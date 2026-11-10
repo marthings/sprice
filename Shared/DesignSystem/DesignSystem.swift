@@ -334,6 +334,10 @@ enum DS {
         static let md: CGFloat = 12
         static let lg: CGFloat = 16
         static let xl: CGFloat = 24
+        /// Inner padding of content cards, on all sides.
+        static let card: CGFloat = 20
+        /// Distance from a card title (and info icon) down to the content.
+        static let cardContent: CGFloat = 12
         /// Space from a navigation title down to the first content on iOS tabs
         /// and pushed screens. Tight but not flush; Form screens use the same
         /// value via `contentMargins` so they match ScrollView padding.
@@ -385,6 +389,9 @@ enum DS {
         // Icons
         static let iconSmall: CGFloat = 14
         static let iconMedium: CGFloat = 20
+        static let infoIcon: CGFloat = 16
+        static let infoHit: CGFloat = 44
+        static var infoHitInset: CGFloat { (infoHit - infoIcon) / 2 }
         static let iconLarge: CGFloat = 28
         static let iconXL: CGFloat = 36
 
@@ -587,7 +594,7 @@ struct AppStatusCard: View {
             trailingIcon: trailingIcon,
             messageLineLimit: messageLineLimit
         )
-        .padding(DS.Spacing.lg)
+        .padding(DS.Spacing.card)
         .spriceCard(tone: .default, interactive: interactive)
     }
 }
@@ -1370,14 +1377,14 @@ struct SectionInfoHeader: View {
                 .font(titleFont)
                 .foregroundStyle(titleColor)
                 .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(1)
 
             SectionInfoButton(
                 title: accessibilityName ?? title,
                 paragraphs: paragraphs,
                 legend: legend
             )
-
-            Spacer(minLength: 0)
         }
         .accessibilityElement(children: .contain)
     }
@@ -1395,12 +1402,14 @@ struct SectionInfoButton: View {
             isPresented = true
         } label: {
             Image(systemName: "info.circle")
-                .font(.system(size: 16, weight: .regular))
+                .font(.system(size: DS.Size.infoIcon, weight: .regular))
                 .foregroundStyle(DS.Color.secondary)
-                .frame(width: 44, height: 44)
+                .frame(width: DS.Size.infoHit, height: DS.Size.infoHit, alignment: .center)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .padding(.vertical, -DS.Size.infoHitInset)
+        .padding(.trailing, -DS.Size.infoHitInset)
         .accessibilityLabel("Mer om \(title)")
         .accessibilityHint("Visar en förklaring")
         .accessibilityAddTraits(.isButton)

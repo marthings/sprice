@@ -154,7 +154,7 @@ private struct HistoryDayTotals: View {
     let snapshot: HistoryDaySnapshot
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
+        VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
             SectionInfoHeader(
                 title: "Dagens siffror",
                 paragraphs: [
@@ -193,7 +193,7 @@ private struct HistoryDayTotals: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(DS.Spacing.lg)
+        .padding(DS.Spacing.card)
         .frame(maxWidth: .infinity, alignment: .leading)
         .spriceCard(tone: .history)
     }
@@ -231,7 +231,7 @@ private struct HistoryDayHourChart: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
+        VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
             SectionInfoHeader(
                 title: "När pengarna gick",
                 paragraphs: [
@@ -369,7 +369,7 @@ private struct HistoryDayHourChart: View {
                 .accessibilityLabel("Linjediagram över spotpris per timme, i öre per kilowattimme")
             }
         }
-        .padding(DS.Spacing.lg)
+        .padding(DS.Spacing.card)
         .frame(maxWidth: .infinity, alignment: .leading)
         .spriceCard(tone: .history)
     }
@@ -398,7 +398,7 @@ private struct HistoryDayExpensiveHours: View {
     let hours: [HistoryHourCost]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
+        VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
             SectionInfoHeader(
                 title: "Du drog el när det var dyrt",
                 paragraphs: [
@@ -434,7 +434,7 @@ private struct HistoryDayExpensiveHours: View {
                 }
             }
         }
-        .padding(DS.Spacing.lg)
+        .padding(DS.Spacing.card)
         .frame(maxWidth: .infinity, alignment: .leading)
         .spriceCard(tone: .history)
     }
@@ -482,7 +482,7 @@ private struct HistoryDayCostSplitView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
+        VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
             SectionInfoHeader(
                 title: "Så fördelades kostnaden",
                 paragraphs: splitInfoParagraphs
@@ -520,7 +520,7 @@ private struct HistoryDayCostSplitView: View {
             }
 
         }
-        .padding(DS.Spacing.lg)
+        .padding(DS.Spacing.card)
         .frame(maxWidth: .infinity, alignment: .leading)
         .spriceCard(tone: .history)
     }

@@ -38,7 +38,7 @@ private struct PriceChartSection: View {
     let costProfile: CostProfile
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
+        VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
             SectionInfoHeader(
                 title: "Dagens totalpris",
                 paragraphs: [
@@ -145,9 +145,7 @@ private struct PriceChartCanvas: View {
             plot.padding(.top, DS.Spacing.sm)
         }
         .frame(height: 260)
-        .padding(.top, DS.Spacing.md)
-        .padding(.horizontal)
-        .padding(.bottom)
+        .padding(DS.Spacing.card)
         .spriceCard(tone: .price)
         .zIndex(1)
         .accessibilityHint("Dra över grafen för att se pris vid en viss tid.")
@@ -175,7 +173,7 @@ private struct MarketContractExplanation: View {
     private let totalCostService = TotalCostService.shared
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
+        VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
             SectionInfoHeader(
                 title: "Så beräknas priset",
                 paragraphs: [explanationText]
@@ -204,7 +202,7 @@ private struct MarketContractExplanation: View {
                 }
             }
         }
-        .padding(DS.Spacing.lg)
+        .padding(DS.Spacing.card)
         .frame(maxWidth: .infinity, alignment: .leading)
         .spriceCard(tone: .price)
     }

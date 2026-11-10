@@ -11,7 +11,7 @@ struct CostExamplesSection: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
+        VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
             header
 
             LazyVGrid(columns: columns, spacing: DS.Spacing.sm) {
@@ -104,7 +104,7 @@ private struct CostExampleCard: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(DS.Spacing.lg)
+        .padding(DS.Spacing.card)
         .spriceCard(tone: .cost)
     }
 

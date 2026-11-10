@@ -26,7 +26,7 @@ struct KilowattHourBreakdownView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: style == .compact ? DS.Spacing.sm : DS.Spacing.md) {
+        VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
             if style == .regular {
                 SectionInfoHeader(
                     title: "Vad en kWh kostar",
@@ -82,12 +82,9 @@ struct KilowattHourBreakdownView: View {
                         }
                     }
                 }
-                .padding(.top, DS.Spacing.xs)
             }
         }
-        .padding(.horizontal, style == .compact ? DS.Spacing.md : DS.Spacing.lg)
-        .padding(.bottom, style == .compact ? DS.Spacing.md : DS.Spacing.lg)
-        .padding(.top, style == .compact ? DS.Spacing.md : DS.Spacing.lg)
+        .padding(DS.Spacing.card)
         .frame(maxWidth: .infinity, alignment: .leading)
         .spriceCard(tone: .accent)
         .accessibilityElement(children: .contain)

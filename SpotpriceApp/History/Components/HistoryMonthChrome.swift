@@ -60,7 +60,7 @@ struct HistoryMonthChrome: View {
                 }
             }
         }
-        .padding(DS.Spacing.lg)
+        .padding(DS.Spacing.card)
         .frame(maxWidth: .infinity)
         .spriceCard(tone: .history)
         .accessibilityElement(children: .contain)

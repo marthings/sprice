@@ -21,23 +21,21 @@ struct MonthDailyCostSection: View {
     private var calendar: Calendar { .energyHistory }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                SectionInfoHeader(
-                    title: "Kostnad per dag",
-                    paragraphs: infoParagraphs,
-                    legend: infoLegend
-                )
+        VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
+            SectionInfoHeader(
+                title: "Kostnad per dag",
+                paragraphs: infoParagraphs,
+                legend: infoLegend
+            )
 
-                if let hypotheticalEffectTariffKr {
-                    Text("\(EffectTariffCopy.lineTitle): ca \(AppFormatters.wholeNumber(hypotheticalEffectTariffKr)) kr för månaden.")
-                        .font(DS.Font.micro)
-                        .foregroundStyle(DS.Color.warning)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityLabel(
-                            "\(EffectTariffCopy.lineTitle), \(AppFormatters.wholeNumber(hypotheticalEffectTariffKr)) kronor för månaden"
-                        )
-                }
+            if let hypotheticalEffectTariffKr {
+                Text("\(EffectTariffCopy.lineTitle): ca \(AppFormatters.wholeNumber(hypotheticalEffectTariffKr)) kr för månaden.")
+                    .font(DS.Font.micro)
+                    .foregroundStyle(DS.Color.warning)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityLabel(
+                        "\(EffectTariffCopy.lineTitle), \(AppFormatters.wholeNumber(hypotheticalEffectTariffKr)) kronor för månaden"
+                    )
             }
 
             if !didLoad {
@@ -51,7 +49,7 @@ struct MonthDailyCostSection: View {
                 chartContent
             }
         }
-        .padding(DS.Spacing.lg)
+        .padding(DS.Spacing.card)
         .frame(maxWidth: .infinity, alignment: .leading)
         .spriceCard(tone: .cost)
         .task(id: priceArea) {

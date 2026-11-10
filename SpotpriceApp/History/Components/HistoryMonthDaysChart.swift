@@ -11,7 +11,7 @@ struct HistoryMonthDaysChart: View {
     @State private var selectedDay: MonthDayCost?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
+        VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
             SectionInfoHeader(
                 title: "Kostnad per dag",
                 paragraphs: infoParagraphs,
@@ -29,7 +29,7 @@ struct HistoryMonthDaysChart: View {
                 chartContent
             }
         }
-        .padding(DS.Spacing.lg)
+        .padding(DS.Spacing.card)
         .frame(maxWidth: .infinity, alignment: .leading)
         .spriceCard(tone: .history)
     }

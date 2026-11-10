@@ -6,7 +6,7 @@ struct HistoryWeekdayPattern: View {
     @State private var selectedLabel: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
+        VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
             SectionInfoHeader(
                 title: "Veckodagar, snitt",
                 paragraphs: [
@@ -92,7 +92,7 @@ struct HistoryWeekdayPattern: View {
                 }
             }
         }
-        .padding(DS.Spacing.lg)
+        .padding(DS.Spacing.card)
         .frame(maxWidth: .infinity, alignment: .leading)
         .spriceCard(tone: .history)
     }

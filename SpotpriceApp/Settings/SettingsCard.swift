@@ -19,7 +19,7 @@ struct SettingsCard<Content: View>: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(DS.Spacing.lg)
+        .padding(DS.Spacing.card)
         .frame(maxWidth: .infinity, alignment: .leading)
         .spriceCard()
     }

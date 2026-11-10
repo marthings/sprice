@@ -102,7 +102,7 @@ private struct HypotheticalEffectTariffCard: View {
     let amountKr: Double?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+        VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
             SectionInfoHeader(
                 title: EffectTariffCopy.lineTitle,
                 paragraphs: [
@@ -136,7 +136,7 @@ private struct HypotheticalEffectTariffCard: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(DS.Spacing.lg)
+        .padding(DS.Spacing.card)
         .frame(maxWidth: .infinity, alignment: .leading)
         .spriceCard(tone: .cost)
         .accessibilityElement(children: .combine)

@@ -82,7 +82,7 @@ struct ConsumptionInsightsContent: View {
     }
 
     private var summaryCard: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+        VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
             SectionInfoHeader(
                 title: periodTitle,
                 paragraphs: [
@@ -96,7 +96,7 @@ struct ConsumptionInsightsContent: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(DS.Spacing.lg)
+        .padding(DS.Spacing.card)
         .frame(maxWidth: .infinity, alignment: .leading)
         .spriceCard(tone: .history)
         .accessibilityElement(children: .combine)
@@ -112,7 +112,7 @@ struct ConsumptionInsightsContent: View {
 
     @ViewBuilder
     private var baseloadCard: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
+        VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
             SectionInfoHeader(
                 title: "Grundlast",
                 paragraphs: [
@@ -152,7 +152,7 @@ struct ConsumptionInsightsContent: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(DS.Spacing.lg)
+        .padding(DS.Spacing.card)
         .frame(maxWidth: .infinity, alignment: .leading)
         .spriceCard(tone: .history)
     }
@@ -177,7 +177,7 @@ struct ConsumptionInsightsContent: View {
 
     @ViewBuilder
     private var eventsCard: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
+        VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
             SectionInfoHeader(
                 title: "Toppar",
                 paragraphs: [
@@ -199,7 +199,7 @@ struct ConsumptionInsightsContent: View {
                 }
             }
         }
-        .padding(DS.Spacing.lg)
+        .padding(DS.Spacing.card)
         .frame(maxWidth: .infinity, alignment: .leading)
         .spriceCard(tone: .history)
     }
@@ -235,7 +235,7 @@ struct ConsumptionInsightsContent: View {
 
     @ViewBuilder
     private var diurnalCard: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
+        VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
             SectionInfoHeader(
                 title: "Tid på dygnet",
                 paragraphs: [
@@ -282,7 +282,7 @@ struct ConsumptionInsightsContent: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(DS.Spacing.lg)
+        .padding(DS.Spacing.card)
         .frame(maxWidth: .infinity, alignment: .leading)
         .spriceCard(tone: .history)
     }
@@ -304,7 +304,7 @@ struct ConsumptionInsightsContent: View {
 
     @ViewBuilder
     private var peakCard: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
+        VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
             SectionInfoHeader(
                 title: "Effekttopp",
                 paragraphs: peakInfoParagraphs
@@ -341,7 +341,7 @@ struct ConsumptionInsightsContent: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(DS.Spacing.lg)
+        .padding(DS.Spacing.card)
         .frame(maxWidth: .infinity, alignment: .leading)
         .spriceCard(tone: .history)
     }

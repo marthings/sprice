@@ -9,7 +9,7 @@ struct HistoryMonthHeroSection: View {
     var temperatureInsights: [TemperatureInsight] = []
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
+        VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
             SectionInfoHeader(
                 title: "Månadens siffror",
                 paragraphs: infoParagraphs
@@ -73,7 +73,7 @@ struct HistoryMonthHeroSection: View {
                 .font(DS.Font.micro)
                 .foregroundStyle(DS.Color.secondary)
         }
-        .padding(DS.Spacing.lg)
+        .padding(DS.Spacing.card)
         .frame(maxWidth: .infinity, alignment: .leading)
         .spriceCard(tone: .history)
     }
@@ -126,7 +126,7 @@ struct HistoryPriceConsumptionEffect: View {
     let previousMonthName: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
+        VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
             if let split {
                 SectionInfoHeader(
                     title: HistoryInsights.splitTitle(
@@ -172,7 +172,7 @@ struct HistoryPriceConsumptionEffect: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(DS.Spacing.lg)
+        .padding(DS.Spacing.card)
         .frame(maxWidth: .infinity, alignment: .leading)
         .spriceCard(tone: .history)
     }
@@ -215,7 +215,7 @@ struct HistoryPaidVersusSpot: View {
     @State private var comparison: CostUsageInsights.FixedComparison?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+        VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
             SectionInfoHeader(
                 title: "Betalt pris och spot",
                 paragraphs: infoParagraphs
@@ -248,7 +248,7 @@ struct HistoryPaidVersusSpot: View {
                 InsightRow(icon: "arrow.left.arrow.right", title: comparison.title)
             }
         }
-        .padding(DS.Spacing.lg)
+        .padding(DS.Spacing.card)
         .frame(maxWidth: .infinity, alignment: .leading)
         .spriceCard(tone: .history)
         .task(id: "\(monthKey ?? "")-\(priceArea ?? "")-\(ConsumptionSettings.shared.compareFixedPriceOrePerKWh)") {

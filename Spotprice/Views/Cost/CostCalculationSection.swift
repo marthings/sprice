@@ -12,7 +12,7 @@ struct CostCalculationSection: View {
     var body: some View {
         let currentPrice = getCurrentPriceOrAverage(payload)
 
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
+        VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
             HStack(alignment: .center, spacing: DS.Spacing.xs) {
                 Text("Kostnad med detta pris")
                     .font(DS.Font.semibold(14))
@@ -26,11 +26,12 @@ struct CostCalculationSection: View {
                         .foregroundStyle(DS.Color.secondary)
                 }
 
+                Spacer(minLength: 0)
+
                 SectionInfoButton(
                     title: "Kostnad med detta pris",
                     paragraphs: costInfoParagraphs
                 )
-                Spacer(minLength: 0)
             }
 
             KilowattHourBreakdownView(

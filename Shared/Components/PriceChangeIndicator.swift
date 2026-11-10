@@ -66,7 +66,7 @@ struct SharedPriceRangeSection: View {
     private let totalCostService = TotalCostService.shared
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
+        VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
             if style == .regular {
                 SectionInfoHeader(
                     title: sectionTitle,

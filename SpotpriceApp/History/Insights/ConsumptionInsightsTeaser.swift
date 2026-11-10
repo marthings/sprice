@@ -76,7 +76,7 @@ struct ConsumptionInsightsTeaserCard: View {
     }
 
     private var card: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
+        VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
             SectionInfoHeader(
                 title: "Vad drog?",
                 paragraphs: [
@@ -113,7 +113,7 @@ struct ConsumptionInsightsTeaserCard: View {
                 .accessibilityHint("Öppnar grundlast, toppar och tid på dygnet")
             }
         }
-        .padding(DS.Spacing.lg)
+        .padding(DS.Spacing.card)
         .frame(maxWidth: .infinity, alignment: .leading)
         .spriceCard(tone: .history)
     }
