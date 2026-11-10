@@ -613,7 +613,40 @@ nonisolated enum ConsumptionInsightsBuilder: Sendable {
         }
 
         guard !sessions.isEmpty else { return nil }
-        return ConsumptionEVChargingInsight(sessions: sessions)
+        return ConsumptionEVChargingInsight(
+            sessions: sessions,
+            dayProfiles: evDayProfiles(sessions: sessions, hours: hours, calendar: calendar),
+            baseloadKW: baseloadKW
+        )
+    }
+
+    nonisolated private static func evDayProfiles(
+        sessions: [ConsumptionEVChargingSession],
+        hours: [HourTotal],
+        calendar: Calendar
+    ) -> [ConsumptionEVDayProfile] {
+        var days: Set<Date> = []
+        for session in sessions {
+            days.insert(calendar.startOfDay(for: session.start))
+            let lastInstant = session.end.addingTimeInterval(-1)
+            days.insert(calendar.startOfDay(for: lastInstant))
+        }
+        let byStart = Dictionary(uniqueKeysWithValues: hours.map { ($0.start, $0) })
+        return days.sorted().map { day in
+            let bars = (0..<24).map { hour -> ConsumptionEVHourBar in
+                let start = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: day) ?? day
+                let total = byStart[start]
+                let isCharging = sessions.contains { session in
+                    session.start <= start && start < session.end
+                }
+                return ConsumptionEVHourBar(
+                    start: start,
+                    kWh: total?.kWh ?? 0,
+                    isCharging: isCharging
+                )
+            }
+            return ConsumptionEVDayProfile(day: day, hours: bars)
+        }
     }
 
     private struct HourTotal {

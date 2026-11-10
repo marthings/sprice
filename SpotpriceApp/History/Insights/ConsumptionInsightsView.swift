@@ -359,10 +359,28 @@ struct ConsumptionInsightsContent: View {
                     paragraphs: ElectricCarCopy.infoParagraphs
                 )
 
-                Text(ev.shortSummary)
-                    .font(DS.Font.callout)
-                    .foregroundStyle(.primary)
-                    .fixedSize(horizontal: false, vertical: true)
+                if ev.dayProfiles.isEmpty {
+                    Text(ev.shortSummary)
+                        .font(DS.Font.callout)
+                        .foregroundStyle(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Text(ev.shortSummary)
+                        .font(DS.Font.callout)
+                        .foregroundStyle(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    ForEach(ev.dayProfiles) { profile in
+                        if ev.dayProfiles.count > 1 {
+                            Text(AppFormatters.shortDayAndMonth(profile.day))
+                                .font(DS.Font.micro)
+                                .foregroundStyle(DS.Color.secondary)
+                        }
+                        ConsumptionEVChargingHourChart(
+                            profile: profile,
+                            baseloadKW: ev.baseloadKW
+                        )
+                    }
+                }
 
                 ForEach(Array(ev.sessions.enumerated()), id: \.element.id) { index, session in
                     evSessionRow(session, rank: ev.sessions.count == 1 ? nil : index + 1)
@@ -374,8 +392,6 @@ struct ConsumptionInsightsContent: View {
             .padding(DS.Spacing.card)
             .frame(maxWidth: .infinity, alignment: .leading)
             .spriceCard(tone: .history)
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel(evAccessibilityLabel(ev))
         }
     }
 
@@ -417,6 +433,100 @@ struct ConsumptionInsightsContent: View {
             .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, DS.Spacing.xxs)
             .accessibilityLabel(insights.resolution.swedishLabel)
+    }
+}
+
+private struct ConsumptionEVChargingHourChart: View {
+    let profile: ConsumptionEVDayProfile
+    var baseloadKW: Double? = nil
+    @State private var selectedHour: Double?
+
+    var body: some View {
+        Chart {
+            ForEach(profile.hours) { bar in
+                BarMark(
+                    x: .value("Timme", Double(bar.hour)),
+                    y: .value("kWh", bar.kWh)
+                )
+                .foregroundStyle(bar.isCharging ? DS.Color.warning : DS.Color.info)
+                .cornerRadius(2)
+                .opacity(barOpacity(for: bar))
+            }
+
+            if let baseloadKW, baseloadKW > 0 {
+                RuleMark(y: .value("Grundlast", baseloadKW))
+                    .foregroundStyle(DS.Color.secondary.opacity(0.55))
+                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                    .accessibilityLabel("Grundlast \(ConsumptionInsightsBuilder.powerPhrase(baseloadKW))")
+            }
+
+            if let selected = selectedBar {
+                RuleMark(x: .value("Vald timme", Double(selected.hour)))
+                    .foregroundStyle(DS.Color.secondary.opacity(0.4))
+                    .annotation(position: .top, spacing: DS.Spacing.xs, overflowResolution: ChartCalloutOverflow.resolution) {
+                        ChartValueCallout(
+                            title: "\(selected.hour)–\(selected.hour + 1)",
+                            value: AppFormatters.kWh(selected.kWh)
+                        )
+                    }
+            }
+        }
+        .chartXScale(domain: -0.5...23.5)
+        .chartXAxis {
+            AxisMarks(values: HistoryChartAxis.clockHourMarks) { value in
+                AxisGridLine()
+                    .foregroundStyle(.tertiary)
+                AxisTick()
+                    .foregroundStyle(.tertiary)
+                if let hour = value.as(Double.self) {
+                    AxisValueLabel {
+                        HistoryChartAxis.clockHourLabel(hour)
+                    }
+                }
+            }
+        }
+        .chartYAxis {
+            AxisMarks(position: .leading) { value in
+                AxisGridLine()
+                    .foregroundStyle(.tertiary)
+                AxisValueLabel {
+                    if let amount = value.as(Double.self) {
+                        Text(amount, format: .number.precision(.fractionLength(0...1)))
+                            .font(DS.Font.micro)
+                            .foregroundStyle(DS.Color.secondary)
+                    }
+                }
+            }
+        }
+        .chartXSelection(value: $selectedHour)
+        .historyChartPlotStyle()
+        .spriceChartMotion(profile.hours.map(\.kWh), selectedHour, profile.hours.filter(\.isCharging).map(\.hour))
+        .frame(height: 112)
+        .zIndex(1)
+        .accessibilityLabel("Stapeldiagram över förbrukning under dygnet. Timmar som ser ut som elbilsladdning är markerade.")
+        .accessibilityValue(chartAccessibilityValue)
+    }
+
+    private var selectedBar: ConsumptionEVHourBar? {
+        guard let selectedHour else { return nil }
+        let hour = Int(selectedHour.rounded())
+        return profile.hours.first { $0.hour == hour }
+    }
+
+    private func barOpacity(for bar: ConsumptionEVHourBar) -> Double {
+        guard let selectedHour else { return bar.isCharging ? 1 : 0.55 }
+        return bar.hour == Int(selectedHour.rounded()) ? 1 : 0.35
+    }
+
+    private var chartAccessibilityValue: String {
+        let charging = profile.hours.filter(\.isCharging)
+        guard !charging.isEmpty else {
+            return "Ingen laddning markerad den här dagen"
+        }
+        let first = charging[0].hour
+        let last = charging[charging.count - 1].hour
+        let energy = charging.reduce(0.0) { $0 + $1.kWh }
+        return "Troligen laddning klockan \(first)–\(last + 1), \(AppFormatters.kWh(energy))"
     }
 }
 

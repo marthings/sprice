@@ -168,6 +168,25 @@ nonisolated struct ConsumptionLoadEvent: Sendable, Equatable, Identifiable {
     }
 }
 
+nonisolated struct ConsumptionEVHourBar: Sendable, Equatable, Identifiable {
+    let start: Date
+    let kWh: Double
+    let isCharging: Bool
+
+    var id: Date { start }
+
+    var hour: Int {
+        Calendar.energyHistory.component(.hour, from: start)
+    }
+}
+
+nonisolated struct ConsumptionEVDayProfile: Sendable, Equatable, Identifiable {
+    let day: Date
+    let hours: [ConsumptionEVHourBar]
+
+    var id: Date { day }
+}
+
 nonisolated struct ConsumptionEVChargingSession: Sendable, Equatable, Identifiable {
     let start: Date
     let end: Date
@@ -182,6 +201,8 @@ nonisolated struct ConsumptionEVChargingSession: Sendable, Equatable, Identifiab
 /// A guess, never a fact, built from hours that look like charging.
 nonisolated struct ConsumptionEVChargingInsight: Sendable, Equatable {
     let sessions: [ConsumptionEVChargingSession]
+    var dayProfiles: [ConsumptionEVDayProfile] = []
+    var baseloadKW: Double? = nil
 
     var energyKWh: Double { sessions.reduce(0) { $0 + $1.energyKWh } }
     var costKr: Double { sessions.reduce(0) { $0 + $1.costKr } }
