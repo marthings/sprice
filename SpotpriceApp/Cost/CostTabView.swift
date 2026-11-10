@@ -14,7 +14,15 @@ struct CostTabView: View {
         case .idle, .loading:
             DashboardLoadingView()
         case .failed(let notice):
+#if DEBUG
+            if ConsumptionInsightsSampleData.isLaunchPreviewEnabled {
+                previewInsightsContent(notices: [notice])
+            } else {
+                DashboardErrorView(notice: notice, onRetry: onRetry)
+            }
+#else
             DashboardErrorView(notice: notice, onRetry: onRetry)
+#endif
         case .loaded(let payload):
             let settings = ConsumptionSettings.shared
             let profile = settings.costProfile
@@ -32,6 +40,11 @@ struct CostTabView: View {
                         amountKr: hypotheticalKr
                     )
                 }
+                CostUsageInsightsSection(
+                    profile: profile,
+                    priceArea: profile.priceArea,
+                    measuredThrough: measuredThrough
+                )
                 MonthDailyCostSection(
                     priceArea: profile.priceArea,
                     profile: profile,
@@ -52,6 +65,32 @@ struct CostTabView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
+
+#if DEBUG
+    @ViewBuilder
+    private func previewInsightsContent(notices: [FetchNotice]) -> some View {
+        let settings = ConsumptionSettings.shared
+        let profile = settings.costProfile
+        VStack(alignment: .leading, spacing: DS.Spacing.xl) {
+            FetchNoticeStack(notices: notices)
+            CostUsageInsightsSection(
+                profile: profile,
+                priceArea: profile.priceArea,
+                measuredThrough: measuredThrough
+            )
+            MonthDailyCostSection(
+                priceArea: profile.priceArea,
+                profile: profile,
+                hasProvider: !settings.selectedProviderId.isEmpty,
+                hidesEmptyExplanation: notices.contains { $0.kind == .consumption },
+                forecastKr: nil,
+                measuredThrough: measuredThrough,
+                hypotheticalEffectTariffKr: nil
+            )
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+#endif
 }
 
 private enum CostTabForecast {
@@ -177,5 +216,131 @@ private struct CurrentCostHero: View {
             return nil
         }
         return totalCostService.calculatePricePerKWh(spotPriceOre: nextBucket.orePerKWh, profile: profile)
+    }
+}
+
+
+private struct CostUsageInsightsSection: View {
+    let profile: CostProfile
+    let priceArea: String
+    let measuredThrough: Date?
+
+    @State private var fixedComparison: CostUsageInsights.FixedComparison?
+    @State private var timing: CostUsageInsights.Timing?
+    @State private var baseload: ConsumptionBaseloadInsight?
+    @State private var dailySummaries: [HistoricalEnergySummaryValue] = []
+    @State private var openedInsights: ConsumptionInsightsRoute?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+            if let fixedComparison {
+                InsightRow(icon: "arrow.left.arrow.right", title: fixedComparison.title)
+            }
+            if let timing {
+                InsightRow(icon: "clock", title: timing.title)
+            }
+            if let baseload {
+                Button {
+                    openedInsights = currentMonthRoute
+                } label: {
+                    InsightRow(
+                        icon: "house",
+                        title: baseloadTitle(baseload),
+                        detail: "Visa Vad drog?",
+                        showsChevron: true
+                    )
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Öppnar Vad drog?")
+            }
+        }
+        .navigationDestination(item: $openedInsights) { route in
+            ConsumptionInsightsScreen(
+                route: route,
+                costProfile: profile,
+                dailySummaries: dailySummaries,
+                historyQuery: EnergyHistoryQueryService()
+            )
+        }
+        .task(id: "\(priceArea)-\(measuredThrough?.timeIntervalSince1970 ?? 0)-\(ConsumptionSettings.shared.compareFixedPriceOrePerKWh)") {
+            await load()
+        }
+    }
+
+    private var currentMonthRoute: ConsumptionInsightsRoute {
+        let start = measuredThrough ?? Date()
+        let monthKey = EnergyHistoryKey.monthKey(for: start)
+        return ConsumptionInsightsRoute(
+            period: .month(
+                monthKey: monthKey,
+                previousMonthKey: nil,
+                periodStart: Calendar.energyHistory.dateInterval(of: .month, for: start)?.start ?? start
+            ),
+            priceArea: priceArea
+        )
+    }
+
+    private func baseloadTitle(_ baseload: ConsumptionBaseloadInsight) -> String {
+        let power = ConsumptionInsightsBuilder.powerPhrase(baseload.powerKW)
+        let kronor = AppFormatters.wholeNumber(baseload.costKr)
+        return "Huset drar alltid ungefär \(power), det blir cirka \(kronor) kr den här månaden."
+    }
+
+    @MainActor
+    private func load() async {
+        var intervals: [HistoricalEnergyIntervalValue] = []
+        var summaries: [HistoricalEnergySummaryValue] = []
+        let now = Date()
+        let calendar = Calendar.energyHistory
+        let monthKey = EnergyHistoryKey.monthKey(for: measuredThrough ?? now)
+
+#if DEBUG
+        if ConsumptionInsightsSampleData.isLaunchPreviewEnabled {
+            intervals = ConsumptionInsightsSampleData.previewIntervals(now: now, calendar: calendar)
+            summaries = []
+            apply(intervals: intervals, dailySummaries: summaries, now: now)
+            return
+        }
+#endif
+
+        do {
+            let query = EnergyHistoryQueryService()
+            intervals = try query.loadPreferredIntervals(monthKey: monthKey, priceArea: priceArea)
+            summaries = try query.loadMonthHistory(priceArea: priceArea, selectedMonthKey: monthKey).dailySummaries
+        } catch {
+            intervals = []
+            summaries = []
+        }
+        apply(intervals: intervals, dailySummaries: summaries, now: now)
+    }
+
+    @MainActor
+    private func apply(
+        intervals: [HistoricalEnergyIntervalValue],
+        dailySummaries: [HistoricalEnergySummaryValue],
+        now: Date
+    ) {
+        self.dailySummaries = dailySummaries
+        let fixedOre = ConsumptionSettings.shared.compareFixedPriceOrePerKWh
+        fixedComparison = CostUsageInsights.fixedComparison(
+            intervals: intervals,
+            profile: profile,
+            fixedOrePerKWh: fixedOre > 0 ? fixedOre : CostUsageInsights.defaultFixedPriceOrePerKWh
+        )
+        timing = CostUsageInsights.timing(intervals: intervals, profile: profile)
+
+        let monthStart = Calendar.energyHistory.dateInterval(of: .month, for: measuredThrough ?? now)?.start ?? now
+        let monthEnd = Calendar.energyHistory.dateInterval(of: .month, for: monthStart)?.end ?? now
+        let insights = ConsumptionInsightsBuilder.make(
+            intervals: intervals,
+            previousIntervals: [],
+            dailySummaries: dailySummaries,
+            costProfile: profile,
+            periodStart: monthStart,
+            periodEnd: monthEnd,
+            now: now,
+            periodKind: .month
+        )
+        baseload = insights.baseload
     }
 }

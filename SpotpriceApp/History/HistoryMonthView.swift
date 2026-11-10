@@ -160,6 +160,28 @@ struct HistoryMonthView: View {
 
     @MainActor
     private func loadHistory() async {
+#if DEBUG
+        if ConsumptionInsightsSampleData.isLaunchPreviewEnabled {
+            let now = Date()
+            let calendar = Calendar.energyHistory
+            let month = ConsumptionInsightsSampleData.previewMonthSummary(now: now, calendar: calendar)
+            selectedMonthKey = month.periodKey
+            state = .loaded(
+                HistoryMonthPresentation.make(
+                    months: [month],
+                    selectedMonth: month,
+                    dailySummaries: ConsumptionInsightsSampleData.previewDailySummaries(now: now, calendar: calendar),
+                    previousDailySummaries: [],
+                    costProfile: costProfile,
+                    liveMonthlyConsumption: liveMonthlyConsumption,
+                    livePreciseCost: livePreciseCost,
+                    now: now,
+                    calendar: calendar
+                )
+            )
+            return
+        }
+#endif
         do {
             let history = try historyQuery.loadMonthHistory(
                 priceArea: priceArea,

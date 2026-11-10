@@ -56,6 +56,7 @@ final class ConsumptionSettings {
         static let costProfile = "settings_costProfile"
 
         static let includeHypotheticalEffectTariff = "settings_includeHypotheticalEffectTariff"
+        static let compareFixedPriceOrePerKWh = "settings_compareFixedPriceOrePerKWh"
     }
 
     // MARK: - Observable Properties
@@ -151,6 +152,16 @@ final class ConsumptionSettings {
             NotificationCenter.default.post(name: .consumptionSettingsDidSave, object: nil)
             Self.defaults.synchronize()
             WidgetReload.timelines()
+        }
+    }
+
+    /// Fixed retail price used only for the "spot versus fixed" comparison, öre/kWh including VAT.
+    var compareFixedPriceOrePerKWh: Double {
+        didSet {
+            guard compareFixedPriceOrePerKWh != oldValue else { return }
+            Self.defaults.set(compareFixedPriceOrePerKWh, forKey: Keys.compareFixedPriceOrePerKWh)
+            NotificationCenter.default.post(name: .consumptionSettingsDidSave, object: nil)
+            Self.defaults.synchronize()
         }
     }
 
@@ -513,6 +524,11 @@ final class ConsumptionSettings {
         let savedFuseSize = Self.defaults.integer(forKey: Keys.fuseSize)
         self.fuseSize = savedFuseSize > 0 ? savedFuseSize : 20
         self.includeHypotheticalEffectTariff = Self.defaults.bool(forKey: Keys.includeHypotheticalEffectTariff)
+        if Self.defaults.object(forKey: Keys.compareFixedPriceOrePerKWh) == nil {
+            self.compareFixedPriceOrePerKWh = CostUsageInsights.defaultFixedPriceOrePerKWh
+        } else {
+            self.compareFixedPriceOrePerKWh = Self.defaults.double(forKey: Keys.compareFixedPriceOrePerKWh)
+        }
 
         // Load or migrate central cost profile
         self.costProfile = Self.loadCostProfile() ?? Self.migratedCostProfile(
