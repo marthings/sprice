@@ -632,7 +632,7 @@ nonisolated enum TemperatureAdjustment {
         let rawPercent = (current.kWh - reference.kWh) / reference.kWh * 100
         let colder = current.meanTempC <= reference.meanTempC - similarTempC
         let warmer = current.meanTempC >= reference.meanTempC + similarTempC
-        let temps = "I snitt \(degrees(current.meanTempC)) här, \(degrees(reference.meanTempC)) \(named(reference.name, forTemperature: true))."
+        let temps = "I snitt \(degrees(current.meanTempC)) nu, mot \(degrees(reference.meanTempC)) \(named(reference.name))."
 
         let adjusted: Double?
         let uncertain: Bool
@@ -708,9 +708,9 @@ nonisolated enum TemperatureAdjustment {
         return "Du använde \(usePhrase(percent)) än \(named(name))"
     }
 
-    static func named(_ name: String, forTemperature: Bool = false) -> String {
+    static func named(_ name: String) -> String {
         if let first = name.first, first.isNumber {
-            return forTemperature ? "under \(name)" : name
+            return name
         }
         return "i \(name)"
     }

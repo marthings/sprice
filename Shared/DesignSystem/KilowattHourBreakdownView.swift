@@ -24,6 +24,13 @@ struct KilowattHourBreakdownView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: style == .compact ? DS.Spacing.sm : DS.Spacing.md) {
+            if style == .regular {
+                SectionInfoHeader(
+                    title: "Vad en kWh kostar",
+                    paragraphs: infoParagraphs
+                )
+            }
+
             if usesExternalHeroPrice {
                 centerPrice
                     .frame(maxWidth: .infinity)
@@ -39,11 +46,6 @@ struct KilowattHourBreakdownView: View {
                     .frame(maxWidth: .infinity)
                 legend
             }
-
-            Text("Siffrorna i listan är utan moms. Momsen ligger på en egen rad. Totalen är vad du betalar.")
-                .font(DS.Font.micro)
-                .foregroundStyle(DS.Color.secondary)
-                .fixedSize(horizontal: false, vertical: true)
 
             if let missingGridMessage = breakdown.missingGridMessage {
                 Label(missingGridMessage, systemImage: "info.circle.fill")
@@ -170,6 +172,17 @@ struct KilowattHourBreakdownView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var infoParagraphs: [String] {
+        var parts = [
+            "Cirkeln och listan visar vad en kilowattimme kostar just nu, uppdelat på elhandel, nät, skatt och annat.",
+            "Siffrorna i listan är utan moms. Momsen ligger på en egen rad. Totalen är vad du betalar."
+        ]
+        if let missingGridMessage = breakdown.missingGridMessage {
+            parts.append(missingGridMessage)
+        }
+        return parts
     }
 
     private var centerAccessibilityLabel: String {

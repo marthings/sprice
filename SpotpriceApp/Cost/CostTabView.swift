@@ -129,8 +129,13 @@ private struct HypotheticalEffectTariffCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-            Text(EffectTariffCopy.lineTitle)
-                .font(DS.Font.headline)
+            SectionInfoHeader(
+                title: EffectTariffCopy.lineTitle,
+                paragraphs: [
+                    EffectTariffCopy.explanation,
+                    "Om beloppet visas är det räknat på den högsta timmen den här månaden."
+                ]
+            )
             if let amountKr {
                 HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xs) {
                     Text(AppFormatters.wholeNumber(amountKr))
@@ -151,7 +156,7 @@ private struct HypotheticalEffectTariffCard: View {
                     .foregroundStyle(.primary)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
-                Text("Ingen effekttopp att räkna på än. \(EffectTariffCopy.explanation)")
+                Text("Ingen effekttopp att räkna på än.")
                     .font(DS.Font.callout)
                     .foregroundStyle(.primary)
                     .fixedSize(horizontal: false, vertical: true)

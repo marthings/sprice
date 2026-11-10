@@ -83,8 +83,12 @@ struct ConsumptionInsightsContent: View {
 
     private var summaryCard: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-            Text(periodTitle)
-                .font(DS.Font.headline)
+            SectionInfoHeader(
+                title: periodTitle,
+                paragraphs: [
+                    "Här är en kort sammanfattning av vad som drog i perioden, utifrån den förbrukning som finns sparad."
+                ]
+            )
             ForEach(Array(insights.summarySentences.enumerated()), id: \.offset) { _, sentence in
                 Text(sentence)
                     .font(DS.Font.callout)
@@ -109,8 +113,14 @@ struct ConsumptionInsightsContent: View {
     @ViewBuilder
     private var baseloadCard: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            Text("Grundlast")
-                .font(DS.Font.headline)
+            SectionInfoHeader(
+                title: "Grundlast",
+                paragraphs: [
+                    "Grundlasten är det som alltid är på, även på natten.",
+                    "När det finns timvärden räknas den från den låga nivån mellan midnatt och fem.",
+                    "Om bara dygnsvärden finns är det ett grovt golv från det lägsta dygnet."
+                ]
+            )
 
             if let baseload = insights.baseload {
                 HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xs) {
@@ -135,14 +145,6 @@ struct ConsumptionInsightsContent: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                Text(
-                    baseload.usedNightPercentile
-                        ? "Beräknat som den låga nattnivån kl 00–05, tionde percentilen per dygn."
-                        : "Bara dygnsvärden finns, så grundlasten är ett grovt golv från det lägsta dygnet."
-                )
-                .font(DS.Font.micro)
-                .foregroundStyle(DS.Color.secondary)
-                .fixedSize(horizontal: false, vertical: true)
             } else {
                 Text("Grundlasten kan inte räknas ut. Det saknas nattvärden med förbrukning.")
                     .font(DS.Font.callout)
@@ -176,13 +178,12 @@ struct ConsumptionInsightsContent: View {
     @ViewBuilder
     private var eventsCard: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            Text("Toppar")
-                .font(DS.Font.headline)
-
-            Text("Vid varje topp står en gissning utifrån när den kom och hur den såg ut. Det är inte fakta.")
-                .font(DS.Font.micro)
-                .foregroundStyle(DS.Color.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            SectionInfoHeader(
+                title: "Toppar",
+                paragraphs: [
+                    "Vid varje topp står en gissning utifrån när den kom och hur den såg ut. Det är inte fakta, bara en ledtråd."
+                ]
+            )
 
             if insights.events.isEmpty {
                 Text(insights.eventsUnavailableReason ?? "Inga tydliga toppar över grundlasten.")
@@ -235,8 +236,13 @@ struct ConsumptionInsightsContent: View {
     @ViewBuilder
     private var diurnalCard: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            Text("Tid på dygnet")
-                .font(DS.Font.headline)
+            SectionInfoHeader(
+                title: "Tid på dygnet",
+                paragraphs: [
+                    "Staplarna visar medelförbrukning per klockslag.",
+                    "Listan under visar hur kostnaden fördelas över morgon, dag, kväll och natt."
+                ]
+            )
 
             if let diurnal = insights.diurnal {
                 ConsumptionInsightsHourChart(diurnal: diurnal)
@@ -281,6 +287,17 @@ struct ConsumptionInsightsContent: View {
         .spriceCard(tone: .history)
     }
 
+    private var peakInfoParagraphs: [String] {
+        var parts = [
+            "Det här är den högsta timmen i perioden.",
+            EffectTariffCopy.explanation
+        ]
+        if insights.powerPeak?.usesAveragePeaks == true {
+            parts.append("Elnätet räknar på medel av flera toppar. Här visas den högsta timmen, och avgiften på det medel som elnätet använder.")
+        }
+        return parts
+    }
+
     private func dominantCost(_ diurnal: ConsumptionDiurnalInsight) -> Double {
         diurnal.bands.first { $0.band == diurnal.dominantBand }?.costKr ?? 0
     }
@@ -288,8 +305,10 @@ struct ConsumptionInsightsContent: View {
     @ViewBuilder
     private var peakCard: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            Text("Effekttopp")
-                .font(DS.Font.headline)
+            SectionInfoHeader(
+                title: "Effekttopp",
+                paragraphs: peakInfoParagraphs
+            )
 
             if let peak = insights.powerPeak {
                 HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xs) {
@@ -309,12 +328,6 @@ struct ConsumptionInsightsContent: View {
                         .font(DS.Font.callout)
                         .foregroundStyle(DS.Color.warning)
                         .fixedSize(horizontal: false, vertical: true)
-                    if peak.usesAveragePeaks {
-                        Text("Elnätet räknar på medel av flera toppar. Här visas den högsta timmen, och avgiften på det medel som elnätet använder.")
-                            .font(DS.Font.micro)
-                            .foregroundStyle(DS.Color.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
                 } else if peak.includeHypotheticalCost {
                     Text(EffectTariffCopy.missingRate)
                         .font(DS.Font.callout)

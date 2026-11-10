@@ -82,19 +82,22 @@ private struct SpotPriceBarChartHeader: View {
                 if let price = currentPrice {
                     let value = primaryHeaderValue(for: price)
 
-                    VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
-                        HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
-                            Text(value.amount, format: .number.precision(.fractionLength(2)))
-                                .font(DS.Font.bold(30).monospacedDigit())
-                                .foregroundStyle(value.color)
-                            Text(value.unit)
-                                .font(DS.Font.medium(11))
-                                .foregroundStyle(DS.Color.secondary)
+                    HStack(alignment: .center, spacing: 0) {
+                        VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
+                            HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
+                                Text(value.amount, format: .number.precision(.fractionLength(2)))
+                                    .font(DS.Font.bold(30).monospacedDigit())
+                                    .foregroundStyle(value.color)
+                                Text(value.unit)
+                                    .font(DS.Font.medium(11))
+                                    .foregroundStyle(DS.Color.secondary)
+                            }
                         }
 
-                        Text(chartMeaningText)
-                            .font(DS.Font.micro)
-                            .foregroundStyle(DS.Color.secondary)
+                        SectionInfoButton(
+                            title: "grafen",
+                            paragraphs: [chartMeaningText]
+                        )
                     }
                 } else {
                     Text("–")

@@ -21,16 +21,14 @@ struct MonthDailyCostSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
             VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                Text("Kostnad per dag")
-                    .font(DS.Font.headline)
-
-                Text(introCopy)
-                    .font(DS.Font.micro)
-                    .foregroundStyle(DS.Color.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                SectionInfoHeader(
+                    title: "Kostnad per dag",
+                    paragraphs: infoParagraphs,
+                    legend: infoLegend
+                )
 
                 if let hypotheticalEffectTariffKr {
-                    Text("\(EffectTariffCopy.lineTitle): ca \(AppFormatters.wholeNumber(hypotheticalEffectTariffKr)) kr för månaden. \(EffectTariffCopy.dailyBarsNote)")
+                    Text("\(EffectTariffCopy.lineTitle): ca \(AppFormatters.wholeNumber(hypotheticalEffectTariffKr)) kr för månaden.")
                         .font(DS.Font.micro)
                         .foregroundStyle(DS.Color.warning)
                         .fixedSize(horizontal: false, vertical: true)
@@ -65,11 +63,29 @@ struct MonthDailyCostSection: View {
         }
     }
 
-    private var introCopy: String {
+    private var infoParagraphs: [String] {
+        var parts = [
+            "Staplarna visar vad varje dag har kostat. Tryck på en stapel för att se den dagen."
+        ]
         if resolvedForecastKr != nil {
-            return "Staplarna visar vad varje dag har kostat. Linjen är kostnaden hittills, den streckade delen är prognosen till månadens slut."
+            parts.append("Den heldragna linjen är kostnaden sammanlagt. Den streckade delen är en prognos till månadens slut, räknad från det senaste mätvärdet och hur månaden har sett ut hittills.")
+        } else {
+            parts.append("Så här har månaden kostat hittills.")
         }
-        return "Så här har månaden kostat hittills. Tryck på en stapel för att se den dagen."
+        parts.append("Stapeln för idag visar bara det som har hänt hittills. Siffrorna kan släpa lite, beroende på när mätvärden kommer in.")
+        if hypotheticalEffectTariffKr != nil {
+            parts.append("Effektavgiften räknas för hela månaden och syns därför inte i dygnsstaplarna.")
+        }
+        return parts
+    }
+
+    private var infoLegend: [SectionInfoLegendItem] {
+        guard resolvedForecastKr != nil else { return [] }
+        return [
+            SectionInfoLegendItem(color: DS.Color.info, label: "Staplarna är kostnaden per dag"),
+            SectionInfoLegendItem(color: DS.Color.brand, label: "Heldragen linje är kostnaden hittills"),
+            SectionInfoLegendItem(id: "prognos", color: DS.Color.brand, label: "Streckad linje är prognosen")
+        ]
     }
 
     @ViewBuilder
@@ -103,11 +119,6 @@ struct MonthDailyCostSection: View {
         if resolvedForecastKr != nil {
             seriesLegend
         }
-
-        Text("Stapeln för idag visar bara det som har hänt hittills.")
-            .font(DS.Font.micro)
-            .foregroundStyle(DS.Color.secondary)
-            .fixedSize(horizontal: false, vertical: true)
 
         if let selectedDayTiming {
             Text(selectedDayTiming)

@@ -39,15 +39,13 @@ private struct PriceChartSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                Text("Dagens totalpris")
-                    .font(DS.Font.headline)
-
-                Text("Kurvan visar vad en kWh kostar under dagen, inklusive skatt, avgifter och moms.")
-                    .font(DS.Font.micro)
-                    .foregroundStyle(DS.Color.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            SectionInfoHeader(
+                title: "Dagens totalpris",
+                paragraphs: [
+                    "Kurvan visar vad en kilowattimme kostar under dagen. Där ingår skatt, avgifter och moms. Elnät ingår om du har valt elnätsbolag.",
+                    "Tryck i grafen för att se priset vid en viss tid."
+                ]
+            )
 
             PriceChartPlot(
                 day: payload.day,
@@ -178,13 +176,10 @@ private struct MarketContractExplanation: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            Text("Så beräknas priset")
-                .font(DS.Font.headline)
-
-            Text(explanationText)
-                .font(DS.Font.micro)
-                .foregroundStyle(DS.Color.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            SectionInfoHeader(
+                title: "Så beräknas priset",
+                paragraphs: [explanationText]
+            )
 
             Divider()
 

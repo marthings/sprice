@@ -1292,3 +1292,134 @@ struct TrendIndicator: View {
         .accessibilityLabel(accessibilityLabel)
     }
 }
+
+
+// MARK: - Section info (title, button and sheet)
+
+struct SectionInfoLegendItem: Identifiable {
+    let id: String
+    let color: Color
+    let label: String
+
+    init(id: String? = nil, color: Color, label: String) {
+        self.id = id ?? label
+        self.color = color
+        self.label = label
+    }
+}
+
+/// Title with a discrete info button that opens a fuller explanation.
+struct SectionInfoHeader: View {
+    let title: String
+    var titleFont: Font = DS.Font.headline
+    var titleColor: Color = .primary
+    var accessibilityName: String? = nil
+    let paragraphs: [String]
+    var legend: [SectionInfoLegendItem] = []
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 0) {
+            Text(title)
+                .font(titleFont)
+                .foregroundStyle(titleColor)
+                .fixedSize(horizontal: false, vertical: true)
+
+            SectionInfoButton(
+                title: accessibilityName ?? title,
+                paragraphs: paragraphs,
+                legend: legend
+            )
+
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .contain)
+    }
+}
+
+struct SectionInfoButton: View {
+    let title: String
+    let paragraphs: [String]
+    var legend: [SectionInfoLegendItem] = []
+
+    @State private var isPresented = false
+
+    var body: some View {
+        Button {
+            isPresented = true
+        } label: {
+            Image(systemName: "info.circle")
+                .font(.system(size: 16, weight: .regular))
+                .foregroundStyle(DS.Color.secondary)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Mer om \(title)")
+        .accessibilityHint("Visar en förklaring")
+        .accessibilityAddTraits(.isButton)
+#if os(macOS)
+        .popover(isPresented: $isPresented, arrowEdge: .bottom) {
+            SectionInfoSheet(title: title, paragraphs: paragraphs, legend: legend)
+                .frame(minWidth: 280, idealWidth: 320, minHeight: 200, idealHeight: 360)
+        }
+#else
+        .sheet(isPresented: $isPresented) {
+            SectionInfoSheet(title: title, paragraphs: paragraphs, legend: legend)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
+#endif
+    }
+}
+
+struct SectionInfoSheet: View {
+    let title: String
+    let paragraphs: [String]
+    var legend: [SectionInfoLegendItem] = []
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: DS.Spacing.lg) {
+                    ForEach(Array(paragraphs.enumerated()), id: \.offset) { _, paragraph in
+                        Text(paragraph)
+                            .font(DS.Font.body)
+                            .foregroundStyle(.primary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    if !legend.isEmpty {
+                        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                            ForEach(legend) { item in
+                                HStack(spacing: DS.Spacing.sm) {
+                                    Circle()
+                                        .fill(item.color)
+                                        .frame(width: 10, height: 10)
+                                        .accessibilityHidden(true)
+                                    Text(item.label)
+                                        .font(DS.Font.callout)
+                                        .foregroundStyle(.primary)
+                                }
+                                .accessibilityElement(children: .combine)
+                                .accessibilityLabel(item.label)
+                            }
+                        }
+                    }
+                }
+                .padding(DS.Spacing.lg)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .navigationTitle(title)
+#if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Klar") { dismiss() }
+                }
+            }
+#endif
+        }
+    }
+}

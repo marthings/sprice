@@ -12,14 +12,13 @@ struct HistoryMonthDaysChart: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                Text("Kostnad per dag")
-                    .font(DS.Font.headline)
-                Text(introCopy)
-                    .font(DS.Font.micro)
-                    .foregroundStyle(DS.Color.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            SectionInfoHeader(
+                title: "Kostnad per dag",
+                paragraphs: infoParagraphs,
+                legend: temperaturePoints.isEmpty ? [] : [
+                    SectionInfoLegendItem(color: DS.Color.accent, label: "Linjen visar temperaturen ute")
+                ]
+            )
 
             if days.allSatisfy({ $0.costKr == nil }) {
                 Text(HistoryInsights.missingConsumptionMessage(hasProvider: hasProvider))
@@ -35,11 +34,18 @@ struct HistoryMonthDaysChart: View {
         .spriceCard(tone: .history)
     }
 
-    private var introCopy: String {
+    private var infoParagraphs: [String] {
+        var parts: [String] = []
         if isCurrentMonth {
-            return "Så här har den pågående månaden kostat hittills. Tryck på en dag för att se timmarna."
+            parts.append("Staplarna visar vad varje dag har kostat den här månaden, så långt den har hunnit. Tryck på en dag för att se timmarna.")
+        } else {
+            parts.append("Staplarna visar vad varje dag har kostat. Tryck på en dag för att se hur kostnaden fördelades över timmarna.")
         }
-        return "Tryck på en dag för att se hur kostnaden fördelades över timmarna."
+        if !temperaturePoints.isEmpty {
+            parts.append("Linjen visar hur kallt det var ute, i grader. Skalan till höger gäller linjen, inte staplarna.")
+            parts.append("Temperaturen kommer från Open-Meteo för den ort du valt under Inställningar.")
+        }
+        return parts
     }
 
     private var temperaturePoints: [(date: Date, temp: Double)] {
@@ -76,13 +82,6 @@ struct HistoryMonthDaysChart: View {
                     "Dyraste dagen är \(AppFormatters.weekdayDayMonth(expensive.date)), \(AppFormatters.wholeNumber(cost)) kronor"
                 )
         }
-        if !temperaturePoints.isEmpty {
-            Text("Linjen visar hur kallt det var ute.")
-                .font(DS.Font.micro)
-                .foregroundStyle(DS.Color.secondary)
-                .accessibilityHidden(true)
-        }
-
         ZStack {
         Chart {
             ForEach(days) { day in

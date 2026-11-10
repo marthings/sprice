@@ -13,7 +13,7 @@ struct CostCalculationSection: View {
         let currentPrice = getCurrentPriceOrAverage(payload)
 
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            HStack(spacing: DS.Spacing.xs) {
+            HStack(alignment: .center, spacing: DS.Spacing.xs) {
                 Text("Kostnad med detta pris")
                     .font(DS.Font.semibold(14))
                     .foregroundStyle(.primary)
@@ -25,12 +25,12 @@ struct CostCalculationSection: View {
                         .font(DS.Font.medium(11))
                         .foregroundStyle(DS.Color.secondary)
                 }
-            }
 
-            if let basisText = profile.retailContractCostBasisText {
-                Label(basisText, systemImage: "info.circle.fill")
-                    .font(DS.Font.micro)
-                    .foregroundStyle(DS.Color.secondary)
+                SectionInfoButton(
+                    title: "Kostnad med detta pris",
+                    paragraphs: costInfoParagraphs
+                )
+                Spacer(minLength: 0)
             }
 
             KilowattHourBreakdownView(
@@ -63,17 +63,23 @@ struct CostCalculationSection: View {
                 }
             }
 
-            Text(HouseholdCostExample.catalogFootnote)
-                .font(DS.Font.micro)
-                .foregroundStyle(DS.Color.secondary)
-
-            if profile.gridMonthlyFee != nil || profile.gridTransferOrePerKWh != nil {
-                Label("Elnätskostnaden baseras på dina elnätsuppgifter och kan avvika från fakturan.", systemImage: "info.circle.fill")
-                    .font(DS.Font.micro)
-                    .foregroundStyle(DS.Color.secondary)
-            }
         }
         .padding(.top, DS.Spacing.xs)
+    }
+
+    private var costInfoParagraphs: [String] {
+        var parts = [
+            "Här ser du vad en kilowattimme kostar just nu, och ungefär vad vanliga saker kostar till det priset.",
+            "Siffrorna i listan är utan moms. Momsen ligger på en egen rad. Totalen är vad du betalar.",
+            HouseholdCostExample.catalogFootnote
+        ]
+        if let basisText = profile.retailContractCostBasisText {
+            parts.append(basisText)
+        }
+        if profile.gridMonthlyFee != nil || profile.gridTransferOrePerKWh != nil {
+            parts.append("Elnätskostnaden baseras på dina elnätsuppgifter och kan avvika från fakturan.")
+        }
+        return parts
     }
 
     // MARK: - Helpers

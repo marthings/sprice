@@ -16,16 +16,32 @@ struct MonthlyCostCard: View {
     var retailEnergyLabel: String = "Kvartspris"
     var hypotheticalEffectTariffKr: Double? = nil
 
+    private var monthlyInfoParagraphs: [String] {
+        var parts = [
+            "Kostnaden baseras på dina inställningar. Elnät ingår bara när du har lagt till elnätsuppgifter."
+        ]
+        if let costBasisNote {
+            parts.append(costBasisNote)
+        }
+        if showPrecisionHint {
+            parts.append("Lägg till elhandelsavtal eller elnätsuppgifter för bättre uppskattning.")
+        }
+        return parts
+    }
+
     private var displayedTotalKr: Double {
         enhancedCost.totalKr + (hypotheticalEffectTariffKr ?? 0)
     }
     
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            // Header with title
-            Text(title)
-                .font(DS.Font.micro)
-                .foregroundStyle(DS.Color.secondary)
+            SectionInfoHeader(
+                title: title,
+                titleFont: DS.Font.micro,
+                titleColor: DS.Color.secondary,
+                accessibilityName: "månadskostnaden",
+                paragraphs: monthlyInfoParagraphs
+            )
             
             // Total cost - primary focus
             HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
@@ -57,25 +73,6 @@ struct MonthlyCostCard: View {
                 .padding(.top, DS.Spacing.xxs)
             }
 
-            HStack(spacing: DS.Spacing.xs) {
-                Image(systemName: "info.circle.fill")
-                    .font(.system(size: 11))
-                    .foregroundStyle(DS.Color.secondary)
-                Text("Kostnaden baseras på dina inställningar. Elnät ingår bara när du har lagt till elnätsuppgifter.")
-                    .font(DS.Font.micro)
-                    .foregroundStyle(DS.Color.secondary)
-            }
-
-            if let costBasisNote {
-                HStack(spacing: DS.Spacing.xs) {
-                    Image(systemName: "info.circle.fill")
-                        .font(.system(size: 11))
-                        .foregroundStyle(DS.Color.secondary)
-                    Text(costBasisNote)
-                        .font(DS.Font.micro)
-                        .foregroundStyle(DS.Color.secondary)
-                }
-            }
             
             Divider()
                 .padding(.vertical, DS.Spacing.xs)

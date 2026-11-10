@@ -155,6 +155,14 @@ private struct HistoryDayTotals: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
+            SectionInfoHeader(
+                title: "Dagens siffror",
+                paragraphs: [
+                    "Här ser du vad dagen kostade och hur mycket el som gick åt.",
+                    "Om dagen inte är slut visas bara det som har hänt hittills."
+                ]
+            )
+
             HStack(alignment: .top, spacing: DS.Spacing.md) {
                 if let cost = snapshot.costKr {
                     dayMetric(value: AppFormatters.wholeNumber(cost), unit: "kr", label: "Kostnad")
@@ -179,7 +187,7 @@ private struct HistoryDayTotals: View {
             }
 
             if snapshot.isIncomplete {
-                Text("Dagen är inte komplett. Siffrorna visar bara det som har hänt hittills.")
+                Text("Dagen är inte komplett.")
                     .font(DS.Font.micro)
                     .foregroundStyle(DS.Color.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -224,8 +232,13 @@ private struct HistoryDayHourChart: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            Text("När pengarna gick")
-                .font(DS.Font.headline)
+            SectionInfoHeader(
+                title: "När pengarna gick",
+                paragraphs: [
+                    "Staplarna visar vad varje timme kostade.",
+                    "Linjen under är börsens elpris samma dag, utan påslag, nät, skatt och moms."
+                ]
+            )
 
             if hasCost {
                 Chart {
@@ -386,13 +399,12 @@ private struct HistoryDayExpensiveHours: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            Text("Du drog el när det var dyrt")
-                .font(DS.Font.headline)
-
-            Text("Inte börsens dyraste timme, utan de timmar du faktiskt använde när det kostade mest.")
-                .font(DS.Font.micro)
-                .foregroundStyle(DS.Color.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            SectionInfoHeader(
+                title: "Du drog el när det var dyrt",
+                paragraphs: [
+                    "Listan visar inte börsens dyraste timme, utan de timmar du faktiskt använde när det kostade mest."
+                ]
+            )
 
             if hours.isEmpty {
                 Text("Det finns ingen mätt förbrukning att peka ut timmar från.")
@@ -449,6 +461,17 @@ private struct HistoryDayCostSplitRow: Identifiable {
 private struct HistoryDayCostSplitView: View {
     let split: HistoryDayCostSplit
 
+    private var splitInfoParagraphs: [String] {
+        var parts = [
+            "Färgfältet och listan visar hur dagens kostnad fördelas mellan elhandel, nät, skatt och moms.",
+            "Siffrorna i listan är utan moms. Momsen ligger på en egen rad. Totalen är vad du betalar."
+        ]
+        if split.usedCurrentTariffs {
+            parts.append("Äldre rader saknade uppdelning. Det här är räknat med de priser och avgifter du har i dag.")
+        }
+        return parts
+    }
+
     private var rows: [HistoryDayCostSplitRow] {
         [
             HistoryDayCostSplitRow(id: "energy", title: "Elhandel", amount: split.energyKr, color: DS.Color.info),
@@ -460,8 +483,10 @@ private struct HistoryDayCostSplitView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            Text("Så fördelades kostnaden")
-                .font(DS.Font.headline)
+            SectionInfoHeader(
+                title: "Så fördelades kostnaden",
+                paragraphs: splitInfoParagraphs
+            )
 
             GeometryReader { geometry in
                 let total = max(split.totalKr, 0.0001)
@@ -494,17 +519,6 @@ private struct HistoryDayCostSplitView: View {
                 .accessibilityLabel("\(row.title) \(AppFormatters.kr(row.amount, fractionLength: 2))")
             }
 
-            Text("Siffrorna i listan är utan moms. Momsen ligger på en egen rad. Totalen är vad du betalar.")
-                .font(DS.Font.micro)
-                .foregroundStyle(DS.Color.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            if split.usedCurrentTariffs {
-                Text("Äldre rader saknade uppdelning. Det här är räknat med de priser och avgifter du har i dag.")
-                    .font(DS.Font.micro)
-                    .foregroundStyle(DS.Color.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
         }
         .padding(DS.Spacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)

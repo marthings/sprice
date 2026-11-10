@@ -72,47 +72,45 @@ struct ConsumptionInsightsTeaserCard: View {
     let onOpen: () -> Void
 
     var body: some View {
-        if canOpen {
-            Button(action: onOpen) {
-                card
-            }
-            .buttonStyle(.plain)
-            .accessibilityElement(children: .ignore)
-            .accessibilityAddTraits(.isButton)
-            .accessibilityLabel("Vad drog?")
-            .accessibilityValue(teaserLine)
-            .accessibilityHint("Öppnar mer om grundlast, toppar och tid på dygnet")
-        } else {
-            card
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Vad drog?")
-                .accessibilityValue(teaserLine)
-        }
+        card
     }
 
     private var card: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                Text("Vad drog?")
-                    .font(DS.Font.headline)
-                    .foregroundStyle(.primary)
-                Text(teaserLine)
+            SectionInfoHeader(
+                title: "Vad drog?",
+                paragraphs: [
+                    "Här ser du vad som alltid är på, när topparna kom och när på dygnet det drog mest.",
+                    "Öppna för mer om grundlast, toppar och tid på dygnet."
+                ]
+            )
+
+            if isLoading && insights == nil {
+                Text("Räknar ut vad som drog.")
                     .font(DS.Font.micro)
                     .foregroundStyle(DS.Color.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+            } else if !canOpen {
+                Text("Förbrukning saknas, så det går inte att räkna ut än.")
+                    .font(DS.Font.micro)
+                    .foregroundStyle(DS.Color.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             if canOpen {
-                HStack(spacing: DS.Spacing.xs) {
-                    Text("Visa mer")
-                        .font(DS.Font.callout)
-                        .foregroundStyle(.primary)
-                    Spacer(minLength: DS.Spacing.sm)
-                    Image(systemName: "chevron.right")
-                        .font(DS.Font.caption)
-                        .foregroundStyle(DS.Color.secondary)
+                Button(action: onOpen) {
+                    HStack(spacing: DS.Spacing.xs) {
+                        Text("Visa mer")
+                            .font(DS.Font.callout)
+                            .foregroundStyle(.primary)
+                        Spacer(minLength: DS.Spacing.sm)
+                        Image(systemName: "chevron.right")
+                            .font(DS.Font.caption)
+                            .foregroundStyle(DS.Color.secondary)
+                    }
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Visa mer om vad som drog")
+                .accessibilityHint("Öppnar grundlast, toppar och tid på dygnet")
             }
         }
         .padding(DS.Spacing.lg)
@@ -124,16 +122,6 @@ struct ConsumptionInsightsTeaserCard: View {
         if isLoading { return true }
         guard let insights else { return false }
         return insights.resolution != .none
-    }
-
-    private var teaserLine: String {
-        if isLoading && insights == nil {
-            return "Räknar ut vad som drog."
-        }
-        if insights == nil || insights?.resolution == .none {
-            return "Förbrukning saknas, så det går inte att räkna ut än."
-        }
-        return "Grundlast, toppar och när på dygnet det drog."
     }
 }
 

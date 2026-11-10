@@ -67,9 +67,23 @@ struct SharedPriceRangeSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            Text(sectionTitle)
-                .font(style.titleFont)
-                .foregroundStyle(style.titleColor)
+            if style == .regular {
+                SectionInfoHeader(
+                    title: sectionTitle,
+                    titleFont: style.titleFont,
+                    titleColor: style.titleColor,
+                    paragraphs: [
+                        "Lägsta, högsta och snitt är dagens priser per kilowattimme, med samma delar som i grafen ovan.",
+                        profile.isSpotFollowingRetailContract
+                            ? "Siffrorna är det du betalar, med skatt, avgifter och moms inräknade."
+                            : "Siffrorna är marknadens elpris, utan påslag, nät, skatt och moms."
+                    ]
+                )
+            } else {
+                Text(sectionTitle)
+                    .font(style.titleFont)
+                    .foregroundStyle(style.titleColor)
+            }
 
             LazyVGrid(columns: columns, spacing: DS.Spacing.sm) {
                 statCard(title: "Lägsta", value: minValue, color: DS.Color.success, icon: "arrow.down.circle.fill")

@@ -31,20 +31,14 @@ struct HistoryMonthLoadedContent: View {
                     selectedMonthKey: $selectedMonthKey
                 )
 
-                if presentation.hasPastMonths {
-                    Text("Äldre månader räknas med de priser och avgifter du har i dag, inte de som gällde då.")
-                        .font(DS.Font.micro)
-                        .foregroundStyle(DS.Color.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
                 if let snapshot = presentation.snapshot {
                     HistoryMonthHeroSection(
                         snapshot: snapshot,
                         comparison: presentation.comparison,
                         previousMonthName: presentation.comparisonMonthName
                             ?? presentation.previousSnapshot.map { AppFormatters.monthName($0.summary.periodStart) },
-                        hasProvider: hasProvider
+                        hasProvider: hasProvider,
+                        hasPastMonths: presentation.hasPastMonths
                     )
 
                     if presentation.previousSnapshot != nil {
@@ -55,12 +49,25 @@ struct HistoryMonthLoadedContent: View {
                         )
                     }
 
-                    ForEach(temperatureInsights) { insight in
-                        InsightRow(
-                            icon: "thermometer.medium",
-                            title: insight.title,
-                            detail: insight.isUncertain ? "Osäker jämförelse" : nil
-                        )
+                    if !temperatureInsights.isEmpty {
+                        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                            SectionInfoHeader(
+                                title: "Temperatur",
+                                paragraphs: [
+                                    "Jämförelsen tar hänsyn till om det varit kallare eller varmare. Bara uppvärmningen justeras, inte det som huset drar hela tiden.",
+                                    "Beräkningen bygger på det senaste mätvärdet och jämför samma antal dagar i båda perioderna.",
+                                    "Om det finns för lite underlag, eller om förbrukningen inte följer vädret tydligt, visas ingen justering.",
+                                    "Temperaturen kommer från Open-Meteo för den ort du valt under Inställningar."
+                                ]
+                            )
+                            ForEach(temperatureInsights) { insight in
+                                InsightRow(
+                                    icon: "thermometer.medium",
+                                    title: insight.title,
+                                    detail: insight.isUncertain ? "Osäker jämförelse" : nil
+                                )
+                            }
+                        }
                     }
 
                     HistoryPaidVersusSpot(snapshot: snapshot)

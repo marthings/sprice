@@ -7,8 +7,13 @@ struct HistoryWeekdayPattern: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            Text("Veckodagar, snitt")
-                .font(DS.Font.headline)
+            SectionInfoHeader(
+                title: "Veckodagar, snitt",
+                paragraphs: [
+                    "Staplarna visar vad respektive veckodag har kostat i snitt under månaden.",
+                    "Om det finns få dagar att jämföra blir slutsatsen mer osäker."
+                ]
+            )
 
             if averages.allSatisfy({ $0.averageCostKr == nil }) {
                 Text("Veckodagarna visas när det finns dygn med sparad kostnad.")
