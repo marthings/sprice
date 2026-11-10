@@ -364,6 +364,31 @@ enum DS {
         static let smallRadius: CGFloat = Radius.md
     }
 
+    // MARK: - Motion
+
+    /// Considered, not flashy. `.smooth` for numbers and reveals, `.snappy`
+    /// for charts and press. Reduce Motion replaces springs with a short fade.
+    enum Motion {
+        static let numbers: Animation = .smooth(duration: 0.45)
+        static let reveal: Animation = .smooth(duration: 0.35)
+        static let chart: Animation = .snappy(duration: 0.5)
+        static let press: Animation = .snappy(duration: 0.2)
+        static let reduced: Animation = .easeInOut(duration: 0.2)
+
+        static func curve(_ animation: Animation, reduceMotion: Bool) -> Animation {
+            reduceMotion ? reduced : animation
+        }
+
+        static func revealTransition(reduceMotion: Bool) -> AnyTransition {
+            reduceMotion
+                ? .opacity
+                : .asymmetric(
+                    insertion: .opacity.combined(with: .offset(y: 8)),
+                    removal: .opacity
+                )
+        }
+    }
+
     // MARK: - Component Sizes
 
     enum Size {
@@ -654,21 +679,36 @@ struct FetchNoticeBanner: View {
 
 struct FetchNoticeStack: View {
     let notices: [FetchNotice]
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var visibleNotices: [FetchNotice]
+
+    init(notices: [FetchNotice]) {
+        self.notices = notices
+        _visibleNotices = State(initialValue: notices)
+    }
 
     var body: some View {
-        if !notices.isEmpty {
-            VStack(alignment: .center, spacing: DS.Spacing.xs) {
-                ForEach(orderedNotices) { notice in
-                    FetchNoticeFooterLine(notice: notice)
+        Group {
+            if !visibleNotices.isEmpty {
+                VStack(alignment: .center, spacing: DS.Spacing.xs) {
+                    ForEach(Self.ordered(visibleNotices)) { notice in
+                        FetchNoticeFooterLine(notice: notice)
+                    }
                 }
+                .frame(maxWidth: .infinity)
+                .padding(.top, DS.Spacing.md)
+                .accessibilityElement(children: .contain)
+                .transition(DS.Motion.revealTransition(reduceMotion: reduceMotion))
             }
-            .frame(maxWidth: .infinity)
-            .padding(.top, DS.Spacing.md)
-            .accessibilityElement(children: .contain)
+        }
+        .onChange(of: notices.map(\.id)) { _, _ in
+            withAnimation(DS.Motion.curve(DS.Motion.reveal, reduceMotion: reduceMotion)) {
+                visibleNotices = notices
+            }
         }
     }
 
-    private var orderedNotices: [FetchNotice] {
+    private static func ordered(_ notices: [FetchNotice]) -> [FetchNotice] {
         notices.enumerated().sorted { lhs, rhs in
             if lhs.element.isActionable != rhs.element.isActionable {
                 return lhs.element.isActionable && !rhs.element.isActionable
@@ -720,6 +760,7 @@ struct InsightRow: View {
     let title: String
     var detail: String? = nil
     var showsChevron: Bool = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(alignment: .top, spacing: DS.Spacing.sm) {
@@ -755,6 +796,7 @@ struct InsightRow: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(detail.map { "\(title) \($0)" } ?? title)
+        .transition(DS.Motion.revealTransition(reduceMotion: reduceMotion))
     }
 }
 
@@ -1222,11 +1264,40 @@ struct SpriceCardModifier: ViewModifier {
 
 /// Discrete press for tappable cards that used to use interactive glass.
 struct SpriceCardPressButtonStyle: ButtonStyle {
+    var scale: CGFloat = 0.98
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .scaleEffect(configuration.isPressed ? scale : 1)
             .opacity(configuration.isPressed ? 0.92 : 1)
-            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+            .animation(DS.Motion.curve(DS.Motion.press, reduceMotion: reduceMotion), value: configuration.isPressed)
+    }
+}
+
+private struct SpriceNumericTextModifier: ViewModifier {
+    let value: Double
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        content
+            .contentTransition(reduceMotion ? .opacity : .numericText(value: value))
+            .animation(DS.Motion.curve(DS.Motion.numbers, reduceMotion: reduceMotion), value: value)
+    }
+}
+
+private struct SpriceValueAnimationModifier: ViewModifier {
+    let value: [AnyHashable]
+    let animation: Animation
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var hasAppeared = false
+
+    private var token: [AnyHashable] { [hasAppeared] + value }
+
+    func body(content: Content) -> some View {
+        content
+            .animation(DS.Motion.curve(animation, reduceMotion: reduceMotion), value: token)
+            .onAppear { hasAppeared = true }
     }
 }
 
@@ -1263,6 +1334,21 @@ extension View {
     func spriceSettingsFooterStyle() -> some View {
         font(DS.Font.micro)
             .foregroundStyle(DS.Color.secondary)
+    }
+
+    /// Ticks digits in place when `value` changes. Honors Reduce Motion.
+    func spriceNumericText(_ value: Double) -> some View {
+        modifier(SpriceNumericTextModifier(value: value))
+    }
+
+    /// Spring (or a short fade if Reduce Motion is on) when chart data or selection changes.
+    func spriceChartMotion(_ values: AnyHashable...) -> some View {
+        modifier(SpriceValueAnimationModifier(value: values, animation: DS.Motion.chart))
+    }
+
+    /// Reveal or hide footers and insight groups.
+    func spriceRevealMotion(_ values: AnyHashable...) -> some View {
+        modifier(SpriceValueAnimationModifier(value: values, animation: DS.Motion.reveal))
     }
 
 #if os(iOS)
@@ -1427,7 +1513,7 @@ struct SectionInfoButton: View {
                 .frame(width: DS.Size.infoHit, height: DS.Size.infoHit, alignment: .center)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SpriceCardPressButtonStyle(scale: 0.9))
         .padding(.vertical, -DS.Size.infoHitInset)
         .padding(.trailing, -DS.Size.infoHitInset)
         .accessibilityLabel("Mer om \(title)")

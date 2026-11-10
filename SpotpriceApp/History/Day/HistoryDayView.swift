@@ -164,16 +164,17 @@ private struct HistoryDayTotals: View {
 
             HStack(alignment: .top, spacing: DS.Spacing.md) {
                 if let cost = snapshot.costKr {
-                    dayMetric(value: AppFormatters.wholeNumber(cost), unit: "kr", label: "Kostnad")
+                    dayMetric(value: AppFormatters.wholeNumber(cost), unit: "kr", label: "Kostnad", amount: cost)
                 }
                 if let kWh = snapshot.kWh {
-                    dayMetric(value: AppFormatters.kWhValue(kWh), unit: "kWh", label: "Förbrukning")
+                    dayMetric(value: AppFormatters.kWhValue(kWh), unit: "kWh", label: "Förbrukning", amount: kWh)
                 }
                 if let paid = snapshot.paidKrPerKWh {
                     dayMetric(
                         value: paid.formatted(.number.precision(.fractionLength(2))),
                         unit: "kr/kWh",
-                        label: "Betalt pris"
+                        label: "Betalt pris",
+                        amount: paid
                     )
                 }
             }
@@ -197,11 +198,12 @@ private struct HistoryDayTotals: View {
         .spriceCard(tone: .history)
     }
 
-    private func dayMetric(value: String, unit: String, label: String) -> some View {
+    private func dayMetric(value: String, unit: String, label: String, amount: Double) -> some View {
         VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
             HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
                 Text(value)
                     .font(DS.Font.bold(28).monospacedDigit())
+                    .spriceNumericText(amount)
                 Text(unit)
                     .font(DS.Font.micro)
                     .foregroundStyle(DS.Color.secondary)
@@ -291,6 +293,7 @@ private struct HistoryDayHourChart: View {
                 }
                 .chartXSelection(value: $selectedCostHour)
                 .historyChartPlotStyle()
+                .spriceChartMotion(snapshot.costHours.map(\.costKr), selectedCostHour)
                 .frame(height: 160)
                 .zIndex(1)
                 .accessibilityLabel("Stapeldiagram över kostnad per timme, i kronor")
@@ -363,6 +366,7 @@ private struct HistoryDayHourChart: View {
                 }
                 .chartXSelection(value: $selectedSpotHour)
                 .historyChartPlotStyle()
+                .spriceChartMotion(snapshot.spotHours.map(\.spotOrePerKWh), selectedSpotHour)
                 .frame(height: 96)
                 .zIndex(1)
                 .accessibilityLabel("Linjediagram över spotpris per timme, i öre per kilowattimme")

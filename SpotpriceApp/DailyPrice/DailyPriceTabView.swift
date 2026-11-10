@@ -144,6 +144,7 @@ private struct PriceChartCanvas: View {
         .chartPlotStyle { plot in
             plot.padding(.top, DS.Spacing.sm)
         }
+        .spriceChartMotion(series.points.map(\.price), selectedChartDate)
         .frame(height: 260)
         .padding(DS.Spacing.card)
         .spriceCard(tone: .price)

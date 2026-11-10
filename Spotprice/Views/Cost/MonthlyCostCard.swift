@@ -48,6 +48,7 @@ struct MonthlyCostCard: View {
                 Text(displayedTotalKr, format: .number.precision(.fractionLength(0)))
                     .font(DS.Font.bold(28).monospacedDigit())
                     .foregroundStyle(.primary)
+                    .spriceNumericText(displayedTotalKr)
                 Text("kr")
                     .font(DS.Font.medium(14))
                     .foregroundStyle(DS.Color.secondary)

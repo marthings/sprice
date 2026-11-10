@@ -16,7 +16,7 @@ struct HistoryMonthHeroSection: View {
             )
 
             if let cost = snapshot.costKr {
-                heroValue(AppFormatters.wholeNumber(cost), unit: "kr")
+                heroValue(AppFormatters.wholeNumber(cost), unit: "kr", amount: cost)
                     .accessibilityLabel("Månadens kostnad \(AppFormatters.wholeNumber(cost)) kr")
 
                 if let comparison {
@@ -37,14 +37,14 @@ struct HistoryMonthHeroSection: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             } else if let kWh = snapshot.kWh {
-                heroValue(AppFormatters.kWhValue(kWh), unit: "kWh")
+                heroValue(AppFormatters.kWhValue(kWh), unit: "kWh", amount: kWh)
                     .accessibilityLabel("Månadens förbrukning \(AppFormatters.kWh(kWh))")
                 Text("Ingen kostnad sparad för den här månaden.")
                     .font(DS.Font.callout)
                     .foregroundStyle(.primary)
                     .fixedSize(horizontal: false, vertical: true)
             } else if let spot = snapshot.spotOrePerKWh {
-                heroValue(AppFormatters.oreValue(spot), unit: "öre/kWh")
+                heroValue(AppFormatters.oreValue(spot), unit: "öre/kWh", amount: spot)
                     .accessibilityLabel("Snitt spotpris \(AppFormatters.ore(spot)) per kilowattimme")
                 Text("Förbrukning saknas. Det här är bara spotpriset.")
                     .font(DS.Font.callout)
@@ -73,6 +73,7 @@ struct HistoryMonthHeroSection: View {
                 .font(DS.Font.micro)
                 .foregroundStyle(DS.Color.secondary)
         }
+        .spriceRevealMotion(temperatureInsights.map(\.id))
         .padding(DS.Spacing.card)
         .frame(maxWidth: .infinity, alignment: .leading)
         .spriceCard(tone: .history)
@@ -107,11 +108,12 @@ struct HistoryMonthHeroSection: View {
         return parts
     }
 
-    private func heroValue(_ value: String, unit: String) -> some View {
+    private func heroValue(_ value: String, unit: String, amount: Double) -> some View {
         HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xs) {
             Text(value)
                 .font(DS.Font.bold(48).monospacedDigit())
                 .foregroundStyle(.primary)
+                .spriceNumericText(amount)
             Text(unit)
                 .font(DS.Font.callout)
                 .fontWeight(.bold)
@@ -248,6 +250,7 @@ struct HistoryPaidVersusSpot: View {
                 InsightRow(icon: "arrow.left.arrow.right", title: comparison.title)
             }
         }
+        .spriceRevealMotion(comparison?.title ?? "")
         .padding(DS.Spacing.card)
         .frame(maxWidth: .infinity, alignment: .leading)
         .spriceCard(tone: .history)
@@ -306,6 +309,7 @@ struct HistoryPaidVersusSpot: View {
             Spacer(minLength: DS.Spacing.sm)
             Text(value, format: .number.precision(.fractionLength(fractionLength)))
                 .font(DS.Font.semibold(20).monospacedDigit())
+                .spriceNumericText(value)
             Text(unit)
                 .font(DS.Font.micro)
                 .foregroundStyle(DS.Color.secondary)

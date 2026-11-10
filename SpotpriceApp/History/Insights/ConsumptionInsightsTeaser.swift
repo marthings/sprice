@@ -108,7 +108,7 @@ struct ConsumptionInsightsTeaserCard: View {
                             .foregroundStyle(DS.Color.secondary)
                     }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SpriceCardPressButtonStyle())
                 .accessibilityLabel("Visa mer om vad som drog")
                 .accessibilityHint("Öppnar grundlast, toppar och tid på dygnet")
             }

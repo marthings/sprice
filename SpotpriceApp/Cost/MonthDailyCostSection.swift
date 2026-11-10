@@ -100,6 +100,7 @@ struct MonthDailyCostSection: View {
                 .font(DS.Font.callout)
                 .foregroundStyle(.primary)
                 .fixedSize(horizontal: false, vertical: true)
+                .spriceNumericText(spentSoFarKr + (resolvedForecastKr ?? 0))
                 .accessibilityLabel(forecastStatusCopy)
         }
         if let expensive, let cost = expensive.costKr {
@@ -117,6 +118,7 @@ struct MonthDailyCostSection: View {
             }
         }
         .frame(height: 196)
+        .spriceChartMotion(days.map(\.costKr), selectedDay?.id, resolvedForecastKr, cumulativePoints.map(\.value))
         .zIndex(1)
         .accessibilityLabel(chartAccessibilityLabel)
 
@@ -142,7 +144,7 @@ struct MonthDailyCostSection: View {
                         showsChevron: true
                     )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SpriceCardPressButtonStyle())
                 .accessibilityHint("Öppnar Vad drog?")
             } else {
                 InsightRow(icon: "house", title: Self.baseloadTitle(baseload))

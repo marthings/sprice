@@ -68,6 +68,7 @@ struct TopConsumptionDaysCard: View {
                 }
                 .chartYAxis(.hidden)
                 .chartYScale(domain: 0...(maxKW * 1.3))
+                .spriceChartMotion(topPeaks.map(\.kW))
                 .frame(height: 70)
             } else {
                 HStack {

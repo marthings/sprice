@@ -172,6 +172,7 @@ struct HistoryMonthDaysChart: View {
         }
         }
         .frame(height: 180)
+        .spriceChartMotion(days.map(\.costKr), selectedDay?.id, temperaturePoints.map(\.temp))
         .zIndex(1)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(chartAccessibility)

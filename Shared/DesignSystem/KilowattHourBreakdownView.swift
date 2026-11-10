@@ -71,7 +71,7 @@ struct KilowattHourBreakdownView: View {
                                     showsChevron: insight.showsChevron
                                 )
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(SpriceCardPressButtonStyle())
                         } else {
                             InsightRow(
                                 icon: insight.icon,
@@ -84,6 +84,7 @@ struct KilowattHourBreakdownView: View {
                 }
             }
         }
+        .spriceRevealMotion(insights.map(\.id))
         .padding(DS.Spacing.card)
         .frame(maxWidth: .infinity, alignment: .leading)
         .spriceCard(tone: .accent)
@@ -115,6 +116,7 @@ struct KilowattHourBreakdownView: View {
                     .accessibilityValue(sectorAccessibilityValue(for: line))
                 }
                 .chartLegend(.hidden)
+                .spriceChartMotion(breakdown.lines.map(\.amountKrPerKWh))
             }
 
             if !usesExternalHeroPrice {
@@ -146,6 +148,7 @@ struct KilowattHourBreakdownView: View {
                     .foregroundStyle(priceColor)
                     .minimumScaleFactor(0.5)
                     .lineLimit(1)
+                    .spriceNumericText(breakdown.totalKrPerKWh)
 
                 if style == .regular {
                     PriceChangeIndicator(

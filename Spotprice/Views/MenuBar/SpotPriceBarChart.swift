@@ -86,6 +86,7 @@ private struct SpotPriceBarChartHeader: View {
                         Text(value.amount, format: .number.precision(.fractionLength(2)))
                             .font(DS.Font.bold(30).monospacedDigit())
                             .foregroundStyle(value.color)
+                            .spriceNumericText(value.amount)
                         Text(value.unit)
                             .font(DS.Font.medium(11))
                             .foregroundStyle(DS.Color.secondary)
@@ -304,6 +305,7 @@ private struct SpotPriceBarChartPlot: View {
                 }
             }
         }
+        .spriceChartMotion(dayData.buckets.map(\.orePerKWh), selectedDate)
         .frame(height: configuration.height)
         .padding(.horizontal, DS.Spacing.lg)
         .padding(.bottom, DS.Spacing.lg)

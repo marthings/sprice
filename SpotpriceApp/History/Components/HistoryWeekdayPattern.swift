@@ -67,6 +67,7 @@ struct HistoryWeekdayPattern: View {
                     }
                 }
                 .historyChartPlotStyle()
+                .spriceChartMotion(averages.map(\.averageCostKr), selectedLabel)
                 .frame(height: 140)
                 .zIndex(1)
                 .accessibilityLabel("Stapeldiagram över snittkostnad per veckodag, i kronor")

@@ -114,6 +114,7 @@ private struct HypotheticalEffectTariffCard: View {
                 HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xs) {
                     Text(AppFormatters.wholeNumber(amountKr))
                         .font(DS.Font.bold(28).monospacedDigit())
+                        .spriceNumericText(amountKr)
                     Text("kr")
                         .font(DS.Font.micro)
                         .foregroundStyle(DS.Color.secondary)

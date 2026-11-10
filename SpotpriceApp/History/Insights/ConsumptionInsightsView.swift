@@ -411,6 +411,7 @@ private struct ConsumptionInsightsHourChart: View {
         }
         .chartXSelection(value: $selectedHour)
         .historyChartPlotStyle()
+        .spriceChartMotion(diurnal.hourBars.map(\.averageKWh), selectedHour)
         .frame(height: 160)
         .zIndex(1)
         .accessibilityLabel("Stapeldiagram över medelförbrukning per klockslag, i kilowattimmar")
