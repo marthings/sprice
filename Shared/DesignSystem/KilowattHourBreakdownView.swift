@@ -34,6 +34,10 @@ struct KilowattHourBreakdownView: View {
                 )
             }
 
+            if style == .regular {
+                ChartCaption("Så fördelas priset på en kWh, i kronor per kWh")
+            }
+
             if usesExternalHeroPrice {
                 centerPrice
                     .frame(maxWidth: .infinity)
@@ -52,7 +56,7 @@ struct KilowattHourBreakdownView: View {
 
             if let missingGridMessage = breakdown.missingGridMessage {
                 Label(missingGridMessage, systemImage: "info.circle.fill")
-                    .font(DS.Font.micro)
+                    .font(DS.Font.footnote)
                     .foregroundStyle(DS.Color.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -131,15 +135,15 @@ struct KilowattHourBreakdownView: View {
     }
 
     private var centerPrice: some View {
-        let priceColor = priceCategory.map { DS.Color.forCategory($0) } ?? .primary
+        let priceColor = priceCategory.map { DS.Color.textForCategory($0) } ?? .primary
 
         return VStack(spacing: DS.Spacing.xxs) {
             if style == .regular, let priceCategory {
                 PriceLevelBadge(category: priceCategory)
             }
 
-            Text("Nu")
-                .font(DS.Font.micro)
+            Text("Just nu")
+                .font(DS.Font.footnote)
                 .foregroundStyle(DS.Color.secondary)
 
             HStack(alignment: .center, spacing: DS.Spacing.xs) {
@@ -160,7 +164,7 @@ struct KilowattHourBreakdownView: View {
             }
 
             Text("kr/kWh")
-                .font(style == .compact ? DS.Font.micro : DS.Font.caption)
+                .font(style == .compact ? DS.Font.footnote : DS.Font.caption)
                 .foregroundStyle(DS.Color.secondary)
         }
         .multilineTextAlignment(.center)
@@ -171,45 +175,101 @@ struct KilowattHourBreakdownView: View {
     private var legend: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.xs) {
             ForEach(breakdown.lines) { line in
-                HStack(alignment: .firstTextBaseline, spacing: DS.Spacing.sm) {
-                    Circle()
-                        .fill(color(for: line.kind))
-                        .frame(width: 8, height: 8)
-                        .padding(.top, 3)
-                        .accessibilityHidden(true)
-
-                    Text(line.title)
-                        .font(DS.Font.micro)
-                        .foregroundStyle(DS.Color.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    Spacer(minLength: DS.Spacing.sm)
-
-                    Text(shareText(for: line))
-                        .font(DS.Font.micro.monospacedDigit())
-                        .foregroundStyle(DS.Color.secondary)
-                        .frame(minWidth: 32, alignment: .trailing)
-
-                    Text(line.amountOrePerKWh, format: .number.precision(.fractionLength(1)))
-                        .font(DS.Font.micro.monospacedDigit())
-                        .foregroundStyle(.primary)
-
-                    Text("öre")
-                        .font(DS.Font.micro)
-                        .foregroundStyle(DS.Color.secondary)
-                }
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel(legendAccessibilityLabel(for: line))
+                legendRow(line)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(legendAccessibilityLabel(for: line))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    @ViewBuilder
+    private func legendRow(_ line: KilowattHourLine) -> some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            legendStackedRow(line)
+        } else {
+            ViewThatFits(in: .horizontal) {
+                legendInlineRow(line)
+                legendStackedRow(line)
+            }
+        }
+    }
+
+    private func legendDot(_ line: KilowattHourLine) -> some View {
+        Circle()
+            .fill(color(for: line.kind))
+            .frame(width: 8, height: 8)
+            .padding(.top, 3)
+            .accessibilityHidden(true)
+    }
+
+    private func legendTitle(_ line: KilowattHourLine) -> some View {
+        Text(line.title)
+            .font(DS.Font.footnote)
+            .foregroundStyle(DS.Color.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    @ViewBuilder
+    private func legendDetail(_ line: KilowattHourLine) -> some View {
+        if let detail = line.detail {
+            Text(detail)
+                .font(DS.Font.footnote)
+                .foregroundStyle(DS.Color.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.leading, 16)
+        }
+    }
+
+    private func legendInlineRow(_ line: KilowattHourLine) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .firstTextBaseline, spacing: DS.Spacing.sm) {
+                legendDot(line)
+                legendTitle(line)
+
+                Spacer(minLength: DS.Spacing.sm)
+
+                Text(shareText(for: line))
+                    .font(DS.Font.footnote.monospacedDigit())
+                    .foregroundStyle(DS.Color.secondary)
+                    .lineLimit(1)
+                    .frame(minWidth: 32, alignment: .trailing)
+
+                Text(AppFormatters.krPerKWh(line.amountKrPerKWh))
+                    .font(DS.Font.footnote.monospacedDigit())
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+            }
+            legendDetail(line)
+        }
+    }
+
+    private func legendStackedRow(_ line: KilowattHourLine) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: DS.Spacing.sm) {
+            legendDot(line)
+            VStack(alignment: .leading, spacing: 0) {
+                legendTitle(line)
+                if let detail = line.detail {
+                    Text(detail)
+                        .font(DS.Font.footnote)
+                        .foregroundStyle(DS.Color.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Text("\(shareText(for: line)), \(AppFormatters.krPerKWh(line.amountKrPerKWh))")
+                    .font(DS.Font.footnote.monospacedDigit())
+                    .foregroundStyle(.primary)
+            }
+        }
+    }
+
     private var infoParagraphs: [String] {
         var parts = [
-            "Cirkeln och listan visar vad en kilowattimme kostar just nu, uppdelat på elhandel, nät, skatt och annat.",
+            "Cirkeln och listan visar vad en kilowattimme (kWh) kostar just nu, uppdelat på elhandel, elnät, skatt och annat. Allt anges i kronor per kWh.",
             "Siffrorna i listan är utan moms. Momsen ligger på en egen rad. Totalen är vad du betalar."
         ]
+        if let folded = breakdown.lines.first(where: { $0.kind == .other }), let detail = folded.detail {
+            parts.append("Annat smått är poster som är under 2 procent av priset var för sig: \(detail.lowercased()).")
+        }
         if let missingGridMessage = breakdown.missingGridMessage {
             parts.append(missingGridMessage)
         }
@@ -234,11 +294,13 @@ struct KilowattHourBreakdownView: View {
     }
 
     private func shareText(for line: KilowattHourLine) -> String {
-        "\(Int(sharePercent(for: line).rounded())) %"
+        let percent = sharePercent(for: line)
+        if percent > 0, percent < 1 { return "<1 %" }
+        return "\(Int(percent.rounded())) %"
     }
 
     private func sectorAccessibilityValue(for line: KilowattHourLine) -> String {
-        "\(Int(sharePercent(for: line).rounded())) procent, \(line.amountOrePerKWh.formatted(.number.precision(.fractionLength(1)))) öre per kilowattimme"
+        "\(Int(sharePercent(for: line).rounded())) procent, \(line.amountKrPerKWh.formatted(.number.precision(.fractionLength(2)))) kronor per kilowattimme"
     }
 
     private func legendAccessibilityLabel(for line: KilowattHourLine) -> String {
@@ -263,6 +325,8 @@ struct KilowattHourBreakdownView: View {
             return DS.Color.danger
         case .vat:
             return Color.gray
+        case .other:
+            return Color.teal
         }
     }
 }

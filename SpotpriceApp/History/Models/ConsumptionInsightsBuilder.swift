@@ -57,10 +57,10 @@ nonisolated enum ConsumptionInsightsBuilder: Sendable {
             eventsUnavailableReason = "Toppar kräver tim- eller kvartsvärden."
         } else if let baseload {
             events = loadEvents(from: samples, baseloadKW: baseload.powerKW)
-            eventsUnavailableReason = events.isEmpty ? "Inga tydliga toppar över grundlasten." : nil
+            eventsUnavailableReason = events.isEmpty ? "Inga tydliga toppar över det du alltid drar." : nil
         } else {
             events = []
-            eventsUnavailableReason = "Grundlasten saknas, så topparna kan inte räknas ut."
+            eventsUnavailableReason = "Det du alltid drar saknas, så topparna kan inte räknas ut."
         }
 
         let diurnal: ConsumptionDiurnalInsight?
@@ -711,15 +711,15 @@ nonisolated enum ConsumptionInsightsBuilder: Sendable {
                 let share = (baseload.costKr / totalKr) * 100
                 if share >= 35 {
                     sentences.append(
-                        "Det som alltid är på stod för ungefär \(wholeNumber(share)) % av kostnaden, ca \(wholeNumber(baseload.costKr)) kr."
+                        "Det du alltid drar stod för ungefär \(wholeNumber(share)) % av kostnaden, ca \(wholeNumber(baseload.costKr)) kr."
                     )
                 } else {
                     sentences.append(
-                        "Grundlasten var \(powerPhrase(baseload.powerKW)). Det som alltid är på kostade ca \(wholeNumber(baseload.costKr)) kr."
+                        "Det du alltid drar var ungefär \(powerPhrase(baseload.powerKW)) och kostade ca \(wholeNumber(baseload.costKr)) kr."
                     )
                 }
             } else {
-                sentences.append("Grundlasten var \(powerPhrase(baseload.powerKW)).")
+                sentences.append("Det du alltid drar var ungefär \(powerPhrase(baseload.powerKW)).")
             }
         }
 
