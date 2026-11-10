@@ -93,6 +93,26 @@ actor SpotPriceCache {
         items(for: day, area: area, now: now, allowStale: false)
     }
 
+    struct DayPayload: Sendable {
+        let items: [SpotPriceItem]
+        let savedAt: Date
+        let isFresh: Bool
+    }
+
+    func payload(for day: Date, area: String, now: Date = Date()) -> DayPayload? {
+        guard let stored = loadPayload(for: day, area: area), !stored.items.isEmpty else {
+            return nil
+        }
+        return DayPayload(items: stored.items, savedAt: stored.savedAt, isFresh: isFresh(stored, now: now))
+    }
+
+    func cachedPayloadIfFresh(for day: Date, area: String, now: Date = Date()) -> DayPayload? {
+        guard let payload = payload(for: day, area: area, now: now), payload.isFresh else {
+            return nil
+        }
+        return payload
+    }
+
     nonisolated static func lookup(from items: [SpotPriceItem]) -> [Date: Double] {
         var map: [Date: Double] = [:]
         map.reserveCapacity(items.count)

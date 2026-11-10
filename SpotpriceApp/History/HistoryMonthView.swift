@@ -5,6 +5,7 @@ struct HistoryMonthView: View {
     let costProfile: CostProfile
     let liveMonthlyConsumption: ConsumptionData?
     let livePreciseCost: PreciseMonthlyCost?
+    var notices: [FetchNotice] = []
 
     @State private var state: HistoryMonthLoadState = .loading
     @State private var selectedMonthKey: String?
@@ -25,7 +26,8 @@ struct HistoryMonthView: View {
         previewState: HistoryMonthLoadState? = nil,
         previewInsights: ConsumptionInsights? = nil,
         liveMonthlyConsumption: ConsumptionData? = nil,
-        livePreciseCost: PreciseMonthlyCost? = nil
+        livePreciseCost: PreciseMonthlyCost? = nil,
+        notices: [FetchNotice] = []
     ) {
         self.priceArea = priceArea
         self.costProfile = costProfile
@@ -34,10 +36,12 @@ struct HistoryMonthView: View {
         self.previewInsights = previewInsights
         self.liveMonthlyConsumption = liveMonthlyConsumption
         self.livePreciseCost = livePreciseCost
+        self.notices = notices
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.lg) {
+            FetchNoticeStack(notices: notices)
             switch state {
             case .loading:
                 DashboardLoadingView()

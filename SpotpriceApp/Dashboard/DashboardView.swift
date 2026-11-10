@@ -13,6 +13,7 @@ struct DashboardView: View {
                     monthlyConsumption: viewModel.monthlyConsumption,
                     preciseMonthlyCost: viewModel.preciseMonthlyCost,
                     powerPeaks: viewModel.powerPeaks,
+                    notices: viewModel.costNotices,
                     onRetry: reload,
                     onRefresh: refresh
                 )
@@ -22,6 +23,7 @@ struct DashboardView: View {
                 PriceTab(
                     state: viewModel.state,
                     costProfile: settingsCostProfile,
+                    notices: viewModel.priceTabNotices,
                     onRetry: reload,
                     onRefresh: refresh
                 )
@@ -33,6 +35,7 @@ struct DashboardView: View {
                     costProfile: settingsCostProfile,
                     liveMonthlyConsumption: viewModel.monthlyConsumption,
                     livePreciseCost: viewModel.preciseMonthlyCost,
+                    notices: viewModel.consumptionNotice.map { [$0] } ?? [],
                     onRefresh: refresh
                 )
             }
@@ -63,6 +66,7 @@ struct DashboardView: View {
         let monthlyConsumption: ConsumptionData?
         let preciseMonthlyCost: PreciseMonthlyCost?
         let powerPeaks: [PowerPeak]
+        let notices: [FetchNotice]
         let onRetry: () -> Void
         let onRefresh: () async -> Void
         
@@ -76,6 +80,7 @@ struct DashboardView: View {
                     monthlyConsumption: monthlyConsumption,
                     preciseMonthlyCost: preciseMonthlyCost,
                     powerPeaks: powerPeaks,
+                    notices: notices,
                     onRetry: onRetry
                 )
             }
@@ -85,6 +90,7 @@ struct DashboardView: View {
     private struct PriceTab: View {
         let state: SpotPriceViewModel.State
         let costProfile: CostProfile
+        let notices: [FetchNotice]
         let onRetry: () -> Void
         let onRefresh: () async -> Void
         
@@ -96,6 +102,7 @@ struct DashboardView: View {
                 DailyPriceTabView(
                     state: state,
                     costProfile: costProfile,
+                    notices: notices,
                     onRetry: onRetry
                 )
             }
@@ -110,6 +117,7 @@ struct DashboardView: View {
         // (Kostnad + Förbrukning) as the Förbrukning tab for the open month.
         let liveMonthlyConsumption: ConsumptionData?
         let livePreciseCost: PreciseMonthlyCost?
+        let notices: [FetchNotice]
         let onRefresh: () async -> Void
 
         var body: some View {
@@ -121,7 +129,8 @@ struct DashboardView: View {
                     priceArea: priceArea,
                     costProfile: costProfile,
                     liveMonthlyConsumption: liveMonthlyConsumption,
-                    livePreciseCost: livePreciseCost
+                    livePreciseCost: livePreciseCost,
+                    notices: notices
                 )
             }
         }

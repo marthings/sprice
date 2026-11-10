@@ -8,7 +8,6 @@ import SwiftUI
 struct MonthlyStatsSection: View {
     let consumption: ConsumptionData?
     let powerPeaks: [PowerPeak]
-    let consumptionError: String?
     let isConfigured: Bool
     let averagePrice: Double?
     let preciseCost: PreciseMonthlyCost?
@@ -116,17 +115,6 @@ struct MonthlyStatsSection: View {
                 )
             }
             .buttonStyle(SpriceCardPressButtonStyle())
-        } else if let error = consumptionError {
-            AppStatusRow(
-                icon: "exclamationmark.triangle.fill",
-                title: providerName.map { "Kunde inte hämta förbrukning från \($0)" } ?? "Kunde inte hämta förbrukning",
-                message: error,
-                color: DS.Color.warning,
-                titleFont: DS.Font.medium(12),
-                messageLineLimit: 2
-            )
-            .padding(DS.Spacing.md)
-            .spriceCard(tone: .cost)
         }
     }
     
