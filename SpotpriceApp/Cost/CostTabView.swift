@@ -31,38 +31,18 @@ struct CostTabView: View {
                 profile: profile,
                 include: settings.includeHypotheticalEffectTariff
             )
-            VStack(alignment: .leading, spacing: DS.Spacing.xl) {
-                FetchNoticeStack(notices: notices)
-                CurrentCostHero(payload: payload)
-                if settings.includeHypotheticalEffectTariff {
-                    HypotheticalEffectTariffCard(
-                        peak: powerPeaks.first,
-                        amountKr: hypotheticalKr
-                    )
-                }
-                CostUsageInsightsSection(
-                    profile: profile,
-                    priceArea: profile.priceArea,
-                    measuredThrough: measuredThrough
-                )
-                MonthDailyCostSection(
-                    priceArea: profile.priceArea,
-                    profile: profile,
-                    hasProvider: !settings.selectedProviderId.isEmpty,
-                    hidesEmptyExplanation: notices.contains { $0.kind == .consumption },
-                    forecastKr: CostTabForecast.monthTotal(
-                        monthlyConsumption: monthlyConsumption,
-                        preciseMonthlyCost: preciseMonthlyCost,
-                        profile: profile,
-                        measuredThrough: measuredThrough,
-                        hypotheticalEffectTariffKr: hypotheticalKr
-                    ),
-                    measuredThrough: measuredThrough,
-                    hypotheticalEffectTariffKr: hypotheticalKr
-                )
-                CostExamplesSection(payload: payload, profile: profile)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            CostLoadedContent(
+                payload: payload,
+                monthlyConsumption: monthlyConsumption,
+                preciseMonthlyCost: preciseMonthlyCost,
+                measuredThrough: measuredThrough,
+                powerPeaks: powerPeaks,
+                notices: notices,
+                profile: profile,
+                hypotheticalKr: hypotheticalKr,
+                hasProvider: !settings.selectedProviderId.isEmpty,
+                includeHypotheticalEffectTariff: settings.includeHypotheticalEffectTariff
+            )
         }
     }
 
@@ -71,24 +51,18 @@ struct CostTabView: View {
     private func previewInsightsContent(notices: [FetchNotice]) -> some View {
         let settings = ConsumptionSettings.shared
         let profile = settings.costProfile
-        VStack(alignment: .leading, spacing: DS.Spacing.xl) {
-            FetchNoticeStack(notices: notices)
-            CostUsageInsightsSection(
-                profile: profile,
-                priceArea: profile.priceArea,
-                measuredThrough: measuredThrough
-            )
-            MonthDailyCostSection(
-                priceArea: profile.priceArea,
-                profile: profile,
-                hasProvider: !settings.selectedProviderId.isEmpty,
-                hidesEmptyExplanation: notices.contains { $0.kind == .consumption },
-                forecastKr: nil,
-                measuredThrough: measuredThrough,
-                hypotheticalEffectTariffKr: nil
-            )
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        CostLoadedContent(
+            payload: nil,
+            monthlyConsumption: monthlyConsumption,
+            preciseMonthlyCost: preciseMonthlyCost,
+            measuredThrough: measuredThrough,
+            powerPeaks: powerPeaks,
+            notices: notices,
+            profile: profile,
+            hypotheticalKr: nil,
+            hasProvider: !settings.selectedProviderId.isEmpty,
+            includeHypotheticalEffectTariff: false
+        )
     }
 #endif
 }
@@ -189,6 +163,8 @@ private struct HypotheticalEffectTariffCard: View {
 
 private struct CurrentCostHero: View {
     let payload: SpotPriceViewModel.CurrentAndDay
+    var insights: [CardInsight] = []
+    var extraInfoParagraphs: [String] = []
 
     private let totalCostService = TotalCostService.shared
 
@@ -211,7 +187,9 @@ private struct CurrentCostHero: View {
             ),
             style: .regular,
             priceCategory: category,
-            nextTotalKrPerKWh: nextTotal
+            nextTotalKrPerKWh: nextTotal,
+            insights: insights,
+            extraInfoParagraphs: extraInfoParagraphs
         )
     }
 
@@ -225,10 +203,17 @@ private struct CurrentCostHero: View {
 }
 
 
-private struct CostUsageInsightsSection: View {
-    let profile: CostProfile
-    let priceArea: String
+private struct CostLoadedContent: View {
+    var payload: SpotPriceViewModel.CurrentAndDay?
+    let monthlyConsumption: ConsumptionData?
+    let preciseMonthlyCost: PreciseMonthlyCost?
     let measuredThrough: Date?
+    let powerPeaks: [PowerPeak]
+    let notices: [FetchNotice]
+    let profile: CostProfile
+    let hypotheticalKr: Double?
+    let hasProvider: Bool
+    let includeHypotheticalEffectTariff: Bool
 
     @State private var fixedComparison: CostUsageInsights.FixedComparison?
     @State private var timing: CostUsageInsights.Timing?
@@ -237,28 +222,45 @@ private struct CostUsageInsightsSection: View {
     @State private var openedInsights: ConsumptionInsightsRoute?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-            if let fixedComparison {
-                InsightRow(icon: "arrow.left.arrow.right", title: fixedComparison.title)
+        VStack(alignment: .leading, spacing: DS.Spacing.xl) {
+            if let payload {
+                CurrentCostHero(
+                    payload: payload,
+                    insights: donutInsights,
+                    extraInfoParagraphs: donutInfoParagraphs
+                )
             }
-            if let timing {
-                InsightRow(icon: "clock", title: timing.title)
+            if includeHypotheticalEffectTariff {
+                HypotheticalEffectTariffCard(
+                    peak: powerPeaks.first,
+                    amountKr: hypotheticalKr
+                )
             }
-            if let baseload {
-                Button {
-                    openedInsights = currentMonthRoute
-                } label: {
-                    InsightRow(
-                        icon: "house",
-                        title: baseloadTitle(baseload),
-                        detail: "Visa Vad drog?",
-                        showsChevron: true
-                    )
+            MonthDailyCostSection(
+                priceArea: profile.priceArea,
+                profile: profile,
+                hasProvider: hasProvider,
+                hidesEmptyExplanation: notices.contains { $0.kind == .consumption },
+                forecastKr: payload == nil ? nil : CostTabForecast.monthTotal(
+                    monthlyConsumption: monthlyConsumption,
+                    preciseMonthlyCost: preciseMonthlyCost,
+                    profile: profile,
+                    measuredThrough: measuredThrough,
+                    hypotheticalEffectTariffKr: hypotheticalKr
+                ),
+                measuredThrough: measuredThrough,
+                hypotheticalEffectTariffKr: includeHypotheticalEffectTariff ? hypotheticalKr : nil,
+                baseload: baseload,
+                onOpenBaseload: currentMonthRoute.map { route in
+                    { openedInsights = route }
                 }
-                .buttonStyle(.plain)
-                .accessibilityHint("Öppnar Vad drog?")
+            )
+            if let payload {
+                CostExamplesSection(payload: payload, profile: profile)
             }
+            FetchNoticeStack(notices: notices)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .navigationDestination(item: $openedInsights) { route in
             ConsumptionInsightsScreen(
                 route: route,
@@ -267,12 +269,37 @@ private struct CostUsageInsightsSection: View {
                 historyQuery: EnergyHistoryQueryService()
             )
         }
-        .task(id: "\(priceArea)-\(measuredThrough?.timeIntervalSince1970 ?? 0)-\(ConsumptionSettings.shared.compareFixedPriceOrePerKWh)") {
+        .task(id: "\(profile.priceArea)-\(measuredThrough?.timeIntervalSince1970 ?? 0)-\(ConsumptionSettings.shared.compareFixedPriceOrePerKWh)") {
             await load()
         }
     }
 
-    private var currentMonthRoute: ConsumptionInsightsRoute {
+    private var donutInsights: [CardInsight] {
+        var rows: [CardInsight] = []
+        if let fixedComparison {
+            rows.append(CardInsight(id: "fixed", icon: "arrow.left.arrow.right", title: fixedComparison.title))
+        }
+        if let timing {
+            rows.append(CardInsight(id: "timing", icon: "clock", title: timing.title))
+        }
+        return rows
+    }
+
+    private var donutInfoParagraphs: [String] {
+        var parts: [String] = []
+        if let fixedComparison {
+            parts.append(fixedComparison.title)
+            parts.append("Jämförelsen gäller bara elhandeln, mot det fasta pris du angett under Inställningar. Nät, skatt och moms är desamma i båda fallen.")
+        }
+        if let timing {
+            parts.append(timing.title)
+            parts.append("Det visar om du använde mer el när den var billig eller när den var dyr, jämfört med om du hade använt lika mycket varje timme.")
+        }
+        return parts
+    }
+
+    private var currentMonthRoute: ConsumptionInsightsRoute? {
+        guard baseload != nil else { return nil }
         let start = measuredThrough ?? Date()
         let monthKey = EnergyHistoryKey.monthKey(for: start)
         return ConsumptionInsightsRoute(
@@ -281,14 +308,8 @@ private struct CostUsageInsightsSection: View {
                 previousMonthKey: nil,
                 periodStart: Calendar.energyHistory.dateInterval(of: .month, for: start)?.start ?? start
             ),
-            priceArea: priceArea
+            priceArea: profile.priceArea
         )
-    }
-
-    private func baseloadTitle(_ baseload: ConsumptionBaseloadInsight) -> String {
-        let power = ConsumptionInsightsBuilder.powerPhrase(baseload.powerKW)
-        let kronor = AppFormatters.wholeNumber(baseload.costKr)
-        return "Huset drar alltid ungefär \(power), det blir cirka \(kronor) kr den här månaden."
     }
 
     @MainActor
@@ -310,8 +331,8 @@ private struct CostUsageInsightsSection: View {
 
         do {
             let query = EnergyHistoryQueryService()
-            intervals = try query.loadPreferredIntervals(monthKey: monthKey, priceArea: priceArea)
-            summaries = try query.loadMonthHistory(priceArea: priceArea, selectedMonthKey: monthKey).dailySummaries
+            intervals = try query.loadPreferredIntervals(monthKey: monthKey, priceArea: profile.priceArea)
+            summaries = try query.loadMonthHistory(priceArea: profile.priceArea, selectedMonthKey: monthKey).dailySummaries
         } catch {
             intervals = []
             summaries = []

@@ -9,6 +9,8 @@ struct MonthDailyCostSection: View {
     var forecastKr: Double? = nil
     var measuredThrough: Date? = nil
     var hypotheticalEffectTariffKr: Double? = nil
+    var baseload: ConsumptionBaseloadInsight? = nil
+    var onOpenBaseload: (() -> Void)? = nil
 
     @State private var days: [MonthDayCost] = []
     @State private var selectedDay: MonthDayCost?
@@ -76,6 +78,10 @@ struct MonthDailyCostSection: View {
         if hypotheticalEffectTariffKr != nil {
             parts.append("Effektavgiften räknas för hela månaden och syns därför inte i dygnsstaplarna.")
         }
+        if let baseload {
+            parts.append(Self.baseloadTitle(baseload))
+            parts.append("Det är det som alltid är på, även när du inte gör något särskilt. Öppna Vad drog? för mer.")
+        }
         return parts
     }
 
@@ -127,6 +133,29 @@ struct MonthDailyCostSection: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityLabel(selectedDayTiming)
         }
+
+        if let baseload {
+            if let onOpenBaseload {
+                Button(action: onOpenBaseload) {
+                    InsightRow(
+                        icon: "house",
+                        title: Self.baseloadTitle(baseload),
+                        detail: "Visa Vad drog?",
+                        showsChevron: true
+                    )
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Öppnar Vad drog?")
+            } else {
+                InsightRow(icon: "house", title: Self.baseloadTitle(baseload))
+            }
+        }
+    }
+
+    static func baseloadTitle(_ baseload: ConsumptionBaseloadInsight) -> String {
+        let power = ConsumptionInsightsBuilder.powerPhrase(baseload.powerKW)
+        let kronor = AppFormatters.wholeNumber(baseload.costKr)
+        return "Huset drar alltid ungefär \(power), det blir cirka \(kronor) kr den här månaden."
     }
 
     private var seriesLegend: some View {

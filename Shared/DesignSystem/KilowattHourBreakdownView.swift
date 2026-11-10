@@ -11,6 +11,9 @@ struct KilowattHourBreakdownView: View {
     var style: KilowattHourBreakdownStyle = .regular
     var priceCategory: PriceCategory?
     var nextTotalKrPerKWh: Double?
+    var insights: [CardInsight] = []
+    var extraInfoParagraphs: [String] = []
+    var onInsightTap: ((CardInsight) -> Void)? = nil
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .largeTitle) private var regularDonutSize: CGFloat = 208
@@ -53,10 +56,38 @@ struct KilowattHourBreakdownView: View {
                     .foregroundStyle(DS.Color.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+
+            if !insights.isEmpty {
+                VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                    ForEach(insights) { insight in
+                        if onInsightTap != nil {
+                            Button {
+                                onInsightTap?(insight)
+                            } label: {
+                                InsightRow(
+                                    icon: insight.icon,
+                                    title: insight.title,
+                                    detail: insight.detail,
+                                    showsChevron: insight.showsChevron
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        } else {
+                            InsightRow(
+                                icon: insight.icon,
+                                title: insight.title,
+                                detail: insight.detail,
+                                showsChevron: insight.showsChevron
+                            )
+                        }
+                    }
+                }
+                .padding(.top, DS.Spacing.xs)
+            }
         }
         .padding(.horizontal, style == .compact ? DS.Spacing.md : DS.Spacing.lg)
         .padding(.bottom, style == .compact ? DS.Spacing.md : DS.Spacing.lg)
-        .padding(.top, style == .compact ? DS.Spacing.md : DS.Spacing.xl)
+        .padding(.top, style == .compact ? DS.Spacing.md : DS.Spacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
         .spriceCard(tone: .accent)
         .accessibilityElement(children: .contain)
@@ -96,7 +127,7 @@ struct KilowattHourBreakdownView: View {
             }
         }
         .frame(width: donutSize, height: donutSize)
-        .padding(.top, style == .compact ? 0 : DS.Spacing.sm)
+        .padding(.top, 0)
         .accessibilityElement(children: .contain)
     }
 
@@ -182,6 +213,7 @@ struct KilowattHourBreakdownView: View {
         if let missingGridMessage = breakdown.missingGridMessage {
             parts.append(missingGridMessage)
         }
+        parts.append(contentsOf: extraInfoParagraphs)
         return parts
     }
 

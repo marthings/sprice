@@ -44,7 +44,6 @@ struct HistoryMonthView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.lg) {
-            FetchNoticeStack(notices: notices + [temperatureNotice].compactMap { $0 })
             switch state {
             case .loading:
                 DashboardLoadingView()
@@ -70,6 +69,7 @@ struct HistoryMonthView: View {
                     openedInsights: $openedInsights
                 )
             }
+            FetchNoticeStack(notices: notices + [temperatureNotice].compactMap { $0 })
         }
         .navigationDestination(item: $openedDay) { route in
             HistoryDayView(

@@ -6,6 +6,7 @@ struct HistoryMonthHeroSection: View {
     var previousMonthName: String? = nil
     let hasProvider: Bool
     var hasPastMonths: Bool = false
+    var temperatureInsights: [TemperatureInsight] = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
@@ -60,6 +61,14 @@ struct HistoryMonthHeroSection: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            ForEach(temperatureInsights) { insight in
+                InsightRow(
+                    icon: "thermometer.medium",
+                    title: insight.title,
+                    detail: insight.isUncertain ? "Osäker jämförelse" : nil
+                )
+            }
+
             Text(snapshot.coverageText)
                 .font(DS.Font.micro)
                 .foregroundStyle(DS.Color.secondary)
@@ -85,6 +94,15 @@ struct HistoryMonthHeroSection: View {
         }
         if parts.isEmpty {
             parts.append("Här ser du månadens kostnad och hur den förhåller sig till förra perioden, så långt det finns mätvärden.")
+        }
+        if !temperatureInsights.isEmpty {
+            for insight in temperatureInsights {
+                parts.append(insight.title)
+            }
+            parts.append("Jämförelsen tar hänsyn till om det varit kallare eller varmare. Bara uppvärmningen justeras, inte det som huset drar hela tiden.")
+            parts.append("Beräkningen bygger på det senaste mätvärdet och jämför samma antal dagar i båda perioderna.")
+            parts.append("Om det finns för lite underlag, eller om förbrukningen inte följer vädret tydligt, visas ingen justering.")
+            parts.append("Temperaturen kommer från Open-Meteo för den ort du valt under Inställningar.")
         }
         return parts
     }
@@ -190,15 +208,17 @@ struct HistoryPriceConsumptionEffect: View {
 
 struct HistoryPaidVersusSpot: View {
     let snapshot: HistoryMonthSnapshot
+    var priceArea: String? = nil
+    var costProfile: CostProfile? = nil
+    var monthKey: String? = nil
+
+    @State private var comparison: CostUsageInsights.FixedComparison?
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.sm) {
             SectionInfoHeader(
                 title: "Betalt pris och spot",
-                paragraphs: [
-                    "Du betalade är vad kilowattimmen kostade i snitt, med allt inräknat. Spot i snitt är börsens elpris, utan påslag, nät, skatt och moms.",
-                    "Spotpriset visas i kronor, och samma siffra i öre per kilowattimme."
-                ]
+                paragraphs: infoParagraphs
             )
 
             if let paid = snapshot.paidKrPerKWh {
@@ -223,10 +243,59 @@ struct HistoryPaidVersusSpot: View {
                     .foregroundStyle(.primary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+
+            if let comparison {
+                InsightRow(icon: "arrow.left.arrow.right", title: comparison.title)
+            }
         }
         .padding(DS.Spacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
         .spriceCard(tone: .history)
+        .task(id: "\(monthKey ?? "")-\(priceArea ?? "")-\(ConsumptionSettings.shared.compareFixedPriceOrePerKWh)") {
+            await loadComparison()
+        }
+    }
+
+    private var infoParagraphs: [String] {
+        var parts = [
+            "Du betalade är vad kilowattimmen kostade i snitt, med allt inräknat. Spot i snitt är börsens elpris, utan påslag, nät, skatt och moms.",
+            "Spotpriset visas i kronor, och samma siffra i öre per kilowattimme."
+        ]
+        if let comparison {
+            parts.append(comparison.title)
+            parts.append("Jämförelsen gäller bara elhandeln den här månaden, mot det fasta pris du angett under Inställningar.")
+        }
+        return parts
+    }
+
+    @MainActor
+    private func loadComparison() async {
+        guard let monthKey, let priceArea, let costProfile else {
+            comparison = nil
+            return
+        }
+        let intervals: [HistoricalEnergyIntervalValue]
+#if DEBUG
+        if ConsumptionInsightsSampleData.isLaunchPreviewEnabled {
+            intervals = ConsumptionInsightsSampleData.previewIntervals()
+        } else {
+            intervals = (try? EnergyHistoryQueryService().loadPreferredIntervals(
+                monthKey: monthKey,
+                priceArea: priceArea
+            )) ?? []
+        }
+#else
+        intervals = (try? EnergyHistoryQueryService().loadPreferredIntervals(
+            monthKey: monthKey,
+            priceArea: priceArea
+        )) ?? []
+#endif
+        let fixedOre = ConsumptionSettings.shared.compareFixedPriceOrePerKWh
+        comparison = CostUsageInsights.fixedComparison(
+            intervals: intervals,
+            profile: costProfile,
+            fixedOrePerKWh: fixedOre > 0 ? fixedOre : CostUsageInsights.defaultFixedPriceOrePerKWh
+        )
     }
 
     private func labeledAmount(title: String, value: Double, unit: String, fractionLength: Int) -> some View {

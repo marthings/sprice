@@ -15,7 +15,6 @@ struct DailyPriceTabView: View {
             DashboardErrorView(notice: notice, onRetry: onRetry)
         case .loaded(let payload):
             VStack(alignment: .leading, spacing: DS.Spacing.xl) {
-                FetchNoticeStack(notices: notices)
                 PriceChartSection(
                     payload: payload,
                     costProfile: costProfile
@@ -27,6 +26,7 @@ struct DailyPriceTabView: View {
                 )
 
                 MarketContractExplanation(profile: costProfile)
+                FetchNoticeStack(notices: notices)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }

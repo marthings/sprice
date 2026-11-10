@@ -19,9 +19,6 @@ struct ModernMenuBarView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: DS.Spacing.lg) {
-                    FetchNoticeStack(notices: viewModel.costNotices.filter {
-                        ConsumptionSettings.shared.isConfigured || $0.id != "consumption-error"
-                    })
                     Text("Kostnad just nu").font(DS.Font.semibold(14))
                     chartSection
                         .spriceCard(tone: .price)
@@ -35,6 +32,9 @@ struct ModernMenuBarView: View {
                         preciseCost: viewModel.preciseMonthlyCost,
                         historySummary: viewModel.currentMonthHistorySummary
                     )
+                    FetchNoticeStack(notices: viewModel.costNotices.filter {
+                        ConsumptionSettings.shared.isConfigured || $0.id != "consumption-error"
+                    })
                 }
                 .padding(.horizontal, DS.Spacing.lg)
                 .padding(.vertical, DS.Spacing.md)

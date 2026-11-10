@@ -650,12 +650,61 @@ struct FetchNoticeStack: View {
 
     var body: some View {
         if !notices.isEmpty {
-            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                ForEach(notices) { notice in
-                    FetchNoticeBanner(notice: notice)
+            VStack(alignment: .center, spacing: DS.Spacing.xs) {
+                ForEach(orderedNotices) { notice in
+                    FetchNoticeFooterLine(notice: notice)
                 }
             }
+            .frame(maxWidth: .infinity)
+            .padding(.top, DS.Spacing.md)
+            .accessibilityElement(children: .contain)
         }
+    }
+
+    private var orderedNotices: [FetchNotice] {
+        notices.enumerated().sorted { lhs, rhs in
+            if lhs.element.isActionable != rhs.element.isActionable {
+                return lhs.element.isActionable && !rhs.element.isActionable
+            }
+            return lhs.offset < rhs.offset
+        }.map(\.element)
+    }
+}
+
+private struct FetchNoticeFooterLine: View {
+    let notice: FetchNotice
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        Group {
+            if notice.isActionable {
+                HStack(alignment: .firstTextBaseline, spacing: DS.Spacing.xs) {
+                    Image(systemName: notice.icon)
+                        .font(.system(size: 12, weight: .semibold))
+                        .accessibilityHidden(true)
+                    Text(notice.accessibilityText)
+                        .font(DS.Font.caption)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .foregroundStyle(DS.Color.warning)
+            } else {
+                Text(notice.accessibilityText)
+                    .font(DS.Font.caption)
+                    .foregroundStyle(DS.Color.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .multilineTextAlignment(.center)
+        .frame(maxWidth: .infinity)
+        .shadow(color: contrastShadow, radius: 5, x: 0, y: 0)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(notice.accessibilityText)
+    }
+
+    private var contrastShadow: Color {
+        colorScheme == .dark
+            ? Color.black.opacity(0.75)
+            : Color.white.opacity(0.85)
     }
 }
 
@@ -696,20 +745,18 @@ struct InsightRow: View {
                     .padding(.top, 2)
             }
         }
-        .padding(.horizontal, DS.Spacing.md)
-        .padding(.vertical, DS.Spacing.sm)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background {
-            RoundedRectangle(cornerRadius: DS.Glass.smallRadius, style: .continuous)
-                .fill(.ultraThinMaterial)
-                .overlay {
-                    RoundedRectangle(cornerRadius: DS.Glass.smallRadius, style: .continuous)
-                        .fill(DS.Color.accent.opacity(0.08))
-                }
-        }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(detail.map { "\(title) \($0)" } ?? title)
     }
+}
+
+struct CardInsight: Identifiable, Equatable {
+    let id: String
+    let icon: String
+    let title: String
+    var detail: String? = nil
+    var showsChevron: Bool = false
 }
 
 struct HistoryCoverageBadge: View {

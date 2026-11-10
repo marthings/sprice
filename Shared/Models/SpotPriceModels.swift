@@ -371,6 +371,22 @@ nonisolated struct FetchNotice: Equatable, Sendable, Identifiable {
         return title
     }
 
+    /// Status that only informs, as opposed to something the user may need to fix.
+    var isActionable: Bool {
+        switch id {
+        case "updated",
+             "consumption-lag",
+             "tomorrow-coming",
+             "tomorrow-missing",
+             "prices-stale",
+             "consumption-stale",
+             "temperature-stale":
+            return false
+        default:
+            return true
+        }
+    }
+
     static func price(for failure: FetchFailure, staleFrom: Date?) -> FetchNotice {
         if let staleFrom {
             return FetchNotice(
