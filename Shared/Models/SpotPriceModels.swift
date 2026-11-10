@@ -354,6 +354,7 @@ nonisolated struct FetchNotice: Equatable, Sendable, Identifiable {
         case consumption
         case tomorrow
         case updated
+        case temperature
     }
 
     let id: String
@@ -368,6 +369,22 @@ nonisolated struct FetchNotice: Equatable, Sendable, Identifiable {
             return "\(title) \(detail)"
         }
         return title
+    }
+
+    /// Status that only informs, as opposed to something the user may need to fix.
+    var isActionable: Bool {
+        switch id {
+        case "updated",
+             "consumption-lag",
+             "tomorrow-coming",
+             "tomorrow-missing",
+             "prices-stale",
+             "consumption-stale",
+             "temperature-stale":
+            return false
+        default:
+            return true
+        }
     }
 
     static func price(for failure: FetchFailure, staleFrom: Date?) -> FetchNotice {
@@ -493,6 +510,36 @@ nonisolated struct FetchNotice: Equatable, Sendable, Identifiable {
             icon: "clock",
             title: "Uppdaterad \(AppFormatters.relativeStamp(date)).",
             detail: nil
+        )
+    }
+
+    static func temperature(failure: FetchFailure, stale: Bool) -> FetchNotice {
+        if stale {
+            return FetchNotice(
+                id: "temperature-stale",
+                kind: .temperature,
+                tone: .warning,
+                icon: "clock.arrow.circlepath",
+                title: "Visar sparad temperatur.",
+                detail: shortReason(failure, forConsumption: false)
+            )
+        }
+        let detail: String?
+        switch failure {
+        case .offline:
+            detail = "Försök igen när du är ansluten."
+        case .timeout, .server, .decoding, .unknown:
+            detail = "Försök igen om en stund."
+        case .notFound, .empty, .unauthorized, .missingCredentials:
+            detail = nil
+        }
+        return FetchNotice(
+            id: "temperature-error",
+            kind: .temperature,
+            tone: .error,
+            icon: icon(for: failure),
+            title: "Kunde inte hämta temperaturen.",
+            detail: detail
         )
     }
 

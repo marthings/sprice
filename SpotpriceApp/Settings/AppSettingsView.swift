@@ -10,6 +10,7 @@ struct AppSettingsView: View {
     @State private var contractPriceOrePerKWh = 0.0
     @State private var retailerMonthlyFee = 0.0
     @State private var compareFixedPriceOrePerKWh = CostUsageInsights.defaultFixedPriceOrePerKWh
+    @State private var temperaturePlaceId = TemperaturePlace.defaultID(forDSO: "")
     @State private var selectedDSOOrgNo = ""
     @State private var fuseSize = 20
     @State private var includeHypotheticalEffectTariff = false
@@ -40,6 +41,7 @@ struct AppSettingsView: View {
             priceAreaSection
             retailContractSection
             gridTariffSection
+            temperaturePlaceSection
         }
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
@@ -73,6 +75,7 @@ struct AppSettingsView: View {
         .onChange(of: contractPriceOrePerKWh) { _, _ in scheduleCommit() }
         .onChange(of: retailerMonthlyFee) { _, _ in scheduleCommit() }
         .onChange(of: compareFixedPriceOrePerKWh) { _, _ in scheduleCommit() }
+        .onChange(of: temperaturePlaceId) { _, _ in scheduleCommit() }
         .onChange(of: focusedField) { _, newValue in
             if newValue == nil {
                 flushPendingSave()
@@ -253,6 +256,27 @@ struct AppSettingsView: View {
         }
     }
 
+
+    private var temperaturePlaceSection: some View {
+        Section {
+            SpriceSettingsMenuPicker(
+                title: "Temperaturort",
+                selection: $temperaturePlaceId,
+                valueText: TemperaturePlace.place(id: temperaturePlaceId).name
+            ) {
+                ForEach(TemperaturePlace.presets) { place in
+                    Text(place.name).tag(place.id)
+                }
+            }
+        } header: {
+            Text("Temperatur")
+                .spriceSettingsHeaderStyle()
+        } footer: {
+            Text("Används för att jämföra förbrukningen när det varit varmare eller kallare. Standard är Vaggeryd, nära Vaggeryds elnät. Du väljer ort själv, appen använder inte din position. Dygnstemperatur från Open-Meteo.")
+                .spriceSettingsFooterStyle()
+        }
+    }
+
     private func currencyField(
         title: String,
         value: Binding<Double>,
@@ -365,6 +389,7 @@ struct AppSettingsView: View {
         fuseSize = profile.fuseSize ?? settings.fuseSize
         includeHypotheticalEffectTariff = settings.includeHypotheticalEffectTariff
         compareFixedPriceOrePerKWh = settings.compareFixedPriceOrePerKWh
+        temperaturePlaceId = settings.temperaturePlaceId
         isReady = true
     }
 
@@ -425,6 +450,7 @@ struct AppSettingsView: View {
         }
         fieldError = nil
         settings.compareFixedPriceOrePerKWh = compareFixedPriceOrePerKWh
+        settings.temperaturePlaceId = temperaturePlaceId
 
         var next = settings.costProfile.updating(priceArea: priceArea)
         next = next.settingRetailContract(

@@ -7,6 +7,8 @@ struct HistoryMonthLoadedContent: View {
     let costProfile: CostProfile
     let historyQuery: (any EnergyHistoryQuerying)?
     var previewInsights: ConsumptionInsights? = nil
+    var temperatureInsights: [TemperatureInsight] = []
+    var dailyTemperatures: [Date: Double] = [:]
 
     @Binding var selectedMonthKey: String?
     @Binding var openedDay: HistoryDayRoute?
@@ -29,20 +31,15 @@ struct HistoryMonthLoadedContent: View {
                     selectedMonthKey: $selectedMonthKey
                 )
 
-                if presentation.hasPastMonths {
-                    Text("Äldre månader räknas med de priser och avgifter du har i dag, inte de som gällde då.")
-                        .font(DS.Font.micro)
-                        .foregroundStyle(DS.Color.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
                 if let snapshot = presentation.snapshot {
                     HistoryMonthHeroSection(
                         snapshot: snapshot,
                         comparison: presentation.comparison,
                         previousMonthName: presentation.comparisonMonthName
                             ?? presentation.previousSnapshot.map { AppFormatters.monthName($0.summary.periodStart) },
-                        hasProvider: hasProvider
+                        hasProvider: hasProvider,
+                        hasPastMonths: presentation.hasPastMonths,
+                        temperatureInsights: temperatureInsights
                     )
 
                     if presentation.previousSnapshot != nil {
@@ -53,9 +50,8 @@ struct HistoryMonthLoadedContent: View {
                         )
                     }
 
-                    HistoryPaidVersusSpot(snapshot: snapshot)
-
-                    HistoryFixedPriceComparisonRow(
+                    HistoryPaidVersusSpot(
+                        snapshot: snapshot,
                         priceArea: priceArea,
                         costProfile: costProfile,
                         monthKey: presentation.selectedMonth?.periodKey
@@ -74,6 +70,7 @@ struct HistoryMonthLoadedContent: View {
                         days: presentation.dayBars,
                         isCurrentMonth: snapshot.isCurrentMonth,
                         hasProvider: hasProvider,
+                        temperatures: dailyTemperatures,
                         openedDay: $openedDay
                     )
 
@@ -81,58 +78,5 @@ struct HistoryMonthLoadedContent: View {
                 }
             }
         }
-    }
-}
-
-private struct HistoryFixedPriceComparisonRow: View {
-    let priceArea: String
-    let costProfile: CostProfile
-    let monthKey: String?
-
-    @State private var comparison: CostUsageInsights.FixedComparison?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if let comparison {
-                InsightRow(icon: "arrow.left.arrow.right", title: comparison.title)
-            } else {
-                // Keep a layout footprint so `.task` is not cancelled on a zero-size view.
-                Color.clear.frame(maxWidth: .infinity).frame(height: 1)
-            }
-        }
-        .onAppear { Task { await load() } }
-        .task(id: "\(monthKey ?? "")-\(priceArea)-\(ConsumptionSettings.shared.compareFixedPriceOrePerKWh)") {
-            await load()
-        }
-    }
-
-    @MainActor
-    private func load() async {
-        guard let monthKey else {
-            comparison = nil
-            return
-        }
-        let intervals: [HistoricalEnergyIntervalValue]
-#if DEBUG
-        if ConsumptionInsightsSampleData.isLaunchPreviewEnabled {
-            intervals = ConsumptionInsightsSampleData.previewIntervals()
-        } else {
-            intervals = (try? EnergyHistoryQueryService().loadPreferredIntervals(
-                monthKey: monthKey,
-                priceArea: priceArea
-            )) ?? []
-        }
-#else
-        intervals = (try? EnergyHistoryQueryService().loadPreferredIntervals(
-            monthKey: monthKey,
-            priceArea: priceArea
-        )) ?? []
-#endif
-        let fixedOre = ConsumptionSettings.shared.compareFixedPriceOrePerKWh
-        comparison = CostUsageInsights.fixedComparison(
-            intervals: intervals,
-            profile: costProfile,
-            fixedOrePerKWh: fixedOre > 0 ? fixedOre : CostUsageInsights.defaultFixedPriceOrePerKWh
-        )
     }
 }

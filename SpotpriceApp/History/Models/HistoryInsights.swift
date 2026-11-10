@@ -512,3 +512,346 @@ enum HistoryInsights {
         return labels
     }
 }
+
+
+// MARK: - Temperature-adjusted consumption
+
+nonisolated struct TemperatureUsagePeriod: Equatable, Sendable {
+    var name: String
+    var kWh: Double
+    var meanTempC: Double
+    var heatingDegreeDays: Double
+    var dayCount: Int
+}
+
+nonisolated struct TemperatureInsight: Equatable, Sendable, Identifiable {
+    var id: String
+    var title: String
+    var isUncertain: Bool
+}
+
+nonisolated enum TemperatureAdjustment {
+    static let baseTemperatureC = 17.0
+    private static let minimumDays = 14
+    private static let minimumCorrelation = 0.35
+    private static let confidentCorrelation = 0.55
+    private static let minimumSlope = 0.05
+    private static let similarUsePercent = 5.0
+    private static let similarTempC = 0.8
+
+    static func heatingDegreeDays(meanTempC: Double) -> Double {
+        max(0, baseTemperatureC - meanTempC)
+    }
+
+    static func period(
+        name: String,
+        days: [Date],
+        kWhByDay: [Date: Double],
+        temperatures: [Date: Double],
+        calendar: Calendar
+    ) -> TemperatureUsagePeriod? {
+        var usedKWh = 0.0
+        var usedHDD = 0.0
+        var usedTemp = 0.0
+        var count = 0
+        for day in days {
+            let key = calendar.startOfDay(for: day)
+            guard let kWh = kWhByDay[key], kWh > 0, let temp = temperatures[key] else { continue }
+            usedKWh += kWh
+            usedHDD += heatingDegreeDays(meanTempC: temp)
+            usedTemp += temp
+            count += 1
+        }
+        let coverage = days.isEmpty ? 0 : Double(count) / Double(days.count)
+        guard count >= 3, usedKWh > 0, coverage >= 0.7 else { return nil }
+        return TemperatureUsagePeriod(
+            name: name,
+            kWh: usedKWh,
+            meanTempC: usedTemp / Double(count),
+            heatingDegreeDays: usedHDD,
+            dayCount: count
+        )
+    }
+
+    static func fit(
+        kWhByDay: [Date: Double],
+        temperatures: [Date: Double],
+        baseloadKW: Double?,
+        calendar: Calendar
+    ) -> (baseKWhPerDay: Double, slope: Double, correlation: Double, samples: Int)? {
+        var points: [(hdd: Double, kWh: Double)] = []
+        let keys = Set(kWhByDay.keys).intersection(temperatures.keys)
+        for key in keys {
+            guard let kWh = kWhByDay[key], kWh > 0, let temp = temperatures[key] else { continue }
+            points.append((heatingDegreeDays(meanTempC: temp), kWh))
+        }
+        guard points.count >= minimumDays else { return nil }
+
+        let summer = points.filter { $0.hdd < 1 }
+        let priorBase: Double?
+        if summer.count >= 5 {
+            priorBase = median(summer.map(\.kWh))
+        } else if let baseloadKW, baseloadKW > 0 {
+            priorBase = baseloadKW * 24
+        } else {
+            priorBase = nil
+        }
+
+        let hdd = points.map(\.hdd)
+        let kWh = points.map(\.kWh)
+        let correlation = pearson(hdd, kWh) ?? 0
+        let varianceX = variance(hdd)
+        guard varianceX > 0.05 else { return nil }
+
+        let slope: Double
+        let base: Double
+        if let priorBase {
+            let residual = zip(kWh, hdd).map { energy, _ in energy - priorBase }
+            let sumX2 = hdd.reduce(0.0) { $0 + $1 * $1 }
+            let num = zip(hdd, residual).reduce(0.0) { sum, pair in sum + pair.0 * pair.1 }
+            slope = sumX2 > 0 ? num / sumX2 : 0
+            base = max(priorBase, 0)
+        } else {
+            let meanX = hdd.reduce(0, +) / Double(hdd.count)
+            let meanY = kWh.reduce(0, +) / Double(kWh.count)
+            let num = zip(hdd, kWh).reduce(0.0) { sum, pair in sum + (pair.0 - meanX) * (pair.1 - meanY) }
+            slope = num / (varianceX * Double(hdd.count))
+            base = max(meanY - slope * meanX, 0)
+        }
+        guard slope >= minimumSlope, correlation >= minimumCorrelation else { return nil }
+        return (base, slope, correlation, points.count)
+    }
+
+    static func insight(
+        current: TemperatureUsagePeriod,
+        reference: TemperatureUsagePeriod,
+        fit: (baseKWhPerDay: Double, slope: Double, correlation: Double, samples: Int)?,
+        id: String
+    ) -> TemperatureInsight? {
+        guard current.dayCount >= 3, reference.dayCount >= 3, reference.kWh > 0 else { return nil }
+        let rawPercent = (current.kWh - reference.kWh) / reference.kWh * 100
+        let colder = current.meanTempC <= reference.meanTempC - similarTempC
+        let warmer = current.meanTempC >= reference.meanTempC + similarTempC
+        let temps = "I snitt \(degrees(current.meanTempC)) nu, mot \(degrees(reference.meanTempC)) \(named(reference.name))."
+
+        let adjusted: Double?
+        let uncertain: Bool
+        if let fit {
+            let base = min(fit.baseKWhPerDay * Double(current.dayCount), current.kWh)
+            let heat = max(0, current.kWh - base)
+            if current.heatingDegreeDays < 0.5 && reference.heatingDegreeDays < 0.5 {
+                adjusted = current.kWh
+                uncertain = fit.correlation < confidentCorrelation
+            } else if current.heatingDegreeDays < 0.5 || heat < current.kWh * 0.08 {
+                // Use is at or below the estimated always-on part, so a weather
+                // scale would invent a different total. Keep the raw number.
+                adjusted = nil
+                uncertain = true
+            } else {
+                adjusted = base + heat * (reference.heatingDegreeDays / current.heatingDegreeDays)
+                uncertain = fit.correlation < confidentCorrelation || fit.samples < 21
+            }
+        } else {
+            adjusted = nil
+            uncertain = true
+        }
+
+        let rawClause = usedClause(rawPercent, name: reference.name)
+        let weather: String
+        if colder {
+            weather = "men det var kallare"
+        } else if warmer {
+            weather = "men det var varmare"
+        } else {
+            weather = "och det var ungefär lika varmt"
+        }
+
+        if let adjusted {
+            let adjPercent = (adjusted - reference.kWh) / reference.kWh * 100
+            let adjUse = usePhrase(adjPercent)
+            if abs(rawPercent) >= similarUsePercent, colder || warmer {
+                let prefix = "\(rawClause), \(weather)."
+                if uncertain {
+                    return TemperatureInsight(
+                        id: id,
+                        title: "\(prefix) Justeringen är osäker, men den pekar på att du använde \(adjUse). \(temps)",
+                        isUncertain: true
+                    )
+                }
+                return TemperatureInsight(
+                    id: id,
+                    title: "\(prefix) Justerat för temperaturen använde du \(adjUse). \(temps)",
+                    isUncertain: false
+                )
+            }
+            if uncertain {
+                return TemperatureInsight(id: id, title: "\(rawClause), \(weather). \(temps)", isUncertain: true)
+            }
+            return TemperatureInsight(
+                id: id,
+                title: "\(rawClause), \(weather). Justerat för temperaturen använde du \(adjUse). \(temps)",
+                isUncertain: false
+            )
+        }
+
+        return TemperatureInsight(
+            id: id,
+            title: "\(rawClause), \(weather). \(temps)",
+            isUncertain: false
+        )
+    }
+
+    static func usedClause(_ percent: Double, name: String) -> String {
+        if abs(percent) < similarUsePercent {
+            return "Du använde ungefär lika mycket som \(named(name))"
+        }
+        return "Du använde \(usePhrase(percent)) än \(named(name))"
+    }
+
+    static func named(_ name: String) -> String {
+        if let first = name.first, first.isNumber {
+            return name
+        }
+        return "i \(name)"
+    }
+
+    static func usePhrase(_ percent: Double) -> String {
+        let amount = Int(abs(percent).rounded())
+        if percent > similarUsePercent {
+            return "\(amount) procent mer"
+        }
+        if percent < -similarUsePercent {
+            return "\(amount) procent mindre"
+        }
+        return "ungefär lika mycket"
+    }
+
+    static func degrees(_ value: Double) -> String {
+        let rounded = (value * 10).rounded() / 10
+        let isWhole = abs(rounded - rounded.rounded()) < 0.05
+        let number: String
+        if isWhole {
+            number = String(Int(rounded.rounded()))
+        } else {
+            number = String(format: "%.1f", rounded).replacingOccurrences(of: ".", with: ",")
+        }
+        let absValue = abs(rounded)
+        let unit = abs(absValue - 1) < 0.05 ? "grad" : "grader"
+        if rounded < 0 {
+            return "minus \(number.replacingOccurrences(of: "-", with: "")) \(unit)"
+        }
+        return "\(number) \(unit)"
+    }
+
+    static func daysInWindow(
+        monthStart: Date,
+        throughDay: Int?,
+        calendar: Calendar
+    ) -> [Date] {
+        let start = calendar.startOfDay(for: monthStart)
+        let lastDay = throughDay ?? (calendar.range(of: .day, in: .month, for: start)?.count ?? 1)
+        return (1...lastDay).compactMap { day in
+            calendar.date(byAdding: .day, value: day - 1, to: start)
+        }
+    }
+
+    static func kWhByDay(from summaries: [HistoricalEnergySummaryValue], calendar: Calendar) -> [Date: Double] {
+        var result: [Date: Double] = [:]
+        for summary in summaries {
+            let day = calendar.startOfDay(for: summary.periodStart)
+            if let kWh = summary.totalConsumptionKWh, kWh > 0 {
+                result[day] = kWh
+            }
+        }
+        return result
+    }
+
+    #if DEBUG
+    static func debugVerifyKnownExamples() -> Bool {
+        // Three mild days and three colder days, 20 kWh base + 1 kWh per degree-day.
+        let calendar = Calendar.energyHistory
+        let mild = (0..<15).compactMap { offset -> (Date, Double, Double)? in
+            guard let day = calendar.date(from: DateComponents(year: 2025, month: 6, day: 1 + offset)) else { return nil }
+            return (day, 20.0, 17.0) // HDD 0, kWh 20
+        }
+        let cold = (0..<15).compactMap { offset -> (Date, Double, Double)? in
+            guard let day = calendar.date(from: DateComponents(year: 2025, month: 11, day: 1 + offset)) else { return nil }
+            return (day, 30.0, 7.0) // HDD 10, kWh 30
+        }
+        var kWh: [Date: Double] = [:]
+        var temps: [Date: Double] = [:]
+        for (day, energy, temp) in mild + cold {
+            kWh[day] = energy
+            temps[day] = temp
+        }
+        guard let fit = fit(kWhByDay: kWh, temperatures: temps, baseloadKW: 20.0 / 24.0, calendar: calendar) else {
+            return false
+        }
+        let baseOK = abs(fit.baseKWhPerDay - 20) < 1.5
+        let slopeOK = abs(fit.slope - 1) < 0.15
+        let corrOK = fit.correlation > 0.95
+
+        let currentDays = cold.map(\.0)
+        let referenceDays = (0..<15).compactMap { offset in
+            calendar.date(from: DateComponents(year: 2025, month: 10, day: 1 + offset))
+        }
+        // Reference: 5°C warmer than the cold month, HDD 5, kWh 25
+        var refKWh: [Date: Double] = [:]
+        var refTemp: [Date: Double] = [:]
+        for day in referenceDays {
+            refKWh[day] = 25
+            refTemp[day] = 12
+        }
+        let allTemps = temps.merging(refTemp) { _, new in new }
+        let allKWh = kWh.merging(refKWh) { _, new in new }
+        guard
+            let current = period(name: "november", days: currentDays, kWhByDay: allKWh, temperatures: allTemps, calendar: calendar),
+            let reference = period(name: "oktober", days: referenceDays, kWhByDay: allKWh, temperatures: allTemps, calendar: calendar)
+        else {
+            return false
+        }
+        // Adjust current (450 kWh, HDD 150) to October HDD 75: 20*15 + 150*(75/150) = 300+75 = 375
+        // October is 375 kWh, so adjusted use is equal.
+        let insight = insight(current: current, reference: reference, fit: fit, id: "test")
+        let mentionsEqual = insight?.title.contains("ungefär lika mycket") == true
+        let mentionsColder = insight?.title.contains("kallare") == true
+        return baseOK && slopeOK && corrOK && mentionsEqual && mentionsColder
+    }
+    #endif
+
+    private static func median(_ values: [Double]) -> Double {
+        let sorted = values.sorted()
+        guard !sorted.isEmpty else { return 0 }
+        let mid = sorted.count / 2
+        if sorted.count.isMultiple(of: 2) {
+            return (sorted[mid - 1] + sorted[mid]) / 2
+        }
+        return sorted[mid]
+    }
+
+    private static func variance(_ values: [Double]) -> Double {
+        guard !values.isEmpty else { return 0 }
+        let mean = values.reduce(0, +) / Double(values.count)
+        return values.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / Double(values.count)
+    }
+
+    private static func pearson(_ xs: [Double], _ ys: [Double]) -> Double? {
+        guard xs.count == ys.count, xs.count > 1 else { return nil }
+        let n = Double(xs.count)
+        let meanX = xs.reduce(0, +) / n
+        let meanY = ys.reduce(0, +) / n
+        var num = 0.0
+        var denX = 0.0
+        var denY = 0.0
+        for (x, y) in zip(xs, ys) {
+            let dx = x - meanX
+            let dy = y - meanY
+            num += dx * dy
+            denX += dx * dx
+            denY += dy * dy
+        }
+        let den = (denX * denY).squareRoot()
+        guard den > 0 else { return nil }
+        return num / den
+    }
+}

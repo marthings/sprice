@@ -11,7 +11,7 @@ struct CostExamplesSection: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
+        VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
             header
 
             LazyVGrid(columns: columns, spacing: DS.Spacing.sm) {
@@ -28,33 +28,28 @@ struct CostExamplesSection: View {
                 }
             }
 
-            Text(HouseholdCostExample.catalogFootnote)
-                .font(DS.Font.micro)
-                .foregroundStyle(DS.Color.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            if profile.gridMonthlyFee != nil || profile.gridTransferOrePerKWh != nil {
-                Label("Elnätskostnaden baseras på dina elnätsuppgifter och kan avvika från fakturan.", systemImage: "info.circle.fill")
-                    .font(DS.Font.micro)
-                    .foregroundStyle(DS.Color.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
         }
-        
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-            Text("Exempel med detta pris")
-                .font(DS.Font.headline)
+        SectionInfoHeader(
+            title: "Exempel med detta pris",
+            paragraphs: infoParagraphs
+        )
+    }
 
-            if let basisText = profile.retailContractCostBasisText {
-                Label(basisText, systemImage: "info.circle.fill")
-                    .font(DS.Font.micro)
-                    .foregroundStyle(DS.Color.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+    private var infoParagraphs: [String] {
+        var parts = [
+            "Korten visar ungefär vad vanliga saker kostar till det pris som gäller just nu.",
+            HouseholdCostExample.catalogFootnote
+        ]
+        if let basisText = profile.retailContractCostBasisText {
+            parts.append(basisText)
         }
+        if profile.gridMonthlyFee != nil || profile.gridTransferOrePerKWh != nil {
+            parts.append("Elnätskostnaden baseras på dina elnätsuppgifter och kan avvika från fakturan.")
+        }
+        return parts
     }
 
     private var columns: [GridItem] {
@@ -109,7 +104,7 @@ private struct CostExampleCard: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(DS.Spacing.lg)
+        .padding(DS.Spacing.card)
         .spriceCard(tone: .cost)
     }
 

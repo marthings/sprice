@@ -5,20 +5,20 @@ struct HistoryMonthDaysChart: View {
     let days: [MonthDayCost]
     let isCurrentMonth: Bool
     let hasProvider: Bool
+    var temperatures: [Date: Double] = [:]
     @Binding var openedDay: HistoryDayRoute?
 
     @State private var selectedDay: MonthDayCost?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                Text("Kostnad per dag")
-                    .font(DS.Font.headline)
-                Text(introCopy)
-                    .font(DS.Font.micro)
-                    .foregroundStyle(DS.Color.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+        VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
+            SectionInfoHeader(
+                title: "Kostnad per dag",
+                paragraphs: infoParagraphs,
+                legend: temperaturePoints.isEmpty ? [] : [
+                    SectionInfoLegendItem(color: DS.Color.accent, label: "Linjen visar temperaturen ute")
+                ]
+            )
 
             if days.allSatisfy({ $0.costKr == nil }) {
                 Text(HistoryInsights.missingConsumptionMessage(hasProvider: hasProvider))
@@ -29,20 +29,49 @@ struct HistoryMonthDaysChart: View {
                 chartContent
             }
         }
-        .padding(DS.Spacing.lg)
+        .padding(DS.Spacing.card)
         .frame(maxWidth: .infinity, alignment: .leading)
         .spriceCard(tone: .history)
     }
 
-    private var introCopy: String {
+    private var infoParagraphs: [String] {
+        var parts: [String] = []
         if isCurrentMonth {
-            return "Så här har den pågående månaden kostat hittills. Tryck på en dag för att se timmarna."
+            parts.append("Staplarna visar vad varje dag har kostat den här månaden, så långt den har hunnit. Tryck på en dag för att se timmarna.")
+        } else {
+            parts.append("Staplarna visar vad varje dag har kostat. Tryck på en dag för att se hur kostnaden fördelades över timmarna.")
         }
-        return "Tryck på en dag för att se hur kostnaden fördelades över timmarna."
+        if !temperaturePoints.isEmpty {
+            parts.append("Linjen visar hur kallt det var ute, i grader. Skalan till höger gäller linjen, inte staplarna.")
+            parts.append("Temperaturen kommer från Open-Meteo för den ort du valt under Inställningar.")
+        }
+        return parts
+    }
+
+    private var temperaturePoints: [(date: Date, temp: Double)] {
+        let calendar = Calendar.energyHistory
+        return days.compactMap { day in
+            temperatures[calendar.startOfDay(for: day.date)].map { (day.date, $0) }
+        }
+    }
+
+    private var temperatureDomain: ClosedRange<Double> {
+        let values = temperaturePoints.map(\.temp)
+        let lo = (values.min() ?? 0) - 2
+        let hi = (values.max() ?? 1) + 2
+        return min(lo, hi - 1)...max(hi, lo + 1)
+    }
+
+    private var chartAccessibility: String {
+        if let lo = temperaturePoints.map(\.temp).min(), let hi = temperaturePoints.map(\.temp).max() {
+            return "Stapeldiagram över kostnad per dag, med dygnstemperatur från \(TemperatureAdjustment.degrees(lo)) till \(TemperatureAdjustment.degrees(hi))"
+        }
+        return "Stapeldiagram över kostnad per dag den här månaden"
     }
 
     @ViewBuilder
-    private var chartContent: some View {
+    private var chartContent:
+ some View {
         let expensive = mostExpensiveDay
         if let expensive, let cost = expensive.costKr {
             Text("Dyrast: \(AppFormatters.weekdayDayMonth(expensive.date)), \(AppFormatters.wholeNumber(cost)) kr")
@@ -53,7 +82,7 @@ struct HistoryMonthDaysChart: View {
                     "Dyraste dagen är \(AppFormatters.weekdayDayMonth(expensive.date)), \(AppFormatters.wholeNumber(cost)) kronor"
                 )
         }
-
+        ZStack {
         Chart {
             ForEach(days) { day in
                 BarMark(
@@ -105,8 +134,48 @@ struct HistoryMonthDaysChart: View {
             }
         }
         .historyChartPlotStyle()
+
+        if !temperaturePoints.isEmpty {
+            Chart {
+                ForEach(temperaturePoints, id: \.date) { point in
+                    LineMark(
+                        x: .value("Dag", point.date, unit: .day),
+                        y: .value("Temperatur", point.temp)
+                    )
+                    .foregroundStyle(DS.Color.accent.opacity(0.85))
+                    .lineStyle(StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
+                    .interpolationMethod(.linear)
+                    PointMark(
+                        x: .value("Dag", point.date, unit: .day),
+                        y: .value("Temperatur", point.temp)
+                    )
+                    .foregroundStyle(DS.Color.accent)
+                    .symbolSize(16)
+                }
+            }
+            .chartXAxis(.hidden)
+            .chartYScale(domain: temperatureDomain)
+            .chartYAxis {
+                AxisMarks(position: .trailing) { value in
+                    AxisValueLabel {
+                        if let temp = value.as(Double.self) {
+                            Text("\(Int(temp.rounded()))°")
+                                .font(DS.Font.micro)
+                                .foregroundStyle(DS.Color.accent)
+                        }
+                    }
+                }
+            }
+            .historyChartPlotStyle()
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
+        }
         .frame(height: 180)
+        .spriceChartMotion(days.map(\.costKr), selectedDay?.id, temperaturePoints.map(\.temp))
         .zIndex(1)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(chartAccessibility)
         .overlay {
             GeometryReader { geometry in
                 Rectangle()

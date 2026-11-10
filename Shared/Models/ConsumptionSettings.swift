@@ -57,6 +57,7 @@ final class ConsumptionSettings {
 
         static let includeHypotheticalEffectTariff = "settings_includeHypotheticalEffectTariff"
         static let compareFixedPriceOrePerKWh = "settings_compareFixedPriceOrePerKWh"
+        static let temperaturePlaceId = "settings_temperaturePlaceId"
     }
 
     // MARK: - Observable Properties
@@ -163,6 +164,20 @@ final class ConsumptionSettings {
             NotificationCenter.default.post(name: .consumptionSettingsDidSave, object: nil)
             Self.defaults.synchronize()
         }
+    }
+
+    /// Named place used for outdoor temperature. No GPS; the user picks it in Settings.
+    var temperaturePlaceId: String {
+        didSet {
+            guard temperaturePlaceId != oldValue else { return }
+            Self.defaults.set(temperaturePlaceId, forKey: Keys.temperaturePlaceId)
+            NotificationCenter.default.post(name: .consumptionSettingsDidSave, object: nil)
+            Self.defaults.synchronize()
+        }
+    }
+
+    var temperaturePlace: TemperaturePlace {
+        TemperaturePlace.place(id: temperaturePlaceId)
     }
 
     // MARK: - Legacy Properties (Backward Compatibility)
@@ -529,6 +544,11 @@ final class ConsumptionSettings {
         } else {
             self.compareFixedPriceOrePerKWh = Self.defaults.double(forKey: Keys.compareFixedPriceOrePerKWh)
         }
+        if let savedPlace = Self.defaults.string(forKey: Keys.temperaturePlaceId), !savedPlace.isEmpty {
+            self.temperaturePlaceId = savedPlace
+        } else {
+            self.temperaturePlaceId = TemperaturePlace.defaultID(forDSO: initialSelectedDSOOrgNo)
+        }
 
         // Load or migrate central cost profile
         self.costProfile = Self.loadCostProfile() ?? Self.migratedCostProfile(
@@ -790,5 +810,5 @@ nonisolated enum EffectTariffCopy {
     nonisolated static let explanation = "Visar vad toppen hade kostat om elnätet tog betalt för den. Elnätsbolag får i dag inte ta betalt för effekttoppen."
     nonisolated static let lineTitle = "Effektavgift (om den räknades)"
     nonisolated static let missingRate = "Ingen effektavgift i dina elnätsuppgifter, så toppen syns bara som kW."
-    nonisolated static let dailyBarsNote = "Den syns inte i dygnsstaplarna — det är en månadsavgift, inte en kostnad per dag."
+    nonisolated static let dailyBarsNote = "Den syns inte i dygnsstaplarna. Det är en månadsavgift, inte en kostnad per dag."
 }

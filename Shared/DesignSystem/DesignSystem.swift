@@ -334,6 +334,10 @@ enum DS {
         static let md: CGFloat = 12
         static let lg: CGFloat = 16
         static let xl: CGFloat = 24
+        /// Inner padding of content cards, on all sides.
+        static let card: CGFloat = 20
+        /// Distance from a card title (and info icon) down to the content.
+        static let cardContent: CGFloat = 12
         /// Space from a navigation title down to the first content on iOS tabs
         /// and pushed screens. Tight but not flush; Form screens use the same
         /// value via `contentMargins` so they match ScrollView padding.
@@ -358,6 +362,31 @@ enum DS {
         static let cardRadius: CGFloat = Radius.xl
         /// Corner radius for small glass elements
         static let smallRadius: CGFloat = Radius.md
+    }
+
+    // MARK: - Motion
+
+    /// Considered, not flashy. `.smooth` for numbers and reveals, `.snappy`
+    /// for charts and press. Reduce Motion replaces springs with a short fade.
+    enum Motion {
+        static let numbers: Animation = .smooth(duration: 0.45)
+        static let reveal: Animation = .smooth(duration: 0.35)
+        static let chart: Animation = .snappy(duration: 0.5)
+        static let press: Animation = .snappy(duration: 0.2)
+        static let reduced: Animation = .easeInOut(duration: 0.2)
+
+        static func curve(_ animation: Animation, reduceMotion: Bool) -> Animation {
+            reduceMotion ? reduced : animation
+        }
+
+        static func revealTransition(reduceMotion: Bool) -> AnyTransition {
+            reduceMotion
+                ? .opacity
+                : .asymmetric(
+                    insertion: .opacity.combined(with: .offset(y: 8)),
+                    removal: .opacity
+                )
+        }
     }
 
     // MARK: - Component Sizes
@@ -385,6 +414,9 @@ enum DS {
         // Icons
         static let iconSmall: CGFloat = 14
         static let iconMedium: CGFloat = 20
+        static let infoIcon: CGFloat = 16
+        static let infoHit: CGFloat = 44
+        static var infoHitInset: CGFloat { (infoHit - infoIcon) / 2 }
         static let iconLarge: CGFloat = 28
         static let iconXL: CGFloat = 36
 
@@ -587,7 +619,7 @@ struct AppStatusCard: View {
             trailingIcon: trailingIcon,
             messageLineLimit: messageLineLimit
         )
-        .padding(DS.Spacing.lg)
+        .padding(DS.Spacing.card)
         .spriceCard(tone: .default, interactive: interactive)
     }
 }
@@ -647,15 +679,79 @@ struct FetchNoticeBanner: View {
 
 struct FetchNoticeStack: View {
     let notices: [FetchNotice]
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var visibleNotices: [FetchNotice]
+
+    init(notices: [FetchNotice]) {
+        self.notices = notices
+        _visibleNotices = State(initialValue: notices)
+    }
 
     var body: some View {
-        if !notices.isEmpty {
-            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                ForEach(notices) { notice in
-                    FetchNoticeBanner(notice: notice)
+        Group {
+            if !visibleNotices.isEmpty {
+                VStack(alignment: .center, spacing: DS.Spacing.xs) {
+                    ForEach(Self.ordered(visibleNotices)) { notice in
+                        FetchNoticeFooterLine(notice: notice)
+                    }
                 }
+                .frame(maxWidth: .infinity)
+                .padding(.top, DS.Spacing.md)
+                .accessibilityElement(children: .contain)
+                .transition(DS.Motion.revealTransition(reduceMotion: reduceMotion))
             }
         }
+        .onChange(of: notices.map(\.id)) { _, _ in
+            withAnimation(DS.Motion.curve(DS.Motion.reveal, reduceMotion: reduceMotion)) {
+                visibleNotices = notices
+            }
+        }
+    }
+
+    private static func ordered(_ notices: [FetchNotice]) -> [FetchNotice] {
+        notices.enumerated().sorted { lhs, rhs in
+            if lhs.element.isActionable != rhs.element.isActionable {
+                return lhs.element.isActionable && !rhs.element.isActionable
+            }
+            return lhs.offset < rhs.offset
+        }.map(\.element)
+    }
+}
+
+private struct FetchNoticeFooterLine: View {
+    let notice: FetchNotice
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        Group {
+            if notice.isActionable {
+                HStack(alignment: .firstTextBaseline, spacing: DS.Spacing.xs) {
+                    Image(systemName: notice.icon)
+                        .font(.system(size: 12, weight: .semibold))
+                        .accessibilityHidden(true)
+                    Text(notice.accessibilityText)
+                        .font(DS.Font.caption)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .foregroundStyle(DS.Color.warning)
+            } else {
+                Text(notice.accessibilityText)
+                    .font(DS.Font.caption)
+                    .foregroundStyle(DS.Color.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .multilineTextAlignment(.center)
+        .frame(maxWidth: .infinity)
+        .shadow(color: contrastShadow, radius: 5, x: 0, y: 0)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(notice.accessibilityText)
+    }
+
+    private var contrastShadow: Color {
+        colorScheme == .dark
+            ? Color.black.opacity(0.75)
+            : Color.white.opacity(0.85)
     }
 }
 
@@ -664,6 +760,7 @@ struct InsightRow: View {
     let title: String
     var detail: String? = nil
     var showsChevron: Bool = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(alignment: .top, spacing: DS.Spacing.sm) {
@@ -696,20 +793,19 @@ struct InsightRow: View {
                     .padding(.top, 2)
             }
         }
-        .padding(.horizontal, DS.Spacing.md)
-        .padding(.vertical, DS.Spacing.sm)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background {
-            RoundedRectangle(cornerRadius: DS.Glass.smallRadius, style: .continuous)
-                .fill(.ultraThinMaterial)
-                .overlay {
-                    RoundedRectangle(cornerRadius: DS.Glass.smallRadius, style: .continuous)
-                        .fill(DS.Color.accent.opacity(0.08))
-                }
-        }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(detail.map { "\(title) \($0)" } ?? title)
+        .transition(DS.Motion.revealTransition(reduceMotion: reduceMotion))
     }
+}
+
+struct CardInsight: Identifiable, Equatable {
+    let id: String
+    let icon: String
+    let title: String
+    var detail: String? = nil
+    var showsChevron: Bool = false
 }
 
 struct HistoryCoverageBadge: View {
@@ -1065,12 +1161,13 @@ struct SpriceCardBackground: View {
 
     private var paletteColor: Color { tone.paletteColor }
 
-    /// Lifts body text onto the material so `.primary` and `DS.Color.secondary`
-    /// stay at WCAG AA (4.5:1) against the tinted fill in both appearances.
+    /// Very faint lift *under* the ultra-thin material so `.primary` stays at
+    /// WCAG AA (4.5:1) against the landscape in both appearances, without
+    /// making the card look solid.
     private var contrastFill: Color {
         colorScheme == .dark
-            ? Color.black.opacity(0.48)
-            : Color.white.opacity(0.70)
+            ? Color.black.opacity(0.32)
+            : Color.white.opacity(0.40)
     }
 
     private var opaqueBase: Color {
@@ -1110,9 +1207,9 @@ struct SpriceCardBackground: View {
                     }
             } else {
                 cardShape
-                    .fill(.regularMaterial)
+                    .fill(contrastFill)
                     .overlay {
-                        cardShape.fill(contrastFill)
+                        cardShape.fill(.ultraThinMaterial)
                     }
                     .overlay {
                         cardShape.fill(paletteWash)
@@ -1131,9 +1228,9 @@ struct SpriceCardBackground: View {
                 }
         } else {
             cardShape
-                .fill(.regularMaterial)
+                .fill(contrastFill)
                 .overlay {
-                    cardShape.fill(contrastFill)
+                    cardShape.fill(.ultraThinMaterial)
                 }
                 .overlay {
                     cardShape.fill(flatPaletteFill)
@@ -1167,11 +1264,40 @@ struct SpriceCardModifier: ViewModifier {
 
 /// Discrete press for tappable cards that used to use interactive glass.
 struct SpriceCardPressButtonStyle: ButtonStyle {
+    var scale: CGFloat = 0.98
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .scaleEffect(configuration.isPressed ? scale : 1)
             .opacity(configuration.isPressed ? 0.92 : 1)
-            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+            .animation(DS.Motion.curve(DS.Motion.press, reduceMotion: reduceMotion), value: configuration.isPressed)
+    }
+}
+
+private struct SpriceNumericTextModifier: ViewModifier {
+    let value: Double
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        content
+            .contentTransition(reduceMotion ? .opacity : .numericText(value: value))
+            .animation(DS.Motion.curve(DS.Motion.numbers, reduceMotion: reduceMotion), value: value)
+    }
+}
+
+private struct SpriceValueAnimationModifier: ViewModifier {
+    let value: [AnyHashable]
+    let animation: Animation
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var hasAppeared = false
+
+    private var token: [AnyHashable] { [hasAppeared] + value }
+
+    func body(content: Content) -> some View {
+        content
+            .animation(DS.Motion.curve(animation, reduceMotion: reduceMotion), value: token)
+            .onAppear { hasAppeared = true }
     }
 }
 
@@ -1209,6 +1335,40 @@ extension View {
         font(DS.Font.micro)
             .foregroundStyle(DS.Color.secondary)
     }
+
+    /// Ticks digits in place when `value` changes. Honors Reduce Motion.
+    func spriceNumericText(_ value: Double) -> some View {
+        modifier(SpriceNumericTextModifier(value: value))
+    }
+
+    /// Spring (or a short fade if Reduce Motion is on) when chart data or selection changes.
+    func spriceChartMotion(_ values: AnyHashable...) -> some View {
+        modifier(SpriceValueAnimationModifier(value: values, animation: DS.Motion.chart))
+    }
+
+    /// Reveal or hide footers and insight groups.
+    func spriceRevealMotion(_ values: AnyHashable...) -> some View {
+        modifier(SpriceValueAnimationModifier(value: values, animation: DS.Motion.reveal))
+    }
+
+#if os(iOS)
+    /// Insets scroll content to the safe area (including the floating tab bar)
+    /// plus `DS.Spacing.lg` of air at the bottom, and the usual space below a
+    /// navigation title at the top. Replaces a hard-coded bottom padding so
+    /// the last views stay visible above the tab bar on every device.
+    func spriceScrollContentMargins() -> some View {
+        contentMargins(
+            .all,
+            EdgeInsets(
+                top: DS.Spacing.titleToContent,
+                leading: 0,
+                bottom: DS.Spacing.lg,
+                trailing: 0
+            ),
+            for: .scrollContent
+        )
+    }
+#endif
 }
 
 /// Menu picker whose trailing value is a `DS.Font` `Text`, for grouped Forms.
@@ -1290,5 +1450,138 @@ struct TrendIndicator: View {
         }
         .foregroundStyle(color)
         .accessibilityLabel(accessibilityLabel)
+    }
+}
+
+
+// MARK: - Section info (title, button and sheet)
+
+struct SectionInfoLegendItem: Identifiable {
+    let id: String
+    let color: Color
+    let label: String
+
+    init(id: String? = nil, color: Color, label: String) {
+        self.id = id ?? label
+        self.color = color
+        self.label = label
+    }
+}
+
+/// Title with a discrete info button that opens a fuller explanation.
+struct SectionInfoHeader: View {
+    let title: String
+    var titleFont: Font = DS.Font.headline
+    var titleColor: Color = .primary
+    var accessibilityName: String? = nil
+    let paragraphs: [String]
+    var legend: [SectionInfoLegendItem] = []
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 0) {
+            Text(title)
+                .font(titleFont)
+                .foregroundStyle(titleColor)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(1)
+
+            SectionInfoButton(
+                title: accessibilityName ?? title,
+                paragraphs: paragraphs,
+                legend: legend
+            )
+        }
+        .accessibilityElement(children: .contain)
+    }
+}
+
+struct SectionInfoButton: View {
+    let title: String
+    let paragraphs: [String]
+    var legend: [SectionInfoLegendItem] = []
+
+    @State private var isPresented = false
+
+    var body: some View {
+        Button {
+            isPresented = true
+        } label: {
+            Image(systemName: "info.circle")
+                .font(.system(size: DS.Size.infoIcon, weight: .regular))
+                .foregroundStyle(DS.Color.secondary)
+                .frame(width: DS.Size.infoHit, height: DS.Size.infoHit, alignment: .center)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(SpriceCardPressButtonStyle(scale: 0.9))
+        .padding(.vertical, -DS.Size.infoHitInset)
+        .padding(.trailing, -DS.Size.infoHitInset)
+        .accessibilityLabel("Mer om \(title)")
+        .accessibilityHint("Visar en förklaring")
+        .accessibilityAddTraits(.isButton)
+#if os(macOS)
+        .popover(isPresented: $isPresented, arrowEdge: .bottom) {
+            SectionInfoSheet(title: title, paragraphs: paragraphs, legend: legend)
+                .frame(minWidth: 280, idealWidth: 320, minHeight: 200, idealHeight: 360)
+        }
+#else
+        .sheet(isPresented: $isPresented) {
+            SectionInfoSheet(title: title, paragraphs: paragraphs, legend: legend)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
+#endif
+    }
+}
+
+struct SectionInfoSheet: View {
+    let title: String
+    let paragraphs: [String]
+    var legend: [SectionInfoLegendItem] = []
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: DS.Spacing.lg) {
+                    ForEach(Array(paragraphs.enumerated()), id: \.offset) { _, paragraph in
+                        Text(paragraph)
+                            .font(DS.Font.body)
+                            .foregroundStyle(.primary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    if !legend.isEmpty {
+                        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                            ForEach(legend) { item in
+                                HStack(spacing: DS.Spacing.sm) {
+                                    Circle()
+                                        .fill(item.color)
+                                        .frame(width: 10, height: 10)
+                                        .accessibilityHidden(true)
+                                    Text(item.label)
+                                        .font(DS.Font.callout)
+                                        .foregroundStyle(.primary)
+                                }
+                                .accessibilityElement(children: .combine)
+                                .accessibilityLabel(item.label)
+                            }
+                        }
+                    }
+                }
+                .padding(DS.Spacing.lg)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .navigationTitle(title)
+#if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Klar") { dismiss() }
+                }
+            }
+#endif
+        }
     }
 }

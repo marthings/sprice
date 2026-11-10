@@ -6,9 +6,14 @@ struct HistoryWeekdayPattern: View {
     @State private var selectedLabel: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            Text("Veckodagar, snitt")
-                .font(DS.Font.headline)
+        VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
+            SectionInfoHeader(
+                title: "Veckodagar, snitt",
+                paragraphs: [
+                    "Staplarna visar vad respektive veckodag har kostat i snitt under månaden.",
+                    "Om det finns få dagar att jämföra blir slutsatsen mer osäker."
+                ]
+            )
 
             if averages.allSatisfy({ $0.averageCostKr == nil }) {
                 Text("Veckodagarna visas när det finns dygn med sparad kostnad.")
@@ -62,6 +67,7 @@ struct HistoryWeekdayPattern: View {
                     }
                 }
                 .historyChartPlotStyle()
+                .spriceChartMotion(averages.map(\.averageCostKr), selectedLabel)
                 .frame(height: 140)
                 .zIndex(1)
                 .accessibilityLabel("Stapeldiagram över snittkostnad per veckodag, i kronor")
@@ -87,7 +93,7 @@ struct HistoryWeekdayPattern: View {
                 }
             }
         }
-        .padding(DS.Spacing.lg)
+        .padding(DS.Spacing.card)
         .frame(maxWidth: .infinity, alignment: .leading)
         .spriceCard(tone: .history)
     }

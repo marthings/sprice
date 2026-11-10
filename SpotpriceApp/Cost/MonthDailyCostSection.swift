@@ -9,6 +9,8 @@ struct MonthDailyCostSection: View {
     var forecastKr: Double? = nil
     var measuredThrough: Date? = nil
     var hypotheticalEffectTariffKr: Double? = nil
+    var baseload: ConsumptionBaseloadInsight? = nil
+    var onOpenBaseload: (() -> Void)? = nil
 
     @State private var days: [MonthDayCost] = []
     @State private var selectedDay: MonthDayCost?
@@ -19,25 +21,21 @@ struct MonthDailyCostSection: View {
     private var calendar: Calendar { .energyHistory }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                Text("Kostnad per dag")
-                    .font(DS.Font.headline)
+        VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
+            SectionInfoHeader(
+                title: "Kostnad per dag",
+                paragraphs: infoParagraphs,
+                legend: infoLegend
+            )
 
-                Text(introCopy)
+            if let hypotheticalEffectTariffKr {
+                Text("\(EffectTariffCopy.lineTitle): ca \(AppFormatters.wholeNumber(hypotheticalEffectTariffKr)) kr för månaden.")
                     .font(DS.Font.micro)
-                    .foregroundStyle(DS.Color.secondary)
+                    .foregroundStyle(DS.Color.warning)
                     .fixedSize(horizontal: false, vertical: true)
-
-                if let hypotheticalEffectTariffKr {
-                    Text("\(EffectTariffCopy.lineTitle): ca \(AppFormatters.wholeNumber(hypotheticalEffectTariffKr)) kr för månaden. \(EffectTariffCopy.dailyBarsNote)")
-                        .font(DS.Font.micro)
-                        .foregroundStyle(DS.Color.warning)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityLabel(
-                            "\(EffectTariffCopy.lineTitle), \(AppFormatters.wholeNumber(hypotheticalEffectTariffKr)) kronor för månaden"
-                        )
-                }
+                    .accessibilityLabel(
+                        "\(EffectTariffCopy.lineTitle), \(AppFormatters.wholeNumber(hypotheticalEffectTariffKr)) kronor för månaden"
+                    )
             }
 
             if !didLoad {
@@ -51,7 +49,7 @@ struct MonthDailyCostSection: View {
                 chartContent
             }
         }
-        .padding(DS.Spacing.lg)
+        .padding(DS.Spacing.card)
         .frame(maxWidth: .infinity, alignment: .leading)
         .spriceCard(tone: .cost)
         .task(id: priceArea) {
@@ -65,11 +63,33 @@ struct MonthDailyCostSection: View {
         }
     }
 
-    private var introCopy: String {
+    private var infoParagraphs: [String] {
+        var parts = [
+            "Staplarna visar vad varje dag har kostat. Tryck på en stapel för att se den dagen."
+        ]
         if resolvedForecastKr != nil {
-            return "Staplarna visar vad varje dag har kostat. Linjen är kostnaden hittills, den streckade delen är prognosen till månadens slut."
+            parts.append("Den heldragna linjen är kostnaden sammanlagt. Den streckade delen är en prognos till månadens slut, räknad från det senaste mätvärdet och hur månaden har sett ut hittills.")
+        } else {
+            parts.append("Så här har månaden kostat hittills.")
         }
-        return "Så här har månaden kostat hittills. Tryck på en stapel för att se den dagen."
+        parts.append("Stapeln för idag visar bara det som har hänt hittills. Siffrorna kan släpa lite, beroende på när mätvärden kommer in.")
+        if hypotheticalEffectTariffKr != nil {
+            parts.append("Effektavgiften räknas för hela månaden och syns därför inte i dygnsstaplarna.")
+        }
+        if let baseload {
+            parts.append(Self.baseloadTitle(baseload))
+            parts.append("Det är det som alltid är på, även när du inte gör något särskilt. Öppna Vad drog? för mer.")
+        }
+        return parts
+    }
+
+    private var infoLegend: [SectionInfoLegendItem] {
+        guard resolvedForecastKr != nil else { return [] }
+        return [
+            SectionInfoLegendItem(color: DS.Color.info, label: "Staplarna är kostnaden per dag"),
+            SectionInfoLegendItem(color: DS.Color.brand, label: "Heldragen linje är kostnaden hittills"),
+            SectionInfoLegendItem(id: "prognos", color: DS.Color.brand, label: "Streckad linje är prognosen")
+        ]
     }
 
     @ViewBuilder
@@ -80,6 +100,7 @@ struct MonthDailyCostSection: View {
                 .font(DS.Font.callout)
                 .foregroundStyle(.primary)
                 .fixedSize(horizontal: false, vertical: true)
+                .spriceNumericText(spentSoFarKr + (resolvedForecastKr ?? 0))
                 .accessibilityLabel(forecastStatusCopy)
         }
         if let expensive, let cost = expensive.costKr {
@@ -97,17 +118,13 @@ struct MonthDailyCostSection: View {
             }
         }
         .frame(height: 196)
+        .spriceChartMotion(days.map(\.costKr), selectedDay?.id, resolvedForecastKr, cumulativePoints.map(\.value))
         .zIndex(1)
         .accessibilityLabel(chartAccessibilityLabel)
 
         if resolvedForecastKr != nil {
             seriesLegend
         }
-
-        Text("Stapeln för idag visar bara det som har hänt hittills.")
-            .font(DS.Font.micro)
-            .foregroundStyle(DS.Color.secondary)
-            .fixedSize(horizontal: false, vertical: true)
 
         if let selectedDayTiming {
             Text(selectedDayTiming)
@@ -116,6 +133,29 @@ struct MonthDailyCostSection: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityLabel(selectedDayTiming)
         }
+
+        if let baseload {
+            if let onOpenBaseload {
+                Button(action: onOpenBaseload) {
+                    InsightRow(
+                        icon: "house",
+                        title: Self.baseloadTitle(baseload),
+                        detail: "Visa Vad drog?",
+                        showsChevron: true
+                    )
+                }
+                .buttonStyle(SpriceCardPressButtonStyle())
+                .accessibilityHint("Öppnar Vad drog?")
+            } else {
+                InsightRow(icon: "house", title: Self.baseloadTitle(baseload))
+            }
+        }
+    }
+
+    static func baseloadTitle(_ baseload: ConsumptionBaseloadInsight) -> String {
+        let power = ConsumptionInsightsBuilder.powerPhrase(baseload.powerKW)
+        let kronor = AppFormatters.wholeNumber(baseload.costKr)
+        return "Huset drar alltid ungefär \(power), det blir cirka \(kronor) kr den här månaden."
     }
 
     private var seriesLegend: some View {
@@ -155,7 +195,7 @@ struct MonthDailyCostSection: View {
             ForEach(days) { day in
                 BarMark(
                     x: .value("Dag", day.date, unit: .day),
-                    y: .value("Per dag", day.costKr ?? 0)
+                    y: .value("Kronor per dag", day.costKr ?? 0)
                 )
                 .foregroundStyle(barColor(for: day, expensiveID: expensive?.id))
                 .cornerRadius(3)
@@ -204,16 +244,6 @@ struct MonthDailyCostSection: View {
                 }
             }
         }
-        .chartYAxisLabel(position: .leading) {
-            Text("kr/dag")
-                .font(DS.Font.micro)
-                .foregroundStyle(DS.Color.secondary)
-        }
-        .chartYAxisLabel(position: .trailing) {
-            Text("kr totalt")
-                .font(DS.Font.micro)
-                .foregroundStyle(DS.Color.secondary)
-        }
         .historyChartPlotStyle()
         .chartOverlay { proxy in
             GeometryReader { _ in
@@ -239,7 +269,7 @@ struct MonthDailyCostSection: View {
             ForEach(cumulativePoints) { point in
                 LineMark(
                     x: .value("Dag", point.date, unit: .day),
-                    y: .value("Hittills", point.value),
+                    y: .value("Kronor totalt", point.value),
                     series: .value("Serie", "Hittills")
                 )
                 .foregroundStyle(DS.Color.brand)
@@ -254,7 +284,7 @@ struct MonthDailyCostSection: View {
                 ]) { point in
                     LineMark(
                         x: .value("Dag", point.date, unit: .day),
-                        y: .value("Hittills", point.value),
+                        y: .value("Kronor totalt", point.value),
                         series: .value("Serie", "Prognos")
                     )
                     .foregroundStyle(DS.Color.brand)
@@ -263,11 +293,11 @@ struct MonthDailyCostSection: View {
 
                 PointMark(
                     x: .value("Dag", projection.toDate, unit: .day),
-                    y: .value("Hittills", projection.toValue)
+                    y: .value("Kronor totalt", projection.toValue)
                 )
                 .foregroundStyle(DS.Color.brand)
                 .symbolSize(40)
-                .annotation(position: .top, alignment: .leading, spacing: DS.Spacing.xs, overflowResolution: ChartCalloutOverflow.resolution) {
+                .annotation(position: .top, alignment: .leading, spacing: DS.Spacing.xs, overflowResolution: ChartCalloutOverflow.fitToPlot) {
                     if let resolvedForecastKr {
                         ChartValueCallout(
                             value: "Prognos: \(AppFormatters.wholeNumber(resolvedForecastKr)) kr"
@@ -311,16 +341,6 @@ struct MonthDailyCostSection: View {
                 }
             }
         }
-        .chartYAxisLabel(position: .leading) {
-            Text("kr/dag")
-                .font(DS.Font.micro)
-                .foregroundStyle(DS.Color.secondary)
-        }
-        .chartYAxisLabel(position: .trailing) {
-            Text("kr totalt")
-                .font(DS.Font.micro)
-                .foregroundStyle(DS.Color.secondary)
-        }
         .historyChartPlotStyle()
         .chartLegend(.hidden)
         .chartBackground { (_: ChartProxy) in
@@ -338,6 +358,12 @@ struct MonthDailyCostSection: View {
                 .foregroundStyle(DS.Color.secondary)
                 .frame(minWidth: 36, alignment: trailing ? .leading : .trailing)
                 .opacity(visible ? 1 : 0)
+                .accessibilityHidden(!visible)
+                .accessibilityLabel(
+                    trailing
+                        ? "\(AppFormatters.wholeNumber(amount)) kronor totalt"
+                        : "\(AppFormatters.wholeNumber(amount)) kronor per dag"
+                )
         }
     }
 

@@ -77,23 +77,18 @@ private struct SpotPriceBarChartHeader: View {
         let nextBucket = dayData.buckets.first { $0.start >= currentBucketEnd }
         let nextPrice = nextBucket?.orePerKWh
 
-        HStack(spacing: DS.Spacing.md) {
+        HStack(alignment: .center, spacing: DS.Spacing.md) {
             VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                 if let price = currentPrice {
                     let value = primaryHeaderValue(for: price)
 
-                    VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
-                        HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
-                            Text(value.amount, format: .number.precision(.fractionLength(2)))
-                                .font(DS.Font.bold(30).monospacedDigit())
-                                .foregroundStyle(value.color)
-                            Text(value.unit)
-                                .font(DS.Font.medium(11))
-                                .foregroundStyle(DS.Color.secondary)
-                        }
-
-                        Text(chartMeaningText)
-                            .font(DS.Font.micro)
+                    HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
+                        Text(value.amount, format: .number.precision(.fractionLength(2)))
+                            .font(DS.Font.bold(30).monospacedDigit())
+                            .foregroundStyle(value.color)
+                            .spriceNumericText(value.amount)
+                        Text(value.unit)
+                            .font(DS.Font.medium(11))
                             .foregroundStyle(DS.Color.secondary)
                     }
                 } else {
@@ -103,7 +98,7 @@ private struct SpotPriceBarChartHeader: View {
                 }
             }
 
-            Spacer()
+            Spacer(minLength: 0)
 
             VStack(alignment: .trailing, spacing: DS.Spacing.xxs) {
                 Text("Nästa kvart")
@@ -139,9 +134,13 @@ private struct SpotPriceBarChartHeader: View {
                         .foregroundStyle(DS.Color.secondary)
                 }
             }
+            SectionInfoButton(
+                title: "grafen",
+                paragraphs: [chartMeaningText]
+            )
         }
-        .padding(.top, DS.Spacing.sm)
-        .padding(.bottom, DS.Spacing.lg)
+        .padding(.top, DS.Spacing.card)
+        .padding(.bottom, DS.Spacing.cardContent)
     }
 
     private var chartMeaningText: String {
@@ -306,6 +305,7 @@ private struct SpotPriceBarChartPlot: View {
                 }
             }
         }
+        .spriceChartMotion(dayData.buckets.map(\.orePerKWh), selectedDate)
         .frame(height: configuration.height)
         .padding(.horizontal, DS.Spacing.lg)
         .padding(.bottom, DS.Spacing.lg)

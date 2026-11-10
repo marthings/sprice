@@ -69,10 +69,9 @@ struct HistoryDayView: View {
                     }
                 }
                 .padding(.horizontal, DS.Spacing.lg)
-                .padding(.bottom, DS.Spacing.xl * 4)
             }
             .scrollContentBackground(.hidden)
-            .contentMargins(.top, DS.Spacing.titleToContent, for: .scrollContent)
+            .spriceScrollContentMargins()
         }
         .navigationTitle(AppFormatters.weekdayDayMonth(date))
         .navigationBarTitleDisplayMode(.inline)
@@ -154,19 +153,28 @@ private struct HistoryDayTotals: View {
     let snapshot: HistoryDaySnapshot
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
+        VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
+            SectionInfoHeader(
+                title: "Dagens siffror",
+                paragraphs: [
+                    "Här ser du vad dagen kostade och hur mycket el som gick åt.",
+                    "Om dagen inte är slut visas bara det som har hänt hittills."
+                ]
+            )
+
             HStack(alignment: .top, spacing: DS.Spacing.md) {
                 if let cost = snapshot.costKr {
-                    dayMetric(value: AppFormatters.wholeNumber(cost), unit: "kr", label: "Kostnad")
+                    dayMetric(value: AppFormatters.wholeNumber(cost), unit: "kr", label: "Kostnad", amount: cost)
                 }
                 if let kWh = snapshot.kWh {
-                    dayMetric(value: AppFormatters.kWhValue(kWh), unit: "kWh", label: "Förbrukning")
+                    dayMetric(value: AppFormatters.kWhValue(kWh), unit: "kWh", label: "Förbrukning", amount: kWh)
                 }
                 if let paid = snapshot.paidKrPerKWh {
                     dayMetric(
                         value: paid.formatted(.number.precision(.fractionLength(2))),
                         unit: "kr/kWh",
-                        label: "Betalt pris"
+                        label: "Betalt pris",
+                        amount: paid
                     )
                 }
             }
@@ -179,22 +187,23 @@ private struct HistoryDayTotals: View {
             }
 
             if snapshot.isIncomplete {
-                Text("Dagen är inte komplett. Siffrorna visar bara det som har hänt hittills.")
+                Text("Dagen är inte komplett.")
                     .font(DS.Font.micro)
                     .foregroundStyle(DS.Color.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(DS.Spacing.lg)
+        .padding(DS.Spacing.card)
         .frame(maxWidth: .infinity, alignment: .leading)
         .spriceCard(tone: .history)
     }
 
-    private func dayMetric(value: String, unit: String, label: String) -> some View {
+    private func dayMetric(value: String, unit: String, label: String, amount: Double) -> some View {
         VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
             HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
                 Text(value)
                     .font(DS.Font.bold(28).monospacedDigit())
+                    .spriceNumericText(amount)
                 Text(unit)
                     .font(DS.Font.micro)
                     .foregroundStyle(DS.Color.secondary)
@@ -223,9 +232,14 @@ private struct HistoryDayHourChart: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            Text("När pengarna gick")
-                .font(DS.Font.headline)
+        VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
+            SectionInfoHeader(
+                title: "När pengarna gick",
+                paragraphs: [
+                    "Staplarna visar vad varje timme kostade.",
+                    "Linjen under är börsens elpris samma dag, utan påslag, nät, skatt och moms."
+                ]
+            )
 
             if hasCost {
                 Chart {
@@ -279,6 +293,7 @@ private struct HistoryDayHourChart: View {
                 }
                 .chartXSelection(value: $selectedCostHour)
                 .historyChartPlotStyle()
+                .spriceChartMotion(snapshot.costHours.map(\.costKr), selectedCostHour)
                 .frame(height: 160)
                 .zIndex(1)
                 .accessibilityLabel("Stapeldiagram över kostnad per timme, i kronor")
@@ -351,12 +366,13 @@ private struct HistoryDayHourChart: View {
                 }
                 .chartXSelection(value: $selectedSpotHour)
                 .historyChartPlotStyle()
+                .spriceChartMotion(snapshot.spotHours.map(\.spotOrePerKWh), selectedSpotHour)
                 .frame(height: 96)
                 .zIndex(1)
                 .accessibilityLabel("Linjediagram över spotpris per timme, i öre per kilowattimme")
             }
         }
-        .padding(DS.Spacing.lg)
+        .padding(DS.Spacing.card)
         .frame(maxWidth: .infinity, alignment: .leading)
         .spriceCard(tone: .history)
     }
@@ -385,14 +401,13 @@ private struct HistoryDayExpensiveHours: View {
     let hours: [HistoryHourCost]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            Text("Du drog el när det var dyrt")
-                .font(DS.Font.headline)
-
-            Text("Inte börsens dyraste timme, utan de timmar du faktiskt använde när det kostade mest.")
-                .font(DS.Font.micro)
-                .foregroundStyle(DS.Color.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
+            SectionInfoHeader(
+                title: "Du drog el när det var dyrt",
+                paragraphs: [
+                    "Listan visar inte börsens dyraste timme, utan de timmar du faktiskt använde när det kostade mest."
+                ]
+            )
 
             if hours.isEmpty {
                 Text("Det finns ingen mätt förbrukning att peka ut timmar från.")
@@ -422,7 +437,7 @@ private struct HistoryDayExpensiveHours: View {
                 }
             }
         }
-        .padding(DS.Spacing.lg)
+        .padding(DS.Spacing.card)
         .frame(maxWidth: .infinity, alignment: .leading)
         .spriceCard(tone: .history)
     }
@@ -449,6 +464,17 @@ private struct HistoryDayCostSplitRow: Identifiable {
 private struct HistoryDayCostSplitView: View {
     let split: HistoryDayCostSplit
 
+    private var splitInfoParagraphs: [String] {
+        var parts = [
+            "Färgfältet och listan visar hur dagens kostnad fördelas mellan elhandel, nät, skatt och moms.",
+            "Siffrorna i listan är utan moms. Momsen ligger på en egen rad. Totalen är vad du betalar."
+        ]
+        if split.usedCurrentTariffs {
+            parts.append("Äldre rader saknade uppdelning. Det här är räknat med de priser och avgifter du har i dag.")
+        }
+        return parts
+    }
+
     private var rows: [HistoryDayCostSplitRow] {
         [
             HistoryDayCostSplitRow(id: "energy", title: "Elhandel", amount: split.energyKr, color: DS.Color.info),
@@ -459,9 +485,11 @@ private struct HistoryDayCostSplitView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            Text("Så fördelades kostnaden")
-                .font(DS.Font.headline)
+        VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
+            SectionInfoHeader(
+                title: "Så fördelades kostnaden",
+                paragraphs: splitInfoParagraphs
+            )
 
             GeometryReader { geometry in
                 let total = max(split.totalKr, 0.0001)
@@ -494,19 +522,8 @@ private struct HistoryDayCostSplitView: View {
                 .accessibilityLabel("\(row.title) \(AppFormatters.kr(row.amount, fractionLength: 2))")
             }
 
-            Text("Siffrorna i listan är utan moms. Momsen ligger på en egen rad. Totalen är vad du betalar.")
-                .font(DS.Font.micro)
-                .foregroundStyle(DS.Color.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            if split.usedCurrentTariffs {
-                Text("Äldre rader saknade uppdelning. Det här är räknat med de priser och avgifter du har i dag.")
-                    .font(DS.Font.micro)
-                    .foregroundStyle(DS.Color.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
         }
-        .padding(DS.Spacing.lg)
+        .padding(DS.Spacing.card)
         .frame(maxWidth: .infinity, alignment: .leading)
         .spriceCard(tone: .history)
     }

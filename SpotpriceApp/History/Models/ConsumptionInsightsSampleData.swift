@@ -5,7 +5,9 @@ enum ConsumptionInsightsSampleData {
     static let priceArea = "SE3"
 
     static var isLaunchPreviewEnabled: Bool {
-        ProcessInfo.processInfo.arguments.contains { $0.hasPrefix("-InsightsPreview") }
+        ProcessInfo.processInfo.arguments.contains { argument in
+            argument.hasPrefix("-InsightsPreview") || argument.hasPrefix("-TemperaturePreview")
+        }
     }
 
     /// Shifts the October sample into the current month and stops at last night, so the simulator can show the cards.
@@ -92,7 +94,72 @@ enum ConsumptionInsightsSampleData {
         )
     }
 
-    static func octoberMonthRoute() -> ConsumptionInsightsRoute {
+    static func previewPreviousDailySummaries(now: Date = Date(), calendar: Calendar = .energyHistory) -> [HistoricalEnergySummaryValue] {
+        guard let currentStart = calendar.dateInterval(of: .month, for: now)?.start,
+              let previousStart = calendar.date(byAdding: .month, value: -1, to: currentStart) else {
+            return []
+        }
+        let current = previewDailySummaries(now: now, calendar: calendar)
+        return current.compactMap { day in
+            let offset = day.periodStart.timeIntervalSince(currentStart)
+            let date = previousStart.addingTimeInterval(offset)
+            guard calendar.isDate(date, equalTo: previousStart, toGranularity: .month) else { return nil }
+            return HistoricalEnergySummaryValue(
+                id: UUID(),
+                periodKey: EnergyHistoryKey.dayKey(for: date, calendar: calendar),
+                periodStart: date,
+                priceArea: priceArea,
+                providerID: "preview",
+                intervalCount: day.intervalCount,
+                measuredIntervalCount: day.measuredIntervalCount,
+                totalConsumptionKWh: (day.totalConsumptionKWh ?? 0) * 0.92,
+                totalCostSEK: (day.totalCostSEK ?? 0) * 0.92,
+                averageSpotPriceOrePerKWh: day.averageSpotPriceOrePerKWh,
+                minSpotPriceOrePerKWh: day.minSpotPriceOrePerKWh,
+                maxSpotPriceOrePerKWh: day.maxSpotPriceOrePerKWh,
+                confidence: .measured
+            )
+        }
+    }
+
+    static func previewPreviousMonthSummary(now: Date = Date(), calendar: Calendar = .energyHistory) -> HistoricalEnergySummaryValue? {
+        guard let currentStart = calendar.dateInterval(of: .month, for: now)?.start,
+              let previousStart = calendar.date(byAdding: .month, value: -1, to: currentStart) else {
+            return nil
+        }
+        let days = previewPreviousDailySummaries(now: now, calendar: calendar)
+        guard !days.isEmpty else { return nil }
+        return HistoricalEnergySummaryValue(
+            id: UUID(),
+            periodKey: EnergyHistoryKey.monthKey(for: previousStart, calendar: calendar),
+            periodStart: previousStart,
+            priceArea: priceArea,
+            providerID: "preview",
+            intervalCount: days.reduce(0) { $0 + $1.intervalCount },
+            measuredIntervalCount: days.reduce(0) { $0 + $1.measuredIntervalCount },
+            totalConsumptionKWh: days.reduce(0.0) { $0 + ($1.totalConsumptionKWh ?? 0) },
+            totalCostSEK: days.reduce(0.0) { $0 + ($1.totalCostSEK ?? 0) },
+            averageSpotPriceOrePerKWh: days.compactMap(\.averageSpotPriceOrePerKWh).first,
+            minSpotPriceOrePerKWh: days.compactMap(\.minSpotPriceOrePerKWh).min(),
+            maxSpotPriceOrePerKWh: days.compactMap(\.maxSpotPriceOrePerKWh).max(),
+            confidence: .measured
+        )
+    }
+
+    /// Example household for the fit: 20 kWh per day plus 1 kWh per degree below 17 °C, using real temperatures.
+    static func previewFitConsumption(temperatures: [Date: Double], skipping: Set<Date>, calendar: Calendar) -> [Date: Double] {
+        var result: [Date: Double] = [:]
+        for (day, temp) in temperatures {
+            let start = calendar.startOfDay(for: day)
+            if skipping.contains(start) { continue }
+            let month = calendar.component(.month, from: start)
+            guard [1, 2, 6, 7, 8].contains(month) else { continue }
+            result[start] = 20 + TemperatureAdjustment.heatingDegreeDays(meanTempC: temp)
+        }
+        return result
+    }
+
+        static func octoberMonthRoute() -> ConsumptionInsightsRoute {
         ConsumptionInsightsRoute(
             period: .month(
                 monthKey: EnergyHistoryKey.monthKey(for: monthStart),

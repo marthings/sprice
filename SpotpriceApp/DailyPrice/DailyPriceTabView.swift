@@ -15,7 +15,6 @@ struct DailyPriceTabView: View {
             DashboardErrorView(notice: notice, onRetry: onRetry)
         case .loaded(let payload):
             VStack(alignment: .leading, spacing: DS.Spacing.xl) {
-                FetchNoticeStack(notices: notices)
                 PriceChartSection(
                     payload: payload,
                     costProfile: costProfile
@@ -27,6 +26,7 @@ struct DailyPriceTabView: View {
                 )
 
                 MarketContractExplanation(profile: costProfile)
+                FetchNoticeStack(notices: notices)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -38,16 +38,14 @@ private struct PriceChartSection: View {
     let costProfile: CostProfile
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                Text("Dagens totalpris")
-                    .font(DS.Font.headline)
-
-                Text("Kurvan visar vad en kWh kostar under dagen, inklusive skatt, avgifter och moms.")
-                    .font(DS.Font.micro)
-                    .foregroundStyle(DS.Color.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+        VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
+            SectionInfoHeader(
+                title: "Dagens totalpris",
+                paragraphs: [
+                    "Kurvan visar vad en kilowattimme kostar under dagen. Där ingår skatt, avgifter och moms. Elnät ingår om du har valt elnätsbolag.",
+                    "Tryck i grafen för att se priset vid en viss tid."
+                ]
+            )
 
             PriceChartPlot(
                 day: payload.day,
@@ -146,10 +144,9 @@ private struct PriceChartCanvas: View {
         .chartPlotStyle { plot in
             plot.padding(.top, DS.Spacing.sm)
         }
+        .spriceChartMotion(series.points.map(\.price), selectedChartDate)
         .frame(height: 260)
-        .padding(.top, DS.Spacing.md)
-        .padding(.horizontal)
-        .padding(.bottom)
+        .padding(DS.Spacing.card)
         .spriceCard(tone: .price)
         .zIndex(1)
         .accessibilityHint("Dra över grafen för att se pris vid en viss tid.")
@@ -177,14 +174,11 @@ private struct MarketContractExplanation: View {
     private let totalCostService = TotalCostService.shared
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            Text("Så beräknas priset")
-                .font(DS.Font.headline)
-
-            Text(explanationText)
-                .font(DS.Font.micro)
-                .foregroundStyle(DS.Color.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
+            SectionInfoHeader(
+                title: "Så beräknas priset",
+                paragraphs: [explanationText]
+            )
 
             Divider()
 
@@ -209,7 +203,7 @@ private struct MarketContractExplanation: View {
                 }
             }
         }
-        .padding(DS.Spacing.lg)
+        .padding(DS.Spacing.card)
         .frame(maxWidth: .infinity, alignment: .leading)
         .spriceCard(tone: .price)
     }
