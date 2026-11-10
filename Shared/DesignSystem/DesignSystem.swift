@@ -363,7 +363,7 @@ enum DS {
         // are too light to read as text on the cards (about 2.3 to 3.5 to 1). These
         // reach at least 4.5 to 1 against the card in light and dark mode, and get
         // another step darker (light) or lighter (dark) with Increase Contrast.
-        static let warningText = adaptive(light: 0x964608, dark: 0xF5A35C)
+        static let warningText = adaptive(light: 0x8C4207, dark: 0xF5A35C)
         static let infoText = adaptive(light: 0x005580, dark: 0x5CCBEF)
         static let successText = adaptive(light: 0x245810, dark: 0x86CC5A)
         static let dangerText = adaptive(light: 0xA8161A, dark: 0xFF8A80)
