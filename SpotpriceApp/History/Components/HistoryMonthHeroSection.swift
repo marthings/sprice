@@ -1,4 +1,5 @@
 import SwiftUI
+import BorderBeam
 
 struct HistoryMonthHeroSection: View {
     let snapshot: HistoryMonthSnapshot
@@ -9,6 +10,21 @@ struct HistoryMonthHeroSection: View {
     var temperatureInsights: [TemperatureInsight] = []
 
     var body: some View {
+        if snapshot.isCurrentMonth {
+            card
+                .borderBeam(
+                    shape: .rounded(DS.Glass.cardRadius),
+                    style: .small,
+                    colors: BeamPalette.single(DS.Color.warning),
+                    intensity: 0.45,
+                    timing: BeamTiming(rotateDuration: 8)
+                )
+        } else {
+            card
+        }
+    }
+
+    private var card: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
             SectionInfoHeader(
                 title: "Månadens siffror",
@@ -113,11 +129,15 @@ struct HistoryMonthHeroSection: View {
             Text(value)
                 .font(DS.Font.bold(48).monospacedDigit())
                 .foregroundStyle(.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.55)
                 .spriceNumericText(amount)
             Text(unit)
                 .font(DS.Font.callout)
                 .fontWeight(.bold)
                 .foregroundStyle(DS.Color.secondary)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
         }
         .accessibilityElement(children: .combine)
     }
@@ -306,13 +326,20 @@ struct HistoryPaidVersusSpot: View {
             Text(title)
                 .font(DS.Font.callout)
                 .foregroundStyle(.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
             Spacer(minLength: DS.Spacing.sm)
             Text(value, format: .number.precision(.fractionLength(fractionLength)))
                 .font(DS.Font.semibold(20).monospacedDigit())
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
                 .spriceNumericText(value)
+                .layoutPriority(1)
             Text(unit)
                 .font(DS.Font.micro)
                 .foregroundStyle(DS.Color.secondary)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(title) \(value.formatted(.number.precision(.fractionLength(fractionLength)))) \(unit)")

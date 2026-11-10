@@ -1,0 +1,14 @@
+{
+  "originHash" : "98490a7cbafb0aad5cd463df96223262bc9dd5ef7bff50effe786dd4d0f95550",
+  "pins" : [
+    {
+      "identity" : "border-beam-ios",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/ismnoiet/border-beam-ios",
+      "state" : {
+        "revision" : "aa20499b346c37352ac5b443c8734592c17d708d"
+      }
+    }
+  ],
+  "version" : 3
+}

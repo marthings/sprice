@@ -6,7 +6,15 @@ enum ConsumptionInsightsSampleData {
 
     static var isLaunchPreviewEnabled: Bool {
         ProcessInfo.processInfo.arguments.contains { argument in
-            argument.hasPrefix("-InsightsPreview") || argument.hasPrefix("-TemperaturePreview")
+            argument.hasPrefix("-InsightsPreview")
+                || argument.hasPrefix("-TemperaturePreview")
+                || argument.hasPrefix("-EVPreview")
+        }
+    }
+
+    static var isElectricCarPreviewEnabled: Bool {
+        ProcessInfo.processInfo.arguments.contains { argument in
+            argument.hasPrefix("-EVPreview")
         }
     }
 
@@ -188,7 +196,8 @@ enum ConsumptionInsightsSampleData {
             periodEnd: calendar.date(byAdding: .month, value: 1, to: monthStart)!,
             now: calendar.date(byAdding: .month, value: 1, to: monthStart)!,
             periodKind: .month,
-            includeHypotheticalEffectTariff: includeEffectTariff
+            includeHypotheticalEffectTariff: includeEffectTariff,
+            includeElectricCarGuess: isElectricCarPreviewEnabled
         )
     }
 
@@ -254,7 +263,35 @@ enum ConsumptionInsightsSampleData {
             let isSaturday = calendar.isDate(day, inSameDayAs: saturday)
             result.append(contentsOf: intervals(forDay: day, includeOven: isFriday, includeCharge: isSaturday))
         }
+        if isElectricCarPreviewEnabled {
+            return overlayElectricCarSessions(on: result)
+        }
         return result
+    }
+
+    /// Even 11 kW night blocks so -EVPreview has charging to show. October dates, later shifted into the current month.
+    private static func overlayElectricCarSessions(on intervals: [HistoricalEnergyIntervalValue]) -> [HistoricalEnergyIntervalValue] {
+        let sessions: [(dayOffset: Int, startHour: Int, hourCount: Int)] = [
+            (2, 22, 6),
+            (7, 20, 4)
+        ]
+        var byStart = Dictionary(uniqueKeysWithValues: intervals.map { ($0.intervalStart, $0) })
+        for session in sessions {
+            guard let day = calendar.date(byAdding: .day, value: session.dayOffset, to: monthStart) else {
+                continue
+            }
+            for hourOffset in 0..<session.hourCount {
+                guard let hourStart = calendar.date(byAdding: .hour, value: session.startHour + hourOffset, to: day) else {
+                    continue
+                }
+                for quarter in 0..<4 {
+                    let start = hourStart.addingTimeInterval(Double(quarter) * 900)
+                    let spot = byStart[start]?.spotPriceOrePerKWh ?? 20
+                    byStart[start] = interval(start: start, kWh: 2.75, spotOre: spot)
+                }
+            }
+        }
+        return byStart.values.sorted { $0.intervalStart < $1.intervalStart }
     }
 
     private static func previousMonthNightIntervals() -> [HistoricalEnergyIntervalValue] {

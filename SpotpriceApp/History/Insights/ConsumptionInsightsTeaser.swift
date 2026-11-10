@@ -15,13 +15,17 @@ struct ConsumptionInsightsMonthSection: View {
         ConsumptionSettings.shared.includeHypotheticalEffectTariff
     }
 
+    private var includeElectricCarGuess: Bool {
+        ConsumptionInsightsService.includeElectricCarGuess
+    }
+
     var body: some View {
         ConsumptionInsightsTeaserCard(
             insights: insights,
             isLoading: isLoading,
             onOpen: open
         )
-        .task(id: "\(route?.id ?? "")-\(includeHypotheticalEffectTariff)") {
+        .task(id: "\(route?.id ?? "")-\(includeHypotheticalEffectTariff)-\(includeElectricCarGuess)") {
             await load()
         }
     }
@@ -84,6 +88,14 @@ struct ConsumptionInsightsTeaserCard: View {
                     "Öppna för mer om grundlast, toppar och tid på dygnet."
                 ]
             )
+
+            if let evLine = insights?.evCharging?.shortSummary {
+                Text(evLine)
+                    .font(DS.Font.callout)
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityLabel(evLine + ". Det är en gissning, inte ett faktum.")
+            }
 
             if isLoading && insights == nil {
                 Text("Räknar ut vad som drog.")
