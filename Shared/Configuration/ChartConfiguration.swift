@@ -12,6 +12,12 @@ enum ChartCalloutOverflow {
     static var resolution: AnnotationOverflowResolution {
         AnnotationOverflowResolution(x: .fit(to: .chart), y: .disabled)
     }
+
+    /// Keeps a label inside the plot so it cannot cover axis values,
+    /// including wide ones like "Prognos: 3 847 kr".
+    static var fitToPlot: AnnotationOverflowResolution {
+        AnnotationOverflowResolution(x: .fit(to: .plot), y: .disabled)
+    }
 }
 
 /// Shared x-axis air and tick density for Historik charts.

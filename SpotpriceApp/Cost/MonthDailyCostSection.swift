@@ -193,7 +193,7 @@ struct MonthDailyCostSection: View {
             ForEach(days) { day in
                 BarMark(
                     x: .value("Dag", day.date, unit: .day),
-                    y: .value("Per dag", day.costKr ?? 0)
+                    y: .value("Kronor per dag", day.costKr ?? 0)
                 )
                 .foregroundStyle(barColor(for: day, expensiveID: expensive?.id))
                 .cornerRadius(3)
@@ -242,16 +242,6 @@ struct MonthDailyCostSection: View {
                 }
             }
         }
-        .chartYAxisLabel(position: .leading) {
-            Text("kr/dag")
-                .font(DS.Font.micro)
-                .foregroundStyle(DS.Color.secondary)
-        }
-        .chartYAxisLabel(position: .trailing) {
-            Text("kr totalt")
-                .font(DS.Font.micro)
-                .foregroundStyle(DS.Color.secondary)
-        }
         .historyChartPlotStyle()
         .chartOverlay { proxy in
             GeometryReader { _ in
@@ -277,7 +267,7 @@ struct MonthDailyCostSection: View {
             ForEach(cumulativePoints) { point in
                 LineMark(
                     x: .value("Dag", point.date, unit: .day),
-                    y: .value("Hittills", point.value),
+                    y: .value("Kronor totalt", point.value),
                     series: .value("Serie", "Hittills")
                 )
                 .foregroundStyle(DS.Color.brand)
@@ -292,7 +282,7 @@ struct MonthDailyCostSection: View {
                 ]) { point in
                     LineMark(
                         x: .value("Dag", point.date, unit: .day),
-                        y: .value("Hittills", point.value),
+                        y: .value("Kronor totalt", point.value),
                         series: .value("Serie", "Prognos")
                     )
                     .foregroundStyle(DS.Color.brand)
@@ -301,11 +291,11 @@ struct MonthDailyCostSection: View {
 
                 PointMark(
                     x: .value("Dag", projection.toDate, unit: .day),
-                    y: .value("Hittills", projection.toValue)
+                    y: .value("Kronor totalt", projection.toValue)
                 )
                 .foregroundStyle(DS.Color.brand)
                 .symbolSize(40)
-                .annotation(position: .top, alignment: .leading, spacing: DS.Spacing.xs, overflowResolution: ChartCalloutOverflow.resolution) {
+                .annotation(position: .top, alignment: .leading, spacing: DS.Spacing.xs, overflowResolution: ChartCalloutOverflow.fitToPlot) {
                     if let resolvedForecastKr {
                         ChartValueCallout(
                             value: "Prognos: \(AppFormatters.wholeNumber(resolvedForecastKr)) kr"
@@ -349,16 +339,6 @@ struct MonthDailyCostSection: View {
                 }
             }
         }
-        .chartYAxisLabel(position: .leading) {
-            Text("kr/dag")
-                .font(DS.Font.micro)
-                .foregroundStyle(DS.Color.secondary)
-        }
-        .chartYAxisLabel(position: .trailing) {
-            Text("kr totalt")
-                .font(DS.Font.micro)
-                .foregroundStyle(DS.Color.secondary)
-        }
         .historyChartPlotStyle()
         .chartLegend(.hidden)
         .chartBackground { (_: ChartProxy) in
@@ -376,6 +356,12 @@ struct MonthDailyCostSection: View {
                 .foregroundStyle(DS.Color.secondary)
                 .frame(minWidth: 36, alignment: trailing ? .leading : .trailing)
                 .opacity(visible ? 1 : 0)
+                .accessibilityHidden(!visible)
+                .accessibilityLabel(
+                    trailing
+                        ? "\(AppFormatters.wholeNumber(amount)) kronor totalt"
+                        : "\(AppFormatters.wholeNumber(amount)) kronor per dag"
+                )
         }
     }
 
