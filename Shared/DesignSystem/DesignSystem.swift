@@ -1263,6 +1263,25 @@ extension View {
         font(DS.Font.micro)
             .foregroundStyle(DS.Color.secondary)
     }
+
+#if os(iOS)
+    /// Insets scroll content to the safe area (including the floating tab bar)
+    /// plus `DS.Spacing.lg` of air at the bottom, and the usual space below a
+    /// navigation title at the top. Replaces a hard-coded bottom padding so
+    /// the last views stay visible above the tab bar on every device.
+    func spriceScrollContentMargins() -> some View {
+        contentMargins(
+            .all,
+            EdgeInsets(
+                top: DS.Spacing.titleToContent,
+                leading: 0,
+                bottom: DS.Spacing.lg,
+                trailing: 0
+            ),
+            for: .scrollContent
+        )
+    }
+#endif
 }
 
 /// Menu picker whose trailing value is a `DS.Font` `Text`, for grouped Forms.

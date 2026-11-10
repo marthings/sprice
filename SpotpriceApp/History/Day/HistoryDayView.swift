@@ -69,10 +69,9 @@ struct HistoryDayView: View {
                     }
                 }
                 .padding(.horizontal, DS.Spacing.lg)
-                .padding(.bottom, DS.Spacing.xl * 4)
             }
             .scrollContentBackground(.hidden)
-            .contentMargins(.top, DS.Spacing.titleToContent, for: .scrollContent)
+            .spriceScrollContentMargins()
         }
         .navigationTitle(AppFormatters.weekdayDayMonth(date))
         .navigationBarTitleDisplayMode(.inline)
