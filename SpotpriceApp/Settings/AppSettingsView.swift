@@ -338,7 +338,7 @@ struct AppSettingsView: View {
     }
 
     private var overviewLine: String {
-        "\(priceArea) · \(contractOverviewName) · \(providerOverviewName)"
+        "\(priceArea), \(contractOverviewName), \(providerOverviewName)"
     }
 
     private var contractOverviewName: String {

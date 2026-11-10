@@ -212,7 +212,7 @@ struct ConsumptionInsightsContent: View {
         VStack(alignment: .leading, spacing: DS.Spacing.xs) {
             Text("\(rank). \(eventTimeSpan(event))")
                 .font(DS.Font.semibold(14))
-            Text("\(AppFormatters.wholeNumber(event.costKr)) kr · \(AppFormatters.kWh(event.energyKWh)) · topp \(ConsumptionInsightsBuilder.powerPhrase(event.peakKW))")
+            Text("\(AppFormatters.wholeNumber(event.costKr)) kr, \(AppFormatters.kWh(event.energyKWh)), topp \(ConsumptionInsightsBuilder.powerPhrase(event.peakKW))")
                 .font(DS.Font.callout.monospacedDigit())
                 .foregroundStyle(.primary)
             Text("\(event.shape.shapeLabel) — \(event.guess())")
@@ -384,7 +384,7 @@ struct ConsumptionInsightsContent: View {
         return VStack(alignment: .leading, spacing: DS.Spacing.xs) {
             Text(title)
                 .font(DS.Font.semibold(14))
-            Text("\(AppFormatters.wholeNumber(session.costKr)) kr · \(AppFormatters.kWh(session.energyKWh)) · \(ConsumptionInsightsBuilder.powerPhrase(session.averagePowerKW))")
+            Text("\(AppFormatters.wholeNumber(session.costKr)) kr, \(AppFormatters.kWh(session.energyKWh)), \(ConsumptionInsightsBuilder.powerPhrase(session.averagePowerKW))")
                 .font(DS.Font.callout.monospacedDigit())
                 .foregroundStyle(.primary)
         }
