@@ -1119,12 +1119,13 @@ struct SpriceCardBackground: View {
 
     private var paletteColor: Color { tone.paletteColor }
 
-    /// Lifts body text onto the material so `.primary` and `DS.Color.secondary`
-    /// stay at WCAG AA (4.5:1) against the tinted fill in both appearances.
+    /// Very faint lift *under* the ultra-thin material so `.primary` stays at
+    /// WCAG AA (4.5:1) against the landscape in both appearances, without
+    /// making the card look solid.
     private var contrastFill: Color {
         colorScheme == .dark
-            ? Color.black.opacity(0.48)
-            : Color.white.opacity(0.70)
+            ? Color.black.opacity(0.32)
+            : Color.white.opacity(0.40)
     }
 
     private var opaqueBase: Color {
@@ -1164,9 +1165,9 @@ struct SpriceCardBackground: View {
                     }
             } else {
                 cardShape
-                    .fill(.regularMaterial)
+                    .fill(contrastFill)
                     .overlay {
-                        cardShape.fill(contrastFill)
+                        cardShape.fill(.ultraThinMaterial)
                     }
                     .overlay {
                         cardShape.fill(paletteWash)
@@ -1185,9 +1186,9 @@ struct SpriceCardBackground: View {
                 }
         } else {
             cardShape
-                .fill(.regularMaterial)
+                .fill(contrastFill)
                 .overlay {
-                    cardShape.fill(contrastFill)
+                    cardShape.fill(.ultraThinMaterial)
                 }
                 .overlay {
                     cardShape.fill(flatPaletteFill)
