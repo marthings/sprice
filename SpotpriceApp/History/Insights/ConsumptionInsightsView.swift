@@ -15,6 +15,10 @@ struct ConsumptionInsightsScreen: View {
         ConsumptionSettings.shared.includeHypotheticalEffectTariff
     }
 
+    private var includeElectricCarGuess: Bool {
+        ConsumptionInsightsService.includeElectricCarGuess
+    }
+
     var body: some View {
         ZStack {
             AppCanvasBackground()
@@ -43,7 +47,7 @@ struct ConsumptionInsightsScreen: View {
         }
         .navigationTitle("Vad drog?")
         .navigationBarTitleDisplayMode(.inline)
-        .task(id: "\(route.id)-\(includeHypotheticalEffectTariff)") {
+        .task(id: "\(route.id)-\(includeHypotheticalEffectTariff)-\(includeElectricCarGuess)") {
             await load()
         }
     }
@@ -72,6 +76,7 @@ struct ConsumptionInsightsContent: View {
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.lg) {
             summaryCard
+            evChargingCard
             baseloadCard
             eventsCard
             diurnalCard
@@ -343,6 +348,66 @@ struct ConsumptionInsightsContent: View {
         .padding(DS.Spacing.card)
         .frame(maxWidth: .infinity, alignment: .leading)
         .spriceCard(tone: .history)
+    }
+
+    @ViewBuilder
+    private var evChargingCard: some View {
+        if let ev = insights.evCharging {
+            VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
+                SectionInfoHeader(
+                    title: "Troligen elbilsladdning",
+                    paragraphs: ElectricCarCopy.infoParagraphs
+                )
+
+                Text(ev.shortSummary)
+                    .font(DS.Font.callout)
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                ForEach(Array(ev.sessions.enumerated()), id: \.element.id) { index, session in
+                    evSessionRow(session, rank: ev.sessions.count == 1 ? nil : index + 1)
+                    if index < ev.sessions.count - 1 {
+                        Divider()
+                    }
+                }
+            }
+            .padding(DS.Spacing.card)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .spriceCard(tone: .history)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(evAccessibilityLabel(ev))
+        }
+    }
+
+    private func evSessionRow(_ session: ConsumptionEVChargingSession, rank: Int?) -> some View {
+        let title = rank.map { "\($0). \(evTimeSpan(session))" } ?? evTimeSpan(session)
+        return VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+            Text(title)
+                .font(DS.Font.semibold(14))
+            Text("\(AppFormatters.wholeNumber(session.costKr)) kr · \(AppFormatters.kWh(session.energyKWh)) · \(ConsumptionInsightsBuilder.powerPhrase(session.averagePowerKW))")
+                .font(DS.Font.callout.monospacedDigit())
+                .foregroundStyle(.primary)
+        }
+    }
+
+    private func evTimeSpan(_ session: ConsumptionEVChargingSession) -> String {
+        let day = AppFormatters.shortDayAndMonth(session.start)
+        let start = session.start.formatted(
+            .dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits).locale(AppFormatters.swedishLocale)
+        )
+        let end = session.end.formatted(
+            .dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits).locale(AppFormatters.swedishLocale)
+        )
+        return "\(day) \(start)–\(end)"
+    }
+
+    private func evAccessibilityLabel(_ ev: ConsumptionEVChargingInsight) -> String {
+        var parts = [ev.shortSummary]
+        for session in ev.sessions {
+            parts.append(evTimeSpan(session))
+        }
+        parts.append("Det är en gissning, inte ett faktum.")
+        return parts.joined(separator: ". ")
     }
 
     private var resolutionFooter: some View {

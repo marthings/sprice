@@ -75,7 +75,31 @@ private struct PriceChartCanvas: View {
     @State private var selectedChartDate: Date?
 
     var body: some View {
-        Chart {
+        TimelineView(.periodic(from: .now, by: 60)) { context in
+            chart(now: context.date)
+        }
+    }
+
+    private func currentPoint(at now: Date) -> TotalPriceChartPoint? {
+        guard let bucket = day.currentBucket(at: now) else { return nil }
+        return series.points.first { $0.start == bucket.start } ?? series.point(nearestTo: bucket.start)
+    }
+
+    private func nowPriceLabel(_ price: Double) -> String {
+        "Nu \(AppFormatters.kr(price, fractionLength: 2))"
+    }
+
+    private func nowPriceAccessibilityLabel(_ price: Double) -> String {
+        let amount = price.formatted(.number.precision(.fractionLength(2)))
+        return "Nuvarande pris, \(amount) kronor per kilowattimme"
+    }
+
+    private func chart(now: Date) -> some View {
+        let current = currentPoint(at: now)
+        let selectedPoint = selectedChartDate.flatMap { series.point(nearestTo: $0) }
+        let selectionIsCurrent = selectedPoint != nil && selectedPoint?.start == current?.start
+
+        return Chart {
             ForEach(series.points) { point in
                 LineMark(
                     x: .value("Tid", point.start),
@@ -87,16 +111,37 @@ private struct PriceChartCanvas: View {
                 .interpolationMethod(.catmullRom)
             }
 
-            if let currentBucket = day.currentBucket {
-                RuleMark(x: .value("Nu", currentBucket.start))
+            if let current {
+                RuleMark(x: .value("Nu", current.start))
                     .foregroundStyle(.primary.opacity(0.45))
                     .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
+                    .accessibilityLabel(nowPriceAccessibilityLabel(current.price))
+
+                PointMark(
+                    x: .value("Nu", current.start),
+                    y: .value("kr/kWh", current.price)
+                )
+                .foregroundStyle(current.color)
+                .symbolSize(selectionIsCurrent ? 90 : 70)
+                .accessibilityHidden(true)
+
+                if !selectionIsCurrent {
+                    PointMark(
+                        x: .value("Nu", current.start),
+                        y: .value("kr/kWh", current.price)
+                    )
+                    .opacity(0)
+                    .annotation(position: .top, alignment: .leading, spacing: DS.Spacing.xs, overflowResolution: ChartCalloutOverflow.fitToPlot) {
+                        ChartValueCallout(value: nowPriceLabel(current.price))
+                    }
+                    .accessibilityHidden(true)
+                }
             }
 
-            if let selectedPoint = selectedChartDate.flatMap({ series.point(nearestTo: $0) }) {
+            if let selectedPoint {
                 RuleMark(x: .value("Vald tid", selectedPoint.start))
                     .foregroundStyle(DS.Color.secondary.opacity(0.65))
-                    .lineStyle(StrokeStyle(lineWidth: 1.2))
+                    .lineStyle(StrokeStyle(lineWidth: 1.5, dash: selectionIsCurrent ? [4, 3] : []))
                     .annotation(position: .top, spacing: DS.Spacing.sm, overflowResolution: ChartCalloutOverflow.resolution) {
                         PriceChartSelectionCallout(
                             point: selectedPoint,
@@ -105,12 +150,14 @@ private struct PriceChartCanvas: View {
                         )
                     }
 
-                PointMark(
-                    x: .value("Vald tid", selectedPoint.start),
-                    y: .value("kr/kWh", selectedPoint.price)
-                )
-                .foregroundStyle(selectedPoint.color)
-                .symbolSize(70)
+                if !selectionIsCurrent {
+                    PointMark(
+                        x: .value("Vald tid", selectedPoint.start),
+                        y: .value("kr/kWh", selectedPoint.price)
+                    )
+                    .foregroundStyle(selectedPoint.color)
+                    .symbolSize(70)
+                }
             }
         }
         .chartXAxis {
@@ -144,7 +191,7 @@ private struct PriceChartCanvas: View {
         .chartPlotStyle { plot in
             plot.padding(.top, DS.Spacing.sm)
         }
-        .spriceChartMotion(series.points.map(\.price), selectedChartDate)
+        .spriceChartMotion(series.points.map(\.price), selectedChartDate, current?.start)
         .frame(height: 260)
         .padding(DS.Spacing.card)
         .spriceCard(tone: .price)

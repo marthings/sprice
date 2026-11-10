@@ -14,6 +14,7 @@ struct AppSettingsView: View {
     @State private var selectedDSOOrgNo = ""
     @State private var fuseSize = 20
     @State private var includeHypotheticalEffectTariff = false
+    @State private var hasElectricCar = false
     @State private var dsoOptions: [DSOOption] = []
     @State private var gridTariffError: String?
     @State private var fieldError: String?
@@ -42,6 +43,7 @@ struct AppSettingsView: View {
             retailContractSection
             gridTariffSection
             temperaturePlaceSection
+            electricCarSection
         }
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
@@ -71,6 +73,7 @@ struct AppSettingsView: View {
         .onChange(of: selectedDSOOrgNo) { _, _ in commitImmediately() }
         .onChange(of: fuseSize) { _, _ in commitImmediately() }
         .onChange(of: includeHypotheticalEffectTariff) { _, _ in commitEffectTariffToggle() }
+        .onChange(of: hasElectricCar) { _, _ in commitElectricCarToggle() }
         .onChange(of: retailerMarkupOrePerKWh) { _, _ in scheduleCommit() }
         .onChange(of: contractPriceOrePerKWh) { _, _ in scheduleCommit() }
         .onChange(of: retailerMonthlyFee) { _, _ in scheduleCommit() }
@@ -277,6 +280,23 @@ struct AppSettingsView: View {
         }
     }
 
+    private var electricCarSection: some View {
+        Section {
+            Toggle(isOn: $hasElectricCar) {
+                Text(ElectricCarCopy.toggleTitle)
+                    .font(DS.Font.body)
+            }
+            .accessibilityHint(ElectricCarCopy.toggleExplanation)
+            .spriceListRowBackground()
+        } header: {
+            Text("Elbil")
+                .spriceSettingsHeaderStyle()
+        } footer: {
+            Text(ElectricCarCopy.toggleExplanation)
+                .spriceSettingsFooterStyle()
+        }
+    }
+
     private func currencyField(
         title: String,
         value: Binding<Double>,
@@ -388,6 +408,7 @@ struct AppSettingsView: View {
         selectedDSOOrgNo = profile.gridCompanyId ?? settings.selectedDSOOrgNo
         fuseSize = profile.fuseSize ?? settings.fuseSize
         includeHypotheticalEffectTariff = settings.includeHypotheticalEffectTariff
+        hasElectricCar = settings.hasElectricCar
         compareFixedPriceOrePerKWh = settings.compareFixedPriceOrePerKWh
         temperaturePlaceId = settings.temperaturePlaceId
         isReady = true
@@ -423,6 +444,21 @@ struct AppSettingsView: View {
         let previous = settings.includeHypotheticalEffectTariff
         settings.includeHypotheticalEffectTariff = includeHypotheticalEffectTariff
         if previous != includeHypotheticalEffectTariff {
+            showSaved = true
+            hideSavedTask?.cancel()
+            hideSavedTask = Task {
+                try? await Task.sleep(for: .seconds(1.6))
+                guard !Task.isCancelled else { return }
+                showSaved = false
+            }
+        }
+    }
+
+    private func commitElectricCarToggle() {
+        guard isReady else { return }
+        let previous = settings.hasElectricCar
+        settings.hasElectricCar = hasElectricCar
+        if previous != hasElectricCar {
             showSaved = true
             hideSavedTask?.cancel()
             hideSavedTask = Task {

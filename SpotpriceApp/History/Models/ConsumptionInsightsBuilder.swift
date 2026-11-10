@@ -17,6 +17,7 @@ nonisolated enum ConsumptionInsightsBuilder: Sendable {
         now: Date,
         periodKind: ConsumptionInsightsPeriodKind,
         includeHypotheticalEffectTariff: Bool = false,
+        includeElectricCarGuess: Bool = false,
         factors: ConsumptionInsightsFactors = .none
     ) -> ConsumptionInsights {
         let calendar = Calendar.energyHistory
@@ -87,6 +88,13 @@ nonisolated enum ConsumptionInsightsBuilder: Sendable {
             powerPeakUnavailableReason = powerPeak == nil ? "Ingen timme med förbrukning att mäta topp på." : nil
         }
 
+        let evCharging: ConsumptionEVChargingInsight?
+        if includeElectricCarGuess, let baseload, resolution != .daily {
+            evCharging = electricCarGuess(from: samples, baseloadKW: baseload.powerKW, calendar: calendar)
+        } else {
+            evCharging = nil
+        }
+
         let summarySentences = summary(
             periodKind: periodKind,
             resolution: resolution,
@@ -110,7 +118,8 @@ nonisolated enum ConsumptionInsightsBuilder: Sendable {
             diurnal: diurnal,
             diurnalUnavailableReason: diurnalUnavailableReason,
             powerPeak: powerPeak,
-            powerPeakUnavailableReason: powerPeakUnavailableReason
+            powerPeakUnavailableReason: powerPeakUnavailableReason,
+            evCharging: evCharging
         )
     }
 
@@ -519,6 +528,133 @@ nonisolated enum ConsumptionInsightsBuilder: Sendable {
         )
     }
 
+    // MARK: - Electric car guess
+
+    /// Hours that look like charging. This is a guess, never a fact.
+    ///
+    /// A candidate hour sits at least `minimumExtraKW` (3 kW) above the
+    /// existing night baseload, and not more than `maximumExtraKW` (13 kW)
+    /// above it — around a 1-phase 3.7 kW or 3-phase 11 kW charger.
+    /// At least two consecutive hours are required; a single quiet hour
+    /// in between may be bridged into the same session.
+    /// The hourly power must be fairly even (coefficient of variation at
+    /// most 0.30). Sessions usually fall in the evening or night (17–07).
+    /// A very even, high daytime block (at least 6 kW extra) is also kept,
+    /// because it looks like three-phase charging.
+    private static let evMinimumExtraKW = 3.0
+    private static let evMaximumExtraKW = 13.0
+    private static let evMinimumHours = 2
+    private static let evMaximumGapHours = 1
+    private static let evEvennessLimit = 0.30
+    private static let evDaytimeExtraKW = 6.0
+    private static let evDaytimeEvennessLimit = 0.20
+
+    nonisolated private static func electricCarGuess(
+        from samples: [Sample],
+        baseloadKW: Double,
+        calendar: Calendar
+    ) -> ConsumptionEVChargingInsight? {
+        let hours = hourlyTotals(from: samples, calendar: calendar)
+        guard hours.count >= evMinimumHours else { return nil }
+
+        var charging: [HourTotal] = []
+        var groups: [[HourTotal]] = []
+
+        func closeGroup() {
+            guard !charging.isEmpty else { return }
+            groups.append(charging)
+            charging = []
+        }
+
+        for hour in hours {
+            let extra = hour.kW - baseloadKW
+            let isCandidate = extra >= evMinimumExtraKW && extra <= evMaximumExtraKW
+            if isCandidate {
+                if let last = charging.last {
+                    let gap = hour.start.timeIntervalSince(last.end) / 3600
+                    if gap > Double(evMaximumGapHours) + 0.05 {
+                        closeGroup()
+                    }
+                }
+                charging.append(hour)
+            }
+        }
+        closeGroup()
+
+        var sessions: [ConsumptionEVChargingSession] = []
+        for group in groups {
+            let chargingHours = group.filter { $0.kW - baseloadKW >= evMinimumExtraKW }
+            guard chargingHours.count >= evMinimumHours else { continue }
+            let powers = chargingHours.map(\.kW)
+            let mean = powers.reduce(0, +) / Double(powers.count)
+            guard mean > 0 else { continue }
+            let variance = powers.reduce(0.0) { $0 + ($1 - mean) * ($1 - mean) } / Double(powers.count)
+            let cv = variance.squareRoot() / mean
+            guard cv <= evEvennessLimit else { continue }
+
+            let nightCount = chargingHours.filter { isEveningOrNight($0.start, calendar: calendar) }.count
+            let nightShare = Double(nightCount) / Double(chargingHours.count)
+            let meanExtra = mean - baseloadKW
+            let looksLikeThreePhase = meanExtra >= evDaytimeExtraKW && cv <= evDaytimeEvennessLimit
+            guard nightShare >= 0.5 || looksLikeThreePhase else { continue }
+
+            let first = chargingHours.first!
+            let last = chargingHours.last!
+            sessions.append(
+                ConsumptionEVChargingSession(
+                    start: first.start,
+                    end: last.end,
+                    energyKWh: chargingHours.reduce(0) { $0 + $1.kWh },
+                    extraEnergyKWh: chargingHours.reduce(0) { $0 + max(0, $1.kWh - baseloadKW * $1.hours) },
+                    costKr: chargingHours.reduce(0) { $0 + $1.costKr },
+                    averagePowerKW: mean
+                )
+            )
+        }
+
+        guard !sessions.isEmpty else { return nil }
+        return ConsumptionEVChargingInsight(sessions: sessions)
+    }
+
+    private struct HourTotal {
+        let start: Date
+        let end: Date
+        let hours: Double
+        let kWh: Double
+        let kW: Double
+        let costKr: Double
+    }
+
+    nonisolated private static func hourlyTotals(from samples: [Sample], calendar: Calendar) -> [HourTotal] {
+        var buckets: [Date: (kWh: Double, cost: Double, hours: Double)] = [:]
+        for sample in samples {
+            let components = calendar.dateComponents([.year, .month, .day, .hour], from: sample.start)
+            guard let hourStart = calendar.date(from: components) else { continue }
+            var bucket = buckets[hourStart] ?? (0, 0, 0)
+            bucket.kWh += sample.kWh
+            bucket.cost += sample.costKr
+            bucket.hours += sample.hours
+            buckets[hourStart] = bucket
+        }
+        return buckets.keys.sorted().compactMap { start in
+            guard let bucket = buckets[start], bucket.hours >= 0.5 else { return nil }
+            let end = calendar.date(byAdding: .hour, value: 1, to: start) ?? start.addingTimeInterval(3600)
+            return HourTotal(
+                start: start,
+                end: end,
+                hours: 1,
+                kWh: bucket.kWh,
+                kW: bucket.kWh, // a full hour: kWh in one hour equals average kW
+                costKr: bucket.cost
+            )
+        }
+    }
+
+    nonisolated private static func isEveningOrNight(_ date: Date, calendar: Calendar) -> Bool {
+        let hour = calendar.component(.hour, from: date)
+        return hour >= 17 || hour < 7
+    }
+
     // MARK: - Summary
 
     nonisolated private static func summary(
@@ -602,7 +738,8 @@ nonisolated enum ConsumptionInsightsBuilder: Sendable {
             diurnal: nil,
             diurnalUnavailableReason: "Förbrukning saknas.",
             powerPeak: nil,
-            powerPeakUnavailableReason: "Förbrukning saknas."
+            powerPeakUnavailableReason: "Förbrukning saknas.",
+            evCharging: nil
         )
     }
 
@@ -738,6 +875,69 @@ extension ConsumptionInsightsBuilder {
         }
         guard hasLongLoad else {
             assertionFailure("Missing long even load (charging-shaped)")
+            return false
+        }
+
+        // Overlay a 4-hour 11 kW night charge so the EV guess can be checked.
+        var evIntervals = intervals
+        for evHour in [20, 21, 22, 23] {
+            let evStart = calendar.date(bySettingHour: evHour, minute: 0, second: 0, of: dayStart)!
+            for quarter in 0..<4 {
+                let start = evStart.addingTimeInterval(Double(quarter) * 900)
+                let end = start.addingTimeInterval(900)
+                evIntervals.removeAll { $0.intervalStart == start }
+                evIntervals.append(
+                    HistoricalEnergyIntervalValue(
+                        id: UUID(),
+                        intervalStart: start,
+                        intervalEnd: end,
+                        spotPriceOrePerKWh: 20,
+                        consumptionKWh: 2.75,
+                        energyCostSEK: nil,
+                        gridCostSEK: nil,
+                        taxCostSEK: nil,
+                        vatCostSEK: nil,
+                        totalCostSEK: 2.75 * 1.2
+                    )
+                )
+            }
+        }
+        evIntervals.sort { $0.intervalStart < $1.intervalStart }
+
+        let hidden = make(
+            intervals: evIntervals,
+            previousIntervals: [],
+            dailySummaries: [],
+            costProfile: .swedishDefaultEstimate(),
+            periodStart: dayStart,
+            periodEnd: dayStart.addingTimeInterval(24 * 3600),
+            now: dayStart.addingTimeInterval(24 * 3600),
+            periodKind: .day,
+            includeElectricCarGuess: false
+        )
+        guard hidden.evCharging == nil else {
+            assertionFailure("EV guess should stay off until the setting is on")
+            return false
+        }
+
+        let evInsights = make(
+            intervals: evIntervals,
+            previousIntervals: [],
+            dailySummaries: [],
+            costProfile: .swedishDefaultEstimate(),
+            periodStart: dayStart,
+            periodEnd: dayStart.addingTimeInterval(24 * 3600),
+            now: dayStart.addingTimeInterval(24 * 3600),
+            periodKind: .day,
+            includeElectricCarGuess: true
+        )
+        guard let ev = evInsights.evCharging, ev.sessions.count == 1 else {
+            assertionFailure("Expected one charging guess, got \(evInsights.evCharging?.sessions.count ?? 0)")
+            return false
+        }
+        let session = ev.sessions[0]
+        guard abs(session.averagePowerKW - 11) < 0.6, session.energyKWh >= 40 else {
+            assertionFailure("Unexpected charging session \(session.averagePowerKW) kW, \(session.energyKWh) kWh")
             return false
         }
         return true

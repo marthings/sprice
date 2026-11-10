@@ -49,7 +49,7 @@ struct HistoryDayView: View {
                                 onOpen: openInsights
                             )
                         }
-                        HistoryDayHourChart(snapshot: snapshot)
+                        HistoryDayHourChart(snapshot: snapshot, evCharging: insights?.evCharging)
                         if snapshot.hasMeasuredUse {
                             HistoryDayExpensiveHours(hours: snapshot.expensiveHoursUsed)
                         }
@@ -83,7 +83,7 @@ struct HistoryDayView: View {
                 historyQuery: historyQuery
             )
         }
-        .task(id: ConsumptionSettings.shared.includeHypotheticalEffectTariff) {
+        .task(id: "\(ConsumptionSettings.shared.includeHypotheticalEffectTariff)-\(ConsumptionInsightsService.includeElectricCarGuess)") {
             guard previewSnapshot == nil else { return }
             await loadDay()
         }
@@ -100,6 +100,23 @@ struct HistoryDayView: View {
 
     @MainActor
     private func loadDay() async {
+#if DEBUG
+        if ConsumptionInsightsSampleData.isLaunchPreviewEnabled {
+            let calendar = Calendar.energyHistory
+            let intervals = ConsumptionInsightsSampleData.previewIntervals().filter {
+                calendar.isDate($0.intervalStart, inSameDayAs: date)
+            }
+            snapshot = HistoryDayInsights.snapshot(
+                date: date,
+                dailySummary: dailySummary,
+                intervals: intervals,
+                costProfile: costProfile
+            )
+            insights = await dayInsights(intervals: intervals)
+            loadFailed = false
+            return
+        }
+#endif
         do {
             let intervals = try historyQuery.loadDayIntervals(dayKey: dayKey, priceArea: priceArea)
             snapshot = HistoryDayInsights.snapshot(
@@ -220,6 +237,7 @@ private struct HistoryDayTotals: View {
 
 private struct HistoryDayHourChart: View {
     let snapshot: HistoryDaySnapshot
+    var evCharging: ConsumptionEVChargingInsight? = nil
     @State private var selectedCostHour: Date?
     @State private var selectedSpotHour: Date?
 
@@ -237,9 +255,20 @@ private struct HistoryDayHourChart: View {
                 title: "När pengarna gick",
                 paragraphs: [
                     "Staplarna visar vad varje timme kostade.",
-                    "Linjen under är börsens elpris samma dag, utan påslag, nät, skatt och moms."
-                ]
+                    "Linjen under är börsens elpris samma dag, utan påslag, nät, skatt och moms.",
+                    evCharging == nil
+                        ? nil
+                        : "De markerade timmarna ser ut som elbilsladdning. Det är en gissning, inte ett faktum."
+                ].compactMap { $0 }
             )
+
+            if let evLine = evCharging?.shortSummary {
+                Text(evLine)
+                    .font(DS.Font.callout)
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityLabel(evLine + ". Det är en gissning, inte ett faktum.")
+            }
 
             if hasCost {
                 Chart {
@@ -384,6 +413,9 @@ private struct HistoryDayHourChart: View {
     }
 
     private func costBarColor(for hour: HistoryHourCost) -> Color {
+        if evCharging?.containsHour(startingAt: hour.start) == true {
+            return DS.Color.warning
+        }
         if snapshot.expensiveHoursUsed.contains(where: { $0.id == hour.id }) {
             return DS.Color.danger
         }

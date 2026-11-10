@@ -186,9 +186,27 @@ private struct SpotPriceBarChartPlot: View {
     @Binding var selectedDate: Date?
 
     var body: some View {
-        let style = SpotPriceBarChartStyle(dayData: dayData)
+        TimelineView(.periodic(from: .now, by: 60)) { context in
+            plot(now: context.date)
+        }
+    }
 
-        Chart {
+    private func nowPriceLabel(for orePerKWh: Double) -> String {
+        "Nu \(AppFormatters.kr(orePerKWh / 100, fractionLength: 2))"
+    }
+
+    private func nowPriceAccessibilityLabel(for orePerKWh: Double) -> String {
+        let amount = (orePerKWh / 100).formatted(.number.precision(.fractionLength(2)))
+        return "Nuvarande pris, \(amount) kronor per kilowattimme"
+    }
+
+    private func plot(now: Date) -> some View {
+        let style = SpotPriceBarChartStyle(dayData: dayData)
+        let currentBucket = dayData.currentBucket(at: now)
+        let selectedBucket = selectedDate.flatMap { findBucket(for: $0, in: dayData.buckets) }
+        let selectionIsCurrent = selectedBucket != nil && selectedBucket?.start == currentBucket?.start
+
+        return Chart {
             ForEach(dayData.buckets) { bucket in
                 AreaMark(
                     x: .value("Tid", bucket.start),
@@ -219,7 +237,7 @@ private struct SpotPriceBarChartPlot: View {
                 .opacity(selectedDate == nil || isBucketSelected(bucket, selectedDate: selectedDate) ? 1.0 : 0.4)
             }
 
-            if let selectedDate, let bucket = findBucket(for: selectedDate, in: dayData.buckets) {
+            if let selectedDate, let bucket = findBucket(for: selectedDate, in: dayData.buckets), !selectionIsCurrent {
                 PointMark(
                     x: .value("Tid", bucket.start),
                     y: .value("Kvartspris", bucket.orePerKWh)
@@ -244,16 +262,32 @@ private struct SpotPriceBarChartPlot: View {
                     .accessibilityLabel("Avtalat elpris")
             }
 
-            if let now = Calendar.current.date(
-                bySettingHour: Calendar.current.component(.hour, from: Date.now),
-                minute: 0,
-                second: 0,
-                of: Date.now
-            ) {
-                RuleMark(x: .value("Nu", now))
+            if let currentBucket {
+                RuleMark(x: .value("Nu", currentBucket.start))
                     .foregroundStyle(.primary.opacity(0.6))
                     .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
-                    .accessibilityLabel("Nuvarande tid")
+                    .accessibilityLabel(nowPriceAccessibilityLabel(for: currentBucket.orePerKWh))
+
+                PointMark(
+                    x: .value("Nu", currentBucket.start),
+                    y: .value("Kvartspris", currentBucket.orePerKWh)
+                )
+                .foregroundStyle(DS.Color.forPrice(currentBucket.orePerKWh, min: dayData.minOre, max: dayData.maxOre))
+                .symbolSize(selectionIsCurrent ? 90 : 64)
+                .symbol(.circle)
+                .accessibilityHidden(true)
+
+                if !selectionIsCurrent {
+                    PointMark(
+                        x: .value("Nu", currentBucket.start),
+                        y: .value("Kvartspris", currentBucket.orePerKWh)
+                    )
+                    .opacity(0)
+                    .annotation(position: .top, alignment: .leading, spacing: DS.Spacing.xs, overflowResolution: ChartCalloutOverflow.fitToPlot) {
+                        ChartValueCallout(value: nowPriceLabel(for: currentBucket.orePerKWh))
+                    }
+                    .accessibilityHidden(true)
+                }
             }
 
             if let selectedDate, let bucket = findBucket(for: selectedDate, in: dayData.buckets) {
@@ -305,7 +339,7 @@ private struct SpotPriceBarChartPlot: View {
                 }
             }
         }
-        .spriceChartMotion(dayData.buckets.map(\.orePerKWh), selectedDate)
+        .spriceChartMotion(dayData.buckets.map(\.orePerKWh), selectedDate, currentBucket?.start)
         .frame(height: configuration.height)
         .padding(.horizontal, DS.Spacing.lg)
         .padding(.bottom, DS.Spacing.lg)

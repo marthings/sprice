@@ -8,6 +8,17 @@ enum ConsumptionInsightsService {
         cache.removeAll()
     }
 
+    static var includeElectricCarGuess: Bool {
+        if ConsumptionSettings.shared.hasElectricCar {
+            return true
+        }
+#if DEBUG
+        return ConsumptionInsightsSampleData.isElectricCarPreviewEnabled
+#else
+        return false
+#endif
+    }
+
     static func insights(
         for route: ConsumptionInsightsRoute,
         costProfile: CostProfile,
@@ -19,6 +30,7 @@ enum ConsumptionInsightsService {
         let bounds = periodBounds(for: route, now: now, calendar: calendar)
 
         let includeHypotheticalEffectTariff = ConsumptionSettings.shared.includeHypotheticalEffectTariff
+        let includeElectricCarGuess = Self.includeElectricCarGuess
         let intervals = await loadIntervals(for: route, historyQuery: historyQuery)
         let lastMeasured = [
             SameDayMonthComparison.lastMeasuredDay(fromIntervals: intervals),
@@ -42,6 +54,7 @@ enum ConsumptionInsightsService {
             intervals: intervals,
             previousIntervals: previousIntervals,
             includeHypotheticalEffectTariff: includeHypotheticalEffectTariff,
+            includeElectricCarGuess: includeElectricCarGuess,
             now: now,
             calendar: calendar
         )
@@ -58,7 +71,8 @@ enum ConsumptionInsightsService {
             periodEnd: bounds.end,
             now: now,
             periodKind: route.periodKind,
-            includeHypotheticalEffectTariff: includeHypotheticalEffectTariff
+            includeHypotheticalEffectTariff: includeHypotheticalEffectTariff,
+            includeElectricCarGuess: includeElectricCarGuess
         )
         cache[cacheKey] = built
         return built
@@ -82,7 +96,8 @@ enum ConsumptionInsightsService {
             periodEnd: periodEnd,
             now: now,
             periodKind: periodKind,
-            includeHypotheticalEffectTariff: ConsumptionSettings.shared.includeHypotheticalEffectTariff
+            includeHypotheticalEffectTariff: ConsumptionSettings.shared.includeHypotheticalEffectTariff,
+            includeElectricCarGuess: includeElectricCarGuess
         )
     }
 
@@ -95,7 +110,8 @@ enum ConsumptionInsightsService {
         periodEnd: Date,
         now: Date,
         periodKind: ConsumptionInsightsPeriodKind,
-        includeHypotheticalEffectTariff: Bool
+        includeHypotheticalEffectTariff: Bool,
+        includeElectricCarGuess: Bool
     ) async -> ConsumptionInsights {
         await Task.detached(priority: .userInitiated) {
             buildOffMain(
@@ -107,7 +123,8 @@ enum ConsumptionInsightsService {
                 periodEnd: periodEnd,
                 now: now,
                 periodKind: periodKind,
-                includeHypotheticalEffectTariff: includeHypotheticalEffectTariff
+                includeHypotheticalEffectTariff: includeHypotheticalEffectTariff,
+                includeElectricCarGuess: includeElectricCarGuess
             )
         }.value
     }
@@ -121,7 +138,8 @@ enum ConsumptionInsightsService {
         periodEnd: Date,
         now: Date,
         periodKind: ConsumptionInsightsPeriodKind,
-        includeHypotheticalEffectTariff: Bool
+        includeHypotheticalEffectTariff: Bool,
+        includeElectricCarGuess: Bool
     ) -> ConsumptionInsights {
         ConsumptionInsightsBuilder.make(
             intervals: intervals,
@@ -133,6 +151,7 @@ enum ConsumptionInsightsService {
             now: now,
             periodKind: periodKind,
             includeHypotheticalEffectTariff: includeHypotheticalEffectTariff,
+            includeElectricCarGuess: includeElectricCarGuess,
             factors: .none
         )
     }
@@ -141,6 +160,11 @@ enum ConsumptionInsightsService {
         for route: ConsumptionInsightsRoute,
         historyQuery: (any EnergyHistoryQuerying)?
     ) async -> [HistoricalEnergyIntervalValue] {
+#if DEBUG
+        if ConsumptionInsightsSampleData.isLaunchPreviewEnabled {
+            return previewIntervals(for: route)
+        }
+#endif
         switch route.period {
         case .month(let monthKey, _, _):
             return await loadMonthIntervals(monthKey: monthKey, priceArea: route.priceArea, historyQuery: historyQuery)
@@ -175,6 +199,19 @@ enum ConsumptionInsightsService {
         return (try? historyQuery?.loadPreferredIntervals(monthKey: monthKey, priceArea: priceArea)) ?? []
     }
 
+#if DEBUG
+    private static func previewIntervals(for route: ConsumptionInsightsRoute) -> [HistoricalEnergyIntervalValue] {
+        let intervals = ConsumptionInsightsSampleData.previewIntervals()
+        let calendar = Calendar.energyHistory
+        switch route.period {
+        case .month(_, _, let periodStart):
+            return intervals.filter { calendar.isDate($0.intervalStart, equalTo: periodStart, toGranularity: .month) }
+        case .day(_, let date):
+            return intervals.filter { calendar.isDate($0.intervalStart, inSameDayAs: date) }
+        }
+    }
+#endif
+
     private static func periodBounds(
         for route: ConsumptionInsightsRoute,
         now: Date,
@@ -197,6 +234,7 @@ enum ConsumptionInsightsService {
         intervals: [HistoricalEnergyIntervalValue],
         previousIntervals: [HistoricalEnergyIntervalValue],
         includeHypotheticalEffectTariff: Bool,
+        includeElectricCarGuess: Bool,
         now: Date,
         calendar: Calendar
     ) -> String {
@@ -204,6 +242,7 @@ enum ConsumptionInsightsService {
         let previousLast = previousIntervals.last?.intervalStart.timeIntervalSince1970 ?? 0
         let tariff = costProfile.effectTariff.map { "\($0.monthlyPricePerKW)-\($0.model.rawValue)" } ?? "none"
         let effectFlag = includeHypotheticalEffectTariff ? "effectOn" : "effectOff"
+        let evFlag = includeElectricCarGuess ? "evOn" : "evOff"
         let bucket: String
         switch route.period {
         case .month(_, _, let periodStart):
@@ -219,6 +258,6 @@ enum ConsumptionInsightsService {
                 bucket = "closed"
             }
         }
-        return "\(route.id)|\(intervals.count)|\(lastStart)|\(previousIntervals.count)|\(previousLast)|\(tariff)|\(effectFlag)|\(bucket)"
+        return "\(route.id)|\(intervals.count)|\(lastStart)|\(previousIntervals.count)|\(previousLast)|\(tariff)|\(effectFlag)|\(evFlag)|\(bucket)"
     }
 }

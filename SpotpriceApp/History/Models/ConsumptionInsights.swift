@@ -89,8 +89,10 @@ nonisolated struct ConsumptionInsights: Sendable, Equatable {
     let powerPeak: ConsumptionPowerPeakInsight?
     let powerPeakUnavailableReason: String?
 
+    var evCharging: ConsumptionEVChargingInsight? = nil
+
     var hasAnythingToShow: Bool {
-        baseload != nil || !events.isEmpty || diurnal != nil || powerPeak != nil
+        baseload != nil || !events.isEmpty || diurnal != nil || powerPeak != nil || evCharging != nil
     }
 }
 
@@ -162,6 +164,35 @@ nonisolated struct ConsumptionLoadEvent: Sendable, Equatable, Identifiable {
                 return "kvällssysslor, oklart vad"
             }
             return "något extra, oklart vad"
+        }
+    }
+}
+
+nonisolated struct ConsumptionEVChargingSession: Sendable, Equatable, Identifiable {
+    let start: Date
+    let end: Date
+    let energyKWh: Double
+    let extraEnergyKWh: Double
+    let costKr: Double
+    let averagePowerKW: Double
+
+    var id: Date { start }
+}
+
+/// A guess, never a fact, built from hours that look like charging.
+nonisolated struct ConsumptionEVChargingInsight: Sendable, Equatable {
+    let sessions: [ConsumptionEVChargingSession]
+
+    var energyKWh: Double { sessions.reduce(0) { $0 + $1.energyKWh } }
+    var costKr: Double { sessions.reduce(0) { $0 + $1.costKr } }
+
+    var shortSummary: String {
+        "Troligen elbil: \(AppFormatters.kWh(energyKWh, fractionLength: 0...0)), ca \(AppFormatters.wholeNumber(costKr)) kr"
+    }
+
+    func containsHour(startingAt start: Date) -> Bool {
+        sessions.contains { session in
+            session.start <= start && start < session.end
         }
     }
 }
