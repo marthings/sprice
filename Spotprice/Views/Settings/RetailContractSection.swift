@@ -23,6 +23,13 @@ struct RetailContractSection: View {
             contractFields
             monthlyFeeField
 
+            contractValueField(
+                title: "Jämför med fast pris",
+                placeholder: "120",
+                value: $settings.compareFixedPriceOrePerKWh,
+                suffix: "öre/kWh"
+            )
+
             Button("Återställ standard") {
                 settings.resetRetailContractToDefaults()
             }
@@ -39,6 +46,7 @@ struct RetailContractSection: View {
             VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                 Text(activeContractDescription)
                 Text("Förbrukningsdata hämtas från datakällan, men elhandelskostnaden kommer från dina egna avtalsvärden.")
+                Text("Jämför med fast pris används bara för att visa skillnaden mot spot. Standard är 120 öre/kWh inklusive moms.")
             }
         }
     }

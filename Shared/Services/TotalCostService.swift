@@ -248,6 +248,13 @@ struct MonthlyCostEstimate: Sendable {
     let monthDate: Date
 }
 
+struct MonthBillForecast: Sendable {
+    let spentKr: Double
+    let forecastKr: Double
+    let measuredThrough: Date
+    let monthDate: Date
+}
+
 struct MonthlyCostEstimator: Sendable {
     private let totalCostService: TotalCostService
     private let calendar: Calendar
@@ -263,7 +270,6 @@ struct MonthlyCostEstimator: Sendable {
     func widgetMonthEstimate(
         historySummary: WidgetHistorySummary?,
         cachedConsumption: ConsumptionData?,
-        dayData: DayChartData,
         profile: CostProfile,
         now: Date
     ) -> MonthlyCostEstimate {
@@ -274,45 +280,72 @@ struct MonthlyCostEstimator: Sendable {
             return MonthlyCostEstimate(totalKr: historyCost, kWh: monthlyKWh, monthDate: monthDate)
         }
 
-        guard monthlyKWh > 0 else {
+        guard monthlyKWh > 0, let averageSpot = historySummary?.averageSpotPriceOrePerKWh else {
             return MonthlyCostEstimate(totalKr: 0, kWh: monthlyKWh, monthDate: monthDate)
         }
 
-        let avgPrice = averageSpotPrice(dayData.buckets)
-        let energyCost = totalCostService.calculateTotalCost(
-            kWh: monthlyKWh,
-            spotPriceOre: avgPrice,
+        let measuredThrough = min(historySummary?.updatedAt ?? now, now)
+        let forecast = forecastMonth(
+            spentKr: nil,
+            consumptionKWh: monthlyKWh,
+            spotPriceOre: averageSpot,
             profile: profile,
-            hoursInPeriod: 1.0
+            measuredThrough: measuredThrough,
+            now: now
         )
-        let monthlyFees = profile.retailerMonthlyFee + (profile.gridMonthlyFee ?? 0)
-        let monthlyCostKr = energyCost.totalKr + monthlyFees
-
-        return MonthlyCostEstimate(totalKr: monthlyCostKr, kWh: monthlyKWh, monthDate: monthDate)
+        return MonthlyCostEstimate(totalKr: forecast?.spentKr ?? 0, kWh: monthlyKWh, monthDate: monthDate)
     }
 
     func forecastMonthTotal(
         consumptionKWh: Double,
         spotPriceOre: Double,
         profile: CostProfile,
-        now: Date = Date()
+        now: Date = Date(),
+        measuredThrough: Date? = nil
     ) -> Double? {
+        forecastMonth(
+            spentKr: nil,
+            consumptionKWh: consumptionKWh,
+            spotPriceOre: spotPriceOre,
+            profile: profile,
+            measuredThrough: measuredThrough,
+            now: now
+        )?.forecastKr
+    }
+
+    func forecastMonth(
+        spentKr: Double?,
+        consumptionKWh: Double,
+        spotPriceOre: Double,
+        profile: CostProfile,
+        measuredThrough: Date?,
+        now: Date = Date()
+    ) -> MonthBillForecast? {
         guard let monthInterval = calendar.dateInterval(of: .month, for: now) else { return nil }
 
-        let elapsedSeconds = max(now.timeIntervalSince(monthInterval.start), 1)
+        let through = min(measuredThrough ?? now, now)
+        guard through >= monthInterval.start else { return nil }
+
+        let elapsedSeconds = max(through.timeIntervalSince(monthInterval.start), 1)
         let monthSeconds = monthInterval.end.timeIntervalSince(monthInterval.start)
         guard monthSeconds > 0 else { return nil }
 
         let elapsedRatio = min(max(elapsedSeconds / monthSeconds, 0), 1)
         let elapsedHours = elapsedSeconds / 3600
-        let costToDate = totalCostService.calculateTotalCost(
+        let spent = spentKr ?? totalCostService.calculateTotalCost(
             kWh: consumptionKWh,
             spotPriceOre: spotPriceOre,
             profile: profile,
             hoursInPeriod: elapsedHours
-        )
+        ).totalKr
+        guard elapsedRatio > 0 else { return nil }
 
-        return costToDate.totalKr / elapsedRatio
+        return MonthBillForecast(
+            spentKr: spent,
+            forecastKr: spent / elapsedRatio,
+            measuredThrough: through,
+            monthDate: monthInterval.start
+        )
     }
 
     func averageSpotPrice(_ buckets: [PriceBucket]) -> Double {
@@ -508,3 +541,118 @@ nonisolated private enum WorkedExampleGuard {
     }()
 }
 #endif
+
+// MARK: - Spot versus fixed price, and cheap-hour timing
+
+@MainActor
+enum CostUsageInsights {
+    static let defaultFixedPriceOrePerKWh = 120.0
+
+    struct FixedComparison: Equatable, Sendable {
+        let actualKr: Double
+        let comparisonKr: Double
+        let fixedOrePerKWh: Double
+
+        var deltaKr: Double { actualKr - comparisonKr }
+
+        var title: String {
+            let price = AppFormatters.oreValue(fixedOrePerKWh)
+            let amount = AppFormatters.wholeNumber(abs(deltaKr))
+            if deltaKr < -4 {
+                return "Med spot har du betalat \(amount) kr mindre än med ett fast pris på \(price) öre/kWh."
+            }
+            if deltaKr > 4 {
+                return "Med spot har du betalat \(amount) kr mer än med ett fast pris på \(price) öre/kWh."
+            }
+            return "Med spot har du betalat ungefär lika mycket som med ett fast pris på \(price) öre/kWh."
+        }
+    }
+
+    struct Timing: Equatable, Sendable {
+        let weightedOrePerKWh: Double
+        let evenOrePerKWh: Double
+        let savedKr: Double
+
+        var savedOrePerKWh: Double { evenOrePerKWh - weightedOrePerKWh }
+
+        var title: String {
+            let ore = AppFormatters.oreValue(abs(savedOrePerKWh))
+            let kronor = AppFormatters.wholeNumber(abs(savedKr))
+            if savedKr > 4 {
+                return "Du betalade \(ore) öre mindre per kWh än om du hade använt lika mycket varje timme, ungefär \(kronor) kr."
+            }
+            if savedKr < -4 {
+                return "Du betalade \(ore) öre mer per kWh än om du hade använt lika mycket varje timme, ungefär \(kronor) kr."
+            }
+            return "Du betalade ungefär samma per kWh som om du hade använt lika mycket varje timme."
+        }
+    }
+
+    static func fixedComparison(
+        intervals: [HistoricalEnergyIntervalValue],
+        profile: CostProfile,
+        fixedOrePerKWh: Double
+    ) -> FixedComparison? {
+        let measured = measuredIntervals(intervals)
+        guard !measured.isEmpty else { return nil }
+
+        let fixedProfile = profile.settingRetailContract(
+            type: .fixedPrice,
+            contractPriceOrePerKWh: fixedOrePerKWh
+        )
+        var actualKr = 0.0
+        var comparisonKr = 0.0
+        for interval in measured {
+            let kWh = interval.consumptionKWh ?? 0
+            actualKr += variableCost(kWh: kWh, spotOre: interval.spotPriceOrePerKWh, profile: profile)
+            comparisonKr += variableCost(kWh: kWh, spotOre: interval.spotPriceOrePerKWh, profile: fixedProfile)
+        }
+        return FixedComparison(
+            actualKr: actualKr,
+            comparisonKr: comparisonKr,
+            fixedOrePerKWh: fixedOrePerKWh
+        )
+    }
+
+    static func timing(
+        intervals: [HistoricalEnergyIntervalValue],
+        profile: CostProfile
+    ) -> Timing? {
+        let measured = measuredIntervals(intervals)
+        guard measured.count >= 2 else { return nil }
+
+        let totalKWh = measured.reduce(0.0) { $0 + ($1.consumptionKWh ?? 0) }
+        guard totalKWh > 0 else { return nil }
+
+        let prices = measured.map { priceOrePerKWh(spotOre: $0.spotPriceOrePerKWh, profile: profile) }
+        let evenOre = prices.reduce(0, +) / Double(prices.count)
+        let weightedOre = zip(measured, prices).reduce(0.0) { sum, pair in
+            sum + pair.1 * (pair.0.consumptionKWh ?? 0)
+        } / totalKWh
+        let savedKr = (evenOre - weightedOre) / 100.0 * totalKWh
+        return Timing(
+            weightedOrePerKWh: weightedOre,
+            evenOrePerKWh: evenOre,
+            savedKr: savedKr
+        )
+    }
+
+    private static func measuredIntervals(
+        _ intervals: [HistoricalEnergyIntervalValue]
+    ) -> [HistoricalEnergyIntervalValue] {
+        intervals.filter { ($0.consumptionKWh ?? 0) > 0 }
+    }
+
+    private static func variableCost(kWh: Double, spotOre: Double, profile: CostProfile) -> Double {
+        TotalCostService.shared.calculateTotalCost(
+            kWh: kWh,
+            spotPriceOre: spotOre,
+            profile: profile,
+            hoursInPeriod: 0
+        ).totalKr
+    }
+
+    private static func priceOrePerKWh(spotOre: Double, profile: CostProfile) -> Double {
+        variableCost(kWh: 1, spotOre: spotOre, profile: profile) * 100.0
+    }
+}

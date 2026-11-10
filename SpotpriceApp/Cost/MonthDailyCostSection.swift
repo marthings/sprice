@@ -7,10 +7,12 @@ struct MonthDailyCostSection: View {
     let hasProvider: Bool
     var hidesEmptyExplanation: Bool = false
     var forecastKr: Double? = nil
+    var measuredThrough: Date? = nil
     var hypotheticalEffectTariffKr: Double? = nil
 
     @State private var days: [MonthDayCost] = []
     @State private var selectedDay: MonthDayCost?
+    @State private var selectedDayTiming: String?
     @State private var loadFailed = false
     @State private var didLoad = false
 
@@ -58,10 +60,13 @@ struct MonthDailyCostSection: View {
         .onChange(of: hasProvider) { _, _ in
             Task { await loadDays() }
         }
+        .onChange(of: selectedDay) { _, day in
+            Task { await loadTiming(for: day) }
+        }
     }
 
     private var introCopy: String {
-        if forecastKr != nil {
+        if resolvedForecastKr != nil {
             return "Staplarna visar vad varje dag har kostat. Linjen är kostnaden hittills, den streckade delen är prognosen till månadens slut."
         }
         return "Så här har månaden kostat hittills. Tryck på en stapel för att se den dagen."
@@ -70,6 +75,13 @@ struct MonthDailyCostSection: View {
     @ViewBuilder
     private var chartContent: some View {
         let expensive = mostExpensiveDay
+        if let forecastStatusCopy {
+            Text(forecastStatusCopy)
+                .font(DS.Font.callout)
+                .foregroundStyle(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityLabel(forecastStatusCopy)
+        }
         if let expensive, let cost = expensive.costKr {
             Text("Dyrast: \(AppFormatters.weekdayDayMonth(expensive.date)), \(AppFormatters.wholeNumber(cost)) kr")
                 .font(DS.Font.semibold(12))
@@ -80,7 +92,7 @@ struct MonthDailyCostSection: View {
 
         ZStack {
             dailyBarsChart(expensive: expensive)
-            if forecastKr != nil || !cumulativePoints.isEmpty {
+            if resolvedForecastKr != nil || !cumulativePoints.isEmpty {
                 cumulativeLineChart
             }
         }
@@ -88,7 +100,7 @@ struct MonthDailyCostSection: View {
         .zIndex(1)
         .accessibilityLabel(chartAccessibilityLabel)
 
-        if forecastKr != nil {
+        if resolvedForecastKr != nil {
             seriesLegend
         }
 
@@ -96,6 +108,14 @@ struct MonthDailyCostSection: View {
             .font(DS.Font.micro)
             .foregroundStyle(DS.Color.secondary)
             .fixedSize(horizontal: false, vertical: true)
+
+        if let selectedDayTiming {
+            Text(selectedDayTiming)
+                .font(DS.Font.callout)
+                .foregroundStyle(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityLabel(selectedDayTiming)
+        }
     }
 
     private var seriesLegend: some View {
@@ -247,10 +267,10 @@ struct MonthDailyCostSection: View {
                 )
                 .foregroundStyle(DS.Color.brand)
                 .symbolSize(40)
-                .annotation(position: .top, alignment: .trailing, spacing: DS.Spacing.xs, overflowResolution: ChartCalloutOverflow.resolution) {
-                    if let forecastKr {
+                .annotation(position: .top, alignment: .leading, spacing: DS.Spacing.xs, overflowResolution: ChartCalloutOverflow.resolution) {
+                    if let resolvedForecastKr {
                         ChartValueCallout(
-                            value: "Prognos: \(AppFormatters.wholeNumber(forecastKr)) kr"
+                            value: "Prognos: \(AppFormatters.wholeNumber(resolvedForecastKr)) kr"
                         )
                     }
                 }
@@ -388,12 +408,61 @@ struct MonthDailyCostSection: View {
         cumulativePoints.last?.value ?? 0
     }
 
+    private var effectiveMeasuredThrough: Date? {
+#if DEBUG
+        if ConsumptionInsightsSampleData.isLaunchPreviewEnabled {
+            return ConsumptionInsightsSampleData.previewMeasuredThrough()
+        }
+#endif
+        return measuredThrough
+    }
+
+    private var forecastStatusCopy: String? {
+        guard spentSoFarKr > 0, let forecast = resolvedForecastKr else { return nil }
+        let month = AppFormatters.monthName(Date()).lowercased()
+        let through = effectiveMeasuredThrough
+            ?? days.last(where: { $0.costKr != nil })?.date
+        let until = through.map { AppFormatters.relativeStamp($0) } ?? ""
+        var text = "Hittills \(AppFormatters.wholeNumber(spentSoFarKr)) kr. Prognos ungefär \(AppFormatters.wholeNumber(forecast)) kr för \(month)."
+        if !until.isEmpty {
+            text += " Siffrorna gäller till \(until)."
+        }
+        return text
+    }
+
+    private var resolvedForecastKr: Double? {
+        if let fromBars = forecastFromSpentBars {
+            return fromBars + (hypotheticalEffectTariffKr ?? 0)
+        }
+        return forecastKr
+    }
+
+    private var forecastFromSpentBars: Double? {
+        guard spentSoFarKr > 0 else { return nil }
+        let through: Date?
+        if let effectiveMeasuredThrough {
+            through = effectiveMeasuredThrough
+        } else if let lastDay = days.last(where: { $0.costKr != nil })?.date {
+            through = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: lastDay))
+                ?? lastDay
+        } else {
+            through = nil
+        }
+        return MonthlyCostEstimator().forecastMonth(
+            spentKr: spentSoFarKr,
+            consumptionKWh: 0,
+            spotPriceOre: 0,
+            profile: profile,
+            measuredThrough: through
+        )?.forecastKr
+    }
+
     private var lineYMax: Double {
-        max(forecastKr ?? 0, spentSoFarKr, 1) * 1.12
+        max(resolvedForecastKr ?? 0, spentSoFarKr, 1) * 1.28
     }
 
     private var projectionSegment: MonthProjectionSegment? {
-        guard let forecastKr, let last = cumulativePoints.last, let monthRange else { return nil }
+        guard let forecastKr = resolvedForecastKr, let last = cumulativePoints.last, let monthRange else { return nil }
         if calendar.isDate(last.date, inSameDayAs: monthRange.upperBound) {
             return nil
         }
@@ -406,8 +475,8 @@ struct MonthDailyCostSection: View {
     }
 
     private var chartAccessibilityLabel: String {
-        if let forecastKr {
-            return "Stapeldiagram över kostnad per dag den här månaden, med ackumulerad kostnad och prognos \(AppFormatters.wholeNumber(forecastKr)) kronor"
+        if let resolvedForecastKr {
+            return "Stapeldiagram över kostnad per dag den här månaden, med ackumulerad kostnad och prognos \(AppFormatters.wholeNumber(resolvedForecastKr)) kronor"
         }
         return "Stapeldiagram över kostnad per dag den här månaden"
     }
@@ -430,10 +499,46 @@ struct MonthDailyCostSection: View {
     }
 
     @MainActor
+    private func loadTiming(for day: MonthDayCost?) async {
+        guard let day else {
+            selectedDayTiming = nil
+            return
+        }
+        let dayKey = EnergyHistoryKey.dayKey(for: day.date, calendar: calendar)
+        let intervals: [HistoricalEnergyIntervalValue]
+#if DEBUG
+        if ConsumptionInsightsSampleData.isLaunchPreviewEnabled {
+            intervals = ConsumptionInsightsSampleData.previewIntervals().filter {
+                calendar.isDate($0.intervalStart, inSameDayAs: day.date)
+            }
+        } else {
+            intervals = (try? EnergyHistoryQueryService().loadDayIntervals(dayKey: dayKey, priceArea: priceArea)) ?? []
+        }
+#else
+        intervals = (try? EnergyHistoryQueryService().loadDayIntervals(dayKey: dayKey, priceArea: priceArea)) ?? []
+#endif
+        selectedDayTiming = CostUsageInsights.timing(intervals: intervals, profile: profile)?.title
+    }
+
+    @MainActor
     private func loadDays() async {
         let calendar = Calendar.energyHistory
         let now = Date()
         let monthKey = EnergyHistoryKey.monthKey(for: now, calendar: calendar)
+
+#if DEBUG
+        if ConsumptionInsightsSampleData.isLaunchPreviewEnabled {
+            days = MonthDailyCostBuilder.bars(
+                from: ConsumptionInsightsSampleData.previewIntervals(now: now, calendar: calendar),
+                profile: profile,
+                now: now,
+                calendar: calendar
+            )
+            loadFailed = false
+            didLoad = true
+            return
+        }
+#endif
 
         do {
             let history = try EnergyHistoryQueryService().loadMonthHistory(
@@ -479,6 +584,50 @@ struct MonthDayCost: Identifiable, Equatable {
 }
 
 enum MonthDailyCostBuilder {
+    static func bars(
+        from intervals: [HistoricalEnergyIntervalValue],
+        profile: CostProfile,
+        now: Date,
+        calendar: Calendar
+    ) -> [MonthDayCost] {
+        let service = TotalCostService.shared
+        var costByDay: [Date: (cost: Double, kWh: Double)] = [:]
+        for interval in intervals {
+            let kWh = interval.consumptionKWh ?? 0
+            guard kWh > 0 else { continue }
+            let dayStart = calendar.startOfDay(for: interval.intervalStart)
+            let hours = max(interval.intervalEnd.timeIntervalSince(interval.intervalStart) / 3600, 0)
+            let cost = service.calculateTotalCost(
+                kWh: kWh,
+                spotPriceOre: interval.spotPriceOrePerKWh,
+                profile: profile,
+                hoursInPeriod: hours
+            ).totalKr
+            let current = costByDay[dayStart] ?? (0, 0)
+            costByDay[dayStart] = (current.cost + cost, current.kWh + kWh)
+        }
+        guard let monthStart = calendar.dateInterval(of: .month, for: now)?.start else {
+            return []
+        }
+        var bars: [MonthDayCost] = []
+        var dayStart = monthStart
+        let lastDayStart = calendar.startOfDay(for: now)
+        while dayStart <= lastDayStart {
+            let values = costByDay[dayStart]
+            bars.append(
+                MonthDayCost(
+                    date: dayStart,
+                    costKr: values?.cost,
+                    kWh: values?.kWh,
+                    isToday: calendar.isDate(dayStart, inSameDayAs: now)
+                )
+            )
+            guard let next = calendar.date(byAdding: .day, value: 1, to: dayStart) else { break }
+            dayStart = next
+        }
+        return bars
+    }
+
     static func bars(
         from summaries: [HistoricalEnergySummaryValue],
         profile: CostProfile,

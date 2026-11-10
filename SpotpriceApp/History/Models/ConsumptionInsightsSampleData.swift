@@ -4,6 +4,94 @@ import Foundation
 enum ConsumptionInsightsSampleData {
     static let priceArea = "SE3"
 
+    static var isLaunchPreviewEnabled: Bool {
+        ProcessInfo.processInfo.arguments.contains { $0.hasPrefix("-InsightsPreview") }
+    }
+
+    /// Shifts the October sample into the current month and stops at last night, so the simulator can show the cards.
+    static func previewIntervals(now: Date = Date(), calendar: Calendar = .energyHistory) -> [HistoricalEnergyIntervalValue] {
+        guard let currentStart = calendar.dateInterval(of: .month, for: now)?.start else {
+            return monthIntervals()
+        }
+        let offset = currentStart.timeIntervalSince(monthStart)
+        let cutoff = previewMeasuredThrough(now: now, calendar: calendar)
+        return monthIntervals().compactMap { interval in
+            let start = interval.intervalStart.addingTimeInterval(offset)
+            let end = interval.intervalEnd.addingTimeInterval(offset)
+            guard start < cutoff else { return nil }
+            return HistoricalEnergyIntervalValue(
+                id: interval.id,
+                intervalStart: start,
+                intervalEnd: end,
+                spotPriceOrePerKWh: interval.spotPriceOrePerKWh,
+                consumptionKWh: interval.consumptionKWh,
+                energyCostSEK: interval.energyCostSEK,
+                gridCostSEK: interval.gridCostSEK,
+                taxCostSEK: interval.taxCostSEK,
+                vatCostSEK: interval.vatCostSEK,
+                totalCostSEK: interval.totalCostSEK
+            )
+        }
+    }
+
+    static func previewMeasuredThrough(now: Date = Date(), calendar: Calendar = .energyHistory) -> Date {
+        let today = calendar.startOfDay(for: now)
+        if let yesterday = calendar.date(byAdding: .day, value: -1, to: today),
+           let twentyThree = calendar.date(bySettingHour: 23, minute: 0, second: 0, of: yesterday) {
+            return twentyThree
+        }
+        return now
+    }
+
+    static func previewDailySummaries(now: Date = Date(), calendar: Calendar = .energyHistory) -> [HistoricalEnergySummaryValue] {
+        let grouped = Dictionary(grouping: previewIntervals(now: now, calendar: calendar)) {
+            calendar.startOfDay(for: $0.intervalStart)
+        }
+        return grouped.keys.sorted().map { day in
+            let items = grouped[day] ?? []
+            let kWh = items.reduce(0.0) { $0 + ($1.consumptionKWh ?? 0) }
+            let cost = items.reduce(0.0) { $0 + ($1.totalCostSEK ?? 0) }
+            let spots = items.map(\.spotPriceOrePerKWh)
+            return HistoricalEnergySummaryValue(
+                id: UUID(),
+                periodKey: EnergyHistoryKey.dayKey(for: day, calendar: calendar),
+                periodStart: day,
+                priceArea: priceArea,
+                providerID: "preview",
+                intervalCount: items.count,
+                measuredIntervalCount: items.count,
+                totalConsumptionKWh: kWh,
+                totalCostSEK: cost,
+                averageSpotPriceOrePerKWh: spots.isEmpty ? nil : spots.reduce(0, +) / Double(spots.count),
+                minSpotPriceOrePerKWh: spots.min(),
+                maxSpotPriceOrePerKWh: spots.max(),
+                confidence: .measured
+            )
+        }
+    }
+
+    static func previewMonthSummary(now: Date = Date(), calendar: Calendar = .energyHistory) -> HistoricalEnergySummaryValue {
+        let days = previewDailySummaries(now: now, calendar: calendar)
+        let start = calendar.dateInterval(of: .month, for: now)?.start ?? now
+        let intervals = previewIntervals(now: now, calendar: calendar)
+        let spots = intervals.map(\.spotPriceOrePerKWh)
+        return HistoricalEnergySummaryValue(
+            id: UUID(),
+            periodKey: EnergyHistoryKey.monthKey(for: start, calendar: calendar),
+            periodStart: start,
+            priceArea: priceArea,
+            providerID: "preview",
+            intervalCount: intervals.count,
+            measuredIntervalCount: intervals.count,
+            totalConsumptionKWh: days.reduce(0.0) { $0 + ($1.totalConsumptionKWh ?? 0) },
+            totalCostSEK: days.reduce(0.0) { $0 + ($1.totalCostSEK ?? 0) },
+            averageSpotPriceOrePerKWh: spots.isEmpty ? nil : spots.reduce(0, +) / Double(spots.count),
+            minSpotPriceOrePerKWh: spots.min(),
+            maxSpotPriceOrePerKWh: spots.max(),
+            confidence: .measured
+        )
+    }
+
     static func octoberMonthRoute() -> ConsumptionInsightsRoute {
         ConsumptionInsightsRoute(
             period: .month(

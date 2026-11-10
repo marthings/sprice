@@ -9,6 +9,7 @@ struct AppSettingsView: View {
     @State private var retailerMarkupOrePerKWh = 0.0
     @State private var contractPriceOrePerKWh = 0.0
     @State private var retailerMonthlyFee = 0.0
+    @State private var compareFixedPriceOrePerKWh = CostUsageInsights.defaultFixedPriceOrePerKWh
     @State private var selectedDSOOrgNo = ""
     @State private var fuseSize = 20
     @State private var includeHypotheticalEffectTariff = false
@@ -29,6 +30,7 @@ struct AppSettingsView: View {
         case markup
         case contractPrice
         case monthlyFee
+        case compareFixedPrice
     }
 
     var body: some View {
@@ -70,6 +72,7 @@ struct AppSettingsView: View {
         .onChange(of: retailerMarkupOrePerKWh) { _, _ in scheduleCommit() }
         .onChange(of: contractPriceOrePerKWh) { _, _ in scheduleCommit() }
         .onChange(of: retailerMonthlyFee) { _, _ in scheduleCommit() }
+        .onChange(of: compareFixedPriceOrePerKWh) { _, _ in scheduleCommit() }
         .onChange(of: focusedField) { _, newValue in
             if newValue == nil {
                 flushPendingSave()
@@ -178,6 +181,13 @@ struct AppSettingsView: View {
                 field: .monthlyFee
             )
 
+            currencyField(
+                title: "Jämför med fast pris",
+                value: $compareFixedPriceOrePerKWh,
+                unit: "öre/kWh",
+                field: .compareFixedPrice
+            )
+
             if let fieldError {
                 Label(fieldError, systemImage: "exclamationmark.triangle.fill")
                     .font(DS.Font.body)
@@ -272,13 +282,14 @@ struct AppSettingsView: View {
     }
 
     private var contractFooterText: String {
+        let compare = "Jämför med fast pris används bara för att visa skillnaden mot spot. Standard är 120 öre/kWh inklusive moms."
         switch contractType {
         case .spotPriceMarkup:
-            return "Totalpriset följer spotpriset plus påslag, skatter, elnät och moms. Påslag, skatt och elnät anges som på fakturan, inklusive moms. Spotpriset hämtas utan moms."
+            return "Totalpriset följer spotpriset plus påslag, skatter, elnät och moms. Påslag, skatt och elnät anges som på fakturan, inklusive moms. Spotpriset hämtas utan moms. " + compare
         case .variableMonthlyPrice:
-            return "Totalpriset använder ditt rörliga månadspris för elhandeln, inklusive moms."
+            return "Totalpriset använder ditt rörliga månadspris för elhandeln, inklusive moms. " + compare
         case .fixedPrice:
-            return "Totalpriset använder ditt fasta avtalade pris för elhandeln, inklusive moms."
+            return "Totalpriset använder ditt fasta avtalade pris för elhandeln, inklusive moms. " + compare
         }
     }
 
@@ -353,6 +364,7 @@ struct AppSettingsView: View {
         selectedDSOOrgNo = profile.gridCompanyId ?? settings.selectedDSOOrgNo
         fuseSize = profile.fuseSize ?? settings.fuseSize
         includeHypotheticalEffectTariff = settings.includeHypotheticalEffectTariff
+        compareFixedPriceOrePerKWh = settings.compareFixedPriceOrePerKWh
         isReady = true
     }
 
@@ -412,6 +424,7 @@ struct AppSettingsView: View {
             return
         }
         fieldError = nil
+        settings.compareFixedPriceOrePerKWh = compareFixedPriceOrePerKWh
 
         var next = settings.costProfile.updating(priceArea: priceArea)
         next = next.settingRetailContract(
@@ -467,7 +480,7 @@ struct AppSettingsView: View {
     }
 
     private var validationMessage: String? {
-        if retailerMarkupOrePerKWh < 0 || retailerMonthlyFee < 0 || contractPriceOrePerKWh < 0 {
+        if retailerMarkupOrePerKWh < 0 || retailerMonthlyFee < 0 || contractPriceOrePerKWh < 0 || compareFixedPriceOrePerKWh < 0 {
             return "Ange 0 eller mer."
         }
         return nil
@@ -510,6 +523,8 @@ struct AppSettingsView: View {
                 confidence: .userConfigured,
                 source: .userEntered
             )
+        } else {
+            next = next.settingEffectTariff(nil)
         }
 
         return next

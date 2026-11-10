@@ -144,7 +144,7 @@ struct SimplifiedTariff: Equatable, Sendable, Codable {
     let validTo: Date?
     
     // Swedish taxes and fees (hardcoded standard values 2025)
-    let energyTaxPerKWh: Double        // Energiskatt öre/kWh incl. VAT (54.875)
+    let energyTaxPerKWh: Double        // Energiskatt öre/kWh incl. VAT (45.0 in 2026)
     let certificateFeePerKWh: Double   // Elcertifikat öre/kWh incl. VAT (1.75)
     
     // Fuse size this tariff is for (in amperes)
@@ -457,7 +457,7 @@ enum ProviderDefaults {
     static let tibber = ProviderCostInfo(
         surchargePerKWh: 8.75,        // ~8.75 öre/kWh påslag
         monthlyFee: 49.0,              // 49 kr/mån
-        energyTaxPerKWh: 54.875,       // Standard svensk energiskatt
+        energyTaxPerKWh: 45.0,         // Standard svensk energiskatt 2026
         certificateFeePerKWh: 1.75,    // Genomsnittlig elcertifikatavgift
         isRealTime: false
     )
@@ -468,7 +468,7 @@ enum ProviderDefaults {
     static let vaggeryd = ProviderCostInfo(
         surchargePerKWh: 6.0,          // ~6 öre/kWh påslag (estimated)
         monthlyFee: 39.0,              // 39 kr/mån (estimated)
-        energyTaxPerKWh: 54.875,       // Standard svensk energiskatt
+        energyTaxPerKWh: 45.0,         // Standard svensk energiskatt 2026
         certificateFeePerKWh: 1.75,    // Genomsnittlig elcertifikatavgift
         isRealTime: false
     )
@@ -477,7 +477,7 @@ enum ProviderDefaults {
     static let generic = ProviderCostInfo(
         surchargePerKWh: 0.0,          // User must configure
         monthlyFee: 0.0,               // User must configure
-        energyTaxPerKWh: 54.875,       // Standard svensk energiskatt
+        energyTaxPerKWh: 45.0,         // Standard svensk energiskatt 2026
         certificateFeePerKWh: 1.75,    // Genomsnittlig elcertifikatavgift
         isRealTime: false
     )

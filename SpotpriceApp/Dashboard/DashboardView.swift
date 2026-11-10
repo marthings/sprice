@@ -12,6 +12,7 @@ struct DashboardView: View {
                     state: viewModel.state,
                     monthlyConsumption: viewModel.monthlyConsumption,
                     preciseMonthlyCost: viewModel.preciseMonthlyCost,
+                    measuredThrough: viewModel.consumptionMeasuredThrough,
                     powerPeaks: viewModel.powerPeaks,
                     notices: viewModel.costNotices,
                     onRetry: reload,
@@ -65,6 +66,7 @@ struct DashboardView: View {
         let state: SpotPriceViewModel.State
         let monthlyConsumption: ConsumptionData?
         let preciseMonthlyCost: PreciseMonthlyCost?
+        let measuredThrough: Date?
         let powerPeaks: [PowerPeak]
         let notices: [FetchNotice]
         let onRetry: () -> Void
@@ -79,6 +81,7 @@ struct DashboardView: View {
                     state: state,
                     monthlyConsumption: monthlyConsumption,
                     preciseMonthlyCost: preciseMonthlyCost,
+                    measuredThrough: measuredThrough,
                     powerPeaks: powerPeaks,
                     notices: notices,
                     onRetry: onRetry

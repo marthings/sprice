@@ -25,6 +25,7 @@ final class SpotPriceViewModel {
     private(set) var monthlyConsumption: ConsumptionData?
     private(set) var powerPeaks: [PowerPeak] = []
     private(set) var preciseMonthlyCost: PreciseMonthlyCost?
+    private(set) var consumptionMeasuredThrough: Date?
     private(set) var consumptionError: String?
     private(set) var priceNotice: FetchNotice?
     private(set) var consumptionNotice: FetchNotice?
@@ -156,6 +157,10 @@ let showingCached: Bool
         } else {
             showingCached = false
         }
+        consumptionMeasuredThrough = ConsumptionFreshness.lastMeasurement(
+            quarterly: result.quarterlyConsumption,
+            values: monthlyConsumption?.values
+        )
         consumptionNotice = ConsumptionFreshness.notice(
             failure: result.consumptionFailure,
             providerName: ProviderRegistry.shared.metadata(for: settings.selectedProviderId)?.displayName,

@@ -163,7 +163,7 @@ extension CostProfile {
         static let priceArea = "SE3"
         static let retailerMarkupOrePerKWh = 4.0
         static let retailerMonthlyFee = 0.0
-        static let energyTaxOrePerKWh = 54.875
+        static let energyTaxOrePerKWh = 45.0
         static let certificateFeeOrePerKWh = 1.75
         /// Consumer VAT. Profile amounts other than Nord Pool spot are stored including this rate.
         static let vatRate = 0.25

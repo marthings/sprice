@@ -112,7 +112,6 @@ struct SpotPriceProvider: TimelineProvider {
         let monthlyEstimate = monthlyCostEstimator.widgetMonthEstimate(
             historySummary: historySummary,
             cachedConsumption: cachedConsumption,
-            dayData: today,
             profile: costProfile,
             now: now
         )

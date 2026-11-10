@@ -659,6 +659,59 @@ struct FetchNoticeStack: View {
     }
 }
 
+struct InsightRow: View {
+    let icon: String
+    let title: String
+    var detail: String? = nil
+    var showsChevron: Bool = false
+
+    var body: some View {
+        HStack(alignment: .top, spacing: DS.Spacing.sm) {
+            Image(systemName: icon)
+                .font(.system(size: DS.Size.iconSmall, weight: .semibold))
+                .foregroundStyle(DS.Color.accent)
+                .frame(width: 16, alignment: .center)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(DS.Font.callout)
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let detail, !detail.isEmpty {
+                    Text(detail)
+                        .font(DS.Font.micro)
+                        .foregroundStyle(DS.Color.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            Spacer(minLength: 0)
+
+            if showsChevron {
+                Image(systemName: "chevron.right")
+                    .font(DS.Font.caption)
+                    .foregroundStyle(DS.Color.secondary)
+                    .accessibilityHidden(true)
+                    .padding(.top, 2)
+            }
+        }
+        .padding(.horizontal, DS.Spacing.md)
+        .padding(.vertical, DS.Spacing.sm)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            RoundedRectangle(cornerRadius: DS.Glass.smallRadius, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .overlay {
+                    RoundedRectangle(cornerRadius: DS.Glass.smallRadius, style: .continuous)
+                        .fill(DS.Color.accent.opacity(0.08))
+                }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(detail.map { "\(title) \($0)" } ?? title)
+    }
+}
+
 struct HistoryCoverageBadge: View {
     let coverage: HistoricalEnergyDataCoverage
     var horizontalPadding: CGFloat = DS.Spacing.sm
