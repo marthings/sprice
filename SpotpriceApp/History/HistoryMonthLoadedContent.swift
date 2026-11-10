@@ -7,6 +7,8 @@ struct HistoryMonthLoadedContent: View {
     let costProfile: CostProfile
     let historyQuery: (any EnergyHistoryQuerying)?
     var previewInsights: ConsumptionInsights? = nil
+    var temperatureInsights: [TemperatureInsight] = []
+    var dailyTemperatures: [Date: Double] = [:]
 
     @Binding var selectedMonthKey: String?
     @Binding var openedDay: HistoryDayRoute?
@@ -53,6 +55,14 @@ struct HistoryMonthLoadedContent: View {
                         )
                     }
 
+                    ForEach(temperatureInsights) { insight in
+                        InsightRow(
+                            icon: "thermometer.medium",
+                            title: insight.title,
+                            detail: insight.isUncertain ? "Osäker jämförelse" : nil
+                        )
+                    }
+
                     HistoryPaidVersusSpot(snapshot: snapshot)
 
                     HistoryFixedPriceComparisonRow(
@@ -74,6 +84,7 @@ struct HistoryMonthLoadedContent: View {
                         days: presentation.dayBars,
                         isCurrentMonth: snapshot.isCurrentMonth,
                         hasProvider: hasProvider,
+                        temperatures: dailyTemperatures,
                         openedDay: $openedDay
                     )
 

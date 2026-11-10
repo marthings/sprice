@@ -5,6 +5,7 @@ struct HistoryMonthDaysChart: View {
     let days: [MonthDayCost]
     let isCurrentMonth: Bool
     let hasProvider: Bool
+    var temperatures: [Date: Double] = [:]
     @Binding var openedDay: HistoryDayRoute?
 
     @State private var selectedDay: MonthDayCost?
@@ -41,8 +42,30 @@ struct HistoryMonthDaysChart: View {
         return "Tryck på en dag för att se hur kostnaden fördelades över timmarna."
     }
 
+    private var temperaturePoints: [(date: Date, temp: Double)] {
+        let calendar = Calendar.energyHistory
+        return days.compactMap { day in
+            temperatures[calendar.startOfDay(for: day.date)].map { (day.date, $0) }
+        }
+    }
+
+    private var temperatureDomain: ClosedRange<Double> {
+        let values = temperaturePoints.map(\.temp)
+        let lo = (values.min() ?? 0) - 2
+        let hi = (values.max() ?? 1) + 2
+        return min(lo, hi - 1)...max(hi, lo + 1)
+    }
+
+    private var chartAccessibility: String {
+        if let lo = temperaturePoints.map(\.temp).min(), let hi = temperaturePoints.map(\.temp).max() {
+            return "Stapeldiagram över kostnad per dag, med dygnstemperatur från \(TemperatureAdjustment.degrees(lo)) till \(TemperatureAdjustment.degrees(hi))"
+        }
+        return "Stapeldiagram över kostnad per dag den här månaden"
+    }
+
     @ViewBuilder
-    private var chartContent: some View {
+    private var chartContent:
+ some View {
         let expensive = mostExpensiveDay
         if let expensive, let cost = expensive.costKr {
             Text("Dyrast: \(AppFormatters.weekdayDayMonth(expensive.date)), \(AppFormatters.wholeNumber(cost)) kr")
@@ -53,7 +76,14 @@ struct HistoryMonthDaysChart: View {
                     "Dyraste dagen är \(AppFormatters.weekdayDayMonth(expensive.date)), \(AppFormatters.wholeNumber(cost)) kronor"
                 )
         }
+        if !temperaturePoints.isEmpty {
+            Text("Linjen visar hur kallt det var ute.")
+                .font(DS.Font.micro)
+                .foregroundStyle(DS.Color.secondary)
+                .accessibilityHidden(true)
+        }
 
+        ZStack {
         Chart {
             ForEach(days) { day in
                 BarMark(
@@ -105,8 +135,47 @@ struct HistoryMonthDaysChart: View {
             }
         }
         .historyChartPlotStyle()
+
+        if !temperaturePoints.isEmpty {
+            Chart {
+                ForEach(temperaturePoints, id: \.date) { point in
+                    LineMark(
+                        x: .value("Dag", point.date, unit: .day),
+                        y: .value("Temperatur", point.temp)
+                    )
+                    .foregroundStyle(DS.Color.accent.opacity(0.85))
+                    .lineStyle(StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
+                    .interpolationMethod(.linear)
+                    PointMark(
+                        x: .value("Dag", point.date, unit: .day),
+                        y: .value("Temperatur", point.temp)
+                    )
+                    .foregroundStyle(DS.Color.accent)
+                    .symbolSize(16)
+                }
+            }
+            .chartXAxis(.hidden)
+            .chartYScale(domain: temperatureDomain)
+            .chartYAxis {
+                AxisMarks(position: .trailing) { value in
+                    AxisValueLabel {
+                        if let temp = value.as(Double.self) {
+                            Text("\(Int(temp.rounded()))°")
+                                .font(DS.Font.micro)
+                                .foregroundStyle(DS.Color.accent)
+                        }
+                    }
+                }
+            }
+            .historyChartPlotStyle()
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
+        }
         .frame(height: 180)
         .zIndex(1)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(chartAccessibility)
         .overlay {
             GeometryReader { geometry in
                 Rectangle()

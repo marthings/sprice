@@ -11,6 +11,9 @@ struct HistoryMonthView: View {
     @State private var selectedMonthKey: String?
     @State private var openedDay: HistoryDayRoute?
     @State private var openedInsights: ConsumptionInsightsRoute?
+    @State private var temperatureInsights: [TemperatureInsight] = []
+    @State private var temperatureNotice: FetchNotice?
+    @State private var dailyTemperatures: [Date: Double] = [:]
 
     private let historyQuery: any EnergyHistoryQuerying
     private let initialState: HistoryMonthLoadState?
@@ -41,7 +44,7 @@ struct HistoryMonthView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.lg) {
-            FetchNoticeStack(notices: notices)
+            FetchNoticeStack(notices: notices + [temperatureNotice].compactMap { $0 })
             switch state {
             case .loading:
                 DashboardLoadingView()
@@ -60,6 +63,8 @@ struct HistoryMonthView: View {
                     costProfile: costProfile,
                     historyQuery: historyQuery,
                     previewInsights: previewInsights,
+                    temperatureInsights: temperatureInsights,
+                    dailyTemperatures: dailyTemperatures,
                     selectedMonthKey: $selectedMonthKey,
                     openedDay: $openedDay,
                     openedInsights: $openedInsights
@@ -92,11 +97,18 @@ struct HistoryMonthView: View {
                 await loadHistory()
                 startBackfill()
             }
+            await loadTemperature()
+        }
+        .onChange(of: ConsumptionSettings.shared.temperaturePlaceId) { _, _ in
+            Task { await loadTemperature() }
         }
         .onChange(of: selectedMonthKey) { oldValue, _ in
             guard initialState == nil else { return }
             guard oldValue != nil else { return }
-            Task { await loadHistory() }
+            Task {
+                await loadHistory()
+                await loadTemperature()
+            }
         }
         .onChange(of: livePreciseCost) { _, _ in
             applyLiveValuesIfNeeded()
@@ -165,13 +177,14 @@ struct HistoryMonthView: View {
             let now = Date()
             let calendar = Calendar.energyHistory
             let month = ConsumptionInsightsSampleData.previewMonthSummary(now: now, calendar: calendar)
+            let previous = ConsumptionInsightsSampleData.previewPreviousMonthSummary(now: now, calendar: calendar)
             selectedMonthKey = month.periodKey
             state = .loaded(
                 HistoryMonthPresentation.make(
-                    months: [month],
+                    months: [previous, month].compactMap { $0 },
                     selectedMonth: month,
                     dailySummaries: ConsumptionInsightsSampleData.previewDailySummaries(now: now, calendar: calendar),
-                    previousDailySummaries: [],
+                    previousDailySummaries: ConsumptionInsightsSampleData.previewPreviousDailySummaries(now: now, calendar: calendar),
                     costProfile: costProfile,
                     liveMonthlyConsumption: liveMonthlyConsumption,
                     livePreciseCost: livePreciseCost,
@@ -210,5 +223,148 @@ struct HistoryMonthView: View {
         } catch {
             state = .empty(HistoryInsights.emptyHistoryMessage(hasProvider: hasProvider))
         }
+    }
+
+
+    @MainActor
+    private func loadTemperature() async {
+#if DEBUG
+        assert(TemperatureAdjustment.debugVerifyKnownExamples(), "temperature adjustment examples drifted")
+#endif
+        guard case .loaded(let presentation) = state,
+              let selected = presentation.selectedMonth else {
+            temperatureInsights = []
+            dailyTemperatures = [:]
+            temperatureNotice = nil
+            return
+        }
+
+        let calendar = Calendar.energyHistory
+        let now = Date()
+        let place = ConsumptionSettings.shared.temperaturePlace
+        let monthStart = calendar.dateInterval(of: .month, for: selected.periodStart)?.start ?? selected.periodStart
+        let fetchStart = calendar.date(byAdding: .month, value: -24, to: monthStart) ?? monthStart
+        let lastMeasured = SameDayMonthComparison.lastMeasuredDay(
+            monthStart: monthStart,
+            dailySummaries: presentation.dailySummaries
+        ) ?? presentation.dayBars.last(where: { $0.costKr != nil })?.date ?? now
+
+        let snapshot = await DailyTemperatureService.shared.temperatures(
+            from: fetchStart,
+            to: lastMeasured,
+            place: place,
+            now: now,
+            calendar: calendar
+        )
+        dailyTemperatures = snapshot.days
+        temperatureNotice = snapshot.notice
+
+        var kWhByDay = TemperatureAdjustment.kWhByDay(from: presentation.dailySummaries, calendar: calendar)
+        kWhByDay.merge(TemperatureAdjustment.kWhByDay(from: presentation.previousDailySummaries, calendar: calendar)) { current, _ in current }
+        for month in presentation.months {
+            let key = month.periodKey
+            if key == presentation.selectedMonth?.periodKey { continue }
+            if let extra = try? historyQuery.loadMonthHistory(priceArea: priceArea, selectedMonthKey: key) {
+                kWhByDay.merge(TemperatureAdjustment.kWhByDay(from: extra.dailySummaries, calendar: calendar)) { current, _ in current }
+            }
+        }
+#if DEBUG
+        if ConsumptionInsightsSampleData.isLaunchPreviewEnabled {
+            let skip = Set(kWhByDay.keys)
+            kWhByDay.merge(
+                ConsumptionInsightsSampleData.previewFitConsumption(
+                    temperatures: snapshot.days,
+                    skipping: skip,
+                    calendar: calendar
+                )
+            ) { current, _ in current }
+        }
+#endif
+
+        let baseloadKW = previewInsights?.baseload?.powerKW
+        let fit = TemperatureAdjustment.fit(
+            kWhByDay: kWhByDay,
+            temperatures: snapshot.days,
+            baseloadKW: baseloadKW,
+            calendar: calendar
+        )
+
+        let previousStart = presentation.previousSnapshot?.summary.periodStart
+            ?? presentation.months.filter { $0.periodStart < monthStart }.max(by: { $0.periodStart < $1.periodStart })?.periodStart
+        let throughDay = previousStart.flatMap {
+            SameDayMonthComparison.throughDay(
+                currentMonthStart: monthStart,
+                lastMeasuredInCurrent: lastMeasured,
+                previousMonthStart: $0,
+                now: now,
+                calendar: calendar
+            )
+        }
+
+        var insights: [TemperatureInsight] = []
+        if let previousStart {
+            let currentPeriod = TemperatureAdjustment.period(
+                name: SameDayMonthComparison.swedishMonthName(monthStart),
+                days: TemperatureAdjustment.daysInWindow(monthStart: monthStart, throughDay: throughDay, calendar: calendar),
+                kWhByDay: kWhByDay,
+                temperatures: snapshot.days,
+                calendar: calendar
+            )
+            let referenceName = presentation.comparisonMonthName
+                ?? SameDayMonthComparison.previousPeriodLabel(
+                    from: TemperatureAdjustment.daysInWindow(monthStart: previousStart, throughDay: throughDay, calendar: calendar),
+                    calendar: calendar
+                )
+                ?? SameDayMonthComparison.swedishMonthName(previousStart)
+            let referencePeriod = TemperatureAdjustment.period(
+                name: referenceName,
+                days: TemperatureAdjustment.daysInWindow(monthStart: previousStart, throughDay: throughDay, calendar: calendar),
+                kWhByDay: kWhByDay,
+                temperatures: snapshot.days,
+                calendar: calendar
+            )
+            if let currentPeriod, let referencePeriod,
+               let insight = TemperatureAdjustment.insight(
+                current: currentPeriod,
+                reference: referencePeriod,
+                fit: fit,
+                id: "previous-month"
+               ) {
+                insights.append(insight)
+            }
+        }
+
+        if let yearAgo = calendar.date(byAdding: .year, value: -1, to: monthStart),
+           presentation.months.contains(where: { calendar.isDate($0.periodStart, equalTo: yearAgo, toGranularity: .month) }) {
+            let yearThrough = calendar.isDate(monthStart, equalTo: now, toGranularity: .month)
+                ? (throughDay ?? calendar.component(.day, from: lastMeasured))
+                : nil
+            let currentPeriod = TemperatureAdjustment.period(
+                name: SameDayMonthComparison.swedishMonthName(monthStart),
+                days: TemperatureAdjustment.daysInWindow(monthStart: monthStart, throughDay: yearThrough, calendar: calendar),
+                kWhByDay: kWhByDay,
+                temperatures: snapshot.days,
+                calendar: calendar
+            )
+            let yearName = "\(SameDayMonthComparison.swedishMonthName(yearAgo)) förra året"
+            let referencePeriod = TemperatureAdjustment.period(
+                name: yearName,
+                days: TemperatureAdjustment.daysInWindow(monthStart: yearAgo, throughDay: yearThrough, calendar: calendar),
+                kWhByDay: kWhByDay,
+                temperatures: snapshot.days,
+                calendar: calendar
+            )
+            if let currentPeriod, let referencePeriod,
+               let insight = TemperatureAdjustment.insight(
+                current: currentPeriod,
+                reference: referencePeriod,
+                fit: fit,
+                id: "previous-year"
+               ) {
+                insights.append(insight)
+            }
+        }
+
+        temperatureInsights = insights
     }
 }

@@ -69,6 +69,16 @@ struct SettingsGridSection: View {
                 }
 
                 Section {
+                    Picker("Temperaturort", selection: $settings.temperaturePlaceId) {
+                        ForEach(TemperaturePlace.presets) { place in
+                            Text(place.name).tag(place.id)
+                        }
+                    }
+                } footer: {
+                    Text("Används för att jämföra förbrukningen när det varit varmare eller kallare. Standard är Vaggeryd, nära Vaggeryds elnät. Du väljer ort själv, appen använder inte din position. Dygnstemperatur från Open-Meteo.")
+                }
+
+                Section {
                     LabeledContent("Fast avgift") {
                         HStack(spacing: DS.Spacing.xs) {
                             TextField("0", value: $settings[gridMonthlyFee: SettingsBind.gridMonthlyFee], format: .number)

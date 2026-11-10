@@ -57,6 +57,7 @@ final class ConsumptionSettings {
 
         static let includeHypotheticalEffectTariff = "settings_includeHypotheticalEffectTariff"
         static let compareFixedPriceOrePerKWh = "settings_compareFixedPriceOrePerKWh"
+        static let temperaturePlaceId = "settings_temperaturePlaceId"
     }
 
     // MARK: - Observable Properties
@@ -163,6 +164,20 @@ final class ConsumptionSettings {
             NotificationCenter.default.post(name: .consumptionSettingsDidSave, object: nil)
             Self.defaults.synchronize()
         }
+    }
+
+    /// Named place used for outdoor temperature. No GPS; the user picks it in Settings.
+    var temperaturePlaceId: String {
+        didSet {
+            guard temperaturePlaceId != oldValue else { return }
+            Self.defaults.set(temperaturePlaceId, forKey: Keys.temperaturePlaceId)
+            NotificationCenter.default.post(name: .consumptionSettingsDidSave, object: nil)
+            Self.defaults.synchronize()
+        }
+    }
+
+    var temperaturePlace: TemperaturePlace {
+        TemperaturePlace.place(id: temperaturePlaceId)
     }
 
     // MARK: - Legacy Properties (Backward Compatibility)
@@ -528,6 +543,11 @@ final class ConsumptionSettings {
             self.compareFixedPriceOrePerKWh = CostUsageInsights.defaultFixedPriceOrePerKWh
         } else {
             self.compareFixedPriceOrePerKWh = Self.defaults.double(forKey: Keys.compareFixedPriceOrePerKWh)
+        }
+        if let savedPlace = Self.defaults.string(forKey: Keys.temperaturePlaceId), !savedPlace.isEmpty {
+            self.temperaturePlaceId = savedPlace
+        } else {
+            self.temperaturePlaceId = TemperaturePlace.defaultID(forDSO: initialSelectedDSOOrgNo)
         }
 
         // Load or migrate central cost profile
