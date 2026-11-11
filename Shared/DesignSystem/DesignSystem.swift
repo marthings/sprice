@@ -1233,6 +1233,18 @@ struct PriceLevelBadge: View {
 /// expands the parent (which would wipe out horizontal padding).
 struct AppCanvasBackground: View {
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var isLowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled
+
+    /// Screens that sit behind another full screen background pass `false`, so the
+    /// hidden copy does not animate for nothing.
+    var live: Bool = true
+
+    /// Moves only when the user allows motion, the battery is not being saved and the app is on screen.
+    private var animates: Bool {
+        live && !reduceMotion && !isLowPowerMode && scenePhase == .active
+    }
 
     var body: some View {
         base
@@ -1243,10 +1255,19 @@ struct AppCanvasBackground: View {
                     .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity, alignment: .bottom)
                     .allowsHitTesting(false)
             }
+            .overlay {
+                if live {
+                    LiveMeshGlow(isDark: colorScheme == .dark, animates: animates)
+                        .opacity(colorScheme == .dark ? 0.7 : 0.8)
+                }
+            }
             .clipped()
             .ignoresSafeArea()
             .accessibilityHidden(true)
             .allowsHitTesting(false)
+            .onReceive(NotificationCenter.default.publisher(for: .NSProcessInfoPowerStateDidChange)) { _ in
+                isLowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled
+            }
     }
 
     private var base: Color {
@@ -1254,6 +1275,81 @@ struct AppCanvasBackground: View {
             ? Color(red: 0.045, green: 0.05, blue: 0.065)
             : Color(red: 0.78, green: 0.86, blue: 0.94)
     }
+}
+
+/// A slow, soft glow in the landscape's own colours: sky blues (deep blue, teal and violet in
+/// dark mode) with the warm sunrise drifting along the horizon. The mesh points travel along
+/// small loops and the warm colour moves between three of them, one full cycle every 24
+/// seconds, at 30 frames a second at most. With `animates` off it shows the resting pose.
+private struct LiveMeshGlow: View {
+    let isDark: Bool
+    let animates: Bool
+
+    private static let cycleSeconds: Double = 24
+
+    var body: some View {
+        if animates {
+            TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
+                mesh(phase: context.date.timeIntervalSinceReferenceDate / Self.cycleSeconds)
+            }
+        } else {
+            mesh(phase: 0)
+        }
+    }
+
+    private typealias RGB = SIMD3<Double>
+
+    /// `phase` counts whole cycles. Every point and colour uses a whole number of turns per
+    /// cycle, so the motion loops without a jump.
+    private func mesh(phase: Double) -> some View {
+        let turn = phase * 2 * Double.pi
+        let a = Float(sin(turn)), b = Float(cos(turn))
+        let c = Float(sin(turn * 2 + 1)), d = Float(cos(turn * 2 + 2))
+
+        // The warm glow sits mostly at the horizon (bottom middle) and drifts to the sides
+        // and up the edges as the cycle goes round.
+        let warm = isDark ? RGB(0.75, 0.34, 0.11) : RGB(1.00, 0.72, 0.48)
+        let wBottom = 0.62 + 0.22 * sin(turn)
+        let wRight = 0.40 * (0.5 + 0.5 * sin(turn + 4.2))
+        let wLeft = 0.30 * (0.5 + 0.5 * sin(turn + 2.1))
+        let base = isDark ? Self.darkBase : Self.lightBase
+        var colors = base.map { Color(red: $0.x, green: $0.y, blue: $0.z) }
+        colors[3] = Self.color(Self.mix(base[3], warm, wLeft))
+        colors[5] = Self.color(Self.mix(base[5], warm, wRight))
+        colors[7] = Self.color(Self.mix(base[7], warm, wBottom))
+
+        return MeshGradient(
+            width: 3,
+            height: 3,
+            points: [
+                SIMD2(0, 0), SIMD2(0.5 + 0.15 * a, 0), SIMD2(1, 0),
+                SIMD2(0, 0.5 + 0.10 * b), SIMD2(0.5 + 0.12 * b, 0.5 + 0.11 * a), SIMD2(1, 0.5 - 0.10 * c),
+                SIMD2(0, 1), SIMD2(0.5 + 0.20 * d, 1), SIMD2(1, 1)
+            ],
+            colors: colors
+        )
+        .allowsHitTesting(false)
+    }
+
+    private static func mix(_ from: RGB, _ to: RGB, _ amount: Double) -> RGB {
+        from + (to - from) * min(max(amount, 0), 1)
+    }
+
+    private static func color(_ rgb: RGB) -> Color {
+        Color(red: rgb.x, green: rgb.y, blue: rgb.z)
+    }
+
+    private static let lightBase: [RGB] = [
+        RGB(0.78, 0.86, 0.96), RGB(0.96, 0.97, 1.00), RGB(0.76, 0.84, 0.95),
+        RGB(0.66, 0.77, 0.91), RGB(0.94, 0.94, 0.98), RGB(0.68, 0.78, 0.93),
+        RGB(0.62, 0.74, 0.89), RGB(0.80, 0.84, 0.94), RGB(0.64, 0.75, 0.90)
+    ]
+
+    private static let darkBase: [RGB] = [
+        RGB(0.07, 0.07, 0.22), RGB(0.04, 0.17, 0.30), RGB(0.10, 0.07, 0.24),
+        RGB(0.05, 0.12, 0.30), RGB(0.12, 0.09, 0.30), RGB(0.04, 0.16, 0.28),
+        RGB(0.04, 0.11, 0.28), RGB(0.06, 0.14, 0.30), RGB(0.07, 0.07, 0.22)
+    ]
 }
 
 // MARK: - Palette-tinted cards

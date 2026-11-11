@@ -65,7 +65,7 @@ struct DashboardView: View {
                 }
             }
         }
-        .background { AppCanvasBackground() }
+        .background { AppCanvasBackground(live: false) }
         .toolbarBackgroundVisibility(.hidden, for: .tabBar)
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
