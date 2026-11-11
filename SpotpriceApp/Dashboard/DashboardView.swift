@@ -69,7 +69,7 @@ struct DashboardView: View {
         // Everything is rebuilt when example data is switched on or off, so no tab keeps
         // numbers from the other mode.
         .id(settings.isDemoActive)
-        .background { AppCanvasBackground() }
+        .background { AppCanvasBackground(live: false) }
         .toolbarBackgroundVisibility(.hidden, for: .tabBar)
         .onChange(of: settings.isDemoActive) { _, _ in
             ConsumptionInsightsService.invalidate()

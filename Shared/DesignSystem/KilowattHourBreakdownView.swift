@@ -164,7 +164,7 @@ struct KilowattHourBreakdownView: View {
             }
 
             Text("kr/kWh")
-                .font(DS.Font.unit)
+                .font(DS.Font.unitLarge)
                 .foregroundStyle(DS.Color.secondary)
         }
         .multilineTextAlignment(.center)
