@@ -1226,7 +1226,10 @@ struct PriceLevelBadge: View {
 
 // MARK: - Canvas background
 
-/// Full-bleed landscape reused by every screen (light/dark asset).
+/// Full-bleed landscape reused by every screen (light/dark asset). Completely still.
+/// Depth comes from three fixed layers on top of the watercolor: a deeper sky towards the
+/// top, a soft warm glow at the horizon, and a faint vignette at the edges. Cards sit
+/// above all of it and keep their own material, so text reads the same in light and dark.
 /// Layout-neutral: the image lives in an overlay so `scaledToFill` never
 /// expands the parent (which would wipe out horizontal padding).
 struct AppCanvasBackground: View {
@@ -1241,16 +1244,60 @@ struct AppCanvasBackground: View {
                     .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity, alignment: .bottom)
                     .allowsHitTesting(false)
             }
+            .overlay { deeperSky }
+            .overlay { horizonGlow }
+            .overlay { vignette }
             .clipped()
             .ignoresSafeArea()
             .accessibilityHidden(true)
             .allowsHitTesting(false)
     }
 
+    private var isDark: Bool { colorScheme == .dark }
+
     private var base: Color {
-        colorScheme == .dark
+        isDark
             ? Color(red: 0.045, green: 0.05, blue: 0.065)
             : Color(red: 0.78, green: 0.86, blue: 0.94)
+    }
+
+    /// The sky gets a little deeper towards the top, fading out by the middle of the screen.
+    private var deeperSky: some View {
+        let top = isDark ? Color(red: 0.10, green: 0.08, blue: 0.30) : Color(red: 0.55, green: 0.69, blue: 0.88)
+        return LinearGradient(
+            stops: [
+                .init(color: top.opacity(isDark ? 0.55 : 0.42), location: 0),
+                .init(color: top.opacity(isDark ? 0.18 : 0.12), location: 0.35),
+                .init(color: top.opacity(0), location: 0.62)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    /// A soft glow where the sun sits behind the ridge.
+    private var horizonGlow: some View {
+        let warm = isDark ? Color(red: 0.80, green: 0.36, blue: 0.12) : Color(red: 1.00, green: 0.70, blue: 0.45)
+        return GeometryReader { geometry in
+            RadialGradient(
+                colors: [warm.opacity(isDark ? 0.34 : 0.32), warm.opacity(isDark ? 0.10 : 0.10), warm.opacity(0)],
+                center: UnitPoint(x: 0.5, y: 0.82),
+                startRadius: 0,
+                endRadius: max(geometry.size.width, geometry.size.height * 0.5) * 0.9
+            )
+        }
+    }
+
+    /// Darkens the corners a little, so the middle of the screen feels closer.
+    private var vignette: some View {
+        GeometryReader { geometry in
+            RadialGradient(
+                colors: [Color.black.opacity(0), Color.black.opacity(isDark ? 0.34 : 0.10)],
+                center: .center,
+                startRadius: min(geometry.size.width, geometry.size.height) * 0.45,
+                endRadius: max(geometry.size.width, geometry.size.height) * 0.78
+            )
+        }
     }
 }
 

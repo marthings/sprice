@@ -91,6 +91,9 @@ struct HistoryMonthHeroSection: View {
                     .font(DS.Font.footnote)
                     .foregroundStyle(DS.Color.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+                if !hasProvider {
+                    DemoModeButton()
+                }
             } else {
                 Text(HistoryInsights.missingConsumptionMessage(hasProvider: hasProvider))
                     .font(DS.Font.callout)

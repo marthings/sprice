@@ -48,6 +48,15 @@ struct SpotPriceService: Sendable {
         area: String,
         ignoreCache: Bool = false
     ) async throws -> SpotPriceFetchReport {
+        // Demo mode: generated prices. No network, and the saved price cache is left alone.
+        if DemoMode.isActive {
+            return SpotPriceFetchReport(
+                items: DemoData.priceItems(for: date),
+                savedAt: Date(),
+                usedStaleCache: false,
+                failure: nil
+            )
+        }
         if !ignoreCache, let cached = await SpotPriceCache.shared.cachedPayloadIfFresh(for: date, area: area) {
             return SpotPriceFetchReport(
                 items: cached.items,
@@ -91,6 +100,9 @@ struct SpotPriceService: Sendable {
     }
 
     func cachedOrFetchedDayChart(for date: Date, area: String) async -> DayChartData? {
+        if DemoMode.isActive {
+            return try? makeDayChartData(from: DemoData.priceItems(for: date), for: date)
+        }
         if let cached = await SpotPriceCache.shared.items(for: date, area: area), !cached.isEmpty {
             return try? makeDayChartData(from: cached, for: date)
         }

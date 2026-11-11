@@ -6,6 +6,8 @@ Det här är texten som läggs i fältet "Notes" i App Store Connect, översatt 
 
 Sprice är en iPhone-app (med widget) för svenska hushåll. Den visar vad en kilowattimme el kostar just nu, elpriset under dagen och hur elkostnaden blev månad för månad.
 
+**Så provar granskaren allt utan konto:** gå till fliken **Inställningar** och slå på **Visa exempeldata** (högst upp, under översikten). Då visar alla flikar påhittad data för ett hushåll som inte finns, och texten "Exempeldata" syns högst upp på varje flik. Det går också att trycka på **Prova med exempeldata** på de tomma flikarna. Exempeldatan sparas inte och ändrar inget i appens riktiga data. Slå av reglaget för att gå tillbaka.
+
 Appen har fyra flikar:
 
 1. **Kostnad:** vad en kilowattimme kostar just nu, uppdelat i spotpris, elhandlarens påslag, elnät, skatt och moms.
@@ -28,7 +30,7 @@ Elpriserna hämtas från ett öppet gränssnitt hos elprisetjustnu.se. Appen har
 
 Förbrukning kan hämtas från Tibber (kräver kundens egen åtkomstnyckel) eller Vaggeryds Energi (kräver kundens egna inloggningsuppgifter). Båda kopplas under Inställningar, Förbrukning, och används bara för att visa kundens egen förbrukning. De som inte har ett sådant konto kan inte koppla dem.
 
-**Viktigt för granskaren:** utan en datakälla visar fliken Historik bara det genomsnittliga elpriset för månaden. Förbrukning, månadens kostnad, förklaringen till prisförändringen och elbilsgissningen kräver förbrukningsdata från Tibber eller Vaggeryds Energi. Vi kan inte ge ut ett demokonto hos dem. Se skärmbilderna i granskningsmaterialet för hur de vyerna ser ut med data.
+**Viktigt för granskaren:** utan en datakälla visar fliken Historik bara det genomsnittliga elpriset för månaden. Förbrukning, månadens kostnad, förklaringen till prisförändringen och elbilsgissningen kräver förbrukningsdata från Tibber eller Vaggeryds Energi. Vi kan inte ge ut ett demokonto hos dem, så använd **Visa exempeldata** under Inställningar (se ovan). Då syns alla de vyerna med påhittad data, även månadsvyn, uppdelningen av prisändringen, "Vad drog?" och temperaturjämförelsen. Elbil är påslaget i exempeldatan.
 
 ## Kostnaderna är uppskattningar
 
@@ -54,11 +56,13 @@ Appen anropar bara: elprisetjustnu.se (spotpriser), Open-Meteo (dygnstemperatur 
 
 Sprice is an iPhone app (with widgets) for Swedish households. It shows what a kilowatt hour of electricity costs right now, the price across the day, and how the electricity cost turned out month by month. The app is in Swedish.
 
+To review everything without an account: open the Inställningar tab and turn on **Visa exempeldata** (at the top, under the overview). Every tab then shows invented data for a household that does not exist, and a small "Exempeldata" label appears at the top of each tab. The empty tabs also have a button, **Prova med exempeldata**. The example data is not saved and changes nothing in the app's real data. Turn the switch off to go back.
+
 Four tabs: Kostnad (cost per kWh right now, split into spot price, retailer markup, grid fee, tax and VAT), Priser (today's and tomorrow's prices in a chart), Historik (the cost for a chosen month and why it became more or less expensive) and Inställningar (settings).
 
 No sign-in is needed to start the app. Without an account these work: Kostnad (current price per kWh and its breakdown), Priser (day-ahead spot prices), Inställningar (price area, contract, grid company, export and deletion of history, privacy policy and support links), and the home screen widgets (small, medium, large).
 
-Optional and not needed for review: the user can connect their own Tibber account (personal access token) or Vaggeryds Energi account (customer credentials) under Inställningar > Förbrukning to see their own consumption. We cannot provide demo accounts for these services. Please note: without a connected data source, the Historik tab only shows the average spot price for the month. Consumption, monthly cost, the explanation of price changes and the EV guess need consumption data, so they cannot be reached without such an account. Screenshots in the review material show these views with data.
+Optional and not needed for review: the user can connect their own Tibber account (personal access token) or Vaggeryds Energi account (customer credentials) under Inställningar > Förbrukning to see their own consumption. We cannot provide demo accounts for these services. Please note: without a connected data source, the Historik tab only shows the average spot price for the month. Consumption, monthly cost, the explanation of price changes and the EV guess need consumption data. Use **Visa exempeldata** in Inställningar (see above) to see all of these views with invented data, including the month view, the cost breakdown, "Vad drog?" and the temperature comparison. The EV setting is on in the example data.
 
 All costs are estimates calculated from the spot price and the values the user chooses or enters (markup, monthly fees, grid fees, tax, VAT). They are not invoice amounts, and the app says so where they are shown. Grid company fees are built into the app and are not downloaded.
 

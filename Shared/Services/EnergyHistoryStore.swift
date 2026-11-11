@@ -54,8 +54,28 @@ enum EnergyHistoryStores {
     private static var cachedContainer: ModelContainer?
     private static var cachedReader: SwiftDataEnergyHistoryStore?
     private static var cachedWriter: EnergyHistoryWriter?
+    // Demo mode: a separate in-memory store. The saved history is not opened or written.
+    private static var demoContainer: ModelContainer?
+    private static var demoReader: SwiftDataEnergyHistoryStore?
+    private static var demoWriter: EnergyHistoryWriter?
+
+    /// Throws the demo store away. Called when demo mode is switched on or off.
+    static func resetDemo() {
+        demoContainer = nil
+        demoReader = nil
+        demoWriter = nil
+        DemoHistorySeeder.reset()
+    }
 
     static func container() throws -> ModelContainer {
+        if DemoMode.isActive {
+            if let demoContainer {
+                return demoContainer
+            }
+            let container = try EnergyHistoryModelContainer.makeInMemoryContainer(name: "DemoHistory")
+            demoContainer = container
+            return container
+        }
         if let cachedContainer {
             return cachedContainer
         }
@@ -65,6 +85,14 @@ enum EnergyHistoryStores {
     }
 
     static func reader() throws -> SwiftDataEnergyHistoryStore {
+        if DemoMode.isActive {
+            if let demoReader {
+                return demoReader
+            }
+            let store = SwiftDataEnergyHistoryStore(container: try container())
+            demoReader = store
+            return store
+        }
         if let cachedReader {
             return cachedReader
         }
@@ -74,6 +102,14 @@ enum EnergyHistoryStores {
     }
 
     static func writer() throws -> EnergyHistoryWriter {
+        if DemoMode.isActive {
+            if let demoWriter {
+                return demoWriter
+            }
+            let writer = EnergyHistoryWriter(modelContainer: try container())
+            demoWriter = writer
+            return writer
+        }
         if let cachedWriter {
             return cachedWriter
         }
@@ -301,10 +337,10 @@ enum EnergyHistoryModelContainer {
         }
     }
 
-    static func makeInMemoryContainer() throws -> ModelContainer {
+    static func makeInMemoryContainer(name: String = EnergyHistoryConstants.storeName) throws -> ModelContainer {
         let schema = Schema(versionedSchema: EnergyHistorySchema.self)
         let configuration = ModelConfiguration(
-            EnergyHistoryConstants.storeName,
+            name,
             schema: schema,
             isStoredInMemoryOnly: true,
             allowsSave: true,

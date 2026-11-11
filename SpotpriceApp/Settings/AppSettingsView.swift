@@ -54,6 +54,7 @@ struct AppSettingsView: View {
     private var form: some View {
         Form {
             overviewSection
+            demoSection.id("demo")
             consumptionSection
             priceAreaSection
             retailContractSection
@@ -135,20 +136,50 @@ struct AppSettingsView: View {
         }
     }
 
+    private var demoSection: some View {
+        Section {
+            Toggle(isOn: Binding(
+                get: { settings.isDemoActive },
+                set: { settings.setDemoMode($0) }
+            )) {
+                Text("Visa exempeldata")
+                    .font(DS.Font.body)
+            }
+            .accessibilityHint("Visar påhittad data så att du kan prova appen utan konto")
+            .spriceListRowBackground()
+        } header: {
+            Text("Exempeldata")
+                .spriceSettingsHeaderStyle()
+        } footer: {
+            Text("Visar påhittad data för ett hushåll som inte finns, så att du kan prova appen utan konto. Din riktiga data ändras inte.")
+                .spriceSettingsFooterStyle()
+        }
+    }
+
     private var consumptionSection: some View {
         Section {
-            NavigationLink {
-                ProviderSettingsView()
-            } label: {
+            if settings.isDemoActive {
                 LabeledContent("Datakälla") {
                     Text(providerStatusText)
                         .font(DS.Font.body)
                         .foregroundStyle(DS.Color.secondary)
                         .multilineTextAlignment(.trailing)
                 }
+                .spriceListRowBackground()
+            } else {
+                NavigationLink {
+                    ProviderSettingsView()
+                } label: {
+                    LabeledContent("Datakälla") {
+                        Text(providerStatusText)
+                            .font(DS.Font.body)
+                            .foregroundStyle(DS.Color.secondary)
+                            .multilineTextAlignment(.trailing)
+                    }
+                }
+                .accessibilityHint("Öppnar inställningar för förbrukningsdata")
+                .spriceListRowBackground()
             }
-            .accessibilityHint("Öppnar inställningar för förbrukningsdata")
-            .spriceListRowBackground()
         } header: {
             Text("Förbrukning")
                 .spriceSettingsHeaderStyle()
@@ -428,10 +459,12 @@ struct AppSettingsView: View {
     }
 
     private var providerOverviewName: String {
-        providerMetadata?.displayName ?? "Ingen leverantör"
+        if settings.isDemoActive { return "Exempeldata" }
+        return providerMetadata?.displayName ?? "Ingen leverantör"
     }
 
     private var overviewStatus: String? {
+        if settings.isDemoActive { return "Påhittad data, inget är sparat" }
         guard let metadata = providerMetadata else { return nil }
         let credentials = settings.getCredentials(for: metadata.identifier)
         return credentials.isComplete(for: metadata.credentialFields)
@@ -445,6 +478,7 @@ struct AppSettingsView: View {
     }
 
     private var providerStatusText: String {
+        if settings.isDemoActive { return "Exempeldata visas" }
         guard let metadata = providerMetadata else {
             return "Ingen leverantör vald"
         }

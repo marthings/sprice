@@ -54,6 +54,9 @@ struct HistoryMonthView: View {
                     message: message,
                     color: DS.Color.secondary
                 )
+                if !hasProvider {
+                    DemoModeButton()
+                }
             case .loaded(let presentation):
                 HistoryMonthLoadedContent(
                     presentation: presentation,
@@ -94,6 +97,10 @@ struct HistoryMonthView: View {
             if let initialState {
                 state = initialState
             } else {
+                if ConsumptionSettings.shared.isDemoActive {
+                    // The invented history is made in memory first, so the tab opens with data.
+                    await DemoHistorySeeder.ensureSeeded()
+                }
                 await loadHistory()
                 startBackfill()
             }
