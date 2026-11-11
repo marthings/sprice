@@ -1258,7 +1258,7 @@ struct AppCanvasBackground: View {
             .overlay {
                 if live {
                     LiveMeshGlow(isDark: colorScheme == .dark, animates: animates)
-                        .opacity(0.8)
+                        .opacity(colorScheme == .dark ? 0.7 : 0.8)
                 }
             }
             .clipped()
@@ -1279,13 +1279,13 @@ struct AppCanvasBackground: View {
 
 /// A slow, soft glow in the landscape's own colours: sky blues (deep blue, teal and violet in
 /// dark mode) with the warm sunrise drifting along the horizon. The mesh points travel along
-/// small loops and the warm colour moves between three of them, one full cycle every 18
+/// small loops and the warm colour moves between three of them, one full cycle every 24
 /// seconds, at 30 frames a second at most. With `animates` off it shows the resting pose.
 private struct LiveMeshGlow: View {
     let isDark: Bool
     let animates: Bool
 
-    private static let cycleSeconds: Double = 18
+    private static let cycleSeconds: Double = 24
 
     var body: some View {
         if animates {
@@ -1308,10 +1308,10 @@ private struct LiveMeshGlow: View {
 
         // The warm glow sits mostly at the horizon (bottom middle) and drifts to the sides
         // and up the edges as the cycle goes round.
-        let warm = isDark ? RGB(0.90, 0.40, 0.12) : RGB(1.00, 0.72, 0.48)
-        let wBottom = 0.70 + 0.30 * sin(turn)
-        let wRight = 0.55 * (0.5 + 0.5 * sin(turn + 4.2))
-        let wLeft = 0.45 * (0.5 + 0.5 * sin(turn + 2.1))
+        let warm = isDark ? RGB(0.75, 0.34, 0.11) : RGB(1.00, 0.72, 0.48)
+        let wBottom = 0.62 + 0.22 * sin(turn)
+        let wRight = 0.40 * (0.5 + 0.5 * sin(turn + 4.2))
+        let wLeft = 0.30 * (0.5 + 0.5 * sin(turn + 2.1))
         let base = isDark ? Self.darkBase : Self.lightBase
         var colors = base.map { Color(red: $0.x, green: $0.y, blue: $0.z) }
         colors[3] = Self.color(Self.mix(base[3], warm, wLeft))
@@ -1322,9 +1322,9 @@ private struct LiveMeshGlow: View {
             width: 3,
             height: 3,
             points: [
-                SIMD2(0, 0), SIMD2(0.5 + 0.25 * a, 0), SIMD2(1, 0),
-                SIMD2(0, 0.5 + 0.16 * b), SIMD2(0.5 + 0.20 * b, 0.5 + 0.18 * a), SIMD2(1, 0.5 - 0.16 * c),
-                SIMD2(0, 1), SIMD2(0.5 + 0.30 * d, 1), SIMD2(1, 1)
+                SIMD2(0, 0), SIMD2(0.5 + 0.15 * a, 0), SIMD2(1, 0),
+                SIMD2(0, 0.5 + 0.10 * b), SIMD2(0.5 + 0.12 * b, 0.5 + 0.11 * a), SIMD2(1, 0.5 - 0.10 * c),
+                SIMD2(0, 1), SIMD2(0.5 + 0.20 * d, 1), SIMD2(1, 1)
             ],
             colors: colors
         )
@@ -1346,9 +1346,9 @@ private struct LiveMeshGlow: View {
     ]
 
     private static let darkBase: [RGB] = [
-        RGB(0.10, 0.08, 0.30), RGB(0.04, 0.24, 0.36), RGB(0.14, 0.07, 0.32),
-        RGB(0.05, 0.14, 0.38), RGB(0.18, 0.10, 0.40), RGB(0.04, 0.22, 0.34),
-        RGB(0.04, 0.12, 0.34), RGB(0.06, 0.16, 0.36), RGB(0.10, 0.08, 0.30)
+        RGB(0.07, 0.07, 0.22), RGB(0.04, 0.17, 0.30), RGB(0.10, 0.07, 0.24),
+        RGB(0.05, 0.12, 0.30), RGB(0.12, 0.09, 0.30), RGB(0.04, 0.16, 0.28),
+        RGB(0.04, 0.11, 0.28), RGB(0.06, 0.14, 0.30), RGB(0.07, 0.07, 0.22)
     ]
 }
 
