@@ -84,8 +84,7 @@ struct HistoryMonthHeroSection: View {
             ForEach(temperatureInsights) { insight in
                 InsightRow(
                     icon: "thermometer.medium",
-                    title: insight.title,
-                    detail: insight.isUncertain ? "Osäker jämförelse" : nil
+                    title: insight.title
                 )
             }
 
@@ -118,11 +117,13 @@ struct HistoryMonthHeroSection: View {
         }
         if !temperatureInsights.isEmpty {
             for insight in temperatureInsights {
-                parts.append(insight.title)
+                parts.append(contentsOf: insight.details)
             }
-            parts.append("Jämförelsen tar hänsyn till om det varit kallare eller varmare. Bara uppvärmningen justeras, inte det som huset drar hela tiden.")
-            parts.append("Beräkningen bygger på det senaste mätvärdet och jämför samma antal dagar i båda perioderna.")
-            parts.append("Om det finns för lite underlag, eller om förbrukningen inte följer vädret tydligt, visas ingen justering.")
+            parts.append("Räknat på samma väder betyder att vi räknar bort skillnaden i temperatur, så att du ser om du själv använde mer eller mindre el.")
+            parts.append("Bara uppvärmningen justeras. Det som går åt hela tiden, till exempel kyl, frys och lampor, räknas som det är.")
+            parts.append("Det är en uppskattning, inte en mätning. Vi utgår bara från dygnets medeltemperatur och hur din förbrukning brukar följa den. Annat som också påverkar syns inte, till exempel elbil, att fler eller färre är hemma, varmvatten, semester och ändrade vanor.")
+            parts.append("Uppskattningen blir grövre när din förbrukning följer vädret svagt, när vi har få dagar att räkna på eller när det saknas mätvärden för en del dagar. Då skriver vi ungefär, och när det inte går att räkna om visar vi bara förbrukningen som den är.")
+            parts.append("När månaden pågår jämförs samma dagar i båda perioderna, efter det senaste mätvärdet.")
             parts.append("Temperaturen kommer från Open-Meteo för den ort du valt under Inställningar.")
         }
         return parts

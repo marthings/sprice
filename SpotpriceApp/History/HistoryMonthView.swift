@@ -317,12 +317,7 @@ struct HistoryMonthView: View {
                 temperatures: snapshot.days,
                 calendar: calendar
             )
-            let referenceName = presentation.comparisonMonthName
-                ?? SameDayMonthComparison.previousPeriodLabel(
-                    from: TemperatureAdjustment.daysInWindow(monthStart: previousStart, throughDay: throughDay, calendar: calendar),
-                    calendar: calendar
-                )
-                ?? SameDayMonthComparison.swedishMonthName(previousStart)
+            let referenceName = SameDayMonthComparison.swedishMonthName(previousStart)
             let referencePeriod = TemperatureAdjustment.period(
                 name: referenceName,
                 days: TemperatureAdjustment.daysInWindow(monthStart: previousStart, throughDay: throughDay, calendar: calendar),
@@ -335,7 +330,8 @@ struct HistoryMonthView: View {
                 current: currentPeriod,
                 reference: referencePeriod,
                 fit: fit,
-                id: "previous-month"
+                id: "previous-month",
+                kind: .previousMonth(partial: throughDay != nil)
                ) {
                 insights.append(insight)
             }
@@ -353,7 +349,7 @@ struct HistoryMonthView: View {
                 temperatures: snapshot.days,
                 calendar: calendar
             )
-            let yearName = "\(SameDayMonthComparison.swedishMonthName(yearAgo)) förra året"
+            let yearName = SameDayMonthComparison.swedishMonthName(yearAgo)
             let referencePeriod = TemperatureAdjustment.period(
                 name: yearName,
                 days: TemperatureAdjustment.daysInWindow(monthStart: yearAgo, throughDay: yearThrough, calendar: calendar),
@@ -366,7 +362,8 @@ struct HistoryMonthView: View {
                 current: currentPeriod,
                 reference: referencePeriod,
                 fit: fit,
-                id: "previous-year"
+                id: "previous-year",
+                kind: .yearAgo(partial: yearThrough != nil)
                ) {
                 insights.append(insight)
             }

@@ -522,11 +522,23 @@ nonisolated struct TemperatureUsagePeriod: Equatable, Sendable {
     var meanTempC: Double
     var heatingDegreeDays: Double
     var dayCount: Int
+    /// Days in the compared window, with or without measurements. 0 when unknown.
+    var windowDays: Int = 0
+}
+
+/// Which two periods a temperature comparison sets side by side.
+/// `partial` means only the days measured so far are compared.
+nonisolated enum TemperatureComparisonKind: Equatable, Sendable {
+    case previousMonth(partial: Bool)
+    case yearAgo(partial: Bool)
 }
 
 nonisolated struct TemperatureInsight: Equatable, Sendable, Identifiable {
     var id: String
+    /// Short text for the card.
     var title: String
+    /// Longer explanation for the info sheet.
+    var details: [String]
     var isUncertain: Bool
 }
 
@@ -569,7 +581,8 @@ nonisolated enum TemperatureAdjustment {
             kWh: usedKWh,
             meanTempC: usedTemp / Double(count),
             heatingDegreeDays: usedHDD,
-            dayCount: count
+            dayCount: count,
+            windowDays: days.count
         )
     }
 
@@ -626,14 +639,18 @@ nonisolated enum TemperatureAdjustment {
         current: TemperatureUsagePeriod,
         reference: TemperatureUsagePeriod,
         fit: (baseKWhPerDay: Double, slope: Double, correlation: Double, samples: Int)?,
-        id: String
+        id: String,
+        kind: TemperatureComparisonKind
     ) -> TemperatureInsight? {
         guard current.dayCount >= 3, reference.dayCount >= 3, reference.kWh > 0 else { return nil }
         let rawPercent = (current.kWh - reference.kWh) / reference.kWh * 100
         let colder = current.meanTempC <= reference.meanTempC - similarTempC
         let warmer = current.meanTempC >= reference.meanTempC + similarTempC
-        let temps = "I snitt \(degrees(current.meanTempC)) nu, mot \(degrees(reference.meanTempC)) \(named(reference.name))."
+        let weatherDiffers = colder || warmer
 
+        // Why the weather adjustment is missing or rougher than usual. These go
+        // behind the info button, never on the card.
+        var notes: [String] = []
         let adjusted: Double?
         let uncertain: Bool
         if let fit {
@@ -642,77 +659,166 @@ nonisolated enum TemperatureAdjustment {
             if current.heatingDegreeDays < 0.5 && reference.heatingDegreeDays < 0.5 {
                 adjusted = current.kWh
                 uncertain = fit.correlation < confidentCorrelation
+                if uncertain {
+                    notes.append("Din förbrukning följer vädret bara svagt.")
+                }
             } else if current.heatingDegreeDays < 0.5 || heat < current.kWh * 0.08 {
                 // Use is at or below the estimated always-on part, so a weather
                 // scale would invent a different total. Keep the raw number.
                 adjusted = nil
                 uncertain = true
+                notes.append("Nästan all el gick åt till annat än värme, så en omräkning för vädret skulle bli missvisande.")
             } else {
                 adjusted = base + heat * (reference.heatingDegreeDays / current.heatingDegreeDays)
                 uncertain = fit.correlation < confidentCorrelation || fit.samples < 21
+                if fit.correlation < confidentCorrelation {
+                    notes.append("Din förbrukning följer vädret bara svagt.")
+                }
+                if fit.samples < 21 {
+                    notes.append("Vi har färre än tre veckors dagar med mätvärden att räkna på.")
+                }
             }
         } else {
             adjusted = nil
             uncertain = true
+            notes.append("Vi har för få dagar med både mätvärden och temperatur, eller så följer din förbrukning inte vädret tydligt nog.")
         }
 
-        let rawClause = usedClause(rawPercent, name: reference.name)
-        let weather: String
+        let subject = subjectText(current.name, kind: kind)
+        let temps = temperaturePair(current.meanTempC, reference.meanTempC)
+        let comparedTo = titleReference(reference.name, kind: kind)
+
+        // Card text: one sentence about the weather, one about the use.
+        let weatherSentence: String
         if colder {
-            weather = "men det var kallare"
+            weatherSentence = "\(subject) var kallare än \(comparedTo) (\(temps))."
         } else if warmer {
-            weather = "men det var varmare"
+            weatherSentence = "\(subject) var varmare än \(comparedTo) (\(temps))."
         } else {
-            weather = "och det var ungefär lika varmt"
+            weatherSentence = "\(subject) var ungefär lika varm som \(comparedTo) (\(temps))."
         }
 
-        if let adjusted {
-            let adjPercent = (adjusted - reference.kWh) / reference.kWh * 100
-            let adjUse = usePhrase(adjPercent)
-            if abs(rawPercent) >= similarUsePercent, colder || warmer {
-                let prefix = "\(rawClause), \(weather)."
-                if uncertain {
-                    return TemperatureInsight(
-                        id: id,
-                        title: "\(prefix) Justeringen är osäker, men den pekar på att du använde \(adjUse). \(temps)",
-                        isUncertain: true
-                    )
-                }
-                return TemperatureInsight(
-                    id: id,
-                    title: "\(prefix) Justerat för temperaturen använde du \(adjUse). \(temps)",
-                    isUncertain: false
-                )
-            }
-            if uncertain {
-                return TemperatureInsight(id: id, title: "\(rawClause), \(weather). \(temps)", isUncertain: true)
-            }
-            return TemperatureInsight(
-                id: id,
-                title: "\(rawClause), \(weather). Justerat för temperaturen använde du \(adjUse). \(temps)",
-                isUncertain: false
+        let rawPhrase = usePhrase(rawPercent)
+        let rawConnector = abs(rawPercent) < similarUsePercent ? "som" : "än"
+        let rawSentence = "Du använde \(rawPhrase) \(rawConnector) \(comparedTo)."
+        let usageSentence: String
+        let approx = adjusted.map { approximateUse((($0 - reference.kWh) / reference.kWh) * 100) }
+        if weatherDiffers, let approx {
+            usageSentence = "Räknat på samma väder använde du \(approx.phrase)."
+        } else if weatherDiffers {
+            usageSentence = "\(rawSentence) Det går inte att räkna om till samma väder."
+        } else {
+            usageSentence = rawSentence
+        }
+
+        // Info sheet text.
+        var details: [String] = []
+        details.append(
+            "\(subject) mot \(detailReference(reference.name, kind: kind)). Utan hänsyn till vädret använde du \(rawPhrase) el. I snitt var det \(temps)."
+        )
+        if weatherDiffers, adjusted != nil, let approx {
+            let heatLine = colder
+                ? "Det var kallare, så mer av elen gick till uppvärmning."
+                : "Det var varmare, så mindre av elen gick till uppvärmning."
+            let connector = approx.usesAs ? "som" : "än"
+            details.append(
+                "\(heatLine) Räknat på samma väder räknar vi om förbrukningen som om vädret hade varit som \(inReference(reference.name, kind: kind)). Då hade du använt \(approx.phrase) \(connector) \(inReference(reference.name, kind: kind))."
             )
+        }
+        if weatherDiffers, adjusted == nil {
+            details.append("Därför visar kortet bara förbrukningen som den är, utan omräkning för vädret.")
+        }
+        if uncertain, !notes.isEmpty {
+            let lead = adjusted == nil
+                ? "Varför det inte går att räkna om."
+                : "Därför är uppskattningen extra grov här."
+            details.append("\(lead) \(notes.joined(separator: " "))")
+        }
+        for (period, label) in [(current, "\(current.name)"), (reference, "\(detailReference(reference.name, kind: kind))")]
+        where period.windowDays > period.dayCount {
+            let missing = period.windowDays - period.dayCount
+            let dayWord = missing == 1 ? "dag" : "dagar"
+            details.append("Det saknas mätvärden för \(missing) \(dayWord) i \(label). De dagarna är inte med i jämförelsen.")
         }
 
         return TemperatureInsight(
             id: id,
-            title: "\(rawClause), \(weather). \(temps)",
-            isUncertain: false
+            title: "\(weatherSentence) \(usageSentence)",
+            details: details,
+            isUncertain: uncertain
         )
     }
 
-    static func usedClause(_ percent: Double, name: String) -> String {
-        if abs(percent) < similarUsePercent {
-            return "Du använde ungefär lika mycket som \(named(name))"
-        }
-        return "Du använde \(usePhrase(percent)) än \(named(name))"
+    // MARK: Wording
+
+    static func capitalized(_ text: String) -> String {
+        guard let first = text.first else { return text }
+        return first.uppercased() + text.dropFirst()
     }
 
-    static func named(_ name: String) -> String {
-        if let first = name.first, first.isNumber {
-            return name
+    /// "Oktober", "Oktober hittills", "Oktober i år" or "Oktober hittills i år".
+    static func subjectText(_ month: String, kind: TemperatureComparisonKind) -> String {
+        let name = capitalized(month)
+        switch kind {
+        case .previousMonth(let partial):
+            return partial ? "\(name) hittills" : name
+        case .yearAgo(let partial):
+            return partial ? "\(name) hittills i år" : "\(name) i år"
         }
-        return "i \(name)"
+    }
+
+    /// Used after "än" and "som" on the card: "september", "samma dagar i september", "i fjol".
+    static func titleReference(_ month: String, kind: TemperatureComparisonKind) -> String {
+        switch kind {
+        case .previousMonth(let partial):
+            return partial ? "samma dagar i \(month)" : month
+        case .yearAgo(let partial):
+            return partial ? "samma dagar i fjol" : "i fjol"
+        }
+    }
+
+    /// "i september", "samma dagar i september", "i fjol", "samma dagar i fjol".
+    static func inReference(_ month: String, kind: TemperatureComparisonKind) -> String {
+        switch kind {
+        case .previousMonth(let partial):
+            return partial ? "samma dagar i \(month)" : "i \(month)"
+        case .yearAgo(let partial):
+            return partial ? "samma dagar i fjol" : "i fjol"
+        }
+    }
+
+    /// "september", "samma dagar i september", "oktober i fjol", "samma dagar i oktober i fjol".
+    static func detailReference(_ month: String, kind: TemperatureComparisonKind) -> String {
+        switch kind {
+        case .previousMonth(let partial):
+            return partial ? "samma dagar i \(month)" : month
+        case .yearAgo(let partial):
+            return partial ? "samma dagar i \(month) i fjol" : "\(month) i fjol"
+        }
+    }
+
+    /// Rounded wording for an estimate: it never claims more precision than it has.
+    static func approximateUse(_ percent: Double) -> (phrase: String, usesAs: Bool) {
+        if abs(percent) < similarUsePercent {
+            return ("ungefär lika mycket", true)
+        }
+        if percent >= 85 && percent <= 115 {
+            return ("ungefär dubbelt så mycket", true)
+        }
+        if percent >= -55 && percent <= -45 {
+            return ("ungefär hälften så mycket", true)
+        }
+        var amount = abs(percent).rounded()
+        if amount >= 20 {
+            amount = (amount / 5).rounded() * 5
+        }
+        let word = percent > 0 ? "mer" : "mindre"
+        return ("ungefär \(Int(amount)) procent \(word)", false)
+    }
+
+    static func temperaturePair(_ current: Double, _ reference: Double) -> String {
+        let unit = degreeNumber(reference) == "1" ? "grad" : "grader"
+        return "\(degreeNumber(current)) mot \(degreeNumber(reference)) \(unit)"
     }
 
     static func usePhrase(_ percent: Double) -> String {
@@ -726,21 +832,23 @@ nonisolated enum TemperatureAdjustment {
         return "ungefär lika mycket"
     }
 
-    static func degrees(_ value: Double) -> String {
+    /// "8,5", "12", "minus 2,5". No unit.
+    static func degreeNumber(_ value: Double) -> String {
         let rounded = (value * 10).rounded() / 10
         let isWhole = abs(rounded - rounded.rounded()) < 0.05
         let number: String
         if isWhole {
-            number = String(Int(rounded.rounded()))
+            number = String(Int(abs(rounded).rounded()))
         } else {
-            number = String(format: "%.1f", rounded).replacingOccurrences(of: ".", with: ",")
+            number = String(format: "%.1f", abs(rounded)).replacingOccurrences(of: ".", with: ",")
         }
-        let absValue = abs(rounded)
-        let unit = abs(absValue - 1) < 0.05 ? "grad" : "grader"
-        if rounded < 0 {
-            return "minus \(number.replacingOccurrences(of: "-", with: "")) \(unit)"
-        }
-        return "\(number) \(unit)"
+        return rounded < 0 ? "minus \(number)" : number
+    }
+
+    static func degrees(_ value: Double) -> String {
+        let rounded = (value * 10).rounded() / 10
+        let unit = abs(abs(rounded) - 1) < 0.05 ? "grad" : "grader"
+        return "\(degreeNumber(value)) \(unit)"
     }
 
     static func daysInWindow(
@@ -812,7 +920,7 @@ nonisolated enum TemperatureAdjustment {
         }
         // Adjust current (450 kWh, HDD 150) to October HDD 75: 20*15 + 150*(75/150) = 300+75 = 375
         // October is 375 kWh, so adjusted use is equal.
-        let insight = insight(current: current, reference: reference, fit: fit, id: "test")
+        let insight = insight(current: current, reference: reference, fit: fit, id: "test", kind: .previousMonth(partial: false))
         let mentionsEqual = insight?.title.contains("ungefär lika mycket") == true
         let mentionsColder = insight?.title.contains("kallare") == true
         return baseOK && slopeOK && corrOK && mentionsEqual && mentionsColder
