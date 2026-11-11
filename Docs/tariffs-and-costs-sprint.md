@@ -598,6 +598,6 @@ Fixed and variable monthly users get comparison: how their contract relates to t
 
 ## Trust And Release Readiness Sprint
 
-The release gate now lives in `Docs/trust-and-release-readiness-sprint.md`.
+The release gate now lives in `Docs/app-store-release.md`.
 
 Use that sprint as the canonical iOS 26 readiness checklist for cost-profile trust copy, app/widget parity, local-history privacy, release logging cleanup, diagnostics, builds, and manual verification.
