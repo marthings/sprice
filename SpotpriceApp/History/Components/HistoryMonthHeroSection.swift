@@ -648,7 +648,7 @@ struct HistoryPaidVersusSpot: View {
 
     private func labeledNumber(_ value: Double, fractionLength: Int) -> some View {
         Text(value, format: .number.precision(.fractionLength(fractionLength)))
-            .font(DS.Font.semibold(20).monospacedDigit())
+            .font(DS.Font.bold(20).monospacedDigit())
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)
             .spriceNumericText(value)
