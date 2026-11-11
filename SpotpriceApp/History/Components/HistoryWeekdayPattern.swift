@@ -4,6 +4,7 @@ import Charts
 struct HistoryWeekdayPattern: View {
     let averages: [HistoryWeekdayAverage]
     @State private var selectedLabel: String?
+    @ScaledMetric(relativeTo: .body) private var chartHeight: CGFloat = 140
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
@@ -21,6 +22,8 @@ struct HistoryWeekdayPattern: View {
                     .foregroundStyle(.primary)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
+                ChartCaption("Snittkostnad per veckodag, i kronor")
+
                 Chart {
                     ForEach(averages) { weekday in
                         BarMark(
@@ -60,7 +63,7 @@ struct HistoryWeekdayPattern: View {
                         AxisValueLabel {
                             if let amount = value.as(Double.self) {
                                 Text(amount, format: .number.precision(.fractionLength(0)))
-                                    .font(DS.Font.micro)
+                                    .font(DS.Font.footnote)
                                     .foregroundStyle(DS.Color.secondary)
                             }
                         }
@@ -68,7 +71,7 @@ struct HistoryWeekdayPattern: View {
                 }
                 .historyChartPlotStyle()
                 .spriceChartMotion(averages.map(\.averageCostKr), selectedLabel)
-                .frame(height: 140)
+                .frame(height: chartHeight)
                 .zIndex(1)
                 .accessibilityLabel("Stapeldiagram över snittkostnad per veckodag, i kronor")
                 .accessibilityRepresentation {
@@ -79,7 +82,7 @@ struct HistoryWeekdayPattern: View {
 
                 if let peak = peakWeekday, let cost = peak.averageCostKr {
                     let kWhText = peak.averageKWh.map { ", \(AppFormatters.kWh($0, fractionLength: 0...1))" } ?? ""
-                    Text("Högst snitt: \(peak.label), \(AppFormatters.wholeNumber(cost)) kr\(kWhText)")
+                    Text("Högst snitt (röd stapel): \(peak.label), \(AppFormatters.wholeNumber(cost)) kr\(kWhText)")
                         .font(DS.Font.callout)
                         .foregroundStyle(.primary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -87,7 +90,7 @@ struct HistoryWeekdayPattern: View {
 
                 if HistoryInsights.weekdayPatternIsSparse(averages) {
                     Text("Det finns få dagar att jämföra. Slutsatsen är osäker.")
-                        .font(DS.Font.micro)
+                        .font(DS.Font.footnote)
                         .foregroundStyle(DS.Color.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }

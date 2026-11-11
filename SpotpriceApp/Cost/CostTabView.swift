@@ -107,7 +107,7 @@ private struct HypotheticalEffectTariffCard: View {
                 title: EffectTariffCopy.lineTitle,
                 paragraphs: [
                     EffectTariffCopy.explanation,
-                    "Om beloppet visas är det räknat på den högsta timmen den här månaden."
+                    "Om beloppet visas är det räknat på den högsta timmen den här månaden. Den visas i kilowatt (kW), alltså hur mycket el som gick åt just då."
                 ]
             )
             if let amountKr {
@@ -116,7 +116,7 @@ private struct HypotheticalEffectTariffCard: View {
                         .font(DS.Font.bold(28).monospacedDigit())
                         .spriceNumericText(amountKr)
                     Text("kr")
-                        .font(DS.Font.micro)
+                        .font(DS.Font.footnote)
                         .foregroundStyle(DS.Color.secondary)
                 }
                 if let peak {
@@ -369,5 +369,11 @@ private struct CostLoadedContent: View {
             periodKind: .month
         )
         baseload = insights.baseload
+#if DEBUG
+        // `-OpenInsights` jumps straight to Vad drog? for screenshots.
+        if ProcessInfo.processInfo.arguments.contains("-OpenInsights"), openedInsights == nil {
+            openedInsights = currentMonthRoute
+        }
+#endif
     }
 }

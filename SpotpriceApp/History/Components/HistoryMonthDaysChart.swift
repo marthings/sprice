@@ -9,6 +9,7 @@ struct HistoryMonthDaysChart: View {
     @Binding var openedDay: HistoryDayRoute?
 
     @State private var selectedDay: MonthDayCost?
+    @ScaledMetric(relativeTo: .body) private var chartHeight: CGFloat = 180
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
@@ -74,7 +75,7 @@ struct HistoryMonthDaysChart: View {
  some View {
         let expensive = mostExpensiveDay
         if let expensive, let cost = expensive.costKr {
-            Text("Dyrast: \(AppFormatters.weekdayDayMonth(expensive.date)), \(AppFormatters.wholeNumber(cost)) kr")
+            Text("Dyrast (röd stapel): \(AppFormatters.weekdayDayMonth(expensive.date)), \(AppFormatters.wholeNumber(cost)) kr")
                 .font(DS.Font.semibold(12))
                 .foregroundStyle(.primary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -82,6 +83,10 @@ struct HistoryMonthDaysChart: View {
                     "Dyraste dagen är \(AppFormatters.weekdayDayMonth(expensive.date)), \(AppFormatters.wholeNumber(cost)) kronor"
                 )
         }
+        ChartCaption(temperaturePoints.isEmpty
+            ? "Kostnad per dag, i kronor"
+            : "Kostnad per dag, i kronor (staplar), och temperatur ute i grader (linje)")
+
         ZStack {
         Chart {
             ForEach(days) { day in
@@ -127,7 +132,7 @@ struct HistoryMonthDaysChart: View {
                 AxisValueLabel {
                     if let amount = value.as(Double.self) {
                         Text(amount, format: .number.precision(.fractionLength(0)))
-                            .font(DS.Font.micro)
+                            .font(DS.Font.footnote)
                             .foregroundStyle(DS.Color.secondary)
                     }
                 }
@@ -160,8 +165,8 @@ struct HistoryMonthDaysChart: View {
                     AxisValueLabel {
                         if let temp = value.as(Double.self) {
                             Text("\(Int(temp.rounded()))°")
-                                .font(DS.Font.micro)
-                                .foregroundStyle(DS.Color.accent)
+                                .font(DS.Font.footnote)
+                                .foregroundStyle(DS.Color.accentText)
                         }
                     }
                 }
@@ -171,7 +176,7 @@ struct HistoryMonthDaysChart: View {
             .accessibilityHidden(true)
         }
         }
-        .frame(height: 180)
+        .frame(height: chartHeight)
         .spriceChartMotion(days.map(\.costKr), selectedDay?.id, temperaturePoints.map(\.temp))
         .zIndex(1)
         .accessibilityElement(children: .ignore)

@@ -377,12 +377,10 @@ final class ConsumptionSettings {
     // MARK: - 2026 rate refresh
 
     /// Old 2025 energy tax stored including VAT. Exact match only, so a custom value is left alone.
-    private static let legacyEnergyTax2025InclVAT = 54.875
-    private static let legacyVaggerydMonthlyFees: [Int: Double] = [
-        16: 187.50, 20: 225.00, 25: 270.00, 35: 360.00, 50: 495.00, 63: 612.50
-    ]
-    private static let legacyVaggerydTransferOrePerKWh = 28.13
-    private static let legacyVaggerydPowerTariff = 45.00
+    private static let legacyEnergyTax2025InclVAT = HistoricalTariffRates.energyTax2025InclVAT
+    private static let legacyVaggerydMonthlyFees = HistoricalTariffRates.vaggerydMonthlyFees2025
+    private static let legacyVaggerydTransferOrePerKWh = HistoricalTariffRates.vaggerydTransfer2025OrePerKWh
+    private static let legacyVaggerydPowerTariff = HistoricalTariffRates.vaggerydPowerTariff2025KrPerKW
 
     private static func refreshing2026Rates(
         _ profile: CostProfile,
@@ -404,7 +402,7 @@ final class ConsumptionSettings {
                 abs($0 - legacyVaggerydTransferOrePerKWh) < 0.01
             } ?? false
             if hasLegacyFee || hasLegacyTransfer {
-                let fees: [Int: Double] = [16: 458, 20: 742, 25: 975, 35: 1_233, 50: 1_967, 63: 2_475]
+                let fees = HistoricalTariffRates.vaggerydMonthlyFees2026
                 next = next.updating(
                     gridMonthlyFee: fees[fuse] ?? 742,
                     gridTransferOrePerKWh: 29.75,
@@ -822,7 +820,7 @@ nonisolated enum EffectTariffCopy {
     nonisolated static let toggleTitle = "Räkna med effektavgift"
     nonisolated static let explanation = "Visar vad toppen hade kostat om elnätet tog betalt för den. Elnätsbolag får i dag inte ta betalt för effekttoppen."
     nonisolated static let lineTitle = "Effektavgift (om den räknades)"
-    nonisolated static let missingRate = "Ingen effektavgift i dina elnätsuppgifter, så toppen syns bara som kW."
+    nonisolated static let missingRate = "Ingen effektavgift i dina elnätsuppgifter, så toppen visas bara som hur mycket el som gick åt just då (kW)."
     nonisolated static let dailyBarsNote = "Den syns inte i dygnsstaplarna. Det är en månadsavgift, inte en kostnad per dag."
 }
 
@@ -831,7 +829,7 @@ nonisolated enum ElectricCarCopy {
     nonisolated static let toggleExplanation = "När det är på letar appen efter timmar som ser ut som laddning. Det är en gissning, inte ett faktum."
 
     nonisolated static let infoParagraphs = [
-        "Appen tittar efter minst två timmar i rad där förbrukningen ligger tydligt över grundlasten, ungefär tre kilowatt extra eller mer. Det motsvarar en vanlig laddare, antingen enfas på cirka 3,7 kW eller trefas på cirka 11 kW.",
+        "Appen letar efter minst två timmar i rad där du drar tydligt mer än det du alltid drar. Det ska motsvara en vanlig laddbox. En enfasladdare drar ungefär 3,7 kW och en trefasladdare ungefär 11 kW. kW är hur mycket el som går åt just då, och går 1 kW åt i en timme blir det 1 kWh.",
         "Lasten ska vara ganska jämn, och det sker oftast på kvällen eller natten. Ett kort avbrott på högst en timme räknas in i samma tillfälle.",
         "Ett tydligt, jämnt och högt uttag mitt på dagen kan också räknas med, eftersom det liknar trefasladdning.",
         "Det är en gissning. En värmepump, en bastu eller något annat som går länge på jämn last kan se likadant ut."

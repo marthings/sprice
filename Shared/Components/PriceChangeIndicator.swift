@@ -64,6 +64,7 @@ struct SharedPriceRangeSection: View {
     var style: Style = .regular
 
     private let totalCostService = TotalCostService.shared
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
@@ -85,19 +86,28 @@ struct SharedPriceRangeSection: View {
                     .foregroundStyle(style.titleColor)
             }
 
-            LazyVGrid(columns: columns, spacing: DS.Spacing.sm) {
-                statCard(title: "Lägsta", value: minValue, color: DS.Color.success, icon: "arrow.down.circle.fill")
-                statCard(title: "Högsta", value: maxValue, color: DS.Color.danger, icon: "arrow.up.circle.fill")
-                statCard(title: "Snitt", value: averageValue, color: DS.Color.info, icon: "chart.line.uptrend.xyaxis")
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(spacing: DS.Spacing.sm) {
+                    statCards(stacked: true)
+                }
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .top, spacing: DS.Spacing.sm) {
+                        statCards(stacked: false)
+                    }
+                    VStack(spacing: DS.Spacing.sm) {
+                        statCards(stacked: true)
+                    }
+                }
             }
 
             if let comparisonText {
                 HStack(spacing: DS.Spacing.xs) {
                     Image(systemName: comparisonIcon)
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(comparisonColor)
                     Text(comparisonText)
-                        .font(DS.Font.micro)
+                        .font(DS.Font.footnote)
                         .foregroundStyle(DS.Color.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 0)
@@ -107,12 +117,11 @@ struct SharedPriceRangeSection: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var columns: [GridItem] {
-        [
-            GridItem(.flexible(), spacing: DS.Spacing.sm),
-            GridItem(.flexible(), spacing: DS.Spacing.sm),
-            GridItem(.flexible(), spacing: DS.Spacing.sm)
-        ]
+    @ViewBuilder
+    private func statCards(stacked: Bool) -> some View {
+        statCard(title: "Lägsta", value: minValue, color: DS.Color.successText, icon: "arrow.down.circle.fill", stacked: stacked)
+        statCard(title: "Högsta", value: maxValue, color: DS.Color.dangerText, icon: "arrow.up.circle.fill", stacked: stacked)
+        statCard(title: "Snitt", value: averageValue, color: DS.Color.infoText, icon: "chart.line.uptrend.xyaxis", stacked: stacked)
     }
 
     private var sectionTitle: String {
@@ -155,38 +164,62 @@ struct SharedPriceRangeSection: View {
     }
 
     private var comparisonColor: Color {
-        guard let contractPrice = profile.contractPriceOrePerKWh else { return DS.Color.info }
-        return PriceBucketAnalytics.averageSpotPrice(dayData.buckets) < contractPrice ? DS.Color.success : DS.Color.danger
+        guard let contractPrice = profile.contractPriceOrePerKWh else { return DS.Color.infoText }
+        return PriceBucketAnalytics.averageSpotPrice(dayData.buckets) < contractPrice ? DS.Color.successText : DS.Color.dangerText
     }
 
-    private func statCard(title: String, value: Double, color: Color, icon: String) -> some View {
-        VStack(spacing: DS.Spacing.xs) {
-            if style.showsIcons {
-                Image(systemName: icon)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(color)
-            }
+    private func statCard(title: String, value: Double, color: Color, icon: String, stacked: Bool) -> some View {
+        Group {
+            if stacked {
+                HStack(alignment: .firstTextBaseline, spacing: DS.Spacing.sm) {
+                    Image(systemName: icon)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(color)
+                        .accessibilityHidden(true)
+                    Text(title)
+                        .font(DS.Font.footnote)
+                        .foregroundStyle(style == .compact ? .primary : DS.Color.secondary)
+                    Spacer(minLength: DS.Spacing.sm)
+                    priceValue(value, color: color)
+                }
+            } else {
+                VStack(spacing: DS.Spacing.xs) {
+                    // The arrow and the word say what the color says, so the card
+                    // reads the same without color.
+                    Image(systemName: icon)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(color)
+                        .accessibilityHidden(true)
 
-            Text(title)
-                .font(DS.Font.micro)
-                .foregroundStyle(style == .compact ? .primary : DS.Color.secondary)
-                .multilineTextAlignment(.center)
+                    Text(title)
+                        .font(DS.Font.footnote)
+                        .foregroundStyle(style == .compact ? .primary : DS.Color.secondary)
+                        .multilineTextAlignment(.center)
 
-            HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
-                Text(value, format: .number.precision(.fractionLength(2)))
-                    .font(style.valueFont)
-                    .foregroundStyle(color)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.82)
-                Text("kr")
-                    .font(DS.Font.micro)
-                    .foregroundStyle(DS.Color.secondary)
+                    priceValue(value, color: color)
+                }
             }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, style == .compact ? DS.Spacing.sm : DS.Spacing.md)
         .padding(.horizontal, style == .compact ? DS.Spacing.xs : DS.Spacing.sm)
         .spriceCard(tone: .price)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
+        .accessibilityValue("\(value.formatted(.number.precision(.fractionLength(2)))) kronor per kilowattimme")
+    }
+
+    private func priceValue(_ value: Double, color: Color) -> some View {
+        VStack(spacing: 0) {
+            Text(value, format: .number.precision(.fractionLength(2)))
+                .font(style.valueFont)
+                .foregroundStyle(color)
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+            Text("kr/kWh")
+                .font(DS.Font.footnote)
+                .foregroundStyle(DS.Color.secondary)
+        }
     }
 
 }

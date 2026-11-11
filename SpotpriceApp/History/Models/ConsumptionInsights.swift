@@ -55,7 +55,7 @@ nonisolated enum ConsumptionInsightsResolution: String, Sendable, Equatable {
         case .hourly:
             return "Beräknat på timvärden. Kvartsvärden saknas, så topparna är grovare."
         case .daily:
-            return "Bara dygnsvärden finns. Grundlasten är osäker, och toppar och dygnsprofil saknas."
+            return "Bara dygnsvärden finns. Det du alltid drar är osäkert, och toppar och dygnsprofil saknas."
         case .none:
             return "Förbrukning saknas, så Vad drog? kan inte räknas ut än."
         }

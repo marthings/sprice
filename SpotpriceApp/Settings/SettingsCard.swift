@@ -14,7 +14,7 @@ struct SettingsCard<Content: View>: View {
 
             if let footer {
                 Text(footer)
-                    .font(DS.Font.micro)
+                    .font(DS.Font.footnote)
                     .foregroundStyle(DS.Color.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -28,8 +28,8 @@ struct SettingsCard<Content: View>: View {
 struct SettingsSavedLabel: View {
     var body: some View {
         Label("Sparat", systemImage: "checkmark")
-            .font(DS.Font.micro)
-            .foregroundStyle(DS.Color.success)
+            .font(DS.Font.footnote)
+            .foregroundStyle(DS.Color.successText)
             .accessibilityAddTraits(.updatesFrequently)
     }
 }
