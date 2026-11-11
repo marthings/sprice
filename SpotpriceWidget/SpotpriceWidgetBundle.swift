@@ -10,10 +10,6 @@ import SwiftUI
 
 @main
 struct SpotpriceWidgetBundle: WidgetBundle {
-    init() {
-        DS.Font.registerBundledFonts()
-    }
-
     var body: some Widget {
         SpotpriceWidget()
     }

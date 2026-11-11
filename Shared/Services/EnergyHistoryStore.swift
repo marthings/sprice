@@ -946,6 +946,12 @@ actor EnergyHistoryWriter {
         try EnergyHistoryWriting.deleteAllHistory(context: modelContext)
     }
 
+    /// Removes only what was saved from one data source (consumption, cost and summaries).
+    /// Spot prices saved without a provider stay.
+    func deleteHistory(providerID: String) throws {
+        try EnergyHistoryWriting.deleteHistory(providerID: providerID, context: modelContext)
+    }
+
     func repriceMeasuredRecords(
         lookups: [String: [Date: Double]],
         fallbackProfile: CostProfile
@@ -1208,6 +1214,23 @@ nonisolated enum EnergyHistoryWriting {
         try deleteAll(HistoricalCostProfileSnapshotRecord.self, context: context)
         try context.save()
         WidgetHistorySummaryCache.clear()
+    }
+
+    nonisolated static func deleteHistory(providerID: String, context: ModelContext) throws {
+        let records = try context.fetch(FetchDescriptor<HistoricalEnergyRecord>(
+            predicate: #Predicate { $0.providerID == providerID }
+        ))
+        for record in records { context.delete(record) }
+        let dailies = try context.fetch(FetchDescriptor<HistoricalDailyEnergySummary>(
+            predicate: #Predicate { $0.providerID == providerID }
+        ))
+        for summary in dailies { context.delete(summary) }
+        let months = try context.fetch(FetchDescriptor<HistoricalMonthlyEnergySummary>(
+            predicate: #Predicate { $0.providerID == providerID }
+        ))
+        for summary in months { context.delete(summary) }
+        try context.save()
+        try rebuildWidgetSummaryCache(context: context)
     }
 
     nonisolated static func repriceMeasuredRecords(

@@ -330,7 +330,10 @@ struct MonthlyCostEstimator: Sendable {
         let through = min(measuredThrough ?? now, now)
         guard through >= monthInterval.start else { return nil }
 
-        let elapsedSeconds = max(through.timeIntervalSince(monthInterval.start), 1)
+        // With under half a day of data the month cannot be extrapolated. The old
+        // one second floor turned a month-start cache into a forecast in the billions.
+        guard through.timeIntervalSince(monthInterval.start) >= 12 * 3600 else { return nil }
+        let elapsedSeconds = through.timeIntervalSince(monthInterval.start)
         let monthSeconds = monthInterval.end.timeIntervalSince(monthInterval.start)
         guard monthSeconds > 0 else { return nil }
 

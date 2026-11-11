@@ -615,6 +615,44 @@ final class ConsumptionSettings {
         // Note: We don't delete legacy keys to allow rollback if needed
     }
 
+    // MARK: - Disconnect
+
+    /// Forgets a data source: removes its login from the Keychain (and the old
+    /// copy kept in the settings file for Vaggeryd), clears cached consumption
+    /// and stops fetching from it. Saved history is left to the caller.
+    func disconnectProvider(_ providerId: String) {
+        guard !providerId.isEmpty else { return }
+
+        var all = loadAllCredentials()
+        all[providerId] = nil
+        if all.isEmpty {
+            KeychainHelper.delete(forKey: Self.keychainKey)
+        } else {
+            saveAllCredentials(all)
+        }
+        credentialsCache[providerId] = nil
+        // Vaggeryd was the only source before several were supported. Its login was
+        // kept in plain settings for rollback, and would be migrated back otherwise.
+        if providerId == "vaggeryd" {
+            for key in [Keys.customerId, Keys.password, Keys.utilityId, Keys.accountId, Keys.netId, Keys.type] {
+                Self.defaults.removeObject(forKey: key)
+            }
+        }
+
+        if selectedProviderId == providerId {
+            selectedProviderId = ""
+        }
+        cachedConsumption = nil
+        if costProfile.confidence == .providerConnected {
+            costProfile = costProfile.applyingInferredConfidence(
+                preservingProviderConnected: false,
+                configuredSource: .userEntered
+            )
+        }
+        NotificationCenter.default.post(name: .consumptionSettingsDidSave, object: nil)
+        WidgetReload.timelines()
+    }
+
     // MARK: - Reset
 
     func reset() {
