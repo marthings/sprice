@@ -273,8 +273,12 @@ struct MonthlyCostEstimator: Sendable {
         profile: CostProfile,
         now: Date
     ) -> MonthlyCostEstimate {
-        let monthlyKWh = historySummary?.totalConsumptionKWh ?? cachedConsumption?.totalKWh ?? 0
-        let monthDate = historySummary?.periodStart ?? cachedConsumption?.monthDate ?? now
+        // A cached total from another month must not show up as this month's.
+        let cachedThisMonth = cachedConsumption.flatMap { cached in
+            calendar.isDate(cached.monthDate, equalTo: now, toGranularity: .month) ? cached : nil
+        }
+        let monthlyKWh = historySummary?.totalConsumptionKWh ?? cachedThisMonth?.totalKWh ?? 0
+        let monthDate = historySummary?.periodStart ?? cachedThisMonth?.monthDate ?? now
 
         if let historyCost = historySummary?.totalCostSEK {
             return MonthlyCostEstimate(totalKr: historyCost, kWh: monthlyKWh, monthDate: monthDate)

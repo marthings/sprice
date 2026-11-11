@@ -108,16 +108,24 @@ enum HistoryInsights {
         calendar: Calendar = .energyHistory
     ) -> HistoryMonthSnapshot {
         let isCurrent = summary.periodKey == EnergyHistoryKey.monthKey(for: now, calendar: calendar)
+        // Live numbers from another month (an old cache, say) must never stand in for this month.
+        let liveThisMonth = liveMonthlyConsumption.flatMap { live in
+            calendar.isDate(live.monthDate, equalTo: summary.periodStart, toGranularity: .month) ? live : nil
+        }
         let kWh = isCurrent
-            ? (liveMonthlyConsumption?.totalKWh ?? summary.totalConsumptionKWh)
+            ? (liveThisMonth?.totalKWh ?? summary.totalConsumptionKWh)
             : summary.totalConsumptionKWh
         let spotOre = summary.averageSpotPriceOrePerKWh
+        // Past months use the fees of their own period.
+        let periodProfile = isCurrent
+            ? costProfile
+            : HistoricalTariffRates.profile(costProfile, forPeriodStarting: summary.periodStart)
         let cost = monthCost(
             summary: summary,
             isCurrentMonth: isCurrent,
             kWh: kWh,
             spotOre: spotOre,
-            costProfile: costProfile,
+            costProfile: periodProfile,
             livePreciseCost: livePreciseCost,
             now: now,
             calendar: calendar
@@ -133,7 +141,7 @@ enum HistoryInsights {
             spotOrePerKWh: spotOre,
             usedCurrentTariffs: cost.usedCurrentTariffs,
             costParts: cost.parts,
-            costProfile: costProfile,
+            costProfile: periodProfile,
             spotBasisOrePerKWh: cost.spotBasis ?? spotOre
         )
     }
@@ -287,7 +295,9 @@ enum HistoryInsights {
             let calculated = TotalCostService.shared.calculateTotalCost(
                 kWh: kWh,
                 spotPriceOre: spotOre,
-                profile: costProfile,
+                profile: base.isCurrentMonth
+                    ? costProfile
+                    : HistoricalTariffRates.profile(costProfile, forPeriodStarting: monthStart),
                 hoursInPeriod: hours
             )
             parts = calculated
@@ -307,7 +317,7 @@ enum HistoryInsights {
             spotOrePerKWh: spotOre,
             usedCurrentTariffs: usedCurrentTariffs,
             costParts: parts,
-            costProfile: costProfile,
+            costProfile: base.costProfile ?? costProfile,
             spotBasisOrePerKWh: spotOre
         )
     }

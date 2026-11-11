@@ -158,7 +158,25 @@ final class EnergyHistoryRecorder {
         priceArea: String,
         costProfile: CostProfile
     ) async {
-        guard EnergyHistorySpotMatching.needsReprice, let writer else { return }
+        guard let writer else { return }
+
+        // First the fees. This needs no network: consumption and spot prices stay as they are.
+        if EnergyHistoryTariffSchedule.needsReprice {
+            do {
+                let updated = try await writer.repriceTariffs(fallbackProfile: costProfile)
+                EnergyHistoryTariffSchedule.markComplete()
+                if updated > 0 {
+                    scheduleHistoryDidUpdate()
+                    AppLog.history.info("Priced \(updated) history intervals with the fees of their own period")
+                } else {
+                    AppLog.history.info("History already uses the fees of each period")
+                }
+            } catch {
+                AppLog.history.error("Could not apply period fees to history: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+
+        guard EnergyHistorySpotMatching.needsReprice else { return }
 
         do {
             let months = try store.fetchMonthlySummaries(priceArea: priceArea)
@@ -289,7 +307,9 @@ final class EnergyHistoryRecorder {
                 priceArea: priceArea,
                 throttle: calendar.dateInterval(of: .month, for: startDate)?.start != calendar.dateInterval(of: .month, for: now)?.start
             )
-            let snapshot = HistoricalCostProfileSnapshot(profile: costProfile, capturedAt: now)
+            // Price the period with the fees that applied then, not with today's.
+            let periodProfile = HistoricalTariffRates.profile(costProfile, forPeriodStarting: startDate)
+            let snapshot = HistoricalCostProfileSnapshot(profile: periodProfile, capturedAt: now)
 
             let matchedIntervals = intervals.compactMap { interval -> (interval: ConsumptionInterval, spotPriceOre: Double)? in
                 guard let spotPriceOre = representativeSpotPrice(for: interval, in: spotPriceLookup) else {
@@ -314,7 +334,7 @@ final class EnergyHistoryRecorder {
                 let cost = totalCostService.calculateTotalCost(
                     kWh: matched.interval.kWh,
                     spotPriceOre: matched.spotPriceOre,
-                    profile: costProfile,
+                    profile: periodProfile,
                     hoursInPeriod: matched.interval.hoursInPeriod
                 )
 

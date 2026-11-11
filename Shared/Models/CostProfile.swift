@@ -194,7 +194,7 @@ extension CostProfile {
         )
     }
 
-    func updating(
+    nonisolated func updating(
         priceArea: String? = nil,
         retailContractType: RetailContractType? = nil,
         retailerMarkupOrePerKWh: Double? = nil,
@@ -490,4 +490,97 @@ nonisolated enum EffectTariffActiveHours: String, Codable, Equatable, Sendable {
     case allHours
     case weekdaysDaytime
     case custom
+}
+
+// MARK: - Rates by date
+
+/// The fees that were in force on a given date.
+///
+/// History must be priced with the rates of its own period. A frozen copy of
+/// "today's" profile makes October 2026 look cheaper than November just because
+/// the profile was refreshed in between. Two eras are known:
+/// - up to and including 2025: energy tax 54,875 öre and the old Vaggeryds Energi grid fees
+/// - from 2026-01-01: energy tax 45 öre and the 2026 grid fees
+///
+/// Only values that exactly match a known preset are swapped. A value the user
+/// typed in themselves is left alone.
+nonisolated enum HistoricalTariffRates {
+    /// Bump when the table below changes, so saved history is priced again once.
+    static let version = 1
+
+    static let energyTax2025InclVAT = 54.875
+    static let energyTax2026InclVAT = 45.0
+    static let vaggerydTransfer2025OrePerKWh = 28.13
+    static let vaggerydTransfer2026OrePerKWh = 29.75
+    static let vaggerydPowerTariff2025KrPerKW = 45.0
+    static let vaggerydMonthlyFees2025: [Int: Double] = [
+        16: 187.50, 20: 225.00, 25: 270.00, 35: 360.00, 50: 495.00, 63: 612.50
+    ]
+    static let vaggerydMonthlyFees2026: [Int: Double] = [
+        16: 458, 20: 742, 25: 975, 35: 1_233, 50: 1_967, 63: 2_475
+    ]
+
+    /// 2026-01-01 00:00 in Swedish time.
+    static var year2026Start: Date {
+        Calendar.energyHistory.date(from: DateComponents(year: 2026, month: 1, day: 1)) ?? .distantFuture
+    }
+
+    static func isFrom2026(_ date: Date) -> Bool {
+        date >= year2026Start
+    }
+
+    /// `profile` with the fees that applied on `date`.
+    static func profile(_ profile: CostProfile, forPeriodStarting date: Date) -> CostProfile {
+        let from2026 = isFrom2026(date)
+        var tax: Double?
+        var fee: Double?
+        var transfer: Double?
+
+        let (oldTax, newTax) = from2026
+            ? (energyTax2025InclVAT, energyTax2026InclVAT)
+            : (energyTax2026InclVAT, energyTax2025InclVAT)
+        if abs(profile.energyTaxOrePerKWh - oldTax) < 0.001 {
+            tax = newTax
+        }
+
+        if (profile.gridCompanyId ?? "") == "vaggeryd" {
+            let (fromFees, toFees) = from2026
+                ? (vaggerydMonthlyFees2025, vaggerydMonthlyFees2026)
+                : (vaggerydMonthlyFees2026, vaggerydMonthlyFees2025)
+            if let current = profile.gridMonthlyFee,
+               let fuse = fromFees.first(where: { abs($0.value - current) < 0.01 })?.key,
+               let replacement = toFees[fuse] {
+                fee = replacement
+            }
+            let (oldTransfer, newTransfer) = from2026
+                ? (vaggerydTransfer2025OrePerKWh, vaggerydTransfer2026OrePerKWh)
+                : (vaggerydTransfer2026OrePerKWh, vaggerydTransfer2025OrePerKWh)
+            if let current = profile.gridTransferOrePerKWh, abs(current - oldTransfer) < 0.01 {
+                transfer = newTransfer
+            }
+        }
+
+        guard tax != nil || fee != nil || transfer != nil else { return profile }
+        return profile.updating(
+            gridMonthlyFee: fee,
+            gridTransferOrePerKWh: transfer,
+            energyTaxOrePerKWh: tax
+        )
+    }
+}
+
+/// Remembers that saved history has been priced with `HistoricalTariffRates`.
+enum EnergyHistoryTariffSchedule {
+    private static let key = "energyHistory.tariffScheduleVersion"
+    private static var defaults: UserDefaults {
+        UserDefaults(suiteName: EnergyHistoryConstants.appGroupIdentifier) ?? .standard
+    }
+
+    static var needsReprice: Bool {
+        (defaults.object(forKey: key) as? Int ?? 0) < HistoricalTariffRates.version
+    }
+
+    static func markComplete() {
+        defaults.set(HistoricalTariffRates.version, forKey: key)
+    }
 }

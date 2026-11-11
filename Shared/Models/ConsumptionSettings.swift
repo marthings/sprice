@@ -377,12 +377,10 @@ final class ConsumptionSettings {
     // MARK: - 2026 rate refresh
 
     /// Old 2025 energy tax stored including VAT. Exact match only, so a custom value is left alone.
-    private static let legacyEnergyTax2025InclVAT = 54.875
-    private static let legacyVaggerydMonthlyFees: [Int: Double] = [
-        16: 187.50, 20: 225.00, 25: 270.00, 35: 360.00, 50: 495.00, 63: 612.50
-    ]
-    private static let legacyVaggerydTransferOrePerKWh = 28.13
-    private static let legacyVaggerydPowerTariff = 45.00
+    private static let legacyEnergyTax2025InclVAT = HistoricalTariffRates.energyTax2025InclVAT
+    private static let legacyVaggerydMonthlyFees = HistoricalTariffRates.vaggerydMonthlyFees2025
+    private static let legacyVaggerydTransferOrePerKWh = HistoricalTariffRates.vaggerydTransfer2025OrePerKWh
+    private static let legacyVaggerydPowerTariff = HistoricalTariffRates.vaggerydPowerTariff2025KrPerKW
 
     private static func refreshing2026Rates(
         _ profile: CostProfile,
@@ -404,7 +402,7 @@ final class ConsumptionSettings {
                 abs($0 - legacyVaggerydTransferOrePerKWh) < 0.01
             } ?? false
             if hasLegacyFee || hasLegacyTransfer {
-                let fees: [Int: Double] = [16: 458, 20: 742, 25: 975, 35: 1_233, 50: 1_967, 63: 2_475]
+                let fees = HistoricalTariffRates.vaggerydMonthlyFees2026
                 next = next.updating(
                     gridMonthlyFee: fees[fuse] ?? 742,
                     gridTransferOrePerKWh: 29.75,
