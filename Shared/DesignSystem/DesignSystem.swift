@@ -1233,6 +1233,18 @@ struct PriceLevelBadge: View {
 /// expands the parent (which would wipe out horizontal padding).
 struct AppCanvasBackground: View {
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var isLowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled
+
+    /// Screens that sit behind another full screen background pass `false`, so the
+    /// hidden copy does not animate for nothing.
+    var live: Bool = true
+
+    /// Moves only when the user allows motion, the battery is not being saved and the app is on screen.
+    private var animates: Bool {
+        live && !reduceMotion && !isLowPowerMode && scenePhase == .active
+    }
 
     var body: some View {
         base
@@ -1243,10 +1255,19 @@ struct AppCanvasBackground: View {
                     .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity, alignment: .bottom)
                     .allowsHitTesting(false)
             }
+            .overlay {
+                if live {
+                    LiveMeshGlow(isDark: colorScheme == .dark, animates: animates)
+                        .opacity(colorScheme == .dark ? 0.75 : 0.8)
+                }
+            }
             .clipped()
             .ignoresSafeArea()
             .accessibilityHidden(true)
             .allowsHitTesting(false)
+            .onReceive(NotificationCenter.default.publisher(for: .NSProcessInfoPowerStateDidChange)) { _ in
+                isLowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled
+            }
     }
 
     private var base: Color {
@@ -1254,6 +1275,57 @@ struct AppCanvasBackground: View {
             ? Color(red: 0.045, green: 0.05, blue: 0.065)
             : Color(red: 0.78, green: 0.86, blue: 0.94)
     }
+}
+
+/// A slow, soft glow in the landscape's own colours: sky blues with the warm sunrise at the
+/// horizon. The mesh points drift along small loops (one full cycle every 32 seconds), at
+/// 30 frames a second at most. With `animates` off it shows the resting pose.
+private struct LiveMeshGlow: View {
+    let isDark: Bool
+    let animates: Bool
+
+    private static let cycleSeconds: Double = 32
+
+    var body: some View {
+        if animates {
+            TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
+                mesh(phase: context.date.timeIntervalSinceReferenceDate / Self.cycleSeconds)
+            }
+        } else {
+            mesh(phase: 0)
+        }
+    }
+
+    /// `phase` counts whole cycles. Every point uses a whole number of turns per cycle,
+    /// so the motion loops without a jump.
+    private func mesh(phase: Double) -> some View {
+        let turn = phase * 2 * Double.pi
+        let a = Float(sin(turn)), b = Float(cos(turn))
+        let c = Float(sin(turn * 2 + 1)), d = Float(cos(turn * 2 + 2))
+        return MeshGradient(
+            width: 3,
+            height: 3,
+            points: [
+                SIMD2(0, 0), SIMD2(0.5 + 0.16 * a, 0), SIMD2(1, 0),
+                SIMD2(0, 0.5 + 0.10 * b), SIMD2(0.5 + 0.14 * b, 0.5 + 0.12 * a), SIMD2(1, 0.5 - 0.10 * c),
+                SIMD2(0, 1), SIMD2(0.5 + 0.22 * d, 1), SIMD2(1, 1)
+            ],
+            colors: isDark ? Self.darkColors : Self.lightColors
+        )
+        .allowsHitTesting(false)
+    }
+
+    private static let lightColors: [Color] = [
+        Color(red: 0.80, green: 0.87, blue: 0.96), Color(red: 0.96, green: 0.97, blue: 1.00), Color(red: 0.78, green: 0.86, blue: 0.95),
+        Color(red: 0.68, green: 0.78, blue: 0.91), Color(red: 0.95, green: 0.95, blue: 0.97), Color(red: 0.70, green: 0.80, blue: 0.93),
+        Color(red: 0.64, green: 0.75, blue: 0.89), Color(red: 1.00, green: 0.76, blue: 0.56), Color(red: 0.66, green: 0.77, blue: 0.90)
+    ]
+
+    private static let darkColors: [Color] = [
+        Color(red: 0.04, green: 0.06, blue: 0.15), Color(red: 0.07, green: 0.11, blue: 0.24), Color(red: 0.04, green: 0.06, blue: 0.15),
+        Color(red: 0.07, green: 0.12, blue: 0.26), Color(red: 0.04, green: 0.07, blue: 0.17), Color(red: 0.07, green: 0.12, blue: 0.26),
+        Color(red: 0.08, green: 0.15, blue: 0.31), Color(red: 0.62, green: 0.31, blue: 0.11), Color(red: 0.08, green: 0.15, blue: 0.31)
+    ]
 }
 
 // MARK: - Palette-tinted cards
