@@ -28,7 +28,9 @@ struct HistoryMonthHeroSection: View {
         VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
             SectionInfoHeader(
                 title: "Månadens siffror",
-                paragraphs: infoParagraphs
+                paragraphs: infoParagraphs,
+                badge: snapshot.isCurrentMonth ? "Pågår" : nil,
+                badgeAccessibilityLabel: "Månaden pågår"
             )
 
             if let cost = snapshot.costKr {

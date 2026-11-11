@@ -1644,6 +1644,9 @@ struct SectionInfoHeader: View {
     var accessibilityName: String? = nil
     let paragraphs: [String]
     var legend: [SectionInfoLegendItem] = []
+    /// Small status chip next to the title, such as "Pågår". Hidden when nil.
+    var badge: String? = nil
+    var badgeAccessibilityLabel: String? = nil
 
     var body: some View {
         HStack(alignment: .center, spacing: 0) {
@@ -1651,9 +1654,24 @@ struct SectionInfoHeader: View {
                 .font(titleFont)
                 .foregroundStyle(titleColor)
                 .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(maxWidth: badge == nil ? .infinity : nil, alignment: .leading)
                 .layoutPriority(1)
                 .accessibilityAddTraits(.isHeader)
+
+            if let badge {
+                Text(badge)
+                    .font(DS.Font.footnote)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .padding(.horizontal, DS.Spacing.sm)
+                    .padding(.vertical, DS.Spacing.xxs)
+                    .background(DS.Color.warning.opacity(0.18), in: Capsule())
+                    .padding(.leading, DS.Spacing.sm)
+                    .accessibilityLabel(badgeAccessibilityLabel ?? badge)
+
+                Spacer(minLength: DS.Spacing.sm)
+            }
 
             SectionInfoButton(
                 title: accessibilityName ?? title,
