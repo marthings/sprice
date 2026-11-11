@@ -12,6 +12,7 @@ struct HistoryMonthHeroSection: View {
     var monthKey: String? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ScaledMetric(relativeTo: .largeTitle) private var heroSize: CGFloat = 48
     @State private var showsDetails = false
     @State private var savedBreakdown: MonthCostBreakdown?
 
@@ -336,7 +337,7 @@ struct HistoryMonthHeroSection: View {
 
     private func heroNumber(_ value: String, amount: Double, allowsShrink: Bool = false) -> some View {
         Text(value)
-            .font(DS.Font.bold(48).monospacedDigit())
+            .font(DS.Font.fixed(heroSize).monospacedDigit())
             .foregroundStyle(.primary)
             .lineLimit(1)
             .minimumScaleFactor(allowsShrink ? 0.6 : 1)

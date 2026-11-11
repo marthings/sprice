@@ -233,21 +233,20 @@ enum DS {
     // MARK: - Typography
 
     enum Font {
-        /// Text style a custom size scales with, so Dynamic Type grows big numbers
-        /// and small notes in proportion to Apple's own hierarchy.
+        /// Apple's text styles at the standard text size. Each size in the app maps to the
+        /// closest one, so Dynamic Type grows and shrinks everything in Apple's own steps.
+        private static let textStyleSizes: [(size: CGFloat, style: SwiftUI.Font.TextStyle)] = [
+            (11, .caption2), (12, .caption), (13, .footnote), (15, .subheadline), (16, .callout),
+            (17, .body), (20, .title3), (22, .title2), (28, .title), (34, .largeTitle)
+        ]
+
+        /// The text style whose standard size is closest to `size`. Ties go to the larger one.
         static func textStyle(forSize size: CGFloat) -> SwiftUI.Font.TextStyle {
-            switch size {
-            case 40...: return .largeTitle
-            case 28..<40: return .title
-            case 22..<28: return .title2
-            case 20..<22: return .title3
-            case 17..<20: return .headline
-            case 16..<17: return .body
-            case 14..<16: return .subheadline
-            case 13..<14: return .footnote
-            case 12..<13: return .caption
-            default: return .caption2
+            var best = textStyleSizes[0]
+            for candidate in textStyleSizes where abs(candidate.size - size) <= abs(best.size - size) {
+                best = candidate
             }
+            return best.style
         }
 
         /// Smallest size used for text that carries information (13 pt).
@@ -257,48 +256,54 @@ enum DS {
             max(size, minimumInformationSize)
         }
 
-        private static let systemFontName = ".AppleSystemUIFont"
-
-        /// The system font (SF Pro). Sizes are set per use, but still scale with Dynamic
-        /// Type relative to a text style, so the hierarchy follows Apple's own.
-        private static func system(_ size: CGFloat, weight: SwiftUI.Font.Weight, style: SwiftUI.Font.TextStyle) -> SwiftUI.Font {
-            .custom(systemFontName, size: size, relativeTo: style).weight(weight)
+        /// The system font (SF Pro on iOS, SF on macOS), the supported way.
+        /// iOS: a text style with a weight, so it follows Dynamic Type.
+        /// macOS: exact sizes, since macOS has no Dynamic Type and its text styles are smaller.
+        private static func system(_ size: CGFloat, weight: SwiftUI.Font.Weight) -> SwiftUI.Font {
+            #if os(macOS)
+            return .system(size: size, weight: weight, design: .default)
+            #else
+            return .system(textStyle(forSize: size), design: .default, weight: weight)
+            #endif
         }
 
-        static func regular(_ size: CGFloat, relativeTo style: SwiftUI.Font.TextStyle? = nil) -> SwiftUI.Font {
-            let size = informative(size)
-            return system(size, weight: .regular, style: style ?? textStyle(forSize: size))
+        static func regular(_ size: CGFloat) -> SwiftUI.Font {
+            system(informative(size), weight: .regular)
         }
 
-        static func medium(_ size: CGFloat, relativeTo style: SwiftUI.Font.TextStyle? = nil) -> SwiftUI.Font {
-            let size = informative(size)
-            return system(size, weight: .medium, style: style ?? textStyle(forSize: size))
+        static func medium(_ size: CGFloat) -> SwiftUI.Font {
+            system(informative(size), weight: .medium)
         }
 
-        static func semibold(_ size: CGFloat, relativeTo style: SwiftUI.Font.TextStyle? = nil) -> SwiftUI.Font {
-            let size = informative(size)
-            return system(size, weight: .semibold, style: style ?? textStyle(forSize: size))
+        static func semibold(_ size: CGFloat) -> SwiftUI.Font {
+            system(informative(size), weight: .semibold)
         }
 
-        static func bold(_ size: CGFloat, relativeTo style: SwiftUI.Font.TextStyle? = nil) -> SwiftUI.Font {
-            let size = informative(size)
-            return system(size, weight: .bold, style: style ?? textStyle(forSize: size))
+        static func bold(_ size: CGFloat) -> SwiftUI.Font {
+            system(informative(size), weight: .bold)
+        }
+
+        /// An exact size that does not follow a text style. Use it for big numbers that
+        /// the caller scales itself with `@ScaledMetric(relativeTo:)`, and for widgets
+        /// and menu bar text, where the size is set by the layout.
+        static func fixed(_ size: CGFloat, weight: SwiftUI.Font.Weight = .bold) -> SwiftUI.Font {
+            .system(size: size, weight: weight, design: .default)
         }
 
         /// Decoration only (never for text people need to read).
         static func decorative(_ size: CGFloat) -> SwiftUI.Font {
-            system(size, weight: .regular, style: .caption2)
+            system(size, weight: .regular)
         }
 
         // Preset sizes
-        static let largeTitle = bold(32, relativeTo: .largeTitle)
-        static let title = bold(20, relativeTo: .title3)
-        static let headline = semibold(17, relativeTo: .headline)
-        static let body = regular(15, relativeTo: .body)
-        static let callout = medium(14, relativeTo: .callout)
-        static let caption = medium(13, relativeTo: .footnote)
+        static let largeTitle = bold(32)
+        static let title = bold(20)
+        static let headline = semibold(17)
+        static let body = regular(15)
+        static let callout = medium(14)
+        static let caption = medium(13)
         /// Small notes and axis labels. 13 pt, the smallest size for readable text.
-        static let footnote = medium(13, relativeTo: .footnote)
+        static let footnote = medium(13)
 
         #if os(iOS)
         /// Navigation titles can't take a SwiftUI `Font`, so UIKit chrome uses this.
