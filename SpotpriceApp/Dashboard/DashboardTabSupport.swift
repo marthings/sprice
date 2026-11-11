@@ -3,11 +3,12 @@ import SwiftUI
 struct DashboardHeader: View {
     let title: String
     let settingsSummary: String
+    @ScaledMetric(relativeTo: .largeTitle) private var titleSize: CGFloat = 40
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
             Text(title)
-                .font(DS.Font.bold(40))
+                .font(DS.Font.fixed(titleSize))
                 .foregroundStyle(.primary)
 
             Text(settingsSummary)

@@ -151,7 +151,7 @@ struct SpotpriceAppWidgetView: View {
 
             if let totalCost = entry.totalCostPerKWh {
                 Text(totalCost, format: .number.precision(.fractionLength(2)))
-                    .font(DS.Font.bold(priceFontSize))
+                    .font(DS.Font.fixed(priceFontSize))
                     .monospacedDigit()
                     .minimumScaleFactor(0.5)
                     .lineLimit(1)

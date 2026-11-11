@@ -148,7 +148,7 @@ struct KilowattHourBreakdownView: View {
 
             HStack(alignment: .center, spacing: DS.Spacing.xs) {
                 Text(breakdown.totalKrPerKWh, format: .number.precision(.fractionLength(2)))
-                    .font(DS.Font.bold(style == .compact ? compactPriceSize : regularPriceSize).monospacedDigit())
+                    .font(DS.Font.fixed(style == .compact ? compactPriceSize : regularPriceSize).monospacedDigit())
                     .foregroundStyle(priceColor)
                     .minimumScaleFactor(0.5)
                     .lineLimit(1)

@@ -84,7 +84,7 @@ private struct SpotPriceBarChartHeader: View {
 
                     HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
                         Text(value.amount, format: .number.precision(.fractionLength(2)))
-                            .font(DS.Font.bold(30).monospacedDigit())
+                            .font(DS.Font.fixed(30).monospacedDigit())
                             .foregroundStyle(value.color)
                             .spriceNumericText(value.amount)
                         Text(value.unit)
