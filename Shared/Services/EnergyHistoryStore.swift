@@ -958,14 +958,6 @@ actor EnergyHistoryWriter {
         )
     }
 
-    func repriceTariffs(fallbackProfile: CostProfile) throws -> Int {
-        try EnergyHistoryWriting.repriceTariffs(
-            fallbackProfile: fallbackProfile,
-            context: modelContext,
-            calendar: .energyHistory
-        )
-    }
-
     func exportHistoryCSV(priceArea: String?, to url: URL) throws {
         try EnergyHistoryWriting.exportHistoryCSV(priceArea: priceArea, to: url, context: modelContext)
     }
@@ -1282,12 +1274,52 @@ nonisolated enum EnergyHistoryWriting {
     /// Prices saved intervals again with the fees that applied in their own period
     /// (see `HistoricalTariffRates`). Consumption and spot prices are not touched.
     /// Safe to run twice: a second run finds nothing to change.
+    ///
+    /// Call this away from the main thread. It works one month at a time with its
+    /// own short-lived context and saves after each month, so an interrupted run
+    /// keeps what it has done.
     nonisolated static func repriceTariffs(
+        fallbackProfile: CostProfile,
+        container: ModelContainer,
+        calendar: Calendar
+    ) throws -> Int {
+        let monthKeys = Set(
+            try ModelContext(container)
+                .fetch(FetchDescriptor<HistoricalMonthlyEnergySummary>())
+                .map(\.monthKey)
+        ).sorted()
+
+        var updated = 0
+        var changedMonths = Set<String>()
+        for monthKey in monthKeys {
+            try Task.checkCancellation()
+            let context = ModelContext(container)
+            context.autosaveEnabled = false
+            let changedInMonth = try repriceTariffs(
+                monthKey: monthKey,
+                fallbackProfile: fallbackProfile,
+                context: context,
+                calendar: calendar
+            )
+            if changedInMonth > 0 {
+                updated += changedInMonth
+                changedMonths.insert(monthKey)
+            }
+        }
+
+        if !changedMonths.isEmpty {
+            try updateWidgetSummaryCache(monthKeys: changedMonths, updatedAt: Date(), context: ModelContext(container))
+        }
+        return updated
+    }
+
+    nonisolated private static func repriceTariffs(
+        monthKey: String,
         fallbackProfile: CostProfile,
         context: ModelContext,
         calendar: Calendar
     ) throws -> Int {
-        let records = try context.fetch(FetchDescriptor<HistoricalEnergyRecord>())
+        let records = try fetchRecords(monthKey: monthKey, priceArea: nil, context: context)
         let service = TotalCostService.shared
 
         var storedSnapshots: [String: HistoricalCostProfileSnapshot] = [:]
@@ -1298,9 +1330,7 @@ nonisolated enum EnergyHistoryWriting {
         }
         // (old hash, era) -> hash of the snapshot with that era's fees
         var swappedHashes: [String: String] = [:]
-
         var changedDays = Set<String>()
-        var changedMonths = Set<String>()
         var updated = 0
 
         for record in records {
@@ -1363,16 +1393,14 @@ nonisolated enum EnergyHistoryWriting {
             if changed {
                 record.updatedAt = Date()
                 changedDays.insert(record.dayKey)
-                changedMonths.insert(record.monthKey)
             }
         }
 
-        if !changedMonths.isEmpty {
+        if !changedDays.isEmpty {
             let now = Date()
             try rebuildDailySummaries(dayKeys: changedDays, updatedAt: now, context: context, calendar: calendar)
-            try rebuildMonthlySummaries(monthKeys: changedMonths, updatedAt: now, context: context, calendar: calendar)
+            try rebuildMonthlySummaries(monthKeys: [monthKey], updatedAt: now, context: context, calendar: calendar)
             try context.save()
-            try updateWidgetSummaryCache(monthKeys: changedMonths, updatedAt: now, context: context)
         }
         return updated
     }

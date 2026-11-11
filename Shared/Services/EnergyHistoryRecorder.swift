@@ -163,7 +163,16 @@ final class EnergyHistoryRecorder {
         // First the fees. This needs no network: consumption and spot prices stay as they are.
         if EnergyHistoryTariffSchedule.needsReprice {
             do {
-                let updated = try await writer.repriceTariffs(fallbackProfile: costProfile)
+                // Off the main thread: the writer actor runs on main, and this is a lot of rows.
+                let container = try EnergyHistoryStores.container()
+                let calendar = self.calendar
+                let updated = try await Task.detached(priority: .utility) {
+                    try EnergyHistoryWriting.repriceTariffs(
+                        fallbackProfile: costProfile,
+                        container: container,
+                        calendar: calendar
+                    )
+                }.value
                 EnergyHistoryTariffSchedule.markComplete()
                 if updated > 0 {
                     scheduleHistoryDidUpdate()
