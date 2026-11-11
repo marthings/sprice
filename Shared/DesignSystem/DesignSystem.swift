@@ -256,22 +256,24 @@ enum DS {
             max(size, minimumInformationSize)
         }
 
-        /// Manrope, under the SIL Open Font License 1.1 (free for commercial apps).
+        /// Figtree, under the SIL Open Font License 1.1 (free for commercial apps).
         /// The files and OFL.txt are in Shared/DesignSystem/Fonts. They are registered
         /// through UIAppFonts (iOS) and ATSApplicationFontsPath (macOS) in each Info.plist.
         static let fontNames = [
-            "Manrope-Regular", "Manrope-Medium", "Manrope-SemiBold", "Manrope-Bold", "Manrope-ExtraBold"
+            "Figtree-Regular", "Figtree-Medium", "Figtree-SemiBold",
+            "Figtree-Bold", "Figtree-ExtraBold", "Figtree-Black"
         ]
 
-        /// The Manrope file for a weight. Manrope draws lighter than the old PP Object Sans,
-        /// so headings, amounts and units go one step heavier: semibold uses Manrope Bold and
-        /// bold uses Manrope ExtraBold. Body text (regular and medium) keeps its own weight.
+        /// The Figtree file for a weight. Headings, amounts and units are meant to look heavy,
+        /// so semibold uses Figtree Bold, bold uses ExtraBold, and heavy and black use Black (900).
+        /// Body text (regular and medium) keeps its own weight.
         static func fontName(for weight: SwiftUI.Font.Weight) -> String {
             switch weight {
-            case .medium: return "Manrope-Medium"
-            case .semibold: return "Manrope-Bold"
-            case .bold, .heavy, .black: return "Manrope-ExtraBold"
-            default: return "Manrope-Regular"
+            case .medium: return "Figtree-Medium"
+            case .semibold: return "Figtree-Bold"
+            case .bold: return "Figtree-ExtraBold"
+            case .heavy, .black: return "Figtree-Black"
+            default: return "Figtree-Regular"
             }
         }
 
@@ -284,7 +286,7 @@ enum DS {
             #endif
         }
 
-        /// iOS: Manrope at the given size, scaled with the closest text style, so it follows Dynamic Type.
+        /// iOS: Figtree at the given size, scaled with the closest text style, so it follows Dynamic Type.
         /// macOS: exact sizes, since macOS has no Dynamic Type.
         private static func system(_ size: CGFloat, weight: SwiftUI.Font.Weight) -> SwiftUI.Font {
             #if os(macOS)
@@ -310,10 +312,15 @@ enum DS {
             system(informative(size), weight: .bold)
         }
 
+        /// Figtree Black (900). For navigation titles, big amounts and the units next to them.
+        static func black(_ size: CGFloat) -> SwiftUI.Font {
+            system(informative(size), weight: .black)
+        }
+
         /// An exact size that does not follow a text style. Use it for big numbers that
         /// the caller scales itself with `@ScaledMetric(relativeTo:)`, and for widgets
         /// and menu bar text, where the size is set by the layout.
-        static func fixed(_ size: CGFloat, weight: SwiftUI.Font.Weight = .bold) -> SwiftUI.Font {
+        static func fixed(_ size: CGFloat, weight: SwiftUI.Font.Weight = .black) -> SwiftUI.Font {
             .custom(fontName(for: weight), fixedSize: size)
         }
 
@@ -333,18 +340,18 @@ enum DS {
         static let footnote = medium(13)
         /// Units next to an amount (kr, kWh, kr/kWh). Heavier than notes so they don't look weak next to the number.
         static let unit = bold(13)
-        /// Units next to a big hero amount.
-        static let unitLarge = bold(15)
+        /// Units next to a big hero amount, in Figtree Black (900).
+        static let unitLarge = black(15)
 
         #if os(iOS)
         /// Navigation titles can't take a SwiftUI `Font`, so UIKit chrome uses this.
         static func configureNavigationBarAppearance() {
             let titleAttributes: [NSAttributedString.Key: Any] = [
-                .font: uiBold(size: 17, textStyle: .headline),
+                .font: uiBlack(size: 17, textStyle: .headline),
                 .foregroundColor: UIColor.label
             ]
             let largeTitleAttributes: [NSAttributedString.Key: Any] = [
-                .font: uiBold(size: 34, textStyle: .largeTitle),
+                .font: uiBlack(size: 34, textStyle: .largeTitle),
                 .foregroundColor: UIColor.label
             ]
 
@@ -369,9 +376,10 @@ enum DS {
             navigationBar.compactAppearance = compact
         }
 
-        private static func uiBold(size: CGFloat, textStyle: UIFont.TextStyle) -> UIFont {
-            let base = UIFont(name: fontName(for: .bold), size: size)
-                ?? UIFont.systemFont(ofSize: size, weight: .bold)
+        /// Navigation titles in Figtree Black (900), scaled with Dynamic Type.
+        private static func uiBlack(size: CGFloat, textStyle: UIFont.TextStyle) -> UIFont {
+            let base = UIFont(name: fontName(for: .black), size: size)
+                ?? UIFont.systemFont(ofSize: size, weight: .black)
             return UIFontMetrics(forTextStyle: textStyle).scaledFont(for: base)
         }
         #endif
@@ -386,19 +394,21 @@ enum DS {
         static let info = SwiftUI.Color("InfoColor")
         static let warning = SwiftUI.Color("WarningColor")
         static let danger = SwiftUI.Color("DangerColor")
-        /// Palette orange (`WarningColor`). App tint for toggles, links and selected tabs.
-        static let accent = warning
+        /// Arctic blue. App tint for toggles, buttons, links, selected tabs, highlights and the
+        /// background mesh. Light #2AA3DF, dark #5CC8F5. For fills and icons, not small text.
+        static let accent = adaptive(light: 0x2AA3DF, dark: 0x5CC8F5)
 
         // Text variants. The fill colors above are tuned for shapes and fills and
         // are too light to read as text on the cards (about 2.3 to 3.5 to 1). These
         // reach at least 4.5 to 1 against the card in light and dark mode, and get
         // another step darker (light) or lighter (dark) with Increase Contrast.
-        static let warningText = adaptive(light: 0x8C4207, dark: 0xF5A35C)
+        static let warningText = adaptive(light: 0xA63A00, dark: 0xF5A35C)
         static let infoText = adaptive(light: 0x005580, dark: 0x5CCBEF)
         static let successText = adaptive(light: 0x245810, dark: 0x86CC5A)
         static let dangerText = adaptive(light: 0xA8161A, dark: 0xFF8A80)
-        /// Orange for text and links. The brighter `accent` stays for fills and tint.
-        static let accentText = warningText
+        /// Arctic blue for text and links. Light #0B67A0 (at least 4.7 to 1 on the light cards),
+        /// dark #7FD4FA (at least 6 to 1 on the dark cards). The brighter `accent` stays for fills.
+        static let accentText = adaptive(light: 0x0B67A0, dark: 0x7FD4FA)
 
         static let secondary = SwiftUI.Color.primary.opacity(0.72)
         static let outline = SwiftUI.Color.primary.opacity(0.28)
@@ -1266,71 +1276,108 @@ struct PriceLevelBadge: View {
 /// expands the parent (which would wipe out horizontal padding).
 struct AppCanvasBackground: View {
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var isLowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled
+
+    /// Screens that sit behind another full screen background pass `false`, so the
+    /// hidden copy does not animate for nothing.
+    var live: Bool = true
+
+    /// Moves only when the user allows motion, the battery is not being saved and the app is on screen.
+    private var animates: Bool {
+        live && !reduceMotion && !isLowPowerMode && scenePhase == .active
+    }
 
     var body: some View {
-        base
-            .overlay(alignment: .bottom) {
-                Image("LandscapeBackground")
-                    .resizable()
-                    .scaledToFill()
-                    .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity, alignment: .bottom)
-                    .allowsHitTesting(false)
-            }
-            .overlay { deeperSky }
-            .overlay { horizonGlow }
-            .overlay { vignette }
-            .clipped()
+        ArcticMeshGlow(isDark: colorScheme == .dark, animates: animates)
             .ignoresSafeArea()
             .accessibilityHidden(true)
             .allowsHitTesting(false)
+            .onReceive(NotificationCenter.default.publisher(for: .NSProcessInfoPowerStateDidChange)) { _ in
+                isLowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled
+            }
+    }
+}
+
+/// The whole background: a soft mesh in icy blues with the arctic accent drifting through it.
+/// No photo behind it. The points travel along small loops and the accent moves between three
+/// of them, one full cycle every 24 seconds, at 30 frames a second at most. With `animates`
+/// off it shows the resting pose.
+private struct ArcticMeshGlow: View {
+    let isDark: Bool
+    let animates: Bool
+
+    private static let cycleSeconds: Double = 24
+
+    var body: some View {
+        if animates {
+            TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
+                mesh(phase: context.date.timeIntervalSinceReferenceDate / Self.cycleSeconds)
+            }
+        } else {
+            mesh(phase: 0)
+        }
     }
 
-    private var isDark: Bool { colorScheme == .dark }
+    private typealias RGB = SIMD3<Double>
 
-    private var base: Color {
-        isDark
-            ? Color(red: 0.045, green: 0.05, blue: 0.065)
-            : Color(red: 0.78, green: 0.86, blue: 0.94)
-    }
+    /// `phase` counts whole cycles. Every point and colour uses a whole number of turns per
+    /// cycle, so the motion loops without a jump.
+    private func mesh(phase: Double) -> some View {
+        let turn = phase * 2 * Double.pi
+        let a = Float(sin(turn)), b = Float(cos(turn))
+        let c = Float(sin(turn * 2 + 1)), d = Float(cos(turn * 2 + 2))
 
-    /// The sky gets a little deeper towards the top, fading out by the middle of the screen.
-    private var deeperSky: some View {
-        let top = isDark ? Color(red: 0.10, green: 0.08, blue: 0.30) : Color(red: 0.55, green: 0.69, blue: 0.88)
-        return LinearGradient(
-            stops: [
-                .init(color: top.opacity(isDark ? 0.55 : 0.42), location: 0),
-                .init(color: top.opacity(isDark ? 0.18 : 0.12), location: 0.35),
-                .init(color: top.opacity(0), location: 0.62)
+        let glow = isDark ? Self.darkGlow : Self.lightGlow
+        let wBottom = 0.42 + 0.18 * sin(turn)
+        let wRight = 0.36 * (0.5 + 0.5 * sin(turn + 4.2))
+        let wLeft = 0.30 * (0.5 + 0.5 * sin(turn + 2.1))
+        let base = isDark ? Self.darkBase : Self.lightBase
+        var colors = base.map(Self.color)
+        colors[3] = Self.color(Self.mix(base[3], glow, wLeft))
+        colors[5] = Self.color(Self.mix(base[5], glow, wRight))
+        colors[7] = Self.color(Self.mix(base[7], glow, wBottom))
+
+        return MeshGradient(
+            width: 3,
+            height: 3,
+            points: [
+                SIMD2(0, 0), SIMD2(0.5 + 0.15 * a, 0), SIMD2(1, 0),
+                SIMD2(0, 0.5 + 0.10 * b), SIMD2(0.5 + 0.12 * b, 0.5 + 0.11 * a), SIMD2(1, 0.5 - 0.10 * c),
+                SIMD2(0, 1), SIMD2(0.5 + 0.20 * d, 1), SIMD2(1, 1)
             ],
-            startPoint: .top,
-            endPoint: .bottom
+            colors: colors
         )
+        .allowsHitTesting(false)
     }
 
-    /// A soft glow where the sun sits behind the ridge.
-    private var horizonGlow: some View {
-        let warm = isDark ? Color(red: 0.80, green: 0.36, blue: 0.12) : Color(red: 1.00, green: 0.70, blue: 0.45)
-        return GeometryReader { geometry in
-            RadialGradient(
-                colors: [warm.opacity(isDark ? 0.34 : 0.32), warm.opacity(isDark ? 0.10 : 0.10), warm.opacity(0)],
-                center: UnitPoint(x: 0.5, y: 0.82),
-                startRadius: 0,
-                endRadius: max(geometry.size.width, geometry.size.height * 0.5) * 0.9
-            )
-        }
+    private static func mix(_ from: RGB, _ to: RGB, _ amount: Double) -> RGB {
+        from + (to - from) * min(max(amount, 0), 1)
     }
 
-    /// Darkens the corners a little, so the middle of the screen feels closer.
-    private var vignette: some View {
-        GeometryReader { geometry in
-            RadialGradient(
-                colors: [Color.black.opacity(0), Color.black.opacity(isDark ? 0.34 : 0.10)],
-                center: .center,
-                startRadius: min(geometry.size.width, geometry.size.height) * 0.45,
-                endRadius: max(geometry.size.width, geometry.size.height) * 0.78
-            )
-        }
+    private static func color(_ rgb: RGB) -> Color {
+        Color(red: rgb.x, green: rgb.y, blue: rgb.z)
     }
+
+    /// The accent, #2AA3DF in light mode and #5CC8F5 in dark mode.
+    private static let lightGlow = RGB(0.165, 0.639, 0.875)
+    private static let darkGlow = RGB(0.361, 0.784, 0.961)
+
+    /// Icy white in the middle, clearer arctic blue towards the edges and the bottom.
+    private static let lightBase: [RGB] = [
+        RGB(0.80, 0.91, 0.98), RGB(0.95, 0.98, 1.00), RGB(0.74, 0.88, 0.97),
+        RGB(0.66, 0.84, 0.96), RGB(0.96, 0.98, 1.00), RGB(0.70, 0.86, 0.97),
+        RGB(0.56, 0.79, 0.94), RGB(0.82, 0.92, 0.98), RGB(0.60, 0.80, 0.95)
+    ]
+
+    /// Clearly different blues, from deep night blue to a lit arctic blue, so the mesh is
+    /// visible in dark mode and not one flat black.
+    private static let darkBase: [RGB] = [
+        RGB(0.03, 0.07, 0.16), RGB(0.05, 0.24, 0.40), RGB(0.04, 0.10, 0.22),
+        RGB(0.04, 0.18, 0.34), RGB(0.06, 0.13, 0.26), RGB(0.05, 0.22, 0.38),
+        RGB(0.03, 0.12, 0.27), RGB(0.06, 0.20, 0.36), RGB(0.02, 0.06, 0.15)
+    ]
 }
 
 // MARK: - Palette-tinted cards
@@ -1743,7 +1790,7 @@ struct SectionInfoHeader: View {
                     .fixedSize(horizontal: true, vertical: false)
                     .padding(.horizontal, DS.Spacing.sm)
                     .padding(.vertical, DS.Spacing.xxs)
-                    .background(DS.Color.warning.opacity(0.18), in: Capsule())
+                    .background(DS.Color.accent.opacity(0.18), in: Capsule())
                     .padding(.leading, DS.Spacing.sm)
                     .accessibilityLabel(badgeAccessibilityLabel ?? badge)
 

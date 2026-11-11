@@ -23,7 +23,7 @@ struct DashboardLoadingView: View {
     var body: some View {
         VStack(spacing: DS.Spacing.md) {
             ProgressView()
-                .tint(DS.Color.warning)
+                .tint(DS.Color.accent)
             Text("Hämtar elpriser")
                 .font(DS.Font.callout)
                 .foregroundStyle(DS.Color.secondary)

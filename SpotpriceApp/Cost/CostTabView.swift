@@ -116,7 +116,7 @@ private struct HypotheticalEffectTariffCard: View {
                         .font(DS.Font.bold(28).monospacedDigit())
                         .spriceNumericText(amountKr)
                     Text("kr")
-                        .font(DS.Font.unit)
+                        .font(DS.Font.unitLarge)
                         .foregroundStyle(DS.Color.secondary)
                 }
                 if let peak {

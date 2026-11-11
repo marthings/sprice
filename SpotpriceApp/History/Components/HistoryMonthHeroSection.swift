@@ -30,7 +30,7 @@ struct HistoryMonthHeroSection: View {
                 .borderBeam(
                     shape: .rounded(DS.Glass.cardRadius),
                     style: .small,
-                    colors: BeamPalette.single(DS.Color.warning),
+                    colors: BeamPalette.single(DS.Color.accent),
                     intensity: 0.45,
                     timing: BeamTiming(rotateDuration: 8)
                 )

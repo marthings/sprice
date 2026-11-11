@@ -268,7 +268,7 @@ private struct HistoryDayTotals: View {
 
     private func dayMetricUnit(_ unit: String) -> some View {
         Text(unit)
-            .font(DS.Font.unit)
+            .font(DS.Font.unitLarge)
             .foregroundStyle(DS.Color.secondary)
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)

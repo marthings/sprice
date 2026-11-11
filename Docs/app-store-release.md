@@ -21,7 +21,7 @@ Bara iOS-appen med widgeten lämnas in till App Store. Menyradsappen på macOS d
 - [x] Bara det som behövs är påslaget i appens behörigheter (en delad datagrupp för appen och widgeten).
 - [x] Ingen reklam, ingen spårning, inga köp i appen och ingen molnsynk. Historiken stannar på enheten.
 - [x] Felsökningsutskrifter är borttagna ur koden.
-- [x] Tillgänglighet: textstorlek och kontrast är hanterade. Bakgrunden är stilla, så det finns ingen rörelse att stänga av. Prisdiagrammet och elbilsdiagrammet går att läsa upp.
+- [x] Tillgänglighet: textstorlek och kontrast är hanterade. Bakgrunden rör sig långsamt men står still med Minska rörelse, i Energisparläge och när appen inte är framme. Prisdiagrammet och elbilsdiagrammet går att läsa upp.
 - [x] Avgifterna räknas med de belopp som gällde när perioden var, och sparad historik har räknats om.
 - [x] Appen låste sig vid start efter omräkningen. Det är åtgärdat.
 
@@ -40,7 +40,7 @@ Storlek: liten är under en timme, medel är några timmar, stor är en dag elle
 - [ ] Svara på åldersfrågorna i App Store Connect. Svaren står i `Docs/app-store-text.md`, resultatet blir 4+. Martin. Liten.
 - [ ] Fyll i integritetsetiketterna i App Store Connect. Svaren är klara i `Docs/app-store-text.md` (rekommendation: samlar inte in uppgifter). Martin. Liten.
 - [ ] Ange innehållsrättigheter och pris (gratis) i App Store Connect. Martin. Liten.
-- [x] Typsnittet är Manrope i iOS-appen, widgeten och macOS-appen. PP Object Sans är borttaget. Manrope har licensen SIL Open Font License 1.1 och är gratis att använda i appar som säljs eller är gratis. Se Typsnitt nedan. Klart.
+- [x] Typsnittet är Figtree i iOS-appen, widgeten och macOS-appen. Figtree har licensen SIL Open Font License 1.1 och är gratis att använda i appar som säljs eller är gratis. Se Typsnitt nedan. Klart.
 - [x] iOS-appen har nu Exportera historik (delningsmenyn, samma CSV som macOS) och Radera historik med bekräftelse. Klart.
 - [x] Under Inställningar, Förbrukning finns Koppla från. Den tar bort inloggningen och frågar om historiken från datakällan också ska raderas. Klart.
 - [x] Inställningar har en sektion Om Sprice med länkar till integritetspolicy och support, och en rad om att all data stannar på telefonen. Klart (adresserna är tillfälliga, se ovan).
@@ -80,7 +80,7 @@ Storlek: liten är under en timme, medel är några timmar, stor är en dag elle
 - iOS-widgeten har tre storlekar. Gamla planer sa bara liten. Skärmbilderna ska visa rätt.
 - Fasta avgifter delas nu av från priset per kilowattimme. Det gör uppdelningen i Historik mer rättvis, men räknelogiken saknar tester.
 - Omräkningen av historiken körs nu i bakgrunden, en månad i taget. Vid första start efter en uppdatering kan den ta en stund.
-- Bakgrunden är stilla. Den rörliga bakgrunden (PR 9) är borttagen. Djupet kommer från en fast, mjuk färgskiftning, ett varmt sken vid horisonten och en svag skuggning i kanterna. Behöver ses på telefonen i ljust och mörkt läge.
+- Prov: bakgrunden är nu bara en långsamt rörlig färgväv i isblått, utan landskapsbilden. Accentfärgen är isblå i stället för orange. Martin jämför och bestämmer. Landskapsbilden ligger kvar i bildkatalogen men används inte.
 - Exempeldata (Inställningar, Visa exempeldata) skrivs aldrig till den riktiga historiken, widgetens data eller inloggningen. Den använder ett eget minne som kastas bort när den stängs av. Priser och temperatur hittas på i appen, så läget fungerar utan nät.
 - Elbilsfunktionen och temperaturjämförelsen fanns inte i de gamla planerna och har ingen egen testlista förutom `Docs/TESTA.md`.
 - En prognos för månaden kunde bli miljarder kronor när det bara fanns förbrukning till månadens första sekund. Prognosen visas nu först när det finns minst ett halvt dygn av data.
@@ -89,9 +89,10 @@ Storlek: liten är under en timme, medel är några timmar, stor är en dag elle
 
 ## Typsnitt
 
-- Appen använder Manrope (vikterna Regular, Medium, SemiBold, Bold och ExtraBold) från Googles officiella källa, github.com/googlefonts/manrope.
+- Appen använder Figtree (vikterna Regular, Medium, SemiBold, Bold, ExtraBold och Black) från den officiella källan, github.com/erikdkennedy/figtree. Samma typsnitt finns på Google Fonts.
 - Licensen är SIL Open Font License 1.1 (OFL). Den tillåter att typsnittet följer med i en app, också en app som kostar pengar. Typsnittet får inte säljas för sig, och licenstexten ska följa med.
 - Filerna och licensen ligger i `Shared/DesignSystem/Fonts/` (`OFL.txt`). Licensen kopieras också in i varje app och widget.
 - iOS-appen och widgeten laddar filerna via `UIAppFonts`, macOS-appen och dess widget via `ATSApplicationFontsPath`.
+- Navigationsrubriker, stora belopp och enheterna bredvid dem använder Black (900). Övriga rubriker är ExtraBold eller Bold. Brödtext är Regular eller Medium.
 - Textstorleken följer fortfarande telefonens inställning för större text.
 - Flikraden längst ner och axlarna i diagrammen ritas av systemet och visas fortfarande med Apples typsnitt.

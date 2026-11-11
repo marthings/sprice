@@ -31,7 +31,7 @@ struct SpotpriceApp: App {
         DS.Font.configureNavigationBarAppearance()
 #if DEBUG
         let missing = DS.Font.missingFonts()
-        print(missing.isEmpty ? "Manrope: alla typsnitt laddade" : "Manrope saknas: \(missing)")
+        print(missing.isEmpty ? "Figtree: alla typsnitt laddade" : "Figtree saknas: \(missing)")
 #endif
     }
 
