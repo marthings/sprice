@@ -66,3 +66,28 @@ struct DashboardErrorView: View {
         .accessibilityLabel(notice.accessibilityText)
     }
 }
+
+/// Small, calm label in the toolbar (it gets the system's own pill there) at the top of every tab while example data is shown, so that
+/// nobody mistakes it for a real household.
+struct DemoModeBadge: View {
+    var body: some View {
+        Text("Exempeldata")
+            .font(DS.Font.footnote)
+            .foregroundStyle(DS.Color.accentText)
+            .accessibilityLabel("Du ser exempeldata, inte din egen")
+    }
+}
+
+/// Offered where an empty tab says that a data source is missing.
+struct DemoModeButton: View {
+    var body: some View {
+        Button {
+            ConsumptionSettings.shared.setDemoMode(true)
+        } label: {
+            Label("Prova med exempeldata", systemImage: "sparkles")
+        }
+        .buttonStyle(.bordered)
+        .tint(DS.Color.accentText)
+        .accessibilityHint("Visar påhittad data så att du kan prova appen utan konto")
+    }
+}

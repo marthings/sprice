@@ -18,7 +18,13 @@ final class ConsumptionSettings {
 
     // MARK: - Shared UserDefaults (App Group)
 
-    private static let defaults = UserDefaults(suiteName: "group.mb.Spotprice") ?? .standard
+    private static let realDefaults = UserDefaults(suiteName: "group.mb.Spotprice") ?? .standard
+    /// Throw-away store used while demo mode is on. The real suite above is not written then.
+    private static let demoSuiteName = "mb.Spotprice.demo"
+    private static let demoDefaults = UserDefaults(suiteName: demoSuiteName) ?? UserDefaults()
+    private static var defaults: UserDefaults {
+        DemoMode.isActive ? demoDefaults : realDefaults
+    }
 
     // MARK: - Keys
 
@@ -62,6 +68,9 @@ final class ConsumptionSettings {
     }
 
     // MARK: - Observable Properties
+
+    /// True while invented example data is shown. Mirrors `DemoMode.isActive`, but observable.
+    private(set) var isDemoActive = false
 
     var selectedProviderId: String {
         didSet {
@@ -274,6 +283,7 @@ final class ConsumptionSettings {
 
     /// Checks if the current provider has all required credentials
     var isConfigured: Bool {
+        if DemoMode.isActive { return true }
         guard let metadata = ProviderRegistry.shared.metadata(for: selectedProviderId) else {
             return false
         }
@@ -583,6 +593,67 @@ final class ConsumptionSettings {
         saveCostProfile(costProfile)
         mirrorCostProfileToLegacyDefaults(costProfile)
         syncLegacyProperties(from: costProfile)
+
+        // The real values are loaded and saved above. Demo mode starts after that, so it
+        // starts from them and can put them back.
+        if DemoMode.preference {
+            setDemoMode(true)
+        }
+    }
+
+    // MARK: - Demo mode
+
+    /// The real in-memory values, kept while demo mode is on.
+    private struct RealValues {
+        let selectedProviderId: String
+        let costProfile: CostProfile
+        let hasElectricCar: Bool
+        let temperaturePlaceId: String
+        let includeHypotheticalEffectTariff: Bool
+        let compareFixedPriceOrePerKWh: Double
+    }
+
+    @ObservationIgnored private var realValues: RealValues?
+
+    /// Turns example data on or off. Nothing real is written in between: while demo is on,
+    /// every setting goes to a throw-away store, and turning it off puts the real values back
+    /// and deletes that store. The real saved history, widget cache and credentials are not touched.
+    func setDemoMode(_ enabled: Bool) {
+        guard enabled != isDemoActive else { return }
+        if enabled {
+            realValues = RealValues(
+                selectedProviderId: selectedProviderId,
+                costProfile: costProfile,
+                hasElectricCar: hasElectricCar,
+                temperaturePlaceId: temperaturePlaceId,
+                includeHypotheticalEffectTariff: includeHypotheticalEffectTariff,
+                compareFixedPriceOrePerKWh: compareFixedPriceOrePerKWh
+            )
+            Self.demoDefaults.removePersistentDomain(forName: Self.demoSuiteName)
+            DemoMode.setActive(true)
+            EnergyHistoryStores.resetDemo()
+            selectedProviderId = DemoMode.providerID
+            costProfile = DemoMode.costProfile
+            hasElectricCar = true
+            temperaturePlaceId = "jonkoping"
+            includeHypotheticalEffectTariff = false
+            compareFixedPriceOrePerKWh = CostUsageInsights.defaultFixedPriceOrePerKWh
+        } else if let real = realValues {
+            // Still in demo mode here, so these assignments land in the throw-away store.
+            selectedProviderId = real.selectedProviderId
+            costProfile = real.costProfile
+            hasElectricCar = real.hasElectricCar
+            temperaturePlaceId = real.temperaturePlaceId
+            includeHypotheticalEffectTariff = real.includeHypotheticalEffectTariff
+            compareFixedPriceOrePerKWh = real.compareFixedPriceOrePerKWh
+            realValues = nil
+            DemoMode.setActive(false)
+            EnergyHistoryStores.resetDemo()
+            Self.demoDefaults.removePersistentDomain(forName: Self.demoSuiteName)
+        }
+        isDemoActive = enabled
+        DemoMode.preference = enabled
+        NotificationCenter.default.post(name: .consumptionSettingsDidSave, object: nil)
     }
 
     // MARK: - Migration
@@ -848,6 +919,8 @@ enum WidgetKind {
 
 enum WidgetReload {
     static func timelines() {
+        // Widgets keep showing real data, so demo mode never asks them to reload.
+        guard !DemoMode.isActive else { return }
         WidgetCenter.shared.reloadTimelines(ofKind: WidgetKind.iOSApp)
         WidgetCenter.shared.reloadTimelines(ofKind: WidgetKind.macOSMenuBar)
     }

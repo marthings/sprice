@@ -315,6 +315,7 @@ private struct CostLoadedContent: View {
 
     @MainActor
     private func load() async {
+        if DemoMode.isActive { await DemoHistorySeeder.ensureSeeded() }
         var intervals: [HistoricalEnergyIntervalValue] = []
         var summaries: [HistoricalEnergySummaryValue] = []
         let now = Date()

@@ -46,6 +46,9 @@ struct MonthDailyCostSection: View {
                 if !hidesEmptyExplanation {
                     emptyMessage(emptyStateCopy)
                 }
+                if !hasProvider {
+                    DemoModeButton()
+                }
             } else {
                 chartContent
             }
@@ -561,6 +564,7 @@ struct MonthDailyCostSection: View {
 
     @MainActor
     private func loadDays() async {
+        if DemoMode.isActive { await DemoHistorySeeder.ensureSeeded() }
         let calendar = Calendar.energyHistory
         let now = Date()
         let monthKey = EnergyHistoryKey.monthKey(for: now, calendar: calendar)

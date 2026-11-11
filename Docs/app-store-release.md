@@ -21,7 +21,7 @@ Bara iOS-appen med widgeten lämnas in till App Store. Menyradsappen på macOS d
 - [x] Bara det som behövs är påslaget i appens behörigheter (en delad datagrupp för appen och widgeten).
 - [x] Ingen reklam, ingen spårning, inga köp i appen och ingen molnsynk. Historiken stannar på enheten.
 - [x] Felsökningsutskrifter är borttagna ur koden.
-- [x] Tillgänglighet: textstorlek, kontrast, Minska rörelse och Lågenergiläge är hanterade. Prisdiagrammet och elbilsdiagrammet går att läsa upp.
+- [x] Tillgänglighet: textstorlek och kontrast är hanterade. Bakgrunden är stilla, så det finns ingen rörelse att stänga av. Prisdiagrammet och elbilsdiagrammet går att läsa upp.
 - [x] Avgifterna räknas med de belopp som gällde när perioden var, och sparad historik har räknats om.
 - [x] Appen låste sig vid start efter omräkningen. Det är åtgärdat.
 
@@ -46,8 +46,8 @@ Storlek: liten är under en timme, medel är några timmar, stor är en dag elle
 - [x] Inställningar har en sektion Om Sprice med länkar till integritetspolicy och support, och en rad om att all data stannar på telefonen. Klart (adresserna är tillfälliga, se ovan).
 - [x] `AppReviewNotes.md` beskriver nu iOS-appen, på svenska och engelska. Klart.
 - [x] Skärmbilder för iPhone 6,9 tum är tagna (fem stycken, ljust läge). Apple skalar dem till de mindre iPhone-storlekarna. Klart.
-- [ ] Bestäm om iPad ska stödjas. Om ja behövs skärmbilder för iPad 13 tum och en granskning av layouten. Om nej: sätt bara iPhone som enhetstyp. Martin bestämmer. Liten.
-- [ ] Låt App Review se Historik utan konto hos Tibber eller Vaggeryds Energi (demoläge eller ett testkonto). Idag syns bara månadens snittpris. Risk för avslag. Kod. Medel.
+- [x] Appen och widgeten är bara för iPhone (enhetstyp iPhone). Inga iPad-skärmbilder behövs. Klart.
+- [x] Under Inställningar finns Visa exempeldata. Då visar alla flikar påhittad data för ett hushåll som inte finns, utan konto. Granskaren får veta hur man slår på det i `AppReviewNotes.md`. Klart.
 
 ### Bör fixas före release
 
@@ -69,7 +69,6 @@ Storlek: liten är under en timme, medel är några timmar, stor är en dag elle
 - [ ] Dela upp de två största klasserna (inställningarna och huvudmodellen) så att de blir lättare att ändra. Kod. Stor.
 - [ ] Låt pris och historik räknas i bakgrunden även i vanligt flöde, inte bara vid omräkningen. Kod. Medel.
 - [ ] Engelsk beskrivning om appen ska lanseras utanför Sverige. Martin och kod. Liten.
-- [ ] Låt bakgrunden bli varmare när priset är högt jämfört med dygnet. Kod. Liten eller medel.
 - [ ] Extern testning med fler testare (kräver att Apple granskar testversionen först). Martin. Liten.
 - [ ] Fjärrhämtade nätavgifter i stället för inbyggda tabeller. Kod. Stor.
 - [ ] macOS-appen: signering för utdelning utanför App Store, godkännande hos Apple och en nedladdningssida. Martin och kod. Stor.
@@ -81,8 +80,9 @@ Storlek: liten är under en timme, medel är några timmar, stor är en dag elle
 - iOS-widgeten har tre storlekar. Gamla planer sa bara liten. Skärmbilderna ska visa rätt.
 - Fasta avgifter delas nu av från priset per kilowattimme. Det gör uppdelningen i Historik mer rättvis, men räknelogiken saknar tester.
 - Omräkningen av historiken körs nu i bakgrunden, en månad i taget. Vid första start efter en uppdatering kan den ta en stund.
-- Den levande bakgrunden står stilla vid Minska rörelse, i Lågenergiläge och när appen inte syns. Behöver provas på telefonen.
+- Bakgrunden är stilla. Den rörliga bakgrunden (PR 9) är borttagen. Djupet kommer från en fast, mjuk färgskiftning, ett varmt sken vid horisonten och en svag skuggning i kanterna. Behöver ses på telefonen i ljust och mörkt läge.
+- Exempeldata (Inställningar, Visa exempeldata) skrivs aldrig till den riktiga historiken, widgetens data eller inloggningen. Den använder ett eget minne som kastas bort när den stängs av. Priser och temperatur hittas på i appen, så läget fungerar utan nät.
 - Elbilsfunktionen och temperaturjämförelsen fanns inte i de gamla planerna och har ingen egen testlista förutom `Docs/TESTA.md`.
 - En prognos för månaden kunde bli miljarder kronor när det bara fanns förbrukning till månadens första sekund. Prognosen visas nu först när det finns minst ett halvt dygn av data.
-- Granskaren kan inte se förbrukningsdelarna av Historik utan konto hos Tibber eller Vaggeryds Energi. Det står i `AppReviewNotes.md` och finns som öppen risk ovan.
+- Granskaren behöver inget konto för att se Historik. Exempeldata slås på under Inställningar och visar alla delar. Det står i `AppReviewNotes.md`.
 - Elpriser och temperatur ska krediteras. Elpriset just nu.se ber om det, och Open-Meteo kräver namn. Båda finns nu som länkar under Inställningar, Om Sprice.
