@@ -325,16 +325,16 @@ enum DS {
         // Preset sizes
         static let largeTitle = bold(32)
         static let title = bold(20)
-        static let headline = semibold(17)
+        static let headline = bold(17)
         static let body = regular(15)
         static let callout = medium(14)
         static let caption = medium(13)
         /// Small notes and axis labels. 13 pt, the smallest size for readable text.
         static let footnote = medium(13)
         /// Units next to an amount (kr, kWh, kr/kWh). Heavier than notes so they don't look weak next to the number.
-        static let unit = semibold(13)
+        static let unit = bold(13)
         /// Units next to a big hero amount.
-        static let unitLarge = semibold(15)
+        static let unitLarge = bold(15)
 
         #if os(iOS)
         /// Navigation titles can't take a SwiftUI `Font`, so UIKit chrome uses this.
