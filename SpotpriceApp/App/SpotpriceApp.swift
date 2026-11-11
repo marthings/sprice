@@ -29,11 +29,16 @@ struct SpotpriceApp: App {
 #endif
         WidgetReload.timelines()
         DS.Font.configureNavigationBarAppearance()
+#if DEBUG
+        let missing = DS.Font.missingFonts()
+        print(missing.isEmpty ? "Manrope: alla typsnitt laddade" : "Manrope saknas: \(missing)")
+#endif
     }
 
     var body: some Scene {
         WindowGroup {
             DashboardView()
+                .font(DS.Font.regular(17))
                 .tint(DS.Color.accentText)
         }
     }

@@ -208,6 +208,12 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				DesignSystem.swift,
+				"Fonts/Manrope-Bold.ttf",
+				"Fonts/Manrope-ExtraBold.ttf",
+				"Fonts/Manrope-Medium.ttf",
+				"Fonts/Manrope-Regular.ttf",
+				"Fonts/Manrope-SemiBold.ttf",
+				"Fonts/OFL.txt",
 			);
 			target = 20861F8C2F2E0B9A0067EDC1 /* SpotpriceWidgetExtension */;
 		};
@@ -215,6 +221,12 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				DesignSystem.swift,
+				"Fonts/Manrope-Bold.ttf",
+				"Fonts/Manrope-ExtraBold.ttf",
+				"Fonts/Manrope-Medium.ttf",
+				"Fonts/Manrope-Regular.ttf",
+				"Fonts/Manrope-SemiBold.ttf",
+				"Fonts/OFL.txt",
 				KilowattHourBreakdownView.swift,
 			);
 			target = 201EA1FC2FBCAC8C0036D7BF /* SpotpriceApp */;
@@ -283,6 +295,12 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				DesignSystem.swift,
+				"Fonts/Manrope-Bold.ttf",
+				"Fonts/Manrope-ExtraBold.ttf",
+				"Fonts/Manrope-Medium.ttf",
+				"Fonts/Manrope-Regular.ttf",
+				"Fonts/Manrope-SemiBold.ttf",
+				"Fonts/OFL.txt",
 			);
 			target = 202657782FD89ADD004BB572 /* SpotpriceAppWidgetExtension */;
 		};

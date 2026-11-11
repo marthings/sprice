@@ -40,7 +40,7 @@ Storlek: liten är under en timme, medel är några timmar, stor är en dag elle
 - [ ] Svara på åldersfrågorna i App Store Connect. Svaren står i `Docs/app-store-text.md`, resultatet blir 4+. Martin. Liten.
 - [ ] Fyll i integritetsetiketterna i App Store Connect. Svaren är klara i `Docs/app-store-text.md` (rekommendation: samlar inte in uppgifter). Martin. Liten.
 - [ ] Ange innehållsrättigheter och pris (gratis) i App Store Connect. Martin. Liten.
-- [x] Typsnittet är bytt till Apples egna (SF). PP Object Sans och filerna är borttagna ur alla tre apparna. Klart.
+- [x] Typsnittet är Manrope i iOS-appen, widgeten och macOS-appen. PP Object Sans är borttaget. Manrope har licensen SIL Open Font License 1.1 och är gratis att använda i appar som säljs eller är gratis. Se Typsnitt nedan. Klart.
 - [x] iOS-appen har nu Exportera historik (delningsmenyn, samma CSV som macOS) och Radera historik med bekräftelse. Klart.
 - [x] Under Inställningar, Förbrukning finns Koppla från. Den tar bort inloggningen och frågar om historiken från datakällan också ska raderas. Klart.
 - [x] Inställningar har en sektion Om Sprice med länkar till integritetspolicy och support, och en rad om att all data stannar på telefonen. Klart (adresserna är tillfälliga, se ovan).
@@ -86,3 +86,12 @@ Storlek: liten är under en timme, medel är några timmar, stor är en dag elle
 - En prognos för månaden kunde bli miljarder kronor när det bara fanns förbrukning till månadens första sekund. Prognosen visas nu först när det finns minst ett halvt dygn av data.
 - Granskaren behöver inget konto för att se Historik. Exempeldata slås på under Inställningar och visar alla delar. Det står i `AppReviewNotes.md`.
 - Elpriser och temperatur ska krediteras. Elpriset just nu.se ber om det, och Open-Meteo kräver namn. Båda finns nu som länkar under Inställningar, Om Sprice.
+
+## Typsnitt
+
+- Appen använder Manrope (vikterna Regular, Medium, SemiBold, Bold och ExtraBold) från Googles officiella källa, github.com/googlefonts/manrope.
+- Licensen är SIL Open Font License 1.1 (OFL). Den tillåter att typsnittet följer med i en app, också en app som kostar pengar. Typsnittet får inte säljas för sig, och licenstexten ska följa med.
+- Filerna och licensen ligger i `Shared/DesignSystem/Fonts/` (`OFL.txt`). Licensen kopieras också in i varje app och widget.
+- iOS-appen och widgeten laddar filerna via `UIAppFonts`, macOS-appen och dess widget via `ATSApplicationFontsPath`.
+- Textstorleken följer fortfarande telefonens inställning för större text.
+- Flikraden längst ner och axlarna i diagrammen ritas av systemet och visas fortfarande med Apples typsnitt.
