@@ -1258,7 +1258,7 @@ struct AppCanvasBackground: View {
             .overlay {
                 if live {
                     LiveMeshGlow(isDark: colorScheme == .dark, animates: animates)
-                        .opacity(colorScheme == .dark ? 0.75 : 0.8)
+                        .opacity(0.8)
                 }
             }
             .clipped()
@@ -1277,14 +1277,15 @@ struct AppCanvasBackground: View {
     }
 }
 
-/// A slow, soft glow in the landscape's own colours: sky blues with the warm sunrise at the
-/// horizon. The mesh points drift along small loops (one full cycle every 32 seconds), at
-/// 30 frames a second at most. With `animates` off it shows the resting pose.
+/// A slow, soft glow in the landscape's own colours: sky blues (deep blue, teal and violet in
+/// dark mode) with the warm sunrise drifting along the horizon. The mesh points travel along
+/// small loops and the warm colour moves between three of them, one full cycle every 18
+/// seconds, at 30 frames a second at most. With `animates` off it shows the resting pose.
 private struct LiveMeshGlow: View {
     let isDark: Bool
     let animates: Bool
 
-    private static let cycleSeconds: Double = 32
+    private static let cycleSeconds: Double = 18
 
     var body: some View {
         if animates {
@@ -1296,35 +1297,58 @@ private struct LiveMeshGlow: View {
         }
     }
 
-    /// `phase` counts whole cycles. Every point uses a whole number of turns per cycle,
-    /// so the motion loops without a jump.
+    private typealias RGB = SIMD3<Double>
+
+    /// `phase` counts whole cycles. Every point and colour uses a whole number of turns per
+    /// cycle, so the motion loops without a jump.
     private func mesh(phase: Double) -> some View {
         let turn = phase * 2 * Double.pi
         let a = Float(sin(turn)), b = Float(cos(turn))
         let c = Float(sin(turn * 2 + 1)), d = Float(cos(turn * 2 + 2))
+
+        // The warm glow sits mostly at the horizon (bottom middle) and drifts to the sides
+        // and up the edges as the cycle goes round.
+        let warm = isDark ? RGB(0.90, 0.40, 0.12) : RGB(1.00, 0.72, 0.48)
+        let wBottom = 0.70 + 0.30 * sin(turn)
+        let wRight = 0.55 * (0.5 + 0.5 * sin(turn + 4.2))
+        let wLeft = 0.45 * (0.5 + 0.5 * sin(turn + 2.1))
+        let base = isDark ? Self.darkBase : Self.lightBase
+        var colors = base.map { Color(red: $0.x, green: $0.y, blue: $0.z) }
+        colors[3] = Self.color(Self.mix(base[3], warm, wLeft))
+        colors[5] = Self.color(Self.mix(base[5], warm, wRight))
+        colors[7] = Self.color(Self.mix(base[7], warm, wBottom))
+
         return MeshGradient(
             width: 3,
             height: 3,
             points: [
-                SIMD2(0, 0), SIMD2(0.5 + 0.16 * a, 0), SIMD2(1, 0),
-                SIMD2(0, 0.5 + 0.10 * b), SIMD2(0.5 + 0.14 * b, 0.5 + 0.12 * a), SIMD2(1, 0.5 - 0.10 * c),
-                SIMD2(0, 1), SIMD2(0.5 + 0.22 * d, 1), SIMD2(1, 1)
+                SIMD2(0, 0), SIMD2(0.5 + 0.25 * a, 0), SIMD2(1, 0),
+                SIMD2(0, 0.5 + 0.16 * b), SIMD2(0.5 + 0.20 * b, 0.5 + 0.18 * a), SIMD2(1, 0.5 - 0.16 * c),
+                SIMD2(0, 1), SIMD2(0.5 + 0.30 * d, 1), SIMD2(1, 1)
             ],
-            colors: isDark ? Self.darkColors : Self.lightColors
+            colors: colors
         )
         .allowsHitTesting(false)
     }
 
-    private static let lightColors: [Color] = [
-        Color(red: 0.80, green: 0.87, blue: 0.96), Color(red: 0.96, green: 0.97, blue: 1.00), Color(red: 0.78, green: 0.86, blue: 0.95),
-        Color(red: 0.68, green: 0.78, blue: 0.91), Color(red: 0.95, green: 0.95, blue: 0.97), Color(red: 0.70, green: 0.80, blue: 0.93),
-        Color(red: 0.64, green: 0.75, blue: 0.89), Color(red: 1.00, green: 0.76, blue: 0.56), Color(red: 0.66, green: 0.77, blue: 0.90)
+    private static func mix(_ from: RGB, _ to: RGB, _ amount: Double) -> RGB {
+        from + (to - from) * min(max(amount, 0), 1)
+    }
+
+    private static func color(_ rgb: RGB) -> Color {
+        Color(red: rgb.x, green: rgb.y, blue: rgb.z)
+    }
+
+    private static let lightBase: [RGB] = [
+        RGB(0.78, 0.86, 0.96), RGB(0.96, 0.97, 1.00), RGB(0.76, 0.84, 0.95),
+        RGB(0.66, 0.77, 0.91), RGB(0.94, 0.94, 0.98), RGB(0.68, 0.78, 0.93),
+        RGB(0.62, 0.74, 0.89), RGB(0.80, 0.84, 0.94), RGB(0.64, 0.75, 0.90)
     ]
 
-    private static let darkColors: [Color] = [
-        Color(red: 0.04, green: 0.06, blue: 0.15), Color(red: 0.07, green: 0.11, blue: 0.24), Color(red: 0.04, green: 0.06, blue: 0.15),
-        Color(red: 0.07, green: 0.12, blue: 0.26), Color(red: 0.04, green: 0.07, blue: 0.17), Color(red: 0.07, green: 0.12, blue: 0.26),
-        Color(red: 0.08, green: 0.15, blue: 0.31), Color(red: 0.62, green: 0.31, blue: 0.11), Color(red: 0.08, green: 0.15, blue: 0.31)
+    private static let darkBase: [RGB] = [
+        RGB(0.10, 0.08, 0.30), RGB(0.04, 0.24, 0.36), RGB(0.14, 0.07, 0.32),
+        RGB(0.05, 0.14, 0.38), RGB(0.18, 0.10, 0.40), RGB(0.04, 0.22, 0.34),
+        RGB(0.04, 0.12, 0.34), RGB(0.06, 0.16, 0.36), RGB(0.10, 0.08, 0.30)
     ]
 }
 
