@@ -472,8 +472,10 @@ struct HistoryPriceConsumptionEffect: View {
             "Jämförelsen gäller samma antal dagar, inte hela månaden, så länge den nya månaden inte är slut. Siffrorna följer senaste mätvärdet."
         ]
         if shownSplit?.spotEffectKr != nil {
-            parts.append("Prisändringen delas i två. Spotpris är vad elen kostade på marknaden, med moms. Avtal och avgifter är resten: elhandlarens påslag, elnät, skatt och fasta avgifter.")
-            parts.append("Ändrar du dina avgifter under Inställningar, eller byter elnätet pris, hamnar det under Avtal och avgifter.")
+            parts.append("Prisändringen delas i två. Spotpris är vad elen kostade på marknaden, med moms. Påslag, elnät och skatt är resten av priset: elhandlarens påslag, elnätets avgift per kilowattimme och energiskatten.")
+            parts.append("Grönt betyder att raden gjorde månaden billigare. Rött betyder att den gjorde månaden dyrare. Det står också med ord vid beloppet.")
+            parts.append("De fasta månadsavgifterna kostar lika mycket oavsett hur mycket el du använder, så de ingår inte i Mer el eller Mindre el. De syns bara på raden Påslag, elnät och skatt om de ändrats mellan månaderna, eller om den ena månaden har fler dagar.")
+            parts.append("Ändrar du dina avgifter under Inställningar, eller byter elnätet pris, hamnar det på raden Påslag, elnät och skatt.")
         }
         return parts
     }
@@ -490,7 +492,7 @@ struct HistoryPriceConsumptionEffect: View {
     }
 
     private func effectBar(title: String, value: Double, maxMagnitude: Double) -> some View {
-        let amount = HistoryInsights.signedKr(value)
+        let amount = HistoryInsights.effectAmountText(value)
         return VStack(alignment: .leading, spacing: DS.Spacing.xs) {
             ViewThatFits(in: .horizontal) {
                 HStack {

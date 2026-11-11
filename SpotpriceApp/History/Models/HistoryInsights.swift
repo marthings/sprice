@@ -14,6 +14,9 @@ struct HistoryMonthSnapshot {
     var costProfile: CostProfile? = nil
     /// The spot price (öre/kWh, excluding VAT) that the cost was calculated with.
     var spotBasisOrePerKWh: Double? = nil
+    /// The part of `costKr` that does not depend on how much electricity was used: the grid
+    /// monthly fee and the retailer's monthly fee, for the days the cost covers. Nil when unknown.
+    var fixedFeeKr: Double? = nil
 
     var spotKrPerKWh: Double? {
         spotOrePerKWh.map { $0 / 100 }
@@ -61,7 +64,8 @@ struct HistoryPriceConsumptionSplit {
         return copy
     }
 
-    /// The rest of the price change: markup, grid, tax and fixed fees.
+    /// The rest of the price change: markup, grid transfer and tax per kWh, plus any change in
+    /// the fixed monthly fees between the two periods.
     var contractEffectKr: Double? {
         spotEffectKr.map { priceEffectKr - $0 }
     }
@@ -131,6 +135,15 @@ enum HistoryInsights {
             calendar: calendar
         )
         let paid = paidKrPerKWh(costKr: cost.amount, kWh: kWh)
+        let fixedFee = fixedFeeKr(
+            costKr: cost.amount,
+            parts: cost.parts,
+            profile: periodProfile,
+            hours: isCurrent
+                ? elapsedHours(from: summary.periodStart, now: now, calendar: calendar)
+                : hoursInMonth(containing: summary.periodStart, calendar: calendar),
+            measuredShare: summary.measuredCoverageRatio ?? 1
+        )
 
         return HistoryMonthSnapshot(
             summary: summary,
@@ -142,7 +155,8 @@ enum HistoryInsights {
             usedCurrentTariffs: cost.usedCurrentTariffs,
             costParts: cost.parts,
             costProfile: periodProfile,
-            spotBasisOrePerKWh: cost.spotBasis ?? spotOre
+            spotBasisOrePerKWh: cost.spotBasis ?? spotOre,
+            fixedFeeKr: fixedFee
         )
     }
 
@@ -183,16 +197,34 @@ enum HistoryInsights {
         guard let previous,
               let currentKWh = current.kWh, currentKWh > 0,
               let previousKWh = previous.kWh, previousKWh > 0,
-              let currentPaid = current.paidKrPerKWh,
-              let previousPaid = previous.paidKrPerKWh,
               let currentCost = current.costKr,
               let previousCost = previous.costKr,
               isCredibleComparison(currentCost: currentCost, previousCost: previousCost) else {
             return nil
         }
 
-        let consumptionEffectKr = (currentKWh - previousKWh) * previousPaid
-        let priceEffectKr = currentKWh * (currentPaid - previousPaid)
+        // The three effects add up to the cost change exactly. Fixed monthly fees cost the same
+        // however much electricity is used, so they are taken out before the per kWh price is
+        // worked out. Otherwise a month with more use would look cheaper per kWh just because
+        // the same fixed fees were shared over more kWh.
+        //   variable cost  = cost - fixed fees           (what depends on the kWh)
+        //   consumption    = (kWh now - kWh before) * variable price per kWh before
+        //   price          = kWh now * (variable price per kWh now - before) + change in fixed fees
+        // Fixed fees only land in the price part when they differ between the two periods,
+        // for example across New Year, or when one period has more days than the other.
+        // If a fixed share is unknown for either period, both are treated as 0.
+        var currentFixed = 0.0
+        var previousFixed = 0.0
+        if let currentShare = current.fixedFeeKr, let previousShare = previous.fixedFeeKr {
+            currentFixed = min(max(currentShare, 0), currentCost)
+            previousFixed = min(max(previousShare, 0), previousCost)
+        }
+        let currentVariablePerKWh = (currentCost - currentFixed) / currentKWh
+        let previousVariablePerKWh = (previousCost - previousFixed) / previousKWh
+
+        let consumptionEffectKr = (currentKWh - previousKWh) * previousVariablePerKWh
+        let priceEffectKr = currentKWh * (currentVariablePerKWh - previousVariablePerKWh)
+            + (currentFixed - previousFixed)
         let reconstructed = consumptionEffectKr + priceEffectKr
         let delta = currentCost - previousCost
         guard abs(reconstructed - delta) <= max(5, abs(delta) * 0.2) else {
@@ -288,21 +320,39 @@ enum HistoryInsights {
         let cost: Double?
         let usedCurrentTariffs: Bool
         var parts: EnhancedCost?
+        var fixedFee: Double?
+        let windowProfile = base.isCurrentMonth
+            ? costProfile
+            : HistoricalTariffRates.profile(costProfile, forPeriodStarting: monthStart)
         if !usedLiveKWh, storedCost.count == measuredDays.count, !storedCost.isEmpty {
             cost = storedCost.reduce(0, +)
             usedCurrentTariffs = false
+            // Saved costs carry the fixed fees for the measured days only.
+            let measuredHours = measuredDays.reduce(0.0) { $0 + 24 * ($1.measuredCoverageRatio ?? 1) }
+            fixedFee = fixedFeeKr(
+                costKr: cost,
+                parts: nil,
+                profile: base.costProfile ?? windowProfile,
+                hours: measuredHours,
+                measuredShare: 1
+            )
         } else if let spotOre {
             let calculated = TotalCostService.shared.calculateTotalCost(
                 kWh: kWh,
                 spotPriceOre: spotOre,
-                profile: base.isCurrentMonth
-                    ? costProfile
-                    : HistoricalTariffRates.profile(costProfile, forPeriodStarting: monthStart),
+                profile: windowProfile,
                 hoursInPeriod: hours
             )
             parts = calculated
             cost = calculated.totalKr
             usedCurrentTariffs = true
+            fixedFee = fixedFeeKr(
+                costKr: cost,
+                parts: calculated,
+                profile: windowProfile,
+                hours: hours,
+                measuredShare: 1
+            )
         } else {
             cost = storedCost.isEmpty ? nil : storedCost.reduce(0, +)
             usedCurrentTariffs = false
@@ -318,7 +368,8 @@ enum HistoryInsights {
             usedCurrentTariffs: usedCurrentTariffs,
             costParts: parts,
             costProfile: base.costProfile ?? costProfile,
-            spotBasisOrePerKWh: spotOre
+            spotBasisOrePerKWh: spotOre,
+            fixedFeeKr: fixedFee
         )
     }
 
@@ -417,7 +468,22 @@ enum HistoryInsights {
         return value > 0 ? "Högre spotpris" : "Lägre spotpris"
     }
 
-    static let contractEffectLabel = "Avtal och avgifter"
+    static let contractEffectLabel = "Påslag, elnät och skatt"
+
+    /// "billigare" or "dyrare", so the meaning does not rest on green and red alone.
+    /// Nil when the amount is too small to matter.
+    static func effectDirectionWord(_ value: Double) -> String? {
+        if value > negligibleKr { return "dyrare" }
+        if value < -negligibleKr { return "billigare" }
+        return nil
+    }
+
+    /// For example "-120 kr billigare" or "+45 kr dyrare".
+    static func effectAmountText(_ value: Double) -> String {
+        let amount = signedKr(value)
+        guard let word = effectDirectionWord(value) else { return amount }
+        return "\(amount) \(word)"
+    }
 
     static func splitSentence(consumptionEffectKr: Double, priceEffectKr: Double) -> String {
         let moreUse = consumptionEffectKr > negligibleKr
@@ -552,6 +618,30 @@ enum HistoryInsights {
     private static func elapsedHours(from monthStart: Date, now: Date, calendar: Calendar) -> Double {
         let start = calendar.dateInterval(of: .month, for: monthStart)?.start ?? monthStart
         return max(now.timeIntervalSince(start) / 3600, 1 / 60)
+    }
+
+    /// The fixed monthly fees inside a cost, with VAT. From the cost parts when they exist,
+    /// otherwise from the profile's monthly fees, spread over the hours the cost covers
+    /// (730 hours to a month, the same as the cost calculation). Nil when it cannot be told.
+    private static func fixedFeeKr(
+        costKr: Double?,
+        parts: EnhancedCost?,
+        profile: CostProfile?,
+        hours: Double,
+        measuredShare: Double
+    ) -> Double? {
+        guard let costKr else { return nil }
+        let vat = profile?.vatRate ?? 0.25
+        let fee: Double
+        if let parts {
+            fee = (parts.fixedFeeCostKr + parts.powerTariffCostKr + parts.providerMonthlyFeeKr) * (1 + vat)
+        } else if let profile {
+            let monthly = (profile.gridMonthlyFee ?? 0) + profile.retailerMonthlyFee
+            fee = monthly / 730 * hours * min(max(measuredShare, 0), 1)
+        } else {
+            return nil
+        }
+        return min(max(fee, 0), max(costKr, 0))
     }
 
     private static func paidKrPerKWh(costKr: Double?, kWh: Double?) -> Double? {
