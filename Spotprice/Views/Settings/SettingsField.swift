@@ -26,7 +26,7 @@ struct SettingsField: View {
             }
 
             Text(hint)
-                .font(.caption)
+                .font(DS.Font.caption)
                 .foregroundStyle(.secondary)
         }
     }

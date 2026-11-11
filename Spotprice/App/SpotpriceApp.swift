@@ -13,11 +13,16 @@ struct SpotpriceApp: App {
 
     init() {
         WidgetReload.timelines()
+#if DEBUG
+        let missing = DS.Font.missingFonts()
+        print(missing.isEmpty ? "Manrope: alla typsnitt laddade" : "Manrope saknas: \(missing)")
+#endif
     }
 
     var body: some Scene {
         MenuBarExtra {
             ModernMenuBarView(viewModel: viewModel)
+                .font(DS.Font.regular(13))
                 .tint(DS.Color.accent)
         } label: {
             MenuBarLabel(viewModel: viewModel)
@@ -26,6 +31,7 @@ struct SpotpriceApp: App {
 
         Settings {
             SettingsView()
+                .font(DS.Font.regular(13))
                 .tint(DS.Color.accent)
         }
     }

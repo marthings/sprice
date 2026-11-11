@@ -350,8 +350,7 @@ struct HistoryMonthHeroSection: View {
 
     private func heroUnit(_ unit: String) -> some View {
         Text(unit)
-            .font(DS.Font.callout)
-            .fontWeight(.bold)
+            .font(DS.Font.bold(14))
             .foregroundStyle(DS.Color.secondary)
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)

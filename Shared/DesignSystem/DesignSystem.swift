@@ -256,14 +256,40 @@ enum DS {
             max(size, minimumInformationSize)
         }
 
-        /// The system font (SF Pro on iOS, SF on macOS), the supported way.
-        /// iOS: a text style with a weight, so it follows Dynamic Type.
-        /// macOS: exact sizes, since macOS has no Dynamic Type and its text styles are smaller.
+        /// Manrope, under the SIL Open Font License 1.1 (free for commercial apps).
+        /// The files and OFL.txt are in Shared/DesignSystem/Fonts. They are registered
+        /// through UIAppFonts (iOS) and ATSApplicationFontsPath (macOS) in each Info.plist.
+        static let fontNames = [
+            "Manrope-Regular", "Manrope-Medium", "Manrope-SemiBold", "Manrope-Bold", "Manrope-ExtraBold"
+        ]
+
+        /// The Manrope file for a weight. Lighter weights use Regular, heavier use ExtraBold.
+        static func fontName(for weight: SwiftUI.Font.Weight) -> String {
+            switch weight {
+            case .medium: return "Manrope-Medium"
+            case .semibold: return "Manrope-SemiBold"
+            case .bold: return "Manrope-Bold"
+            case .heavy, .black: return "Manrope-ExtraBold"
+            default: return "Manrope-Regular"
+            }
+        }
+
+        /// Font names that did not load. Empty when everything is in place.
+        static func missingFonts() -> [String] {
+            #if os(macOS)
+            return fontNames.filter { NSFont(name: $0, size: 12) == nil }
+            #else
+            return fontNames.filter { UIFont(name: $0, size: 12) == nil }
+            #endif
+        }
+
+        /// iOS: Manrope at the given size, scaled with the closest text style, so it follows Dynamic Type.
+        /// macOS: exact sizes, since macOS has no Dynamic Type.
         private static func system(_ size: CGFloat, weight: SwiftUI.Font.Weight) -> SwiftUI.Font {
             #if os(macOS)
-            return .system(size: size, weight: weight, design: .default)
+            return .custom(fontName(for: weight), fixedSize: size)
             #else
-            return .system(textStyle(forSize: size), design: .default, weight: weight)
+            return .custom(fontName(for: weight), size: size, relativeTo: textStyle(forSize: size))
             #endif
         }
 
@@ -287,7 +313,7 @@ enum DS {
         /// the caller scales itself with `@ScaledMetric(relativeTo:)`, and for widgets
         /// and menu bar text, where the size is set by the layout.
         static func fixed(_ size: CGFloat, weight: SwiftUI.Font.Weight = .bold) -> SwiftUI.Font {
-            .system(size: size, weight: weight, design: .default)
+            .custom(fontName(for: weight), fixedSize: size)
         }
 
         /// Decoration only (never for text people need to read).
@@ -339,7 +365,8 @@ enum DS {
         }
 
         private static func uiBold(size: CGFloat, textStyle: UIFont.TextStyle) -> UIFont {
-            let base = UIFont.systemFont(ofSize: size, weight: .bold)
+            let base = UIFont(name: fontName(for: .bold), size: size)
+                ?? UIFont.systemFont(ofSize: size, weight: .bold)
             return UIFontMetrics(forTextStyle: textStyle).scaledFont(for: base)
         }
         #endif
