@@ -263,13 +263,14 @@ enum DS {
             "Manrope-Regular", "Manrope-Medium", "Manrope-SemiBold", "Manrope-Bold", "Manrope-ExtraBold"
         ]
 
-        /// The Manrope file for a weight. Lighter weights use Regular, heavier use ExtraBold.
+        /// The Manrope file for a weight. Manrope draws lighter than the old PP Object Sans,
+        /// so headings, amounts and units go one step heavier: semibold uses Manrope Bold and
+        /// bold uses Manrope ExtraBold. Body text (regular and medium) keeps its own weight.
         static func fontName(for weight: SwiftUI.Font.Weight) -> String {
             switch weight {
             case .medium: return "Manrope-Medium"
-            case .semibold: return "Manrope-SemiBold"
-            case .bold: return "Manrope-Bold"
-            case .heavy, .black: return "Manrope-ExtraBold"
+            case .semibold: return "Manrope-Bold"
+            case .bold, .heavy, .black: return "Manrope-ExtraBold"
             default: return "Manrope-Regular"
             }
         }
@@ -330,6 +331,10 @@ enum DS {
         static let caption = medium(13)
         /// Small notes and axis labels. 13 pt, the smallest size for readable text.
         static let footnote = medium(13)
+        /// Units next to an amount (kr, kWh, kr/kWh). Heavier than notes so they don't look weak next to the number.
+        static let unit = semibold(13)
+        /// Units next to a big hero amount.
+        static let unitLarge = semibold(15)
 
         #if os(iOS)
         /// Navigation titles can't take a SwiftUI `Font`, so UIKit chrome uses this.
@@ -1096,7 +1101,7 @@ struct MetricCard: View {
     var color: Color = .primary
     var titleColor: Color = DS.Color.secondary
     var valueFont: Font = DS.Font.bold(20).monospacedDigit()
-    var unitFont: Font = DS.Font.footnote
+    var unitFont: Font = DS.Font.unit
     var iconSize: CGFloat = DS.Size.iconMedium
     var layout: Layout = .horizontal
     var subtitle: String? = nil
@@ -1186,9 +1191,9 @@ struct PriceDisplay: View {
 
         var unitFont: Font {
             switch self {
-            case .small: return DS.Font.footnote
-            case .medium: return DS.Font.caption
-            case .large: return DS.Font.callout
+            case .small: return DS.Font.unit
+            case .medium: return DS.Font.unit
+            case .large: return DS.Font.unitLarge
             }
         }
     }

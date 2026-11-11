@@ -147,7 +147,7 @@ struct ChartCalloutView: View {
                             .font(DS.Font.bold(14).monospacedDigit())
                             .foregroundStyle(DS.Color.infoText)
                         Text("kr/kWh")
-                            .font(DS.Font.footnote)
+                            .font(DS.Font.unit)
                             .foregroundStyle(secondaryTextColor)
                     }
                 }
@@ -288,7 +288,7 @@ private struct ChartCalloutBreakdownRow: View {
                 .font(DS.Font.medium(10).monospacedDigit())
                 .foregroundStyle(isMainComponent ? primaryTextColor : secondaryTextColor)
             Text("kr")
-                .font(DS.Font.footnote)
+                .font(DS.Font.unit)
                 .foregroundStyle(secondaryTextColor)
         }
     }

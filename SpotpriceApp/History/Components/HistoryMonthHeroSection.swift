@@ -350,7 +350,7 @@ struct HistoryMonthHeroSection: View {
 
     private func heroUnit(_ unit: String) -> some View {
         Text(unit)
-            .font(DS.Font.bold(14))
+            .font(DS.Font.unitLarge)
             .foregroundStyle(DS.Color.secondary)
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)
@@ -656,7 +656,7 @@ struct HistoryPaidVersusSpot: View {
 
     private func labeledUnit(_ unit: String) -> some View {
         Text(unit)
-            .font(DS.Font.footnote)
+            .font(DS.Font.unit)
             .foregroundStyle(DS.Color.secondary)
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)

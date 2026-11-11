@@ -217,7 +217,7 @@ struct SharedPriceRangeSection: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.82)
             Text("kr/kWh")
-                .font(DS.Font.footnote)
+                .font(DS.Font.unit)
                 .foregroundStyle(DS.Color.secondary)
         }
     }
