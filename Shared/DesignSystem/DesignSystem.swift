@@ -1269,115 +1269,98 @@ struct PriceLevelBadge: View {
 // MARK: - Canvas background
 
 /// Full-bleed landscape reused by every screen (light/dark asset). Completely still.
-/// Depth comes from three fixed layers on top of the watercolor: a deeper sky towards the
-/// top, a soft warm glow at the horizon, and a faint vignette at the edges. Cards sit
-/// above all of it and keep their own material, so text reads the same in light and dark.
+/// Depth comes from fixed layers on top of the watercolor: a soft sky at the top (deeper
+/// blue at the very top that pales towards the mountains, with a faint haze of light),
+/// a soft warm glow at the horizon, and a faint vignette at the edges. Cards sit above all
+/// of it and keep their own material, so text reads the same in light and dark.
 /// Layout-neutral: the image lives in an overlay so `scaledToFill` never
 /// expands the parent (which would wipe out horizontal padding).
 struct AppCanvasBackground: View {
     @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.scenePhase) private var scenePhase
-    @State private var isLowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled
-
-    /// Screens that sit behind another full screen background pass `false`, so the
-    /// hidden copy does not animate for nothing.
-    var live: Bool = true
-
-    /// Moves only when the user allows motion, the battery is not being saved and the app is on screen.
-    private var animates: Bool {
-        live && !reduceMotion && !isLowPowerMode && scenePhase == .active
-    }
 
     var body: some View {
-        ArcticMeshGlow(isDark: colorScheme == .dark, animates: animates)
+        base
+            .overlay(alignment: .bottom) {
+                Image("LandscapeBackground")
+                    .resizable()
+                    .scaledToFill()
+                    .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity, alignment: .bottom)
+                    .allowsHitTesting(false)
+            }
+            .overlay { sky }
+            .overlay { skyHaze }
+            .overlay { horizonGlow }
+            .overlay { vignette }
+            .clipped()
             .ignoresSafeArea()
             .accessibilityHidden(true)
             .allowsHitTesting(false)
-            .onReceive(NotificationCenter.default.publisher(for: .NSProcessInfoPowerStateDidChange)) { _ in
-                isLowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled
-            }
     }
-}
 
-/// The whole background: a soft mesh in icy blues with the arctic accent drifting through it.
-/// No photo behind it. The points travel along small loops and the accent moves between three
-/// of them, one full cycle every 24 seconds, at 30 frames a second at most. With `animates`
-/// off it shows the resting pose.
-private struct ArcticMeshGlow: View {
-    let isDark: Bool
-    let animates: Bool
+    private var isDark: Bool { colorScheme == .dark }
 
-    private static let cycleSeconds: Double = 24
+    private var base: Color {
+        isDark
+            ? Color(red: 0.045, green: 0.05, blue: 0.065)
+            : Color(red: 0.78, green: 0.86, blue: 0.94)
+    }
 
-    var body: some View {
-        if animates {
-            TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
-                mesh(phase: context.date.timeIntervalSinceReferenceDate / Self.cycleSeconds)
-            }
-        } else {
-            mesh(phase: 0)
+    /// The sky: a clear pale blue at the top in light mode, a deep night blue in dark mode,
+    /// both close to the arctic accent. It pales out gradually and is gone well above the
+    /// mountains, so the landscape itself is untouched.
+    private var sky: some View {
+        let top = isDark ? Color(red: 0.03, green: 0.09, blue: 0.22) : Color(red: 0.47, green: 0.72, blue: 0.93)
+        let middle = isDark ? Color(red: 0.06, green: 0.17, blue: 0.33) : Color(red: 0.66, green: 0.83, blue: 0.96)
+        return LinearGradient(
+            stops: [
+                .init(color: top.opacity(isDark ? 0.62 : 0.60), location: 0),
+                .init(color: middle.opacity(isDark ? 0.36 : 0.36), location: 0.22),
+                .init(color: middle.opacity(isDark ? 0.12 : 0.10), location: 0.42),
+                .init(color: middle.opacity(0), location: 0.60)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    /// A faint patch of light high up to one side, so the sky has some air in it and does
+    /// not read as one flat band. Whitish in light mode, a cool icy glow in dark mode.
+    private var skyHaze: some View {
+        let light = isDark ? Color(red: 0.36, green: 0.78, blue: 0.96) : Color.white
+        return GeometryReader { geometry in
+            RadialGradient(
+                colors: [light.opacity(isDark ? 0.15 : 0.38), light.opacity(isDark ? 0.04 : 0.12), light.opacity(0)],
+                center: UnitPoint(x: 0.78, y: 0.10),
+                startRadius: 0,
+                endRadius: max(geometry.size.width, geometry.size.height * 0.45) * 0.85
+            )
         }
     }
 
-    private typealias RGB = SIMD3<Double>
-
-    /// `phase` counts whole cycles. Every point and colour uses a whole number of turns per
-    /// cycle, so the motion loops without a jump.
-    private func mesh(phase: Double) -> some View {
-        let turn = phase * 2 * Double.pi
-        let a = Float(sin(turn)), b = Float(cos(turn))
-        let c = Float(sin(turn * 2 + 1)), d = Float(cos(turn * 2 + 2))
-
-        let glow = isDark ? Self.darkGlow : Self.lightGlow
-        let wBottom = 0.42 + 0.18 * sin(turn)
-        let wRight = 0.36 * (0.5 + 0.5 * sin(turn + 4.2))
-        let wLeft = 0.30 * (0.5 + 0.5 * sin(turn + 2.1))
-        let base = isDark ? Self.darkBase : Self.lightBase
-        var colors = base.map(Self.color)
-        colors[3] = Self.color(Self.mix(base[3], glow, wLeft))
-        colors[5] = Self.color(Self.mix(base[5], glow, wRight))
-        colors[7] = Self.color(Self.mix(base[7], glow, wBottom))
-
-        return MeshGradient(
-            width: 3,
-            height: 3,
-            points: [
-                SIMD2(0, 0), SIMD2(0.5 + 0.15 * a, 0), SIMD2(1, 0),
-                SIMD2(0, 0.5 + 0.10 * b), SIMD2(0.5 + 0.12 * b, 0.5 + 0.11 * a), SIMD2(1, 0.5 - 0.10 * c),
-                SIMD2(0, 1), SIMD2(0.5 + 0.20 * d, 1), SIMD2(1, 1)
-            ],
-            colors: colors
-        )
-        .allowsHitTesting(false)
+    /// A soft glow where the sun sits behind the ridge.
+    private var horizonGlow: some View {
+        let warm = isDark ? Color(red: 0.80, green: 0.36, blue: 0.12) : Color(red: 1.00, green: 0.70, blue: 0.45)
+        return GeometryReader { geometry in
+            RadialGradient(
+                colors: [warm.opacity(isDark ? 0.34 : 0.32), warm.opacity(isDark ? 0.10 : 0.10), warm.opacity(0)],
+                center: UnitPoint(x: 0.5, y: 0.82),
+                startRadius: 0,
+                endRadius: max(geometry.size.width, geometry.size.height * 0.5) * 0.9
+            )
+        }
     }
 
-    private static func mix(_ from: RGB, _ to: RGB, _ amount: Double) -> RGB {
-        from + (to - from) * min(max(amount, 0), 1)
+    /// Darkens the corners a little, so the middle of the screen feels closer.
+    private var vignette: some View {
+        GeometryReader { geometry in
+            RadialGradient(
+                colors: [Color.black.opacity(0), Color.black.opacity(isDark ? 0.34 : 0.10)],
+                center: .center,
+                startRadius: min(geometry.size.width, geometry.size.height) * 0.45,
+                endRadius: max(geometry.size.width, geometry.size.height) * 0.78
+            )
+        }
     }
-
-    private static func color(_ rgb: RGB) -> Color {
-        Color(red: rgb.x, green: rgb.y, blue: rgb.z)
-    }
-
-    /// The accent, #2AA3DF in light mode and #5CC8F5 in dark mode.
-    private static let lightGlow = RGB(0.165, 0.639, 0.875)
-    private static let darkGlow = RGB(0.361, 0.784, 0.961)
-
-    /// Icy white in the middle, clearer arctic blue towards the edges and the bottom.
-    private static let lightBase: [RGB] = [
-        RGB(0.80, 0.91, 0.98), RGB(0.95, 0.98, 1.00), RGB(0.74, 0.88, 0.97),
-        RGB(0.66, 0.84, 0.96), RGB(0.96, 0.98, 1.00), RGB(0.70, 0.86, 0.97),
-        RGB(0.56, 0.79, 0.94), RGB(0.82, 0.92, 0.98), RGB(0.60, 0.80, 0.95)
-    ]
-
-    /// Clearly different blues, from deep night blue to a lit arctic blue, so the mesh is
-    /// visible in dark mode and not one flat black.
-    private static let darkBase: [RGB] = [
-        RGB(0.03, 0.07, 0.16), RGB(0.05, 0.24, 0.40), RGB(0.04, 0.10, 0.22),
-        RGB(0.04, 0.18, 0.34), RGB(0.06, 0.13, 0.26), RGB(0.05, 0.22, 0.38),
-        RGB(0.03, 0.12, 0.27), RGB(0.06, 0.20, 0.36), RGB(0.02, 0.06, 0.15)
-    ]
 }
 
 // MARK: - Palette-tinted cards
