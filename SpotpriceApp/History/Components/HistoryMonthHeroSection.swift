@@ -8,6 +8,20 @@ struct HistoryMonthHeroSection: View {
     let hasProvider: Bool
     var hasPastMonths: Bool = false
     var temperatureInsights: [TemperatureInsight] = []
+    var priceArea: String? = nil
+    var monthKey: String? = nil
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var showsDetails = false
+    @State private var savedBreakdown: MonthCostBreakdown?
+
+    /// The split from the cost calculation when there is one, else from saved intervals.
+    private var breakdown: MonthCostBreakdown? {
+        if let parts = snapshot.costParts, let profile = snapshot.costProfile {
+            return MonthCostBreakdown.make(parts: parts, profile: profile, kWh: snapshot.kWh)
+        }
+        return savedBreakdown
+    }
 
     var body: some View {
         if snapshot.isCurrentMonth {
@@ -83,6 +97,10 @@ struct HistoryMonthHeroSection: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            if let breakdown, snapshot.costKr != nil {
+                detailsSection(breakdown)
+            }
+
             ForEach(temperatureInsights) { insight in
                 InsightRow(
                     icon: "thermometer.medium",
@@ -98,6 +116,171 @@ struct HistoryMonthHeroSection: View {
         .padding(DS.Spacing.card)
         .frame(maxWidth: .infinity, alignment: .leading)
         .spriceCard(tone: .history)
+#if DEBUG
+        .onAppear {
+            // `-OpenDetails` unfolds "Visa detaljer" for screenshots.
+            if ProcessInfo.processInfo.arguments.contains("-OpenDetails") { showsDetails = true }
+        }
+#endif
+        .task(id: "\(monthKey ?? "")-\(snapshot.costKr ?? 0)-\(snapshot.costParts == nil)") {
+            await loadSavedBreakdown()
+        }
+    }
+
+    // MARK: Details
+
+    private func detailsSection(_ breakdown: MonthCostBreakdown) -> some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+            Button {
+                withAnimation(DS.Motion.curve(DS.Motion.reveal, reduceMotion: reduceMotion)) {
+                    showsDetails.toggle()
+                }
+            } label: {
+                HStack(spacing: DS.Spacing.xs) {
+                    Text(showsDetails ? "Dölj detaljer" : "Visa detaljer")
+                        .font(DS.Font.semibold(14))
+                        .foregroundStyle(DS.Color.accentText)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(DS.Color.accentText)
+                        .rotationEffect(.degrees(showsDetails ? 180 : 0))
+                        .accessibilityHidden(true)
+                    Spacer(minLength: 0)
+                }
+                .frame(minHeight: 44, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.vertical, -DS.Spacing.xs)
+            .accessibilityLabel("Detaljer om månadens kostnad")
+            .accessibilityValue(showsDetails ? "Utfälld" : "Hopfälld")
+            .accessibilityHint(showsDetails ? "Döljer uppdelningen" : "Visar vad kostnaden består av")
+            .accessibilityAddTraits(.isButton)
+
+            if showsDetails {
+                detailRows(breakdown)
+                    .transition(DS.Motion.revealTransition(reduceMotion: reduceMotion))
+            }
+        }
+    }
+
+    private func detailRows(_ breakdown: MonthCostBreakdown) -> some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+            if let kWh = breakdown.kWh, kWh > 0 {
+                detailRow(title: "Förbrukning", value: AppFormatters.kWh(kWh), emphasized: false)
+            }
+            if let perKWh = breakdown.krPerKWh {
+                detailRow(
+                    title: "Snittpris",
+                    value: "\(perKWh.formatted(.number.precision(.fractionLength(2)))) kr/kWh",
+                    emphasized: false,
+                    spoken: "\(perKWh.formatted(.number.precision(.fractionLength(2)))) kronor per kilowattimme"
+                )
+            }
+
+            Divider()
+
+            ForEach(breakdown.lines) { line in
+                detailRow(
+                    title: line.title,
+                    value: "\(AppFormatters.wholeNumber(Double(line.wholeKr))) kr",
+                    emphasized: false,
+                    note: line.detail,
+                    spoken: "\(AppFormatters.wholeNumber(Double(line.wholeKr))) kronor"
+                )
+            }
+
+            Divider()
+
+            detailRow(
+                title: "Summa",
+                value: "\(AppFormatters.wholeNumber(Double(breakdown.totalWholeKr))) kr",
+                emphasized: true,
+                spoken: "\(AppFormatters.wholeNumber(Double(breakdown.totalWholeKr))) kronor"
+            )
+
+            Text("Raderna är utan moms. Momsen står som en egen rad.")
+                .font(DS.Font.footnote)
+                .foregroundStyle(DS.Color.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let note = breakdown.note {
+                Text(note)
+                    .font(DS.Font.footnote)
+                    .foregroundStyle(DS.Color.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func detailRow(
+        title: String,
+        value: String,
+        emphasized: Bool,
+        note: String? = nil,
+        spoken: String? = nil
+    ) -> some View {
+        let titleFont = emphasized ? DS.Font.semibold(16) : DS.Font.callout
+        let valueFont = emphasized ? DS.Font.semibold(16).monospacedDigit() : DS.Font.callout.monospacedDigit()
+        return VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline, spacing: DS.Spacing.sm) {
+                    Text(title)
+                        .font(titleFont)
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                    Spacer(minLength: DS.Spacing.sm)
+                    Text(value)
+                        .font(valueFont)
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                }
+                VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
+                    Text(title)
+                        .font(titleFont)
+                        .foregroundStyle(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(value)
+                        .font(valueFont)
+                        .foregroundStyle(.primary)
+                }
+            }
+            if let note {
+                Text(note)
+                    .font(DS.Font.footnote)
+                    .foregroundStyle(DS.Color.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(title), \(spoken ?? value)\(note.map { ". Innehåller \($0.lowercased())" } ?? "")")
+    }
+
+    @MainActor
+    private func loadSavedBreakdown() async {
+        guard snapshot.costParts == nil,
+              let total = snapshot.costKr,
+              let monthKey,
+              let priceArea else {
+            savedBreakdown = nil
+            return
+        }
+        let intervals: [HistoricalEnergyIntervalValue]
+#if DEBUG
+        if ConsumptionInsightsSampleData.isLaunchPreviewEnabled {
+            intervals = ConsumptionInsightsSampleData.previewIntervals()
+        } else {
+            intervals = (try? EnergyHistoryQueryService().loadPreferredIntervals(monthKey: monthKey, priceArea: priceArea)) ?? []
+        }
+#else
+        intervals = (try? EnergyHistoryQueryService().loadPreferredIntervals(monthKey: monthKey, priceArea: priceArea)) ?? []
+#endif
+        savedBreakdown = MonthCostBreakdown.make(
+            intervals: intervals,
+            retailContractType: snapshot.costProfile?.retailContractType ?? .spotPriceMarkup,
+            displayedTotalKr: total
+        )
     }
 
     private var infoParagraphs: [String] {
@@ -116,6 +299,10 @@ struct HistoryMonthHeroSection: View {
         }
         if parts.isEmpty {
             parts.append("Här ser du månadens kostnad och hur den förhåller sig till förra perioden, så långt det finns mätvärden.")
+        }
+        if breakdown != nil {
+            parts.append("Under Visa detaljer ser du vad kostnaden består av: elen själv, elhandlarens påslag, elnätet, skatt och moms. Raderna ger summan ovan.")
+            parts.append("Fasta avgifter räknas per timme, så en månad som pågår får bara sin del av dem.")
         }
         if !temperatureInsights.isEmpty {
             for insight in temperatureInsights {
@@ -169,20 +356,27 @@ struct HistoryMonthHeroSection: View {
 
 struct HistoryPriceConsumptionEffect: View {
     let split: HistoryPriceConsumptionSplit?
+    var priceArea: String? = nil
+    var currentMonthKey: String? = nil
+    var previousMonthKey: String? = nil
+    var throughDay: Int? = nil
     let previousMonthName: String?
+
+    @State private var refinedSplit: HistoryPriceConsumptionSplit?
+
+    private var shownSplit: HistoryPriceConsumptionSplit? {
+        refinedSplit ?? split
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
-            if let split {
+            if let split = shownSplit {
                 SectionInfoHeader(
                     title: HistoryInsights.splitTitle(
                         consumptionEffectKr: split.consumptionEffectKr,
                         priceEffectKr: split.priceEffectKr
                     ),
-                    paragraphs: [
-                        "Uppdelningen visar hur mycket som beror på att du använde mer eller mindre el, och hur mycket som beror på att priset ändrades.",
-                        "Jämförelsen gäller samma antal dagar, inte hela månaden, så länge den nya månaden inte är slut. Siffrorna följer senaste mätvärdet."
-                    ]
+                    paragraphs: splitInfoParagraphs
                 )
 
                 effectBar(
@@ -190,11 +384,24 @@ struct HistoryPriceConsumptionEffect: View {
                     value: split.consumptionEffectKr,
                     maxMagnitude: maxMagnitude
                 )
-                effectBar(
-                    title: HistoryInsights.priceEffectLabel(split.priceEffectKr),
-                    value: split.priceEffectKr,
-                    maxMagnitude: maxMagnitude
-                )
+                if let spotEffect = split.spotEffectKr, let contractEffect = split.contractEffectKr {
+                    effectBar(
+                        title: HistoryInsights.spotEffectLabel(spotEffect),
+                        value: spotEffect,
+                        maxMagnitude: maxMagnitude
+                    )
+                    effectBar(
+                        title: HistoryInsights.contractEffectLabel,
+                        value: contractEffect,
+                        maxMagnitude: maxMagnitude
+                    )
+                } else {
+                    effectBar(
+                        title: HistoryInsights.priceEffectLabel(split.priceEffectKr),
+                        value: split.priceEffectKr,
+                        maxMagnitude: maxMagnitude
+                    )
+                }
 
                 Text(HistoryInsights.splitSentence(
                     consumptionEffectKr: split.consumptionEffectKr,
@@ -221,11 +428,65 @@ struct HistoryPriceConsumptionEffect: View {
         .padding(DS.Spacing.card)
         .frame(maxWidth: .infinity, alignment: .leading)
         .spriceCard(tone: .history)
+        .task(id: "\(currentMonthKey ?? "")-\(previousMonthKey ?? "")-\(throughDay ?? 0)-\(split?.priceEffectKr ?? 0)") {
+            await refineSpotShare()
+        }
+    }
+
+    /// The spot price on the month snapshots is an average per day or per month. The saved
+    /// intervals give the price weighted by when the electricity was actually used.
+    @MainActor
+    private func refineSpotShare() async {
+        guard let split, split.isSpotBased,
+              let priceArea, let currentMonthKey, let previousMonthKey else {
+            refinedSplit = nil
+            return
+        }
+        let query = EnergyHistoryQueryService()
+        guard let current = try? query.loadPreferredIntervals(monthKey: currentMonthKey, priceArea: priceArea),
+              let previous = try? query.loadPreferredIntervals(monthKey: previousMonthKey, priceArea: priceArea),
+              let currentSpot = Self.weightedSpot(current, throughDay: nil),
+              let previousSpot = Self.weightedSpot(previous, throughDay: throughDay) else {
+            refinedSplit = nil
+            return
+        }
+        refinedSplit = split.refined(currentSpotOre: currentSpot, previousSpotOre: previousSpot)
+    }
+
+    private static func weightedSpot(_ intervals: [HistoricalEnergyIntervalValue], throughDay: Int?) -> Double? {
+        let calendar = Calendar.energyHistory
+        var kWh = 0.0
+        var weighted = 0.0
+        for interval in intervals {
+            guard let used = interval.consumptionKWh, used > 0 else { continue }
+            if let throughDay, calendar.component(.day, from: interval.intervalStart) > throughDay { continue }
+            kWh += used
+            weighted += used * interval.spotPriceOrePerKWh
+        }
+        return kWh > 0 ? weighted / kWh : nil
+    }
+
+    private var splitInfoParagraphs: [String] {
+        var parts = [
+            "Uppdelningen visar hur mycket som beror på att du använde mer eller mindre el, och hur mycket som beror på att priset ändrades.",
+            "Jämförelsen gäller samma antal dagar, inte hela månaden, så länge den nya månaden inte är slut. Siffrorna följer senaste mätvärdet."
+        ]
+        if shownSplit?.spotEffectKr != nil {
+            parts.append("Prisändringen delas i två. Spotpris är vad elen kostade på marknaden, med moms. Avtal och avgifter är resten: elhandlarens påslag, elnät, skatt och fasta avgifter.")
+            parts.append("Ändrar du dina avgifter under Inställningar, eller byter elnätet pris, hamnar det under Avtal och avgifter.")
+        }
+        return parts
     }
 
     private var maxMagnitude: Double {
-        guard let split else { return 1 }
-        return max(abs(split.consumptionEffectKr), abs(split.priceEffectKr), 1)
+        guard let split = shownSplit else { return 1 }
+        return max(
+            abs(split.consumptionEffectKr),
+            abs(split.priceEffectKr),
+            abs(split.spotEffectKr ?? 0),
+            abs(split.contractEffectKr ?? 0),
+            1
+        )
     }
 
     private func effectBar(title: String, value: Double, maxMagnitude: Double) -> some View {

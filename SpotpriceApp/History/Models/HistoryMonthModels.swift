@@ -20,6 +20,8 @@ struct HistoryMonthPresentation {
     let weekdayAverages: [HistoryWeekdayAverage]
     let comparisonMonthName: String?
     let previousDailySummaries: [HistoricalEnergySummaryValue]
+    /// Last day of the month that both compared periods cover, when they are cut to the same days.
+    var comparisonThroughDay: Int? = nil
 
     static func make(
         months: [HistoricalEnergySummaryValue],
@@ -157,7 +159,8 @@ struct HistoryMonthPresentation {
             dayBars: dayBars,
             weekdayAverages: HistoryInsights.weekdayAverages(from: dayBars, calendar: calendar),
             comparisonMonthName: comparisonMonthName,
-            previousDailySummaries: previousDailySummaries
+            previousDailySummaries: previousDailySummaries,
+            comparisonThroughDay: throughDay
         )
     }
 }

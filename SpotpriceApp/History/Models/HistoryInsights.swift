@@ -8,6 +8,12 @@ struct HistoryMonthSnapshot {
     let paidKrPerKWh: Double?
     let spotOrePerKWh: Double?
     let usedCurrentTariffs: Bool
+    /// Cost split by component, when the total was calculated from the cost profile.
+    /// Its total is exactly `costKr`.
+    var costParts: EnhancedCost? = nil
+    var costProfile: CostProfile? = nil
+    /// The spot price (öre/kWh, excluding VAT) that the cost was calculated with.
+    var spotBasisOrePerKWh: Double? = nil
 
     var spotKrPerKWh: Double? {
         spotOrePerKWh.map { $0 / 100 }
@@ -40,6 +46,25 @@ struct HistoryPriceConsumptionSplit {
     let priceEffectKr: Double
     let previousMonthName: String
     let comparesSameDays: Bool
+    /// The part of `priceEffectKr` that comes from the market spot price. Nil when it cannot be told apart.
+    var spotEffectKr: Double? = nil
+    /// What the spot share is calculated from, so it can be refined with saved intervals.
+    var currentKWh: Double = 0
+    var vatRate: Double = 0.25
+    var isSpotBased = false
+
+    /// Recalculates the spot share from kWh-weighted spot prices (öre/kWh, excluding VAT).
+    func refined(currentSpotOre: Double, previousSpotOre: Double) -> HistoryPriceConsumptionSplit {
+        guard isSpotBased, currentKWh > 0 else { return self }
+        var copy = self
+        copy.spotEffectKr = currentKWh * (currentSpotOre - previousSpotOre) / 100 * (1 + vatRate)
+        return copy
+    }
+
+    /// The rest of the price change: markup, grid, tax and fixed fees.
+    var contractEffectKr: Double? {
+        spotEffectKr.map { priceEffectKr - $0 }
+    }
 }
 
 struct HistoryWeekdayAverage: Identifiable {
@@ -106,7 +131,10 @@ enum HistoryInsights {
             kWh: kWh,
             paidKrPerKWh: paid,
             spotOrePerKWh: spotOre,
-            usedCurrentTariffs: cost.usedCurrentTariffs
+            usedCurrentTariffs: cost.usedCurrentTariffs,
+            costParts: cost.parts,
+            costProfile: costProfile,
+            spotBasisOrePerKWh: cost.spotBasis ?? spotOre
         )
     }
 
@@ -163,11 +191,25 @@ enum HistoryInsights {
             return nil
         }
 
+        // Spot price share of the price change, with VAT, on this month's kWh.
+        // Only when both periods price the electricity from the spot price.
+        var spotEffectKr: Double?
+        if let profile = current.costProfile,
+           profile.retailContractType == .spotPriceMarkup,
+           let currentSpot = current.spotBasisOrePerKWh,
+           let previousSpot = previous.spotBasisOrePerKWh {
+            spotEffectKr = currentKWh * (currentSpot - previousSpot) / 100 * (1 + profile.vatRate)
+        }
+
         return HistoryPriceConsumptionSplit(
             consumptionEffectKr: consumptionEffectKr,
             priceEffectKr: priceEffectKr,
             previousMonthName: previousRangeLabel,
-            comparesSameDays: comparesSameDays
+            comparesSameDays: comparesSameDays,
+            spotEffectKr: spotEffectKr,
+            currentKWh: currentKWh,
+            vatRate: current.costProfile?.vatRate ?? 0.25,
+            isSpotBased: current.costProfile?.retailContractType == .spotPriceMarkup
         )
     }
 
@@ -237,16 +279,19 @@ enum HistoryInsights {
 
         let cost: Double?
         let usedCurrentTariffs: Bool
+        var parts: EnhancedCost?
         if !usedLiveKWh, storedCost.count == measuredDays.count, !storedCost.isEmpty {
             cost = storedCost.reduce(0, +)
             usedCurrentTariffs = false
         } else if let spotOre {
-            cost = TotalCostService.shared.calculateTotalCost(
+            let calculated = TotalCostService.shared.calculateTotalCost(
                 kWh: kWh,
                 spotPriceOre: spotOre,
                 profile: costProfile,
                 hoursInPeriod: hours
-            ).totalKr
+            )
+            parts = calculated
+            cost = calculated.totalKr
             usedCurrentTariffs = true
         } else {
             cost = storedCost.isEmpty ? nil : storedCost.reduce(0, +)
@@ -260,7 +305,10 @@ enum HistoryInsights {
             kWh: kWh,
             paidKrPerKWh: paidKrPerKWh(costKr: cost, kWh: kWh),
             spotOrePerKWh: spotOre,
-            usedCurrentTariffs: usedCurrentTariffs
+            usedCurrentTariffs: usedCurrentTariffs,
+            costParts: parts,
+            costProfile: costProfile,
+            spotBasisOrePerKWh: spotOre
         )
     }
 
@@ -354,6 +402,13 @@ enum HistoryInsights {
         value >= 0 ? "Högre pris" : "Lägre pris"
     }
 
+    static func spotEffectLabel(_ value: Double) -> String {
+        if abs(value) < negligibleKr { return "Spotpris" }
+        return value > 0 ? "Högre spotpris" : "Lägre spotpris"
+    }
+
+    static let contractEffectLabel = "Avtal och avgifter"
+
     static func splitSentence(consumptionEffectKr: Double, priceEffectKr: Double) -> String {
         let moreUse = consumptionEffectKr > negligibleKr
         let lessUse = consumptionEffectKr < -negligibleKr
@@ -422,6 +477,13 @@ enum HistoryInsights {
         return ratio >= 0.12 && ratio <= 8
     }
 
+    private struct MonthCostResult {
+        var amount: Double?
+        var usedCurrentTariffs: Bool
+        var parts: EnhancedCost? = nil
+        var spotBasis: Double? = nil
+    }
+
     private static func monthCost(
         summary: HistoricalEnergySummaryValue,
         isCurrentMonth: Bool,
@@ -431,51 +493,45 @@ enum HistoryInsights {
         livePreciseCost: PreciseMonthlyCost?,
         now: Date,
         calendar: Calendar
-    ) -> (amount: Double?, usedCurrentTariffs: Bool) {
+    ) -> MonthCostResult {
         let service = TotalCostService.shared
 
         if isCurrentMonth {
             if let livePreciseCost, livePreciseCost.totalKWh > 0 {
                 let effectiveSpot = (livePreciseCost.totalCostKr / livePreciseCost.totalKWh) * 100
-                return (
-                    service.calculateTotalCost(
-                        kWh: livePreciseCost.totalKWh,
-                        spotPriceOre: effectiveSpot,
-                        profile: costProfile,
-                        hoursInPeriod: elapsedHours(from: summary.periodStart, now: now, calendar: calendar)
-                    ).totalKr,
-                    true
+                let parts = service.calculateTotalCost(
+                    kWh: livePreciseCost.totalKWh,
+                    spotPriceOre: effectiveSpot,
+                    profile: costProfile,
+                    hoursInPeriod: elapsedHours(from: summary.periodStart, now: now, calendar: calendar)
                 )
+                return MonthCostResult(amount: parts.totalKr, usedCurrentTariffs: true, parts: parts, spotBasis: effectiveSpot)
             }
             if let kWh, kWh > 0, let spotOre {
-                return (
-                    service.calculateTotalCost(
-                        kWh: kWh,
-                        spotPriceOre: spotOre,
-                        profile: costProfile,
-                        hoursInPeriod: elapsedHours(from: summary.periodStart, now: now, calendar: calendar)
-                    ).totalKr,
-                    true
-                )
-            }
-            return (summary.totalCostSEK, false)
-        }
-
-        if let stored = summary.totalCostSEK {
-            return (stored, false)
-        }
-        if let kWh, kWh > 0, let spotOre {
-            return (
-                service.calculateTotalCost(
+                let parts = service.calculateTotalCost(
                     kWh: kWh,
                     spotPriceOre: spotOre,
                     profile: costProfile,
-                    hoursInPeriod: hoursInMonth(containing: summary.periodStart, calendar: calendar)
-                ).totalKr,
-                true
-            )
+                    hoursInPeriod: elapsedHours(from: summary.periodStart, now: now, calendar: calendar)
+                )
+                return MonthCostResult(amount: parts.totalKr, usedCurrentTariffs: true, parts: parts, spotBasis: spotOre)
+            }
+            return MonthCostResult(amount: summary.totalCostSEK, usedCurrentTariffs: false)
         }
-        return (nil, false)
+
+        if let stored = summary.totalCostSEK {
+            return MonthCostResult(amount: stored, usedCurrentTariffs: false)
+        }
+        if let kWh, kWh > 0, let spotOre {
+            let parts = service.calculateTotalCost(
+                kWh: kWh,
+                spotPriceOre: spotOre,
+                profile: costProfile,
+                hoursInPeriod: hoursInMonth(containing: summary.periodStart, calendar: calendar)
+            )
+            return MonthCostResult(amount: parts.totalKr, usedCurrentTariffs: true, parts: parts, spotBasis: spotOre)
+        }
+        return MonthCostResult(amount: nil, usedCurrentTariffs: false)
     }
 
     private static func hoursInMonth(containing date: Date, calendar: Calendar) -> Double {
@@ -513,6 +569,145 @@ enum HistoryInsights {
     }
 }
 
+
+// MARK: - Month cost breakdown
+
+struct MonthCostLine: Identifiable, Equatable, Sendable {
+    let id: String
+    let title: String
+    /// Excluding VAT, except the "Moms" line itself.
+    let amountKr: Double
+    /// Rounded for display. The lines add up to `MonthCostBreakdown.totalWholeKr`.
+    var wholeKr: Int = 0
+    /// What is inside a folded line.
+    var detail: String? = nil
+}
+
+/// What one month's cost consists of, in kronor. The lines add up to the
+/// number on the card exactly, rounded the same way.
+struct MonthCostBreakdown: Equatable, Sendable {
+    let lines: [MonthCostLine]
+    let totalKr: Double
+    let totalWholeKr: Int
+    let kWh: Double?
+    /// Shown under the lines, for example when the grid fee is not included.
+    var note: String? = nil
+
+    var krPerKWh: Double? {
+        guard let kWh, kWh > 0 else { return nil }
+        return totalKr / kWh
+    }
+
+    /// Full split, from the same cost calculation as the total.
+    static func make(parts cost: EnhancedCost, profile: CostProfile, kWh: Double?) -> MonthCostBreakdown {
+        var raw: [MonthCostLine] = []
+        func add(_ id: String, _ title: String, _ amount: Double) {
+            guard amount > 0.0000001 else { return }
+            raw.append(MonthCostLine(id: id, title: title, amountKr: amount))
+        }
+        let spotTitle = profile.retailContractType == .spotPriceMarkup ? "Spotpris" : profile.retailContractDisplayName
+        add("spot", spotTitle, cost.spotCostKr)
+        if profile.retailContractType == .spotPriceMarkup {
+            add("markup", "Elhandlarens påslag", cost.providerSurchargeKr)
+        }
+        add("retailFee", "Elhandlarens månadsavgift", cost.providerMonthlyFeeKr)
+        if profile.hasConfiguredGridCosts {
+            add("grid", "Elnätsavgift", cost.gridEnergyCostKr)
+        }
+        add("gridFee", "Elnätets månadsavgift", cost.fixedFeeCostKr)
+        add("power", EffectTariffCopy.lineTitle, cost.powerTariffCostKr)
+        add("tax", "Skatt på el", cost.energyTaxKr)
+        add("cert", "Elcertifikat", cost.certificateFeeKr)
+
+        // Lines under 2 % of the total go into one "Annat smått" line, as in the kr/kWh view.
+        let total = cost.totalKr
+        let keepIds: Set<String> = ["spot", "markup"]
+        let small = raw.filter { !keepIds.contains($0.id) && total > 0 && $0.amountKr / total < 0.02 }
+        if small.count > 1 {
+            let folded = MonthCostLine(
+                id: "other",
+                title: "Annat smått",
+                amountKr: small.reduce(0) { $0 + $1.amountKr },
+                detail: small.map(\.title).joined(separator: ", ")
+            )
+            raw = raw.filter { line in !small.contains { $0.id == line.id } }
+            raw.append(folded)
+        }
+        add("vat", "Moms", cost.vatKr)
+
+        return finish(
+            raw,
+            totalKr: total,
+            kWh: kWh,
+            note: profile.hasConfiguredGridCosts ? nil : "Elnätsavgift ingår inte. Välj elnätsbolag under Inställningar."
+        )
+    }
+
+    /// Coarser split for saved months, from the saved intervals. Returns nil unless the
+    /// intervals add up to the total on the card.
+    static func make(
+        intervals: [HistoricalEnergyIntervalValue],
+        retailContractType: RetailContractType,
+        displayedTotalKr: Double
+    ) -> MonthCostBreakdown? {
+        var kWh = 0.0, spot = 0.0, energy = 0.0, grid = 0.0, tax = 0.0, vat = 0.0, total = 0.0
+        for interval in intervals {
+            guard let used = interval.consumptionKWh, used > 0,
+                  let intervalTotal = interval.totalCostSEK else { continue }
+            kWh += used
+            spot += used * interval.spotPriceOrePerKWh / 100
+            energy += interval.energyCostSEK ?? 0
+            grid += interval.gridCostSEK ?? 0
+            tax += interval.taxCostSEK ?? 0
+            vat += interval.vatCostSEK ?? 0
+            total += intervalTotal
+        }
+        guard kWh > 0, abs(total - displayedTotalKr) <= 1.5 else { return nil }
+
+        var raw: [MonthCostLine] = []
+        func add(_ id: String, _ title: String, _ amount: Double) {
+            guard amount > 0.0000001 else { return }
+            raw.append(MonthCostLine(id: id, title: title, amountKr: amount))
+        }
+        if retailContractType == .spotPriceMarkup {
+            let rest = energy - spot
+            guard rest > -0.5 else { return nil }
+            add("spot", "Spotpris", spot)
+            add("markup", "Elhandlarens påslag och avgifter", max(rest, 0))
+        } else {
+            add("spot", "Elhandel", energy)
+        }
+        add("grid", "Elnät, överföring och fasta avgifter", grid)
+        add("tax", "Skatt på el och elcertifikat", tax)
+        add("vat", "Moms", vat)
+        return finish(raw, totalKr: total, kWh: kWh, note: nil)
+    }
+
+    /// Rounds to whole kronor so the shown lines add up to the shown total.
+    private static func finish(_ lines: [MonthCostLine], totalKr: Double, kWh: Double?, note: String?) -> MonthCostBreakdown {
+        let totalWhole = Int(totalKr.rounded())
+        var rounded = lines
+        let floors = lines.map { Int($0.amountKr.rounded(.down)) }
+        for index in rounded.indices { rounded[index].wholeKr = floors[index] }
+        var missing = totalWhole - floors.reduce(0, +)
+        let order = lines.indices.sorted {
+            (lines[$0].amountKr - Double(floors[$0])) > (lines[$1].amountKr - Double(floors[$1]))
+        }
+        var cursor = 0
+        while missing > 0, !order.isEmpty {
+            rounded[order[cursor % order.count]].wholeKr += 1
+            missing -= 1
+            cursor += 1
+        }
+        while missing < 0, !order.isEmpty {
+            let index = order[order.count - 1 - (cursor % order.count)]
+            if rounded[index].wholeKr > 0 { rounded[index].wholeKr -= 1; missing += 1 }
+            cursor += 1
+            if cursor > order.count * 4 { break }
+        }
+        return MonthCostBreakdown(lines: rounded, totalKr: totalKr, totalWholeKr: totalWhole, kWh: kWh, note: note)
+    }
+}
 
 // MARK: - Temperature-adjusted consumption
 
