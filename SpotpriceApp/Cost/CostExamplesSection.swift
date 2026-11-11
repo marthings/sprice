@@ -95,7 +95,7 @@ private struct CostExampleCard: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.78)
                 Text("kr")
-                    .font(DS.Font.footnote)
+                    .font(DS.Font.unit)
                     .foregroundStyle(DS.Color.secondary)
             }
 
