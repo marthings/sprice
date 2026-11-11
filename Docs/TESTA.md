@@ -71,7 +71,7 @@ Ta det i den ordning du vill. Skriv upp det som ser konstigt ut, även om du är
 ### Utseende och tillgänglighet
 
 - [ ] Prova mörkt läge. Texten ska vara lätt att läsa mot bakgrunden.
-- [ ] Bakgrunden är en mjuk färgväv i isblått (utan landskapsbilden) som rör sig långsamt. Syns den tydligt i både ljust och mörkt läge, och går kortens text fortfarande lätt att läsa? Med Minska rörelse eller Energisparläge på ska den stå still.
+- [ ] Bakgrunden är landskapsbilden och står stilla. Ser den ut att ha djup (en svag blå himmel högst upp, ett varmt sken vid horisonten) utan att kortens text eller klockan högst upp blir svårare att läsa? Titta i både ljust och mörkt läge.
 - [ ] Slå på **Visa exempeldata** under Inställningar. Alla flikar ska visa påhittad data, med texten Exempeldata högst upp. Slå av igen och se att dina egna siffror är tillbaka.
 - [ ] Gör texten större under Inställningar, Skärm och ljusstyrka, Textstorlek. Inget ska klippas eller hamna över annat.
 

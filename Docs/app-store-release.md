@@ -21,7 +21,7 @@ Bara iOS-appen med widgeten lämnas in till App Store. Menyradsappen på macOS d
 - [x] Bara det som behövs är påslaget i appens behörigheter (en delad datagrupp för appen och widgeten).
 - [x] Ingen reklam, ingen spårning, inga köp i appen och ingen molnsynk. Historiken stannar på enheten.
 - [x] Felsökningsutskrifter är borttagna ur koden.
-- [x] Tillgänglighet: textstorlek och kontrast är hanterade. Bakgrunden rör sig långsamt men står still med Minska rörelse, i Energisparläge och när appen inte är framme. Prisdiagrammet och elbilsdiagrammet går att läsa upp.
+- [x] Tillgänglighet: textstorlek och kontrast är hanterade. Bakgrunden är stilla, så det finns ingen rörelse att stänga av. Prisdiagrammet och elbilsdiagrammet går att läsa upp.
 - [x] Avgifterna räknas med de belopp som gällde när perioden var, och sparad historik har räknats om.
 - [x] Appen låste sig vid start efter omräkningen. Det är åtgärdat.
 
@@ -80,7 +80,7 @@ Storlek: liten är under en timme, medel är några timmar, stor är en dag elle
 - iOS-widgeten har tre storlekar. Gamla planer sa bara liten. Skärmbilderna ska visa rätt.
 - Fasta avgifter delas nu av från priset per kilowattimme. Det gör uppdelningen i Historik mer rättvis, men räknelogiken saknar tester.
 - Omräkningen av historiken körs nu i bakgrunden, en månad i taget. Vid första start efter en uppdatering kan den ta en stund.
-- Prov: bakgrunden är nu bara en långsamt rörlig färgväv i isblått, utan landskapsbilden. Accentfärgen är isblå i stället för orange. Martin jämför och bestämmer. Landskapsbilden ligger kvar i bildkatalogen men används inte.
+- Bakgrunden är landskapsbilden igen och står stilla. Den rörliga färgväven är borttagen. Högst upp finns en svag himmel i blekblått (ljust läge) och nattblått med ett svagt isblått sken (mörkt läge). Djupet kommer också från ett varmt sken vid horisonten och en svag skuggning i kanterna. Accentfärgen är isblå i stället för orange. Behöver ses på telefonen i ljust och mörkt läge.
 - Exempeldata (Inställningar, Visa exempeldata) skrivs aldrig till den riktiga historiken, widgetens data eller inloggningen. Den använder ett eget minne som kastas bort när den stängs av. Priser och temperatur hittas på i appen, så läget fungerar utan nät.
 - Elbilsfunktionen och temperaturjämförelsen fanns inte i de gamla planerna och har ingen egen testlista förutom `Docs/TESTA.md`.
 - En prognos för månaden kunde bli miljarder kronor när det bara fanns förbrukning till månadens första sekund. Prognosen visas nu först när det finns minst ett halvt dygn av data.
