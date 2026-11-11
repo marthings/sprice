@@ -64,8 +64,6 @@
 /* Begin PBXFileReference section */
 		200104F82F26582400B2F176 /* Spotprice.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Spotprice.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		201EA1FD2FBCAC8C0036D7BF /* SpotpriceApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SpotpriceApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		2026576D2FD897D2004BB572 /* trust-and-release-readiness-sprint.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "trust-and-release-readiness-sprint.md"; sourceTree = "<group>"; };
-		2026576E2FD89909004BB572 /* app-store-submission-and-polish-sprint.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "app-store-submission-and-polish-sprint.md"; sourceTree = "<group>"; };
 		202657792FD89ADD004BB572 /* SpotpriceAppWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SpotpriceAppWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		2026578E2FD89BB7004BB572 /* SpotpriceAppWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SpotpriceAppWidgetExtension.entitlements; sourceTree = "<group>"; };
 		202E8C552FC4D8C1003E56F0 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
@@ -560,8 +558,6 @@
 				20928BE92FBCE62800D1BD9F /* ios-app-menubar-parity-plan.md */,
 				20E8B4C02FC9DABC0096A4F0 /* historical-cost-and-consumption-plan.md */,
 				2050F2002FCACD050077896C /* tariffs-and-costs-sprint.md */,
-				2026576D2FD897D2004BB572 /* trust-and-release-readiness-sprint.md */,
-				2026576E2FD89909004BB572 /* app-store-submission-and-polish-sprint.md */,
 			);
 			path = Docs;
 			sourceTree = "<group>";

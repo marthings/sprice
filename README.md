@@ -118,7 +118,8 @@ Dokumenten i `Docs` och `Shared/Docs` är inte alla aktuella produktbeskrivninga
 - `Docs/ios-app-menubar-parity-plan.md`: historisk plan för att bygga iOS-paritet med menyradsappen. Flera delar är redan implementerade.
 - `Docs/ios-widget-plan.md`: plan för en separat iOS-widgetextension. Den är inte implementerad ännu.
 - `Docs/historical-cost-and-consumption-plan.md`: sprintplan för SwiftData-baserad historik, aggregeringar och möjlig framtida CloudKit-synk.
-- `Docs/trust-and-release-readiness-sprint.md`: prioriterad sprintplan för kostnadskorrekthet, tester, tarifftransparens, credential-säkerhet, historikexport och release-readiness.
+- `Docs/app-store-release.md`: läget inför App Store och en prioriterad lista över vad som återstår.
+- `Docs/TESTA.md`: instruktioner för testare i TestFlight, med en testrunda per flik.
 - `Docs/tariffs-and-costs-sprint.md`: sprintlogg för kostnadsprofil, tariff, avtalstyper, widget och copy. Den innehåller både klara punkter och kvarvarande verifiering.
 
 ## Kända Gap
