@@ -593,6 +593,12 @@ final class EnergyHistoryBackfillController {
             .removeObject(forKey: lastSuccessKey)
     }
 
+    /// Stops a running backfill, for example when a data source is disconnected.
+    func cancelInFlight() {
+        inFlight?.cancel()
+        inFlight = nil
+    }
+
     func runIfNeeded(
         recorder: EnergyHistoryRecorder? = nil,
         consumptionService: ConsumptionService,

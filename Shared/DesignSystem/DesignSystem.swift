@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import CoreText
 #if os(iOS)
 import UIKit
 #elseif os(macOS)
@@ -234,19 +233,6 @@ enum DS {
     // MARK: - Typography
 
     enum Font {
-        /// Widget extensions don't reliably honor `UIAppFonts`/`ATSApplicationFontsPath`,
-        /// so widget entry points register the bundled fonts with CoreText explicitly.
-        static func registerBundledFonts() {
-            _ = registration
-        }
-
-        private static let registration: Void = {
-            for resource in ["osans-regular", "osans-heavy"] {
-                guard let url = Bundle.main.url(forResource: resource, withExtension: "otf") else { continue }
-                CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
-            }
-        }()
-
         /// Text style a custom size scales with, so Dynamic Type grows big numbers
         /// and small notes in proportion to Apple's own hierarchy.
         static func textStyle(forSize size: CGFloat) -> SwiftUI.Font.TextStyle {
@@ -271,29 +257,37 @@ enum DS {
             max(size, minimumInformationSize)
         }
 
+        private static let systemFontName = ".AppleSystemUIFont"
+
+        /// The system font (SF Pro). Sizes are set per use, but still scale with Dynamic
+        /// Type relative to a text style, so the hierarchy follows Apple's own.
+        private static func system(_ size: CGFloat, weight: SwiftUI.Font.Weight, style: SwiftUI.Font.TextStyle) -> SwiftUI.Font {
+            .custom(systemFontName, size: size, relativeTo: style).weight(weight)
+        }
+
         static func regular(_ size: CGFloat, relativeTo style: SwiftUI.Font.TextStyle? = nil) -> SwiftUI.Font {
             let size = informative(size)
-            return .custom("PPObjectSans-Regular", size: size, relativeTo: style ?? textStyle(forSize: size))
+            return system(size, weight: .regular, style: style ?? textStyle(forSize: size))
         }
 
         static func medium(_ size: CGFloat, relativeTo style: SwiftUI.Font.TextStyle? = nil) -> SwiftUI.Font {
             let size = informative(size)
-            return .custom("PPObjectSans-Regular", size: size, relativeTo: style ?? textStyle(forSize: size)).weight(.medium)
+            return system(size, weight: .medium, style: style ?? textStyle(forSize: size))
         }
 
         static func semibold(_ size: CGFloat, relativeTo style: SwiftUI.Font.TextStyle? = nil) -> SwiftUI.Font {
             let size = informative(size)
-            return .custom("PPObjectSans-Heavy", size: size, relativeTo: style ?? textStyle(forSize: size))
+            return system(size, weight: .semibold, style: style ?? textStyle(forSize: size))
         }
 
         static func bold(_ size: CGFloat, relativeTo style: SwiftUI.Font.TextStyle? = nil) -> SwiftUI.Font {
             let size = informative(size)
-            return .custom("PPObjectSans-Heavy", size: size, relativeTo: style ?? textStyle(forSize: size))
+            return system(size, weight: .bold, style: style ?? textStyle(forSize: size))
         }
 
         /// Decoration only (never for text people need to read).
         static func decorative(_ size: CGFloat) -> SwiftUI.Font {
-            .custom("PPObjectSans-Regular", size: size, relativeTo: .caption2)
+            system(size, weight: .regular, style: .caption2)
         }
 
         // Preset sizes
@@ -310,11 +304,11 @@ enum DS {
         /// Navigation titles can't take a SwiftUI `Font`, so UIKit chrome uses this.
         static func configureNavigationBarAppearance() {
             let titleAttributes: [NSAttributedString.Key: Any] = [
-                .font: uiHeavy(size: 17, textStyle: .headline),
+                .font: uiBold(size: 17, textStyle: .headline),
                 .foregroundColor: UIColor.label
             ]
             let largeTitleAttributes: [NSAttributedString.Key: Any] = [
-                .font: uiHeavy(size: 34, textStyle: .largeTitle),
+                .font: uiBold(size: 34, textStyle: .largeTitle),
                 .foregroundColor: UIColor.label
             ]
 
@@ -339,9 +333,8 @@ enum DS {
             navigationBar.compactAppearance = compact
         }
 
-        private static func uiHeavy(size: CGFloat, textStyle: UIFont.TextStyle) -> UIFont {
-            let base = UIFont(name: "PPObjectSans-Heavy", size: size)
-                ?? .systemFont(ofSize: size, weight: .heavy)
+        private static func uiBold(size: CGFloat, textStyle: UIFont.TextStyle) -> UIFont {
+            let base = UIFont.systemFont(ofSize: size, weight: .bold)
             return UIFontMetrics(forTextStyle: textStyle).scaledFont(for: base)
         }
         #endif

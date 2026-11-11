@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct AppSettingsView: View {
     @Environment(\.scenePhase) private var scenePhase
@@ -36,6 +37,21 @@ struct AppSettingsView: View {
     }
 
     var body: some View {
+        ScrollViewReader { proxy in
+            form
+#if DEBUG
+                .task {
+                    // DEBUG only: `-ScrollTo history` scrolls to a section, for screenshots.
+                    let arguments = ProcessInfo.processInfo.arguments
+                    guard let index = arguments.firstIndex(of: "-ScrollTo"), arguments.indices.contains(index + 1) else { return }
+                    try? await Task.sleep(for: .seconds(2))
+                    proxy.scrollTo(arguments[index + 1], anchor: .top)
+                }
+#endif
+        }
+    }
+
+    private var form: some View {
         Form {
             overviewSection
             consumptionSection
@@ -44,6 +60,8 @@ struct AppSettingsView: View {
             gridTariffSection
             temperaturePlaceSection
             electricCarSection
+            SettingsHistoryDataSection().id("history")
+            aboutSection.id("about")
         }
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
@@ -276,6 +294,56 @@ struct AppSettingsView: View {
                 .spriceSettingsHeaderStyle()
         } footer: {
             Text("Används för att jämföra förbrukningen när det varit varmare eller kallare. Standard är Vaggeryd, nära Vaggeryds elnät. Du väljer ort själv, appen använder inte din position. Dygnstemperatur från Open-Meteo.")
+                .spriceSettingsFooterStyle()
+        }
+    }
+
+    private var aboutSection: some View {
+        Section {
+            Link(destination: AppLinks.privacyPolicy) {
+                LabeledContent("Integritetspolicy") {
+                    Image(systemName: "arrow.up.right")
+                        .foregroundStyle(DS.Color.secondary)
+                        .accessibilityHidden(true)
+                }
+            }
+            .accessibilityHint("Öppnar sidan i webbläsaren")
+            .spriceListRowBackground()
+
+            Link(destination: AppLinks.support) {
+                LabeledContent("Support") {
+                    Image(systemName: "arrow.up.right")
+                        .foregroundStyle(DS.Color.secondary)
+                        .accessibilityHidden(true)
+                }
+            }
+            .accessibilityHint("Öppnar sidan i webbläsaren")
+            .spriceListRowBackground()
+
+            Link(destination: AppLinks.priceSource) {
+                LabeledContent("Elpriser från Elpriset just nu.se") {
+                    Image(systemName: "arrow.up.right")
+                        .foregroundStyle(DS.Color.secondary)
+                        .accessibilityHidden(true)
+                }
+            }
+            .accessibilityHint("Öppnar sidan i webbläsaren")
+            .spriceListRowBackground()
+
+            Link(destination: AppLinks.temperatureSource) {
+                LabeledContent("Temperatur från Open-Meteo.com") {
+                    Image(systemName: "arrow.up.right")
+                        .foregroundStyle(DS.Color.secondary)
+                        .accessibilityHidden(true)
+                }
+            }
+            .accessibilityHint("Öppnar sidan i webbläsaren")
+            .spriceListRowBackground()
+        } header: {
+            Text("Om Sprice")
+                .spriceSettingsHeaderStyle()
+        } footer: {
+            Text("All data stannar på din telefon. Appen har ingen inloggning hos oss, inga annonser och ingen spårning.")
                 .spriceSettingsFooterStyle()
         }
     }
@@ -600,4 +668,138 @@ struct AppSettingsView: View {
             .navigationTitle("Inställningar")
             .navigationBarTitleDisplayMode(.large)
     }
+}
+
+
+// MARK: - Saved history: export and delete
+
+struct SettingsHistoryDataSection: View {
+    @State private var status = "Läser sparad historik..."
+    @State private var isPreparingExport = false
+    @State private var shareItem: HistoryShareItem?
+    @State private var isConfirmingDeletion = false
+
+    private let settings = ConsumptionSettings.shared
+
+    var body: some View {
+        Section {
+            Text(status)
+                .font(DS.Font.body)
+                .foregroundStyle(DS.Color.secondary)
+                .spriceListRowBackground()
+
+            Button {
+                exportHistory()
+            } label: {
+                HStack {
+                    Label("Exportera historik", systemImage: "square.and.arrow.up")
+                        .font(DS.Font.body)
+                    Spacer()
+                    if isPreparingExport {
+                        ProgressView()
+                    }
+                }
+            }
+            .disabled(isPreparingExport)
+            .accessibilityHint("Öppnar delningsmenyn med historiken som en CSV-fil")
+            .spriceListRowBackground()
+
+            Button(role: .destructive) {
+                isConfirmingDeletion = true
+            } label: {
+                Label("Radera historik", systemImage: "trash")
+                    .font(DS.Font.body)
+                    .foregroundStyle(DS.Color.dangerText)
+            }
+            .accessibilityHint("Tar bort all sparad historik från telefonen efter en bekräftelse")
+            .spriceListRowBackground()
+        } header: {
+            Text("Sparad historik")
+                .spriceSettingsHeaderStyle()
+        } footer: {
+            Text("Historiken sparas bara på den här telefonen och delas med widgeten. Exporten är en CSV-fil du kan öppna i till exempel Numbers eller Excel.")
+                .spriceSettingsFooterStyle()
+        }
+        .onAppear { loadStatus() }
+        .sheet(item: $shareItem) { item in
+            HistoryShareSheet(url: item.url)
+                .presentationDetents([.medium, .large])
+        }
+        .confirmationDialog(
+            "Radera historiken?",
+            isPresented: $isConfirmingDeletion,
+            titleVisibility: .visible
+        ) {
+            Button("Radera historik", role: .destructive) {
+                deleteHistory()
+            }
+            Button("Avbryt", role: .cancel) {}
+        } message: {
+            Text("Det här tar bort all sparad förbrukning, alla sparade priser och alla uträknade kostnader från den här telefonen, för alla månader. Det går inte att ångra. Dina inställningar och inloggningar finns kvar, och inget raderas hos Tibber, Vaggeryds Energi eller ditt elnätsbolag. Om du är kopplad till en datakälla kan appen hämta ny förbrukning senare.")
+        }
+    }
+
+    private func loadStatus() {
+        do {
+            let store = try EnergyHistoryStores.reader()
+            let months = try store.fetchMonthlySummaries(priceArea: nil)
+            let monthCount = Set(months.map(\.periodKey)).count
+            switch monthCount {
+            case 0: status = "Ingen sparad historik ännu."
+            case 1: status = "1 sparad månad."
+            default: status = "\(monthCount) sparade månader."
+            }
+        } catch {
+            status = "Kunde inte läsa historiken: \(error.userFacingMessage)"
+        }
+    }
+
+    private func exportHistory() {
+        isPreparingExport = true
+        status = "Förbereder exporten..."
+        let priceArea = settings.priceArea
+        Task {
+            defer { isPreparingExport = false }
+            do {
+                let url = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("sprice-history-\(priceArea).csv", isDirectory: false)
+                let writer = try EnergyHistoryStores.writer()
+                try await writer.exportHistoryCSV(priceArea: priceArea, to: url)
+                loadStatus()
+                shareItem = HistoryShareItem(url: url)
+            } catch {
+                status = "Kunde inte exportera historiken: \(error.userFacingMessage)"
+            }
+        }
+    }
+
+    private func deleteHistory() {
+        Task {
+            do {
+                let writer = try EnergyHistoryStores.writer()
+                try await writer.deleteAllHistory()
+                WidgetHistorySummaryCache.clear()
+                WidgetReload.timelines()
+                NotificationCenter.default.post(name: .consumptionSettingsDidSave, object: nil)
+                status = "Historiken är raderad."
+            } catch {
+                status = "Kunde inte radera historiken: \(error.userFacingMessage)"
+            }
+        }
+    }
+}
+
+private struct HistoryShareItem: Identifiable {
+    let id = UUID()
+    let url: URL
+}
+
+private struct HistoryShareSheet: UIViewControllerRepresentable {
+    let url: URL
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: [url], applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }
