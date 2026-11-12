@@ -15,7 +15,7 @@ struct SpotpriceApp: App {
         WidgetReload.timelines()
 #if DEBUG
         let missing = DS.Font.missingFonts()
-        print(missing.isEmpty ? "Figtree: alla typsnitt laddade" : "Figtree saknas: \(missing)")
+        print(missing.isEmpty ? "DM Sans: alla typsnitt laddade" : "DM Sans saknas: \(missing)")
 #endif
     }
 

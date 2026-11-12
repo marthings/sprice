@@ -256,24 +256,24 @@ enum DS {
             max(size, minimumInformationSize)
         }
 
-        /// Figtree, under the SIL Open Font License 1.1 (free for commercial apps).
+        /// DM Sans (googlefonts/dm-fonts, static files), under the SIL Open Font License 1.1 (free for commercial apps).
         /// The files and OFL.txt are in Shared/DesignSystem/Fonts. They are registered
         /// through UIAppFonts (iOS) and ATSApplicationFontsPath (macOS) in each Info.plist.
         static let fontNames = [
-            "Figtree-Regular", "Figtree-Medium", "Figtree-SemiBold",
-            "Figtree-Bold", "Figtree-ExtraBold", "Figtree-Black"
+            "DMSans-Regular", "DMSans-Medium", "DMSans-SemiBold",
+            "DMSans-Bold", "DMSans-ExtraBold", "DMSans-Black"
         ]
 
-        /// The Figtree file for a weight. Headings, amounts and units are meant to look heavy,
-        /// so semibold uses Figtree Bold, bold uses ExtraBold, and heavy and black use Black (900).
+        /// The DM Sans file for a weight. Headings, amounts and units are meant to look heavy,
+        /// so semibold uses DM Sans Bold, bold uses ExtraBold, and heavy and black use Black (900).
         /// Body text (regular and medium) keeps its own weight.
         static func fontName(for weight: SwiftUI.Font.Weight) -> String {
             switch weight {
-            case .medium: return "Figtree-Medium"
-            case .semibold: return "Figtree-Bold"
-            case .bold: return "Figtree-ExtraBold"
-            case .heavy, .black: return "Figtree-Black"
-            default: return "Figtree-Regular"
+            case .medium: return "DMSans-Medium"
+            case .semibold: return "DMSans-Bold"
+            case .bold: return "DMSans-ExtraBold"
+            case .heavy, .black: return "DMSans-Black"
+            default: return "DMSans-Regular"
             }
         }
 
@@ -286,7 +286,7 @@ enum DS {
             #endif
         }
 
-        /// iOS: Figtree at the given size, scaled with the closest text style, so it follows Dynamic Type.
+        /// iOS: DM Sans at the given size, scaled with the closest text style, so it follows Dynamic Type.
         /// macOS: exact sizes, since macOS has no Dynamic Type.
         private static func system(_ size: CGFloat, weight: SwiftUI.Font.Weight) -> SwiftUI.Font {
             #if os(macOS)
@@ -312,7 +312,7 @@ enum DS {
             system(informative(size), weight: .bold)
         }
 
-        /// Figtree Black (900). For navigation titles, big amounts and the units next to them.
+        /// DM Sans Black (900). For navigation titles, big amounts and the units next to them.
         static func black(_ size: CGFloat) -> SwiftUI.Font {
             system(informative(size), weight: .black)
         }
@@ -340,7 +340,7 @@ enum DS {
         static let footnote = medium(13)
         /// Units next to an amount (kr, kWh, kr/kWh). Heavier than notes so they don't look weak next to the number.
         static let unit = bold(13)
-        /// Units next to a big hero amount, in Figtree Black (900).
+        /// Units next to a big hero amount, in DM Sans Black (900).
         static let unitLarge = black(15)
 
         #if os(iOS)
@@ -376,7 +376,7 @@ enum DS {
             navigationBar.compactAppearance = compact
         }
 
-        /// Navigation titles in Figtree Black (900), scaled with Dynamic Type.
+        /// Navigation titles in DM Sans Black (900), scaled with Dynamic Type.
         private static func uiBlack(size: CGFloat, textStyle: UIFont.TextStyle) -> UIFont {
             let base = UIFont(name: fontName(for: .black), size: size)
                 ?? UIFont.systemFont(ofSize: size, weight: .black)
