@@ -60,6 +60,8 @@ final class ConsumptionSettings {
 
         // Central cost profile
         static let costProfile = "settings_costProfile"
+        /// Every saved version of the profile, with the day each applies from (`CostProfileVersion`).
+        static let costProfileVersions = "settings_costProfileVersions"
 
         static let includeHypotheticalEffectTariff = "settings_includeHypotheticalEffectTariff"
         static let compareFixedPriceOrePerKWh = "settings_compareFixedPriceOrePerKWh"
@@ -145,6 +147,7 @@ final class ConsumptionSettings {
         didSet {
             guard costProfile != oldValue else { return }
             saveCostProfile(costProfile)
+            saveCostProfileVersion(costProfile)
             mirrorCostProfileToLegacyDefaults(costProfile)
             syncLegacyProperties(from: costProfile)
             NotificationCenter.default.post(name: .consumptionSettingsDidSave, object: nil)
@@ -456,6 +459,38 @@ final class ConsumptionSettings {
         Self.defaults.set(data, forKey: Keys.costProfile)
     }
 
+    // MARK: - Cost Profile Versions
+
+    /// Every saved version of the profile, oldest first. `costProfile` is the one in force today.
+    var costProfileVersions: [CostProfileVersion] {
+        CostProfileHistory.decoded(Self.defaults.data(forKey: Keys.costProfileVersions))
+    }
+
+    /// The profile that applied at `date`. Costs are still priced with `costProfile` for now;
+    /// choosing the version per interval comes later.
+    func profile(on date: Date) -> CostProfile {
+        CostProfileHistory.profile(on: date, in: costProfileVersions) ?? costProfile
+    }
+
+    /// The first time versions are used, the saved profile becomes the first version.
+    /// Runs on every start and does nothing once versions exist.
+    private func migrateCostProfileVersionsIfNeeded() {
+        let existing = costProfileVersions
+        guard existing.isEmpty else { return }
+        let migrated = CostProfileHistory.migrated(existing, currentProfile: costProfile)
+        if let data = CostProfileHistory.encoded(migrated) {
+            Self.defaults.set(data, forKey: Keys.costProfileVersions)
+        }
+    }
+
+    /// Saves `profile` as the version from the start of today. Changes only apply forward.
+    private func saveCostProfileVersion(_ profile: CostProfile, now: Date = Date()) {
+        let existing = costProfileVersions
+        let next = CostProfileHistory.saving(profile, on: now, to: existing)
+        guard next != existing, let data = CostProfileHistory.encoded(next) else { return }
+        Self.defaults.set(data, forKey: Keys.costProfileVersions)
+    }
+
     private func mirrorCostProfileToLegacyDefaults(_ profile: CostProfile) {
         Self.defaults.set(profile.priceArea, forKey: Keys.priceArea)
         Self.defaults.set(profile.retailerMarkupOrePerKWh, forKey: Keys.providerSurcharge)
@@ -591,8 +626,13 @@ final class ConsumptionSettings {
         }
 
         saveCostProfile(costProfile)
+        migrateCostProfileVersionsIfNeeded()
+        saveCostProfileVersion(costProfile)
         mirrorCostProfileToLegacyDefaults(costProfile)
         syncLegacyProperties(from: costProfile)
+#if DEBUG
+        _ = CostProfileVersionGuard.isValid
+#endif
 
         // The real values are loaded and saved above. Demo mode starts after that, so it
         // starts from them and can put them back.
