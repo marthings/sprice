@@ -165,20 +165,29 @@ final class EnergyHistoryRecorder {
         // Demo mode has nothing to reprice, and must not set the "done" markers of the real history.
         guard !DemoMode.isActive else { return }
 
-        // First the fees. This needs no network: consumption and spot prices stay as they are.
-        if EnergyHistoryTariffSchedule.needsReprice {
+        // First the fees and agreement versions. This needs no network: consumption and spot
+        // prices stay as they are. New fee rates reprice everything; a changed version only
+        // from the first day it touches (normally today).
+        let versions = HistoryPricing.savedVersions()
+        let feesChanged = EnergyHistoryTariffSchedule.needsReprice
+        let versionStart = EnergyHistoryTariffSchedule.versionRepriceStart(for: versions)
+        if feesChanged || versionStart != nil {
             do {
                 // Off the main thread: the writer actor runs on main, and this is a lot of rows.
                 let container = try EnergyHistoryStores.container()
                 let calendar = self.calendar
+                let from: Date? = feesChanged ? nil : versionStart.map { calendar.startOfDay(for: $0) }
                 let updated = try await Task.detached(priority: .utility) {
                     try EnergyHistoryWriting.repriceTariffs(
                         fallbackProfile: costProfile,
+                        versions: versions,
+                        from: from,
                         container: container,
                         calendar: calendar
                     )
                 }.value
                 EnergyHistoryTariffSchedule.markComplete()
+                EnergyHistoryTariffSchedule.markPriced(versions: versions)
                 if updated > 0 {
                     scheduleHistoryDidUpdate()
                     AppLog.history.info("Priced \(updated) history intervals with the fees of their own period")
@@ -210,7 +219,8 @@ final class EnergyHistoryRecorder {
 
             let updated = try await writer.repriceMeasuredRecords(
                 lookups: lookups,
-                fallbackProfile: costProfile
+                fallbackProfile: costProfile,
+                versions: HistoryPricing.savedVersions()
             )
             EnergyHistorySpotMatching.markComplete()
             if updated > 0 {
@@ -365,9 +375,18 @@ final class EnergyHistoryRecorder {
                 priceArea: priceArea,
                 throttle: calendar.dateInterval(of: .month, for: startDate)?.start != calendar.dateInterval(of: .month, for: now)?.start
             )
-            // Price the period with the fees that applied then, not with today's.
-            let periodProfile = HistoricalTariffRates.profile(costProfile, forPeriodStarting: startDate)
-            let snapshot = HistoricalCostProfileSnapshot(profile: periodProfile, capturedAt: now)
+            // Each interval with the agreement version and the fees that applied when it
+            // started, not with today's. Versions start at midnight, so one profile per day.
+            let versions = HistoryPricing.savedVersions()
+            var profilesByDay: [Date: (profile: CostProfile, snapshot: HistoricalCostProfileSnapshot)] = [:]
+            func periodProfile(for start: Date) -> (profile: CostProfile, snapshot: HistoricalCostProfileSnapshot) {
+                let day = calendar.startOfDay(for: start)
+                if let known = profilesByDay[day] { return known }
+                let profile = HistoryPricing.periodProfile(at: start, current: costProfile, versions: versions)
+                let value = (profile, HistoricalCostProfileSnapshot(profile: profile, capturedAt: now))
+                profilesByDay[day] = value
+                return value
+            }
 
             let matchedIntervals = intervals.compactMap { interval -> (interval: ConsumptionInterval, spotPriceOre: Double)? in
                 guard let spotPriceOre = representativeSpotPrice(for: interval, in: spotPriceLookup) else {
@@ -389,10 +408,11 @@ final class EnergyHistoryRecorder {
             }
 
             let drafts = matchedIntervals.map { matched in
+                let priced = periodProfile(for: matched.interval.start)
                 let cost = totalCostService.calculateTotalCost(
                     kWh: matched.interval.kWh,
                     spotPriceOre: matched.spotPriceOre,
-                    profile: periodProfile,
+                    profile: priced.profile,
                     hoursInPeriod: matched.interval.hoursInPeriod
                 )
 
@@ -408,7 +428,7 @@ final class EnergyHistoryRecorder {
                     taxCostSEK: cost.taxesAndFeesKr,
                     vatCostSEK: cost.vatKr,
                     totalCostSEK: cost.totalKr,
-                    costProfileSnapshot: snapshot,
+                    costProfileSnapshot: priced.snapshot,
                     source: fetched.resolution.source,
                     confidence: confidence,
                     calendar: calendar

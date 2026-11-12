@@ -990,11 +990,13 @@ actor EnergyHistoryWriter {
 
     func repriceMeasuredRecords(
         lookups: [String: [Date: Double]],
-        fallbackProfile: CostProfile
+        fallbackProfile: CostProfile,
+        versions: [CostProfileVersion]
     ) throws -> Int {
         try EnergyHistoryWriting.repriceMeasuredRecords(
             lookups: lookups,
             fallbackProfile: fallbackProfile,
+            versions: versions,
             context: modelContext,
             calendar: .energyHistory
         )
@@ -1061,20 +1063,34 @@ nonisolated enum EnergyHistoryWriting {
         guard !drafts.isEmpty else { return }
 
         let now = Date()
-        let snapshotData = drafts.lazy.compactMap(\.costProfileSnapshot).first.flatMap(
-            HistoricalCostProfileSnapshot.encodedData
-        )
-        let snapshotHash = snapshotData.map(HistoricalCostProfileSnapshot.hash(of:))
-        if let snapshotData, let snapshotHash {
-            try upsertSnapshotRecord(snapshotHash: snapshotHash, data: snapshotData, context: context)
+        // Each draft keeps its own profile: intervals under different agreement versions
+        // or fee periods can be saved in one batch.
+        var snapshotHashes: [Data: String] = [:]
+        var draftSnapshots: [(data: Data?, hash: String?)] = []
+        draftSnapshots.reserveCapacity(drafts.count)
+        for draft in drafts {
+            guard let data = draft.costProfileSnapshot.flatMap(HistoricalCostProfileSnapshot.encodedData) else {
+                draftSnapshots.append((nil, nil))
+                continue
+            }
+            if let hash = snapshotHashes[data] {
+                draftSnapshots.append((data, hash))
+                continue
+            }
+            let hash = HistoricalCostProfileSnapshot.hash(of: data)
+            try upsertSnapshotRecord(snapshotHash: hash, data: data, context: context)
+            snapshotHashes[data] = hash
+            draftSnapshots.append((data, hash))
         }
         var existingByKey = try fetchExistingRecords(for: drafts, context: context)
         var affectedDayKeys = Set<String>()
         var affectedMonthKeys = Set<String>()
 
-        for draft in drafts {
+        for (index, draft) in drafts.enumerated() {
             affectedDayKeys.insert(draft.dayKey)
             affectedMonthKeys.insert(draft.monthKey)
+            let snapshotData = draftSnapshots[index].data
+            let snapshotHash = draftSnapshots[index].hash
 
             if let existingRecord = existingByKey[draft.deduplicationKey] {
                 existingRecord.update(
@@ -1272,6 +1288,7 @@ nonisolated enum EnergyHistoryWriting {
     nonisolated static func repriceMeasuredRecords(
         lookups: [String: [Date: Double]],
         fallbackProfile: CostProfile,
+        versions: [CostProfileVersion] = [],
         context: ModelContext,
         calendar: Calendar
     ) throws -> Int {
@@ -1295,8 +1312,14 @@ nonisolated enum EnergyHistoryWriting {
                 continue
             }
 
-            let storedProfile = try costProfile(for: record, context: context) ?? fallbackProfile
-            let profile = HistoricalTariffRates.profile(storedProfile, forPeriodStarting: record.intervalStart)
+            // The agreement version of the interval's own time, with that date's fees.
+            let base = HistoryPricing.recordBase(
+                at: record.intervalStart,
+                saved: try costProfile(for: record, context: context),
+                fallback: fallbackProfile,
+                versions: versions
+            )
+            let profile = HistoricalTariffRates.profile(base.profile, forPeriodStarting: record.intervalStart)
 
             let cost = service.calculateTotalCost(
                 kWh: consumption,
@@ -1330,23 +1353,31 @@ nonisolated enum EnergyHistoryWriting {
         return updated
     }
 
-    /// Prices saved intervals again with the fees that applied in their own period
-    /// (see `HistoricalTariffRates`). Consumption and spot prices are not touched.
-    /// Safe to run twice: a second run finds nothing to change.
+    /// Prices saved intervals again with the agreement version and the fees that applied
+    /// in their own period (see `HistoryPricing` and `HistoricalTariffRates`). Consumption
+    /// and spot prices are not touched. Safe to run twice: a second run finds nothing to change.
+    ///
+    /// With `from`, only intervals starting at or after it are looked at (a new version
+    /// from today leaves older rows alone).
     ///
     /// Call this away from the main thread. It works one month at a time with its
     /// own short-lived context and saves after each month, so an interrupted run
     /// keeps what it has done.
     nonisolated static func repriceTariffs(
         fallbackProfile: CostProfile,
+        versions: [CostProfileVersion] = [],
+        from: Date? = nil,
         container: ModelContainer,
         calendar: Calendar
     ) throws -> Int {
+        let firstMonthKey = from.map { EnergyHistoryKey.monthKey(for: $0, calendar: calendar) }
         let monthKeys = Set(
             try ModelContext(container)
                 .fetch(FetchDescriptor<HistoricalMonthlyEnergySummary>())
                 .map(\.monthKey)
-        ).sorted()
+        )
+        .filter { key in firstMonthKey.map { key >= $0 } ?? true }
+        .sorted()
 
         var updated = 0
         var changedMonths = Set<String>()
@@ -1357,6 +1388,8 @@ nonisolated enum EnergyHistoryWriting {
             let changedInMonth = try repriceTariffs(
                 monthKey: monthKey,
                 fallbackProfile: fallbackProfile,
+                versions: versions,
+                from: from,
                 context: context,
                 calendar: calendar
             )
@@ -1375,6 +1408,8 @@ nonisolated enum EnergyHistoryWriting {
     nonisolated private static func repriceTariffs(
         monthKey: String,
         fallbackProfile: CostProfile,
+        versions: [CostProfileVersion],
+        from: Date?,
         context: ModelContext,
         calendar: Calendar
     ) throws -> Int {
@@ -1394,6 +1429,7 @@ nonisolated enum EnergyHistoryWriting {
 
         for record in records {
             guard let consumption = record.consumptionKWh, consumption > 0 else { continue }
+            if let from, record.intervalStart < from { continue }
 
             let original: HistoricalCostProfileSnapshot?
             if let hash = record.snapshotHash, let snapshot = storedSnapshots[hash] {
@@ -1403,8 +1439,16 @@ nonisolated enum EnergyHistoryWriting {
             } else {
                 original = nil
             }
-            let stored = original.flatMap(CostProfile.init(historySnapshot:)) ?? fallbackProfile
-            let rated = HistoricalTariffRates.profile(stored, forPeriodStarting: record.intervalStart)
+            let saved = original.flatMap(CostProfile.init(historySnapshot:))
+            let stored = saved ?? fallbackProfile
+            // The agreement version in force when the interval started, then that date's fees.
+            let base = HistoryPricing.recordBase(
+                at: record.intervalStart,
+                saved: saved,
+                fallback: fallbackProfile,
+                versions: versions
+            )
+            let rated = HistoricalTariffRates.profile(base.profile, forPeriodStarting: record.intervalStart)
 
             let hoursInPeriod = max(record.intervalEnd.timeIntervalSince(record.intervalStart) / 3600, 1 / 60)
             let cost = service.calculateTotalCost(
@@ -1426,13 +1470,17 @@ nonisolated enum EnergyHistoryWriting {
             }
 
             // Keep the saved profile in step with the fees the interval was priced with.
-            if let original, rated != stored {
-                let cacheKey = "\(record.snapshotHash ?? "embedded")|\(rated.gridMonthlyFee ?? -1)|\(rated.gridTransferOrePerKWh ?? -1)|\(rated.energyTaxOrePerKWh)"
+            // The key holds what the snapshot is built from: the version (or the saved
+            // snapshot under the first version) and the fees for the row's date.
+            if original != nil || base.version != nil, rated != stored {
+                let sourceKey = base.version.map { "v:\($0.id.uuidString)" } ?? (record.snapshotHash ?? "embedded")
+                let cacheKey = "\(sourceKey)|\(rated.gridMonthlyFee ?? -1)|\(rated.gridTransferOrePerKWh ?? -1)|\(rated.energyTaxOrePerKWh)"
                 let newHash: String?
                 if let known = swappedHashes[cacheKey] {
                     newHash = known
                 } else {
-                    let snapshot = HistoricalCostProfileSnapshot(profile: rated, capturedAt: original.capturedAt)
+                    let capturedAt = base.version?.validFrom ?? original?.capturedAt ?? record.intervalStart
+                    let snapshot = HistoricalCostProfileSnapshot(profile: rated, capturedAt: capturedAt)
                     if let data = HistoricalCostProfileSnapshot.encodedData(snapshot) {
                         let hash = HistoricalCostProfileSnapshot.hash(of: data)
                         try upsertSnapshotRecord(snapshotHash: hash, data: data, context: context)

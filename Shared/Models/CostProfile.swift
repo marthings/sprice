@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import os
 
 // MARK: - Cost Profile
 
@@ -616,6 +617,148 @@ nonisolated enum CostProfileHistory {
     }
 }
 
+/// Which agreement version and which fees price a moment in saved history.
+///
+/// - Every interval gets the version in force when it started (`CostProfileHistory.version(on:)`)
+///   with the fees of `HistoricalTariffRates` for that date on top.
+/// - The newest version is the profile the app uses now (`current`), so history
+///   without a change is priced exactly as before versions existed.
+/// - Forecasts and "right now" do not use this. They use today's profile.
+nonisolated enum HistoryPricing {
+    static let versionsKey = "settings_costProfileVersions"
+    private static let realSuiteName = "group.mb.Spotprice"
+    private static let demoSuiteName = "mb.Spotprice.demo"
+
+    private struct Cache: Sendable {
+        var suite = ""
+        var data: Data?
+        var versions: [CostProfileVersion] = []
+    }
+
+    private static let cache = OSAllocatedUnfairLock(initialState: Cache())
+
+    /// The saved versions, from the demo store while demo mode is on. Decoded once per change.
+    static func savedVersions() -> [CostProfileVersion] {
+        let suite = DemoMode.isActive ? demoSuiteName : realSuiteName
+        let data = UserDefaults(suiteName: suite)?.data(forKey: versionsKey)
+        return cache.withLock { cache in
+            if cache.suite == suite, cache.data == data {
+                return cache.versions
+            }
+            cache.suite = suite
+            cache.data = data
+            cache.versions = CostProfileHistory.decoded(data)
+            return cache.versions
+        }
+    }
+
+    /// The version in force at `date`, or nil when it is the newest one (or there are none).
+    static func olderVersion(at date: Date, in versions: [CostProfileVersion]) -> CostProfileVersion? {
+        guard let version = CostProfileHistory.version(on: date, in: versions),
+              let newest = versions.max(by: { $0.validFrom < $1.validFrom }),
+              version.id != newest.id else {
+            return nil
+        }
+        return version
+    }
+
+    /// Profile for a past period: the version at `date` with that date's fees.
+    static func periodProfile(
+        at date: Date,
+        current: CostProfile,
+        versions: [CostProfileVersion]
+    ) -> CostProfile {
+        let base = olderVersion(at: date, in: versions)?.profile ?? current
+        return HistoricalTariffRates.profile(base, forPeriodStarting: date)
+    }
+
+    static func periodProfile(at date: Date, current: CostProfile) -> CostProfile {
+        periodProfile(at: date, current: current, versions: savedVersions())
+    }
+
+    /// Profile for the running month, which used today's profile as it is. Days under an
+    /// older version get that version with their fees, the rest keep `current` untouched.
+    static func liveProfile(
+        at date: Date,
+        current: CostProfile,
+        versions: [CostProfileVersion]
+    ) -> CostProfile {
+        guard let version = olderVersion(at: date, in: versions) else { return current }
+        return HistoricalTariffRates.profile(version.profile, forPeriodStarting: date)
+    }
+
+    static func liveProfile(at date: Date, current: CostProfile) -> CostProfile {
+        liveProfile(at: date, current: current, versions: savedVersions())
+    }
+
+    /// True when a version starts inside the interval (after its start), so one profile
+    /// cannot describe all of it.
+    static func hasVersionChange(in interval: Foundation.DateInterval, versions: [CostProfileVersion]) -> Bool {
+        versions.contains { $0.validFrom > interval.start && $0.validFrom < interval.end }
+    }
+
+    /// The base for repricing a saved interval, before the date's fees.
+    ///
+    /// - Under the first version (from `distantPast`) the interval keeps the profile saved
+    ///   with it, as before versions existed. Without one, the first version's profile,
+    ///   or `fallback` while that is still the newest.
+    /// - Under a later version, that version's profile, through the same snapshot round
+    ///   trip as saved profiles so both are compared on equal terms.
+    static func recordBase(
+        at date: Date,
+        saved: CostProfile?,
+        fallback: CostProfile,
+        versions: [CostProfileVersion]
+    ) -> (profile: CostProfile, version: CostProfileVersion?) {
+        guard let version = CostProfileHistory.version(on: date, in: versions) else {
+            return (saved ?? fallback, nil)
+        }
+        if version.validFrom == .distantPast {
+            if let saved { return (saved, nil) }
+            return (olderVersion(at: date, in: versions)?.profile ?? fallback, nil)
+        }
+        return (normalized(version.profile, capturedAt: version.validFrom), version)
+    }
+
+    static func normalized(_ profile: CostProfile, capturedAt: Date) -> CostProfile {
+        CostProfile(historySnapshot: HistoricalCostProfileSnapshot(profile: profile, capturedAt: capturedAt)) ?? profile
+    }
+
+    /// Fixed monthly fees (with VAT) over `interval`, spread per day by the profile of each day.
+    /// For a month with one profile this equals the monthly fee times hours / 730.
+    static func fixedFeesKr(
+        in interval: Foundation.DateInterval,
+        profileForDay: (Date) -> CostProfile,
+        calendar: Calendar = .energyHistory
+    ) -> Double {
+        var total = 0.0
+        var dayStart = calendar.startOfDay(for: interval.start)
+        while dayStart < interval.end {
+            let next = calendar.date(byAdding: .day, value: 1, to: dayStart) ?? interval.end
+            let from = max(dayStart, interval.start)
+            let to = min(next, interval.end)
+            let hours = max(to.timeIntervalSince(from) / 3600, 0)
+            let profile = profileForDay(dayStart)
+            let monthly = (profile.gridMonthlyFee ?? 0) + profile.retailerMonthlyFee
+            // Monthly fees are entered with VAT, as in `TotalCostService`.
+            total += monthly * hours / 730
+            dayStart = next
+        }
+        return total
+    }
+
+    /// Where repricing must start after the versions changed from `old` to `new`.
+    /// Nil when nothing that prices history changed. Without an earlier record (`old` nil)
+    /// the first version needs nothing; any later version is priced from its start.
+    static func repriceStart(old: [CostProfileVersion]?, new: [CostProfileVersion]) -> Date? {
+        guard let old else {
+            return new.filter { $0.validFrom != .distantPast }.map(\.validFrom).min()
+        }
+        let changed = old.filter { !new.contains($0) } + new.filter { !old.contains($0) }
+        return changed.map(\.validFrom).min()
+    }
+}
+
 #if DEBUG
 /// Checks the version rules once in DEBUG builds, in the same way as `WorkedExampleGuard`.
 nonisolated enum CostProfileVersionGuard {
@@ -663,6 +806,97 @@ nonisolated enum CostProfileVersionGuard {
 
         // Saved and read back.
         check(CostProfileHistory.decoded(CostProfileHistory.encoded(autumn)) == autumn, "JSON round trip")
+        return ok
+    }()
+}
+#endif
+
+#if DEBUG
+/// Checks that history picks the agreement version per interval, in the same way as
+/// `CostProfileVersionGuard`.
+nonisolated enum HistoryPricingGuard {
+    static let isValid: Bool = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Europe/Stockholm") ?? .current
+        func at(_ y: Int, _ m: Int, _ d: Int, _ h: Int = 0, _ min: Int = 0) -> Date {
+            calendar.date(from: DateComponents(year: y, month: m, day: d, hour: h, minute: min)) ?? .distantPast
+        }
+        var ok = true
+        func check(_ condition: Bool, _ message: String) {
+            assert(condition, "HistoryPricing: \(message)")
+            ok = ok && condition
+        }
+        func near(_ a: Double, _ b: Double) -> Bool { abs(a - b) < 0.000_001 }
+
+        let a = ElectricityCostMath.workedExampleSE3Jonkoping20A()
+        let b = a.updating(retailerMonthlyFee: a.retailerMonthlyFee + 30, gridMonthlyFee: (a.gridMonthlyFee ?? 0) + 100)
+        let first = CostProfileHistory.migrated([], currentProfile: a)
+        let october = at(2025, 10, 10, 13)
+
+        // Without a change everything prices as before versions: the table on top of today's profile.
+        for versions in [[], first] {
+            check(HistoryPricing.periodProfile(at: october, current: a, versions: versions)
+                == HistoricalTariffRates.profile(a, forPeriodStarting: october), "no change, past period")
+            check(HistoryPricing.liveProfile(at: october, current: a, versions: versions) == a, "no change, running month")
+        }
+
+        // A change from 2026-11-12: older intervals keep a, the new day and later get b.
+        let change = CostProfileHistory.saving(b, on: at(2026, 11, 12, 9), to: first, calendar: calendar)
+        check(change.count == 2, "change saved")
+        check(HistoryPricing.periodProfile(at: at(2026, 11, 11, 23, 45), current: b, versions: change)
+            == HistoricalTariffRates.profile(a, forPeriodStarting: at(2026, 11, 11, 23, 45)), "quarter before the change")
+        check(HistoryPricing.periodProfile(at: at(2026, 11, 12), current: b, versions: change)
+            == HistoricalTariffRates.profile(b, forPeriodStarting: at(2026, 11, 12)), "quarter at the change")
+        check(HistoryPricing.liveProfile(at: at(2026, 11, 12, 5), current: b, versions: change) == b, "today keeps today's profile")
+        check(HistoryPricing.periodProfile(at: october, current: b, versions: change)
+            == HistoricalTariffRates.profile(a, forPeriodStarting: october), "October untouched")
+
+        // Only what changed is priced again, from its first day.
+        check(HistoryPricing.repriceStart(old: nil, new: first) == nil, "first version needs no repricing")
+        check(HistoryPricing.repriceStart(old: first, new: first) == nil, "same versions")
+        check(HistoryPricing.repriceStart(old: first, new: change) == at(2026, 11, 12), "new version from its day")
+        check(HistoryPricing.repriceStart(old: nil, new: change) == at(2026, 11, 12), "unknown earlier state")
+
+        // Repricing a saved row: the first version keeps the saved profile, later ones use theirs.
+        let saved = HistoryPricing.normalized(a.updating(retailerMarkupOrePerKWh: 9), capturedAt: october)
+        check(HistoryPricing.recordBase(at: october, saved: saved, fallback: b, versions: change).profile == saved, "saved profile under first version")
+        let later = HistoryPricing.recordBase(at: at(2026, 11, 12, 3), saved: saved, fallback: b, versions: change)
+        check(later.profile == HistoryPricing.normalized(b, capturedAt: at(2026, 11, 12)) && later.version != nil, "later version wins over saved")
+
+        // A change mid-month (test data, 2025-10-15): every quarter gets its own version,
+        // and the fixed fees follow the days. Summed per quarter they match the per-day spread.
+        let mid = CostProfileHistory.saving(b, on: at(2025, 10, 15, 12), to: first, calendar: calendar)
+        let current = b
+        let service = TotalCostService.shared
+        guard let month = calendar.dateInterval(of: .month, for: october) else { return false }
+        var start = month.start
+        var perQuarterFees = 0.0
+        var quartersA = 0
+        var quartersB = 0
+        while start < month.end {
+            let profile = HistoryPricing.periodProfile(at: start, current: current, versions: mid)
+            let cost = service.calculateTotalCost(kWh: 0.25, spotPriceOre: 50, profile: profile, hoursInPeriod: 0.25)
+            // Cost parts are without VAT; the monthly fees are entered with it.
+            perQuarterFees += (cost.fixedFeeCostKr + cost.providerMonthlyFeeKr) * (1 + profile.vatRate)
+            if profile.retailerMonthlyFee == a.retailerMonthlyFee { quartersA += 1 } else { quartersB += 1 }
+            start = start.addingTimeInterval(15 * 60)
+        }
+        // October 2025 has 31 days and 25 hours on the 26th: 14 days of a, 17 days of b.
+        check(quartersA == 14 * 96 && quartersB == 17 * 96 + 4, "quarters split at the change")
+        check(HistoryPricing.hasVersionChange(in: month, versions: mid), "change found in month")
+        check(!HistoryPricing.hasVersionChange(in: month, versions: change), "no change in October")
+        let perDay = HistoryPricing.fixedFeesKr(in: month, profileForDay: { day in
+            HistoryPricing.periodProfile(at: day, current: current, versions: mid)
+        }, calendar: calendar)
+        check(near(perQuarterFees, perDay), "fixed fees per quarter equal the per-day spread")
+
+        // A month without a change: the same fixed fee as one profile over the month.
+        let single = HistoryPricing.fixedFeesKr(in: month, profileForDay: { day in
+            HistoryPricing.periodProfile(at: day, current: a, versions: first)
+        }, calendar: calendar)
+        let rated = HistoricalTariffRates.profile(a, forPeriodStarting: month.start)
+        let whole = service.calculateTotalCost(kWh: 0, spotPriceOre: 0, profile: rated, hoursInPeriod: month.duration / 3600)
+        check(near(single, (whole.fixedFeeCostKr + whole.providerMonthlyFeeKr) * (1 + rated.vatRate)), "whole month unchanged")
         return ok
     }()
 }
@@ -914,5 +1148,25 @@ enum EnergyHistoryTariffSchedule {
     static func markComplete() {
         guard !DemoMode.isActive else { return }
         defaults.set(HistoricalTariffRates.version, forKey: key)
+    }
+
+    // MARK: Agreement versions
+
+    private static let pricedVersionsKey = "energyHistory.pricedCostProfileVersions"
+
+    /// The versions history was last priced with. Nil before the first run.
+    static var pricedVersions: [CostProfileVersion]? {
+        guard let data = defaults.data(forKey: pricedVersionsKey) else { return nil }
+        return CostProfileHistory.decoded(data)
+    }
+
+    /// Where history must be priced again for `versions`, or nil when it already matches.
+    static func versionRepriceStart(for versions: [CostProfileVersion]) -> Date? {
+        HistoryPricing.repriceStart(old: pricedVersions, new: versions)
+    }
+
+    static func markPriced(versions: [CostProfileVersion]) {
+        guard !DemoMode.isActive, let data = CostProfileHistory.encoded(versions) else { return }
+        defaults.set(data, forKey: pricedVersionsKey)
     }
 }

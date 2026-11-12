@@ -620,6 +620,7 @@ final class ConsumptionSettings {
 #if DEBUG
         _ = CostProfileVersionGuard.isValid
         _ = HistoricalTariffRatesGuard.isValid
+        _ = HistoryPricingGuard.isValid
 #endif
 
         // The real values are loaded and saved above. Demo mode starts after that, so it
