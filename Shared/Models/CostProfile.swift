@@ -163,7 +163,10 @@ extension CostProfile {
         static let priceArea = "SE3"
         static let retailerMarkupOrePerKWh = 4.0
         static let retailerMonthlyFee = 0.0
-        static let energyTaxOrePerKWh = 45.0
+        /// Today's standard energy tax from `HistoricalTariffRates`, öre/kWh including VAT.
+        static var energyTaxOrePerKWh: Double {
+            HistoricalTariffRates.energyTax(for: .standard, on: Date()) ?? 45.0
+        }
         static let certificateFeeOrePerKWh = 1.75
         /// Consumer VAT. Profile amounts other than Nord Pool spot are stored including this rate.
         static let vatRate = 0.25
@@ -667,69 +670,116 @@ nonisolated enum CostProfileVersionGuard {
 
 // MARK: - Rates by date
 
-/// The fees that were in force on a given date.
+/// Which energy tax rate applies. A few northern regions pay a lower rate.
+nonisolated enum EnergyTaxRegion: String, Codable, Sendable {
+    case standard
+    /// Lower rate in parts of northern Sweden, for example Västerbotten.
+    case reducedNorth
+
+    /// The region is not stored in the profile, so it follows the grid company preset,
+    /// as the presets in `GridTariffService` do.
+    static func forGridCompany(_ gridCompanyId: String?) -> EnergyTaxRegion {
+        gridCompanyId == "skelleftea" ? .reducedNorth : .standard
+    }
+}
+
+/// Energy tax from a date, öre/kWh including VAT.
+nonisolated struct EnergyTaxRate: Sendable {
+    let validFrom: Date
+    let region: EnergyTaxRegion
+    let orePerKWhInclVAT: Double
+}
+
+/// A grid company's fees for one fuse size from a date, including VAT.
+nonisolated struct GridFeeRate: Sendable {
+    let validFrom: Date
+    let gridCompanyId: String
+    let fuseSize: Int
+    /// kr per month.
+    let monthlyFee: Double
+    /// öre/kWh.
+    let transferOrePerKWh: Double
+    /// Effect fee in kr/kW per month. Kept for later. No cost uses it yet.
+    let powerFeeKrPerKW: Double?
+}
+
+/// The fees that were in force on a given date, as a table of dated rows.
 ///
 /// History must be priced with the rates of its own period. A frozen copy of
 /// "today's" profile makes October 2026 look cheaper than November just because
-/// the profile was refreshed in between. Two eras are known:
-/// - up to and including 2025: energy tax 54,875 öre and the old Vaggeryds Energi grid fees
-/// - from 2026-01-01: energy tax 45 öre and the 2026 grid fees
+/// the profile was refreshed in between.
 ///
-/// Only values that exactly match a known preset are swapped. A value the user
-/// typed in themselves is left alone.
+/// Rules:
+/// - A row applies from its `validFrom` until the next row for the same region, or
+///   the same grid company and fuse. A date before the first row uses the first row,
+///   so older history is priced as it was before the table existed.
+/// - Grid fees the user typed in (`gridCostSource == .userEntered`) win over the table.
+///   Energy tax cannot be typed in, so it always follows the table when there is a row.
+/// - A new year only needs new rows here, plus a bump of `version`.
 nonisolated enum HistoricalTariffRates {
     /// Bump when the table below changes, so saved history is priced again once.
-    static let version = 1
+    static let version = 2
 
-    static let energyTax2025InclVAT = 54.875
-    static let energyTax2026InclVAT = 45.0
-    static let vaggerydTransfer2025OrePerKWh = 28.13
-    static let vaggerydTransfer2026OrePerKWh = 29.75
-    static let vaggerydPowerTariff2025KrPerKW = 45.0
-    static let vaggerydMonthlyFees2025: [Int: Double] = [
-        16: 187.50, 20: 225.00, 25: 270.00, 35: 360.00, 50: 495.00, 63: 612.50
-    ]
-    static let vaggerydMonthlyFees2026: [Int: Double] = [
-        16: 458, 20: 742, 25: 975, 35: 1_233, 50: 1_967, 63: 2_475
+    static let energyTaxRates: [EnergyTaxRate] = [
+        EnergyTaxRate(validFrom: day(2025, 1, 1), region: .standard, orePerKWhInclVAT: 54.875),
+        EnergyTaxRate(validFrom: day(2026, 1, 1), region: .standard, orePerKWhInclVAT: 45.0),
+        EnergyTaxRate(validFrom: day(2026, 1, 1), region: .reducedNorth, orePerKWhInclVAT: 33.0)
     ]
 
-    /// 2026-01-01 00:00 in Swedish time.
-    static var year2026Start: Date {
-        Calendar.energyHistory.date(from: DateComponents(year: 2026, month: 1, day: 1)) ?? .distantFuture
+    /// Vaggeryds Energi (Vaggeryds Elnät). 2025 had an effect fee of 45 kr/kW, 2026 has none.
+    static let gridFeeRates: [GridFeeRate] =
+        gridRows(
+            company: "vaggeryd",
+            from: day(2025, 1, 1),
+            monthlyFees: [16: 187.50, 20: 225.00, 25: 270.00, 35: 360.00, 50: 495.00, 63: 612.50],
+            transferOrePerKWh: 28.13,
+            powerFeeKrPerKW: 45.0
+        ) +
+        gridRows(
+            company: "vaggeryd",
+            from: day(2026, 1, 1),
+            monthlyFees: [16: 458, 20: 742, 25: 975, 35: 1_233, 50: 1_967, 63: 2_475],
+            transferOrePerKWh: 29.75,
+            powerFeeKrPerKW: nil
+        )
+
+    static func energyTax(for region: EnergyTaxRegion, on date: Date) -> Double? {
+        let rows = energyTaxRates.filter { $0.region == region }
+        return row(in: rows, on: date, validFrom: \.validFrom)?.orePerKWhInclVAT
     }
 
-    static func isFrom2026(_ date: Date) -> Bool {
-        date >= year2026Start
+    static func gridFee(company gridCompanyId: String, fuseSize: Int, on date: Date) -> GridFeeRate? {
+        let rows = gridFeeRates.filter { $0.gridCompanyId == gridCompanyId && $0.fuseSize == fuseSize }
+        return row(in: rows, on: date, validFrom: \.validFrom)
+    }
+
+    /// True when the table has grid fees for this company at all.
+    static func hasGridFees(company gridCompanyId: String?) -> Bool {
+        guard let gridCompanyId else { return false }
+        return gridFeeRates.contains { $0.gridCompanyId == gridCompanyId }
     }
 
     /// `profile` with the fees that applied on `date`.
     static func profile(_ profile: CostProfile, forPeriodStarting date: Date) -> CostProfile {
-        let from2026 = isFrom2026(date)
         var tax: Double?
         var fee: Double?
         var transfer: Double?
 
-        let (oldTax, newTax) = from2026
-            ? (energyTax2025InclVAT, energyTax2026InclVAT)
-            : (energyTax2026InclVAT, energyTax2025InclVAT)
-        if abs(profile.energyTaxOrePerKWh - oldTax) < 0.001 {
-            tax = newTax
+        let region = EnergyTaxRegion.forGridCompany(profile.gridCompanyId)
+        if let rate = energyTax(for: region, on: date),
+           abs(profile.energyTaxOrePerKWh - rate) > 0.0001 {
+            tax = rate
         }
 
-        if (profile.gridCompanyId ?? "") == "vaggeryd" {
-            let (fromFees, toFees) = from2026
-                ? (vaggerydMonthlyFees2025, vaggerydMonthlyFees2026)
-                : (vaggerydMonthlyFees2026, vaggerydMonthlyFees2025)
-            if let current = profile.gridMonthlyFee,
-               let fuse = fromFees.first(where: { abs($0.value - current) < 0.01 })?.key,
-               let replacement = toFees[fuse] {
-                fee = replacement
+        if profile.gridCostSource != .userEntered,
+           let company = profile.gridCompanyId,
+           let fuse = profile.fuseSize,
+           let row = gridFee(company: company, fuseSize: fuse, on: date) {
+            if let current = profile.gridMonthlyFee, abs(current - row.monthlyFee) > 0.0001 {
+                fee = row.monthlyFee
             }
-            let (oldTransfer, newTransfer) = from2026
-                ? (vaggerydTransfer2025OrePerKWh, vaggerydTransfer2026OrePerKWh)
-                : (vaggerydTransfer2026OrePerKWh, vaggerydTransfer2025OrePerKWh)
-            if let current = profile.gridTransferOrePerKWh, abs(current - oldTransfer) < 0.01 {
-                transfer = newTransfer
+            if let current = profile.gridTransferOrePerKWh, abs(current - row.transferOrePerKWh) > 0.0001 {
+                transfer = row.transferOrePerKWh
             }
         }
 
@@ -740,7 +790,95 @@ nonisolated enum HistoricalTariffRates {
             energyTaxOrePerKWh: tax
         )
     }
+
+    // MARK: Helpers
+
+    private static func row<Row>(in rows: [Row], on date: Date, validFrom: KeyPath<Row, Date>) -> Row? {
+        let sorted = rows.sorted { $0[keyPath: validFrom] < $1[keyPath: validFrom] }
+        return sorted.last { $0[keyPath: validFrom] <= date } ?? sorted.first
+    }
+
+    private static func gridRows(
+        company: String,
+        from validFrom: Date,
+        monthlyFees: [Int: Double],
+        transferOrePerKWh: Double,
+        powerFeeKrPerKW: Double?
+    ) -> [GridFeeRate] {
+        monthlyFees.keys.sorted().map { fuse in
+            GridFeeRate(
+                validFrom: validFrom,
+                gridCompanyId: company,
+                fuseSize: fuse,
+                monthlyFee: monthlyFees[fuse] ?? 0,
+                transferOrePerKWh: transferOrePerKWh,
+                powerFeeKrPerKW: powerFeeKrPerKW
+            )
+        }
+    }
+
+    /// Midnight in Swedish time.
+    static func day(_ year: Int, _ month: Int, _ day: Int) -> Date {
+        Calendar.energyHistory.date(from: DateComponents(year: year, month: month, day: day)) ?? .distantPast
+    }
 }
+
+#if DEBUG
+/// Checks once in DEBUG builds that the table gives the same fees as the old
+/// hard-coded 2025 and 2026 values did.
+nonisolated enum HistoricalTariffRatesGuard {
+    static let isValid: Bool = {
+        var ok = true
+        func check(_ condition: Bool, _ message: String) {
+            assert(condition, "HistoricalTariffRates: \(message)")
+            ok = ok && condition
+        }
+        let old2025: [Int: Double] = [16: 187.50, 20: 225.00, 25: 270.00, 35: 360.00, 50: 495.00, 63: 612.50]
+        let old2026: [Int: Double] = [16: 458, 20: 742, 25: 975, 35: 1_233, 50: 1_967, 63: 2_475]
+        let in2024 = HistoricalTariffRates.day(2024, 11, 15)
+        let in2025 = HistoricalTariffRates.day(2025, 6, 1)
+        let lastOf2025 = HistoricalTariffRates.day(2026, 1, 1).addingTimeInterval(-1)
+        let in2026 = HistoricalTariffRates.day(2026, 1, 1)
+        let in2027 = HistoricalTariffRates.day(2027, 3, 1)
+
+        for (date, tax) in [(in2024, 54.875), (in2025, 54.875), (lastOf2025, 54.875), (in2026, 45.0), (in2027, 45.0)] {
+            check(HistoricalTariffRates.energyTax(for: .standard, on: date) == tax, "energy tax \(date)")
+        }
+        check(HistoricalTariffRates.energyTax(for: .reducedNorth, on: in2025) == 33.0, "reduced north keeps 33 before 2026")
+
+        for fuse in old2025.keys.sorted() {
+            for date in [in2024, in2025, lastOf2025] {
+                let row = HistoricalTariffRates.gridFee(company: "vaggeryd", fuseSize: fuse, on: date)
+                check(row?.monthlyFee == old2025[fuse] && row?.transferOrePerKWh == 28.13, "vaggeryd 2025 \(fuse) A")
+            }
+            for date in [in2026, in2027] {
+                let row = HistoricalTariffRates.gridFee(company: "vaggeryd", fuseSize: fuse, on: date)
+                check(row?.monthlyFee == old2026[fuse] && row?.transferOrePerKWh == 29.75, "vaggeryd 2026 \(fuse) A")
+            }
+        }
+
+        // A profile with 2026 preset values, priced for 2025 and back again.
+        let preset2026 = ElectricityCostMath.workedExampleSE3Jonkoping20A().updating(
+            gridCompanyId: "vaggeryd",
+            fuseSize: 16,
+            gridMonthlyFee: 458,
+            gridTransferOrePerKWh: 29.75,
+            gridCostSource: .localPreset,
+            energyTaxOrePerKWh: 45
+        )
+        let as2025 = HistoricalTariffRates.profile(preset2026, forPeriodStarting: in2025)
+        check(as2025.gridMonthlyFee == 187.50 && as2025.gridTransferOrePerKWh == 28.13 && as2025.energyTaxOrePerKWh == 54.875, "2026 preset priced for 2025")
+        check(HistoricalTariffRates.profile(as2025, forPeriodStarting: in2026) == preset2026, "back to 2026")
+        check(HistoricalTariffRates.profile(preset2026, forPeriodStarting: in2026) == preset2026, "2026 unchanged")
+
+        // Typed in by the user: grid fees stay, energy tax follows the table.
+        let typed = preset2026.updating(gridMonthlyFee: 300, gridTransferOrePerKWh: 20, gridCostSource: .userEntered)
+        let typed2025 = HistoricalTariffRates.profile(typed, forPeriodStarting: in2025)
+        check(typed2025.gridMonthlyFee == 300 && typed2025.gridTransferOrePerKWh == 20 && typed2025.energyTaxOrePerKWh == 54.875, "user-entered grid fees win")
+        return ok
+    }()
+}
+#endif
 
 /// Remembers that saved history has been priced with `HistoricalTariffRates`.
 enum EnergyHistoryTariffSchedule {

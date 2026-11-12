@@ -1387,7 +1387,7 @@ nonisolated enum EnergyHistoryWriting {
                 storedSnapshots[stored.snapshotHash] = snapshot
             }
         }
-        // (old hash, era) -> hash of the snapshot with that era's fees
+        // (old hash, fees applied) -> hash of the snapshot with those fees
         var swappedHashes: [String: String] = [:]
         var changedDays = Set<String>()
         var updated = 0
@@ -1427,7 +1427,7 @@ nonisolated enum EnergyHistoryWriting {
 
             // Keep the saved profile in step with the fees the interval was priced with.
             if let original, rated != stored {
-                let cacheKey = "\(record.snapshotHash ?? "embedded")|\(HistoricalTariffRates.isFrom2026(record.intervalStart))"
+                let cacheKey = "\(record.snapshotHash ?? "embedded")|\(rated.gridMonthlyFee ?? -1)|\(rated.gridTransferOrePerKWh ?? -1)|\(rated.energyTaxOrePerKWh)"
                 let newHash: String?
                 if let known = swappedHashes[cacheKey] {
                     newHash = known
