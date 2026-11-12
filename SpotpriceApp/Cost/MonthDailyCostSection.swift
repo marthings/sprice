@@ -632,16 +632,22 @@ enum MonthDailyCostBuilder {
         calendar: Calendar
     ) -> [MonthDayCost] {
         let service = TotalCostService.shared
+        let versions = HistoryPricing.savedVersions()
         var costByDay: [Date: (cost: Double, kWh: Double)] = [:]
+        var profileByDay: [Date: CostProfile] = [:]
         for interval in intervals {
             let kWh = interval.consumptionKWh ?? 0
             guard kWh > 0 else { continue }
             let dayStart = calendar.startOfDay(for: interval.intervalStart)
             let hours = max(interval.intervalEnd.timeIntervalSince(interval.intervalStart) / 3600, 0)
+            // Each day with the agreement version in force that day.
+            let dayProfile = profileByDay[dayStart]
+                ?? HistoryPricing.liveProfile(at: dayStart, current: profile, versions: versions)
+            profileByDay[dayStart] = dayProfile
             let cost = service.calculateTotalCost(
                 kWh: kWh,
                 spotPriceOre: interval.spotPriceOrePerKWh,
-                profile: profile,
+                profile: dayProfile,
                 hoursInPeriod: hours
             ).totalKr
             let current = costByDay[dayStart] ?? (0, 0)
@@ -701,6 +707,7 @@ enum MonthDailyCostBuilder {
             uniquingKeysWith: { first, _ in first }
         )
         let service = TotalCostService.shared
+        let versions = HistoryPricing.savedVersions()
         var bars: [MonthDayCost] = []
         var dayStart = monthStart
         let lastDayStart = calendar.startOfDay(for: lastDay)
@@ -717,7 +724,7 @@ enum MonthDailyCostBuilder {
                 summary: summary,
                 kWh: kWh,
                 hoursInPeriod: hoursInPeriod,
-                profile: profile,
+                profile: HistoryPricing.liveProfile(at: dayStart, current: profile, versions: versions),
                 service: service
             )
 

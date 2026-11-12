@@ -60,6 +60,8 @@ enum HistoryDayInsights {
         now: Date = Date(),
         calendar: Calendar = .energyHistory
     ) -> HistoryDaySnapshot {
+        // A day lies inside one agreement version (versions start at midnight).
+        let costProfile = HistoryPricing.liveProfile(at: calendar.startOfDay(for: date), current: costProfile)
         let hours = hourCosts(
             from: intervals,
             dayDate: date,
