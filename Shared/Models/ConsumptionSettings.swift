@@ -387,56 +387,48 @@ final class ConsumptionSettings {
         }
     }
 
-    // MARK: - 2026 rate refresh
+    // MARK: - Rates for today
 
-    /// Old 2025 energy tax stored including VAT. Exact match only, so a custom value is left alone.
-    private static let legacyEnergyTax2025InclVAT = HistoricalTariffRates.energyTax2025InclVAT
-    private static let legacyVaggerydMonthlyFees = HistoricalTariffRates.vaggerydMonthlyFees2025
-    private static let legacyVaggerydTransferOrePerKWh = HistoricalTariffRates.vaggerydTransfer2025OrePerKWh
-    private static let legacyVaggerydPowerTariff = HistoricalTariffRates.vaggerydPowerTariff2025KrPerKW
-
-    private static func refreshing2026Rates(
+    /// Brings preset fees and energy tax up to the rows in `HistoricalTariffRates` that apply
+    /// today, for example after a new year. Grid fees the user typed in are left alone.
+    private static func refreshingRates(
         _ profile: CostProfile,
-        cachedTariff: SimplifiedTariff?
+        cachedTariff: SimplifiedTariff?,
+        now: Date = Date()
     ) -> (profile: CostProfile, cachedTariff: SimplifiedTariff?) {
-        var next = profile
+        var next = HistoricalTariffRates.profile(profile, forPeriodStarting: now)
         var nextTariff = cachedTariff
 
-        if abs(next.energyTaxOrePerKWh - legacyEnergyTax2025InclVAT) < 0.001 {
-            next = next.updating(energyTaxOrePerKWh: CostProfile.SwedishDefaults.energyTaxOrePerKWh)
-        }
-
-        if (next.gridCompanyId ?? "") == "vaggeryd" {
-            let fuse = next.fuseSize ?? 20
-            let hasLegacyFee = next.gridMonthlyFee.map { fee in
-                legacyVaggerydMonthlyFees.values.contains { abs($0 - fee) < 0.01 }
-            } ?? false
-            let hasLegacyTransfer = next.gridTransferOrePerKWh.map {
-                abs($0 - legacyVaggerydTransferOrePerKWh) < 0.01
-            } ?? false
-            if hasLegacyFee || hasLegacyTransfer {
-                let fees = HistoricalTariffRates.vaggerydMonthlyFees2026
-                next = next.updating(
-                    gridMonthlyFee: fees[fuse] ?? 742,
-                    gridTransferOrePerKWh: 29.75,
-                    energyTaxOrePerKWh: CostProfile.SwedishDefaults.energyTaxOrePerKWh
-                )
+        // An effect fee from an older preset row goes when today's rows have none.
+        if let company = next.gridCompanyId,
+           let power = next.effectTariff?.monthlyPricePerKW {
+            let rows = HistoricalTariffRates.gridFeeRates.filter { $0.gridCompanyId == company }
+            let fuses = Set(rows.map(\.fuseSize))
+            let noneToday = !fuses.isEmpty && fuses.allSatisfy { fuse in
+                HistoricalTariffRates.gridFee(company: company, fuseSize: fuse, on: now)?.powerFeeKrPerKW == nil
             }
-            if let power = next.effectTariff?.monthlyPricePerKW,
-               abs(power - legacyVaggerydPowerTariff) < 0.01 {
+            let fromOlderRow = rows.contains { row in
+                row.powerFeeKrPerKW.map { abs($0 - power) < 0.01 } ?? false
+            }
+            if noneToday && fromOlderRow {
                 next = next.settingEffectTariff(nil)
             }
         }
 
-        if var tariff = nextTariff, tariff.dsoOrgNo == "vaggeryd" {
-            let hasLegacyFee = legacyVaggerydMonthlyFees.values.contains {
-                abs($0 - tariff.monthlyFixedFee) < 0.01
-            }
-            let hasLegacyTransfer = abs(tariff.energyTariffPerKWh - 0.2813) < 0.0001
-            if hasLegacyFee || hasLegacyTransfer || abs((tariff.energyTaxPerKWh) - legacyEnergyTax2025InclVAT) < 0.001 {
-                if let fresh = GridTariffService().localPresetTariff(forDSO: "vaggeryd", fuseSize: tariff.fuseSize ?? next.fuseSize ?? 20) {
-                    nextTariff = fresh
-                }
+        // The cached preset tariff follows today's rows too.
+        if let tariff = nextTariff,
+           let fuse = tariff.fuseSize ?? next.fuseSize,
+           let row = HistoricalTariffRates.gridFee(company: tariff.dsoOrgNo, fuseSize: fuse, on: now) {
+            let tax = HistoricalTariffRates.energyTax(
+                for: EnergyTaxRegion.forGridCompany(tariff.dsoOrgNo),
+                on: now
+            )
+            let isOutdated = abs(tariff.monthlyFixedFee - row.monthlyFee) > 0.01
+                || abs(tariff.energyTariffPerKWh * 100.0 - row.transferOrePerKWh) > 0.01
+                || (tax.map { abs(tariff.energyTaxPerKWh - $0) > 0.001 } ?? false)
+            if isOutdated,
+               let fresh = GridTariffService().localPresetTariff(forDSO: tariff.dsoOrgNo, fuseSize: fuse) {
+                nextTariff = fresh
             }
         }
 
@@ -619,7 +611,7 @@ final class ConsumptionSettings {
         // Migrate legacy credentials if needed
         migrateFromLegacyIfNeeded()
 
-        let refreshed = Self.refreshing2026Rates(costProfile, cachedTariff: Self.loadCachedTariff())
+        let refreshed = Self.refreshingRates(costProfile, cachedTariff: Self.loadCachedTariff())
         self.costProfile = refreshed.profile
         if let tariff = refreshed.cachedTariff {
             self.cachedTariff = tariff
@@ -632,6 +624,7 @@ final class ConsumptionSettings {
         syncLegacyProperties(from: costProfile)
 #if DEBUG
         _ = CostProfileVersionGuard.isValid
+        _ = HistoricalTariffRatesGuard.isValid
 #endif
 
         // The real values are loaded and saved above. Demo mode starts after that, so it
