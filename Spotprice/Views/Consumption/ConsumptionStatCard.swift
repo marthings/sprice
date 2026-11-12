@@ -27,7 +27,7 @@ struct ConsumptionStatCard: View {
             unit: unit,
             color: color,
             titleColor: .primary,
-            valueFont: DS.Font.bold(16).monospacedDigit(),
+            valueFont: DS.Font.bold(16),
             unitFont: DS.Font.medium(11),
             subtitle: subtitle
         )

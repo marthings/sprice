@@ -151,7 +151,7 @@ struct AppSettingsView: View {
             Text("Exempeldata")
                 .spriceSettingsHeaderStyle()
         } footer: {
-            Text("Visar påhittad data för ett hushåll som inte finns, så att du kan prova appen utan konto. Din riktiga data ändras inte.")
+            Text("Påhittad data för ett hushåll som inte finns, så du kan prova appen utan konto. Din riktiga data rörs inte.")
                 .spriceSettingsFooterStyle()
         }
     }
@@ -301,7 +301,7 @@ struct AppSettingsView: View {
                 .spriceSettingsHeaderStyle()
         } footer: {
             VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                Text("Elnätskostnader används i totalpriset tillsammans med spotpris, elhandel och moms. Beloppen anges som på fakturan, inklusive moms.")
+                Text("Elnätet räknas in i totalpriset. Ange beloppen som på fakturan, med moms.")
                 Text(EffectTariffCopy.explanation)
             }
             .spriceSettingsFooterStyle()
@@ -324,7 +324,7 @@ struct AppSettingsView: View {
             Text("Temperatur")
                 .spriceSettingsHeaderStyle()
         } footer: {
-            Text("Används för att jämföra förbrukningen när det varit varmare eller kallare. Standard är Vaggeryd, nära Vaggeryds elnät. Du väljer ort själv, appen använder inte din position. Dygnstemperatur från Open-Meteo.")
+            Text("Används för att jämföra förbrukningen när det varit varmare eller kallare. Du väljer ort själv, appen använder inte din position. Temperaturen kommer från Open-Meteo.")
                 .spriceSettingsFooterStyle()
         }
     }
@@ -408,7 +408,7 @@ struct AppSettingsView: View {
                     .keyboardType(.decimalPad)
                     .textFieldStyle(.plain)
                     .multilineTextAlignment(.trailing)
-                    .font(DS.Font.body.monospacedDigit())
+                    .font(DS.Font.body)
                     .focused($focusedField, equals: field)
                     .submitLabel(.done)
                     .onSubmit {
@@ -425,14 +425,14 @@ struct AppSettingsView: View {
     }
 
     private var contractFooterText: String {
-        let compare = "Jämför med fast pris används bara för att visa skillnaden mot spot. Standard är 120 öre/kWh inklusive moms."
+        let compare = "Jämför med fast pris visar bara skillnaden mot spotpris. Standard är 120 öre/kWh med moms."
         switch contractType {
         case .spotPriceMarkup:
-            return "Totalpriset följer spotpriset plus påslag, skatter, elnät och moms. Påslag, skatt och elnät anges som på fakturan, inklusive moms. Spotpriset hämtas utan moms. " + compare
+            return "Totalpriset är spotpriset plus påslag, skatt, elnät och moms. Ange påslag och avgifter som på fakturan, med moms. " + compare
         case .variableMonthlyPrice:
-            return "Totalpriset använder ditt rörliga månadspris för elhandeln, inklusive moms. " + compare
+            return "Elhandeln räknas från ditt rörliga månadspris, med moms. " + compare
         case .fixedPrice:
-            return "Totalpriset använder ditt fasta avtalade pris för elhandeln, inklusive moms. " + compare
+            return "Elhandeln räknas från ditt fasta pris, med moms. " + compare
         }
     }
 
@@ -751,7 +751,7 @@ struct SettingsHistoryDataSection: View {
             Text("Sparad historik")
                 .spriceSettingsHeaderStyle()
         } footer: {
-            Text("Historiken sparas bara på den här telefonen och delas med widgeten. Exporten är en CSV-fil du kan öppna i till exempel Numbers eller Excel.")
+            Text("Historiken finns bara på den här telefonen och delas med widgeten. Exporten är en CSV-fil för till exempel Numbers eller Excel.")
                 .spriceSettingsFooterStyle()
         }
         .onAppear { loadStatus() }
@@ -769,7 +769,7 @@ struct SettingsHistoryDataSection: View {
             }
             Button("Avbryt", role: .cancel) {}
         } message: {
-            Text("Det här tar bort all sparad förbrukning, alla sparade priser och alla uträknade kostnader från den här telefonen, för alla månader. Det går inte att ångra. Dina inställningar och inloggningar finns kvar, och inget raderas hos Tibber, Vaggeryds Energi eller ditt elnätsbolag. Om du är kopplad till en datakälla kan appen hämta ny förbrukning senare.")
+            Text("All sparad förbrukning, alla priser och kostnader tas bort från telefonen, för alla månader. Det går inte att ångra. Inställningar och inloggningar finns kvar, och inget raderas hos Tibber, Vaggeryds Energi eller ditt elnätsbolag. Är du kopplad till en datakälla kan appen hämta förbrukningen igen.")
         }
     }
 

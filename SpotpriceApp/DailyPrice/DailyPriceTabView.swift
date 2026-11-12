@@ -43,14 +43,12 @@ private struct PriceChartSection: View {
             SectionInfoHeader(
                 title: "Dagens totalpris",
                 paragraphs: [
-                    "Kurvan visar vad en kilowattimme kostar under dagen. Där ingår skatt, avgifter och moms. Elnät ingår om du har valt elnätsbolag.",
+                    "Kurvan visar vad en kilowattimme kostar under dagen, med skatt, avgifter och moms. Elnätet ingår om du har valt elnätsbolag.",
                     "Tryck i grafen för att se priset vid en viss tid."
                 ]
             )
 
             PriceAnswerLine(series: series)
-
-            ChartCaption("Pris per kWh, i kronor")
 
             PriceChartPlot(
                 day: payload.day,
@@ -89,20 +87,22 @@ extension TotalPriceChartSeries {
     var cheapestPoint: TotalPriceChartPoint? { points.min { $0.price < $1.price } }
     var dearestPoint: TotalPriceChartPoint? { points.max { $0.price < $1.price } }
 
-    /// "Billigast runt kl. 03 (1,95 kr/kWh)." and "Dyrast runt kl. 16 (7,37 kr/kWh)."
+    /// "Billigast runt kl. 03 och dyrast runt kl. 18." The prices are in Prisspann right below.
     var answerLines: [String] {
         guard let cheapest = cheapestPoint, let dearest = dearestPoint, cheapest.start != dearest.start else {
             return []
         }
         return [
-            "Billigast runt kl. \(Self.hourLabel(cheapest.start)) (\(AppFormatters.krPerKWh(cheapest.price))).",
-            "Dyrast runt kl. \(Self.hourLabel(dearest.start)) (\(AppFormatters.krPerKWh(dearest.price)))."
+            "Billigast runt kl. \(Self.hourLabel(cheapest.start)) och dyrast runt kl. \(Self.hourLabel(dearest.start))."
         ]
     }
 
+    /// For VoiceOver, with the prices, since the chart itself is not visible.
     var answerText: String? {
-        let lines = answerLines
-        return lines.isEmpty ? nil : lines.joined(separator: " ")
+        guard let cheapest = cheapestPoint, let dearest = dearestPoint, cheapest.start != dearest.start else {
+            return nil
+        }
+        return "Billigast runt kl. \(Self.hourLabel(cheapest.start)), \(AppFormatters.krPerKWh(cheapest.price)). Dyrast runt kl. \(Self.hourLabel(dearest.start)), \(AppFormatters.krPerKWh(dearest.price))."
     }
 
     static func hourLabel(_ date: Date) -> String {
@@ -291,7 +291,7 @@ private struct PriceChartCanvas: View {
         .spriceCard(tone: .price)
         .zIndex(1)
         .accessibilityChartDescriptor(PriceChartDescriptor(series: series, current: current))
-        .accessibilityHint("Dra över grafen för att se pris vid en viss tid. Svep uppåt eller neråt för att stega timme för timme.")
+        .accessibilityHint("Svep uppåt eller nedåt för att gå timme för timme.")
         .accessibilityValue(selectedPoint.map { Self.spokenPrice($0) } ?? "")
         .accessibilityAdjustableAction { direction in
             stepSelection(direction, current: current)
@@ -346,39 +346,38 @@ private struct MarketContractExplanation: View {
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
             SectionInfoHeader(
-                title: "Så beräknas priset",
+                title: "Så räknas priset",
                 paragraphs: [explanationText]
             )
 
-            Divider()
-
-            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                Text("Fasta delar i totalpriset")
-                    .font(DS.Font.semibold(13))
-                    .foregroundStyle(.primary)
-                    .accessibilityAddTraits(.isHeader)
-
-                ForEach(staticCostRows, id: \.title) { row in
-                    ViewThatFits(in: .horizontal) {
-                        HStack(spacing: DS.Spacing.sm) {
-                            Text(row.title)
-                                .font(DS.Font.footnote)
-                                .foregroundStyle(DS.Color.secondary)
-                            Spacer(minLength: DS.Spacing.sm)
-                            Text(AppFormatters.krPerKWh(row.value))
-                                .font(DS.Font.footnote.monospacedDigit())
-                                .foregroundStyle(.primary)
+            SpriceDisclosure(
+                title: "Visa de fasta delarna",
+                openTitle: "Dölj de fasta delarna",
+                accessibilityName: "Fasta delar i priset"
+            ) {
+                VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                    ForEach(staticCostRows, id: \.title) { row in
+                        ViewThatFits(in: .horizontal) {
+                            HStack(spacing: DS.Spacing.sm) {
+                                Text(row.title)
+                                    .font(DS.Font.footnote)
+                                    .foregroundStyle(DS.Color.secondary)
+                                Spacer(minLength: DS.Spacing.sm)
+                                Text(AppFormatters.krPerKWh(row.value))
+                                    .font(DS.Font.footnote)
+                                    .foregroundStyle(.primary)
+                            }
+                            VStack(alignment: .leading, spacing: 0) {
+                                Text(row.title)
+                                    .font(DS.Font.footnote)
+                                    .foregroundStyle(DS.Color.secondary)
+                                Text(AppFormatters.krPerKWh(row.value))
+                                    .font(DS.Font.footnote)
+                                    .foregroundStyle(.primary)
+                            }
                         }
-                        VStack(alignment: .leading, spacing: 0) {
-                            Text(row.title)
-                                .font(DS.Font.footnote)
-                                .foregroundStyle(DS.Color.secondary)
-                            Text(AppFormatters.krPerKWh(row.value))
-                                .font(DS.Font.footnote.monospacedDigit())
-                                .foregroundStyle(.primary)
-                        }
+                        .accessibilityElement(children: .combine)
                     }
-                    .accessibilityElement(children: .combine)
                 }
             }
         }
@@ -390,11 +389,11 @@ private struct MarketContractExplanation: View {
     private var explanationText: String {
         switch profile.retailContractType {
         case .spotPriceMarkup:
-            return "Grafen visar vad en kWh kostar under dagen. Där ingår spotpris, påslag, skatt, avgifter och moms. Elnät ingår om du har valt elnätsbolag."
+            return "Priset i grafen är spotpriset plus påslag, skatt, avgifter och moms. Spotpriset rör sig under dagen, de fasta delarna ligger still. Elnätet ingår om du har valt elnätsbolag."
         case .variableMonthlyPrice:
-            return "Grafen visar vad en kWh kostar under dagen. Elhandeln räknas från ditt rörliga månadspris, inte från kvartens spotpris. Skatt, avgifter och moms ingår. Elnät ingår om du har valt elnätsbolag."
+            return "Elhandeln räknas från ditt rörliga månadspris, inte från spotpriset. Skatt, avgifter och moms ingår, och elnätet om du har valt elnätsbolag."
         case .fixedPrice:
-            return "Grafen visar vad en kWh kostar under dagen. Elhandeln räknas från ditt fasta avtalade pris, inte från kvartens spotpris. Skatt, avgifter och moms ingår. Elnät ingår om du har valt elnätsbolag."
+            return "Elhandeln räknas från ditt fasta pris, inte från spotpriset. Skatt, avgifter och moms ingår, och elnätet om du har valt elnätsbolag."
         }
     }
 

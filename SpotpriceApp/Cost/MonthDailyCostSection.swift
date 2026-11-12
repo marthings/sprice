@@ -69,20 +69,20 @@ struct MonthDailyCostSection: View {
 
     private var infoParagraphs: [String] {
         var parts = [
-            "Staplarna visar vad varje dag har kostat. Tryck på en stapel för att se den dagen."
+            "Varje stapel är vad en dag har kostat. Tryck på en stapel för att se dagen."
         ]
         if resolvedForecastKr != nil {
-            parts.append("Den heldragna linjen är kostnaden sammanlagt. Den streckade delen är en prognos till månadens slut, räknad från det senaste mätvärdet och hur månaden har sett ut hittills.")
+            parts.append("Den heldragna linjen är vad månaden har kostat hittills. Den streckade är en prognos till månadens slut, utifrån hur månaden har sett ut.")
         } else {
             parts.append("Så här har månaden kostat hittills.")
         }
-        parts.append("Stapeln för idag visar bara det som har hänt hittills. Siffrorna kan släpa lite, beroende på när mätvärden kommer in.")
+        parts.append("Dagens stapel växer under dagen, och mätvärden kan komma in med lite fördröjning.")
         if hypotheticalEffectTariffKr != nil {
-            parts.append("Effektavgiften räknas för hela månaden och syns därför inte i dygnsstaplarna.")
+            parts.append("Effektavgiften gäller hela månaden, så den syns inte i staplarna.")
         }
         if let baseload {
             parts.append(Self.baseloadTitle(baseload))
-            parts.append("Det du alltid drar är det som är på hela tiden, även när du inte gör något särskilt. Öppna Vad drog? för mer.")
+            parts.append("Det är sådant som står på dygnet runt, även när du inte gör något särskilt. Öppna Vad drog? för mer.")
         }
         return parts
     }
@@ -108,14 +108,12 @@ struct MonthDailyCostSection: View {
                 .accessibilityLabel(forecastStatusCopy)
         }
         if let expensive, let cost = expensive.costKr {
-            Text("Dyrast (röd stapel): \(AppFormatters.weekdayDayMonth(expensive.date)), \(AppFormatters.wholeNumber(cost)) kr")
+            Text("Dyrast var \(AppFormatters.weekdayDayMonth(expensive.date)), \(AppFormatters.wholeNumber(cost)) kr")
                 .font(DS.Font.semibold(12))
                 .foregroundStyle(.primary)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityLabel("Dyraste dagen är \(AppFormatters.weekdayDayMonth(expensive.date)), \(AppFormatters.wholeNumber(cost)) kronor")
         }
-
-        ChartCaption("Kostnad per dag, i kronor")
 
         ZStack {
             dailyBarsChart(expensive: expensive)
@@ -161,7 +159,7 @@ struct MonthDailyCostSection: View {
     static func baseloadTitle(_ baseload: ConsumptionBaseloadInsight) -> String {
         let power = ConsumptionInsightsBuilder.powerPhrase(baseload.powerKW)
         let kronor = AppFormatters.wholeNumber(baseload.costKr)
-        return "Det du alltid drar är ungefär \(power). Det blir cirka \(kronor) kr den här månaden."
+        return "Det du alltid drar är runt \(power), ungefär \(kronor) kr den här månaden."
     }
 
     private var seriesLegend: some View {
@@ -385,9 +383,9 @@ struct MonthDailyCostSection: View {
 
     private var emptyStateCopy: String {
         if hasProvider {
-            return "Förbrukningen för den här månaden har inte kommit in ännu. När den finns ser du vad varje dag har kostat."
+            return "Månadens förbrukning har inte kommit in än. Så fort den finns ser du vad varje dag kostat."
         }
-        return "Gå till Inställningar och lägg till förbrukning. Då kan du se vad varje dag har kostat den här månaden."
+        return "Lägg till förbrukning i Inställningar, så ser du vad varje dag kostar."
     }
 
     private func emptyMessage(_ text: String) -> some View {
@@ -465,9 +463,9 @@ struct MonthDailyCostSection: View {
         let through = effectiveMeasuredThrough
             ?? days.last(where: { $0.costKr != nil })?.date
         let until = through.map { AppFormatters.relativeStamp($0) } ?? ""
-        var text = "Hittills \(AppFormatters.wholeNumber(spentSoFarKr)) kr. Prognos ungefär \(AppFormatters.wholeNumber(forecast)) kr för \(month)."
+        var text = "\(AppFormatters.wholeNumber(spentSoFarKr)) kr hittills, runt \(AppFormatters.wholeNumber(forecast)) kr för hela \(month)."
         if !until.isEmpty {
-            text += " Siffrorna gäller till \(until)."
+            text += " Mätt till \(until)."
         }
         return text
     }

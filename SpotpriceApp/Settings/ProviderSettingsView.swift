@@ -100,7 +100,7 @@ struct ProviderSettingsView: View {
             }
             Button("Avbryt", role: .cancel) {}
         } message: {
-            Text("Inloggningen tas bort från den här telefonen och appen slutar hämta förbrukning från \(selectedProviderName). Vill du också radera den sparade historiken som kom därifrån? Sparade elpriser och dina inställningar finns kvar.")
+            Text("Inloggningen tas bort från telefonen och appen slutar hämta förbrukning från \(selectedProviderName). Vill du också radera historiken som kom därifrån? Elpriser och inställningar finns kvar.")
         }
     }
 
@@ -197,7 +197,7 @@ struct ProviderSettingsView: View {
             } footer: {
                 Text(
                     canSave
-                        ? "Uppgifterna sparas automatiskt. Testa när du vill kontrollera att inloggningen fungerar."
+                        ? "Uppgifterna sparas direkt. Testa när du vill se att inloggningen fungerar."
                         : "Fyll i uppgifterna innan du testar anslutningen."
                 )
                 .spriceSettingsFooterStyle()
@@ -219,7 +219,7 @@ struct ProviderSettingsView: View {
                 .accessibilityHint("Tar bort inloggningen från telefonen och slutar hämta förbrukning")
                 .spriceListRowBackground()
             } footer: {
-                Text("Tar bort inloggningen från den här telefonen. Ditt konto hos \(selectedProviderName) påverkas inte.")
+                Text("Tar bort inloggningen från telefonen. Ditt konto hos \(selectedProviderName) påverkas inte.")
                     .spriceSettingsFooterStyle()
             }
         }

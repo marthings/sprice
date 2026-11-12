@@ -94,6 +94,6 @@ Storlek: liten är under en timme, medel är några timmar, stor är en dag elle
 - Filerna och licensen ligger i `Shared/DesignSystem/Fonts/` (`OFL.txt`). Licensen kopieras också in i varje app och widget.
 - iOS-appen och widgeten laddar filerna via `UIAppFonts`, macOS-appen och dess widget via `ATSApplicationFontsPath`.
 - Navigationsrubriker, stora belopp och enheterna bredvid dem använder Black (900). Övriga rubriker är ExtraBold eller Bold. Brödtext är Regular eller Medium.
-- Priser, belopp och axelvärden använder DM Sans tabellsiffror (`tnum`, via `monospacedDigit()`), så siffrorna står rakt under varandra.
+- Siffrorna använder DM Sans vanliga (proportionella) siffror. Typsnittet har tabellsiffror (`tnum`), men där blir också kommatecknet lika brett som en siffra (2 , 42), så `monospacedDigit()` används inte. Belopp i listor står högerställda i stället.
 - Textstorleken följer fortfarande telefonens inställning för större text.
 - Flikraden längst ner ritas av systemet och visas fortfarande med Apples typsnitt. Axlarna i diagrammen använder DM Sans.

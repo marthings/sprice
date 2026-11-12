@@ -9,20 +9,19 @@ struct HistoryWeekdayPattern: View {
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
             SectionInfoHeader(
-                title: "Veckodagar, snitt",
+                title: "Snitt per veckodag",
                 paragraphs: [
-                    "Staplarna visar vad respektive veckodag har kostat i snitt under månaden.",
-                    "Om det finns få dagar att jämföra blir slutsatsen mer osäker."
+                    "Vad varje veckodag har kostat i snitt den här månaden.",
+                    "Med få dagar att jämföra blir det mer osäkert."
                 ]
             )
 
             if averages.allSatisfy({ $0.averageCostKr == nil }) {
-                Text("Veckodagarna visas när det finns dygn med sparad kostnad.")
+                Text("Veckodagarna syns när det finns dagar med sparad kostnad.")
                     .font(DS.Font.callout)
                     .foregroundStyle(.primary)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
-                ChartCaption("Snittkostnad per veckodag, i kronor")
 
                 Chart {
                     ForEach(averages) { weekday in
@@ -82,14 +81,14 @@ struct HistoryWeekdayPattern: View {
 
                 if let peak = peakWeekday, let cost = peak.averageCostKr {
                     let kWhText = peak.averageKWh.map { ", \(AppFormatters.kWh($0, fractionLength: 0...1))" } ?? ""
-                    Text("Högst snitt (röd stapel): \(peak.label), \(AppFormatters.wholeNumber(cost)) kr\(kWhText)")
+                    Text("Dyrast i snitt: \(peak.label), \(AppFormatters.wholeNumber(cost)) kr\(kWhText)")
                         .font(DS.Font.callout)
                         .foregroundStyle(.primary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
                 if HistoryInsights.weekdayPatternIsSparse(averages) {
-                    Text("Det finns få dagar att jämföra. Slutsatsen är osäker.")
+                    Text("Få dagar att jämföra än, så ta det som en fingervisning.")
                         .font(DS.Font.footnote)
                         .foregroundStyle(DS.Color.secondary)
                         .fixedSize(horizontal: false, vertical: true)

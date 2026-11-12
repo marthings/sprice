@@ -34,10 +34,6 @@ struct KilowattHourBreakdownView: View {
                 )
             }
 
-            if style == .regular {
-                ChartCaption("Så fördelas priset på en kWh, i kronor per kWh")
-            }
-
             if usesExternalHeroPrice {
                 centerPrice
                     .frame(maxWidth: .infinity)
@@ -51,7 +47,17 @@ struct KilowattHourBreakdownView: View {
             } else {
                 donutChart
                     .frame(maxWidth: .infinity)
-                legend
+                if style == .regular {
+                    SpriceDisclosure(
+                        title: "Vad priset består av",
+                        openTitle: "Dölj uppdelningen",
+                        accessibilityName: "Vad priset består av"
+                    ) {
+                        legend
+                    }
+                } else {
+                    legend
+                }
             }
 
             if let missingGridMessage = breakdown.missingGridMessage {
@@ -148,7 +154,7 @@ struct KilowattHourBreakdownView: View {
 
             HStack(alignment: .center, spacing: DS.Spacing.xs) {
                 Text(breakdown.totalKrPerKWh, format: .number.precision(.fractionLength(2)))
-                    .font(DS.Font.fixed(style == .compact ? compactPriceSize : regularPriceSize).monospacedDigit())
+                    .font(DS.Font.fixed(style == .compact ? compactPriceSize : regularPriceSize))
                     .foregroundStyle(priceColor)
                     .minimumScaleFactor(0.5)
                     .lineLimit(1)
@@ -230,13 +236,13 @@ struct KilowattHourBreakdownView: View {
                 Spacer(minLength: DS.Spacing.sm)
 
                 Text(shareText(for: line))
-                    .font(DS.Font.footnote.monospacedDigit())
+                    .font(DS.Font.footnote)
                     .foregroundStyle(DS.Color.secondary)
                     .lineLimit(1)
                     .frame(minWidth: 32, alignment: .trailing)
 
                 Text(AppFormatters.krPerKWh(line.amountKrPerKWh))
-                    .font(DS.Font.footnote.monospacedDigit())
+                    .font(DS.Font.footnote)
                     .foregroundStyle(.primary)
                     .lineLimit(1)
             }
@@ -256,7 +262,7 @@ struct KilowattHourBreakdownView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Text("\(shareText(for: line)), \(AppFormatters.krPerKWh(line.amountKrPerKWh))")
-                    .font(DS.Font.footnote.monospacedDigit())
+                    .font(DS.Font.footnote)
                     .foregroundStyle(.primary)
             }
         }
@@ -264,11 +270,11 @@ struct KilowattHourBreakdownView: View {
 
     private var infoParagraphs: [String] {
         var parts = [
-            "Cirkeln och listan visar vad en kilowattimme (kWh) kostar just nu, uppdelat på elhandel, elnät, skatt och annat. Allt anges i kronor per kWh.",
-            "Siffrorna i listan är utan moms. Momsen ligger på en egen rad. Totalen är vad du betalar."
+            "Ringen visar vad en kilowattimme (kWh) kostar just nu och vart pengarna går. Under Vad priset består av ser du varje del i kronor.",
+            "Delarna är utan moms, som har en egen rad. Mitt i ringen står det du faktiskt betalar."
         ]
         if let folded = breakdown.lines.first(where: { $0.kind == .other }), let detail = folded.detail {
-            parts.append("Annat smått är poster som är under 2 procent av priset var för sig: \(detail.lowercased()).")
+            parts.append("Annat smått samlar delar som är under 2 procent var: \(detail.lowercased()).")
         }
         if let missingGridMessage = breakdown.missingGridMessage {
             parts.append(missingGridMessage)

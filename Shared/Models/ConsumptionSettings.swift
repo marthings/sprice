@@ -931,19 +931,19 @@ nonisolated enum EffectTariffCopy {
     nonisolated static let toggleTitle = "Räkna med effektavgift"
     nonisolated static let explanation = "Visar vad toppen hade kostat om elnätet tog betalt för den. Elnätsbolag får i dag inte ta betalt för effekttoppen."
     nonisolated static let lineTitle = "Effektavgift (om den räknades)"
-    nonisolated static let missingRate = "Ingen effektavgift i dina elnätsuppgifter, så toppen visas bara som hur mycket el som gick åt just då (kW)."
+    nonisolated static let missingRate = "Det finns ingen effektavgift i dina elnätsuppgifter, så vi visar bara toppen i kW."
     nonisolated static let dailyBarsNote = "Den syns inte i dygnsstaplarna. Det är en månadsavgift, inte en kostnad per dag."
 }
 
 nonisolated enum ElectricCarCopy {
     nonisolated static let toggleTitle = "Jag har elbil"
-    nonisolated static let toggleExplanation = "När det är på letar appen efter timmar som ser ut som laddning. Det är en gissning, inte ett faktum."
+    nonisolated static let toggleExplanation = "Appen letar efter timmar som ser ut som laddning. Det är en gissning, inte ett faktum."
 
     nonisolated static let infoParagraphs = [
-        "Appen letar efter minst två timmar i rad där du drar tydligt mer än det du alltid drar. Det ska motsvara en vanlig laddbox. En enfasladdare drar ungefär 3,7 kW och en trefasladdare ungefär 11 kW. kW är hur mycket el som går åt just då, och går 1 kW åt i en timme blir det 1 kWh.",
-        "Lasten ska vara ganska jämn, och det sker oftast på kvällen eller natten. Ett kort avbrott på högst en timme räknas in i samma tillfälle.",
-        "Ett tydligt, jämnt och högt uttag mitt på dagen kan också räknas med, eftersom det liknar trefasladdning.",
-        "Det är en gissning. En värmepump, en bastu eller något annat som går länge på jämn last kan se likadant ut."
+        "Appen letar efter minst två timmar i rad där du drar tydligt mer än det du alltid drar, ungefär som en laddbox. En enfasladdare drar runt 3,7 kW och en trefasladdare runt 11 kW.",
+        "Lasten ska vara ganska jämn, och oftast sker det på kvällen eller natten. Ett kort avbrott på högst en timme räknas in.",
+        "Ett högt och jämnt uttag mitt på dagen kan också räknas, eftersom det liknar trefasladdning.",
+        "Det är en gissning. En värmepump, bastu eller annat som går länge på jämn last kan se likadant ut."
     ]
 
 }
