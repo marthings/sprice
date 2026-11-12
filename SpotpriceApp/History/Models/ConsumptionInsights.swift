@@ -51,11 +51,11 @@ nonisolated enum ConsumptionInsightsResolution: String, Sendable, Equatable {
     var swedishLabel: String {
         switch self {
         case .quarterHour:
-            return "Beräknat på kvartsvärden."
+            return "Räknat på kvartsvärden."
         case .hourly:
-            return "Beräknat på timvärden. Kvartsvärden saknas, så topparna är grovare."
+            return "Räknat på timvärden, så topparna blir lite grövre."
         case .daily:
-            return "Bara dygnsvärden finns. Det du alltid drar är osäkert, och toppar och dygnsprofil saknas."
+            return "Bara dygnsvärden finns, så det du alltid drar blir osäkert och toppar och dygnsprofil saknas."
         case .none:
             return "Förbrukning saknas, så Vad drog? kan inte räknas ut än."
         }

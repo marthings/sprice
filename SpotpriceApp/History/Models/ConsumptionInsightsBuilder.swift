@@ -54,7 +54,7 @@ nonisolated enum ConsumptionInsightsBuilder: Sendable {
         let eventsUnavailableReason: String?
         if resolution == .daily {
             events = []
-            eventsUnavailableReason = "Toppar kräver tim- eller kvartsvärden."
+            eventsUnavailableReason = "Toppar behöver tim- eller kvartsvärden."
         } else if let baseload {
             events = loadEvents(from: samples, baseloadKW: baseload.powerKW)
             eventsUnavailableReason = events.isEmpty ? "Inga tydliga toppar över det du alltid drar." : nil
@@ -67,7 +67,7 @@ nonisolated enum ConsumptionInsightsBuilder: Sendable {
         let diurnalUnavailableReason: String?
         if resolution == .daily {
             diurnal = nil
-            diurnalUnavailableReason = "Dygnsprofilen kräver tim- eller kvartsvärden."
+            diurnalUnavailableReason = "Dygnsprofilen behöver tim- eller kvartsvärden."
         } else {
             diurnal = diurnalProfile(from: samples, baseloadKW: baseload?.powerKW ?? 0, periodKind: periodKind, calendar: calendar)
             diurnalUnavailableReason = diurnal == nil ? "För få timmar med förbrukning för en dygnsprofil." : nil
@@ -77,7 +77,7 @@ nonisolated enum ConsumptionInsightsBuilder: Sendable {
         let powerPeakUnavailableReason: String?
         if resolution == .daily {
             powerPeak = nil
-            powerPeakUnavailableReason = "Timtoppen saknas när bara dygnsvärden finns."
+            powerPeakUnavailableReason = "Högsta timmen syns inte när det bara finns dygnsvärden."
         } else {
             powerPeak = hourPeak(
                 from: samples,

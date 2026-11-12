@@ -103,7 +103,7 @@ struct ConsumptionInsightsContent: View {
             SectionInfoHeader(
                 title: periodTitle,
                 paragraphs: [
-                    "Här är en kort sammanfattning av vad som drog i perioden, utifrån den förbrukning som finns sparad."
+                    "En kort sammanfattning av vad som drog, utifrån den förbrukning som finns sparad."
                 ]
             )
             ForEach(Array(insights.summarySentences.enumerated()), id: \.offset) { _, sentence in
@@ -133,17 +133,16 @@ struct ConsumptionInsightsContent: View {
             SectionInfoHeader(
                 title: "Det du alltid drar",
                 paragraphs: [
-                    "Det du alltid drar är det som är på hela tiden, även på natten. Det kallas grundlast.",
-                    "När det finns timvärden räknas det från den låga nivån mellan midnatt och fem.",
-                    "Om bara dygnsvärden finns är det ett grovt golv från det lägsta dygnet.",
-                    "Siffran visas i watt (W) eller kilowatt (kW). Det är hur mycket el som går åt just då. Går 1 kW åt i en timme blir det 1 kWh."
+                    "Det du alltid drar är det som är igång hela tiden, även på natten. Det kallas grundlast.",
+                    "Med timvärden räknas det från den låga nivån mellan midnatt och fem på morgonen. Finns bara dygnsvärden blir det ett grovt golv från det lägsta dygnet.",
+                    "Watt (W) och kilowatt (kW) är hur mycket el som går åt just då. Går 1 kW i en timme blir det 1 kWh."
                 ]
             )
 
             if let baseload = insights.baseload {
                 HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xs) {
                     Text(ConsumptionInsightsBuilder.powerPhrase(baseload.powerKW))
-                        .font(DS.Font.bold(28).monospacedDigit())
+                        .font(DS.Font.bold(28))
                     Text("alltid på")
                         .font(DS.Font.footnote)
                         .foregroundStyle(DS.Color.secondary)
@@ -151,7 +150,7 @@ struct ConsumptionInsightsContent: View {
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel("Det du alltid drar, \(ConsumptionInsightsBuilder.powerPhrase(baseload.powerKW))")
 
-                Text("Det du alltid drar kostade ca \(AppFormatters.wholeNumber(baseload.costKr)) kr (\(AppFormatters.kWh(baseload.energyKWh))).")
+                Text("Det kostade ungefär \(AppFormatters.wholeNumber(baseload.costKr)) kr (\(AppFormatters.kWh(baseload.energyKWh))).")
                     .font(DS.Font.callout)
                     .foregroundStyle(.primary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -164,7 +163,7 @@ struct ConsumptionInsightsContent: View {
                 }
 
             } else {
-                Text("Det du alltid drar kan inte räknas ut. Det saknas nattvärden med förbrukning.")
+                Text("Det går inte att räkna ut än, för nattvärden med förbrukning saknas.")
                     .font(DS.Font.callout)
                     .foregroundStyle(.primary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -199,7 +198,7 @@ struct ConsumptionInsightsContent: View {
             SectionInfoHeader(
                 title: "Toppar",
                 paragraphs: [
-                    "Vid varje topp står en gissning utifrån när den kom och hur den såg ut. Det är inte fakta, bara en ledtråd."
+                    "Vid varje topp står en gissning utifrån när den kom och hur den såg ut. Se det som en ledtråd, inte ett facit."
                 ]
             )
 
@@ -227,7 +226,7 @@ struct ConsumptionInsightsContent: View {
             Text("\(rank). \(eventTimeSpan(event))")
                 .font(DS.Font.semibold(14))
             Text("\(AppFormatters.wholeNumber(event.costKr)) kr, \(AppFormatters.kWh(event.energyKWh)), topp \(ConsumptionInsightsBuilder.powerPhrase(event.peakKW))")
-                .font(DS.Font.callout.monospacedDigit())
+                .font(DS.Font.callout)
                 .foregroundStyle(.primary)
             Text("\(event.shape.shapeLabel) — \(event.guess())")
                 .font(DS.Font.footnote)
@@ -257,13 +256,13 @@ struct ConsumptionInsightsContent: View {
             SectionInfoHeader(
                 title: "Tid på dygnet",
                 paragraphs: [
-                    "Staplarna visar medelförbrukning per klockslag.",
-                    "Listan under visar hur kostnaden fördelas över morgon, dag, kväll och natt."
+                    "Staplarna är medelförbrukningen per klockslag.",
+                    "Under ser du hur kostnaden fördelas över morgon, dag, kväll och natt."
                 ]
             )
 
             if let diurnal = insights.diurnal {
-                ChartCaption("Medelförbrukning per klockslag, i kWh")
+                ChartCaption("Snitt per klockslag, kWh")
                 ConsumptionInsightsHourChart(diurnal: diurnal)
 
                 Text("Mest pengar gick på \(diurnal.dominantBand.swedishName)en (\(AppFormatters.wholeNumber(dominantCost(diurnal))) kr).")
@@ -277,7 +276,7 @@ struct ConsumptionInsightsContent: View {
                             .font(DS.Font.callout)
                         Spacer(minLength: DS.Spacing.sm)
                         Text("\(AppFormatters.wholeNumber(band.costKr)) kr")
-                            .font(DS.Font.semibold(14).monospacedDigit())
+                            .font(DS.Font.semibold(14))
                     }
                     .accessibilityElement(children: .combine)
                     .accessibilityLabel("\(band.band.swedishNameCapitalized) \(band.band.hourRangeLabel), \(AppFormatters.wholeNumber(band.costKr)) kronor")
@@ -308,11 +307,11 @@ struct ConsumptionInsightsContent: View {
 
     private var peakInfoParagraphs: [String] {
         var parts = [
-            "Det här är den timme i perioden då mest el gick åt. Den visas som effekt i kilowatt (kW), alltså hur mycket el som går åt just då.",
+            "Timmen i perioden då mest el gick åt, i kilowatt (kW), alltså hur mycket el som gick åt just då.",
             EffectTariffCopy.explanation
         ]
         if insights.powerPeak?.usesAveragePeaks == true {
-            parts.append("Elnätet räknar på medel av flera toppar. Här visas den högsta timmen, och avgiften på det medel som elnätet använder.")
+            parts.append("Elnätet räknar på ett medel av flera toppar. Här ser du den högsta timmen och avgiften på elnätets medel.")
         }
         return parts
     }
@@ -332,7 +331,7 @@ struct ConsumptionInsightsContent: View {
             if let peak = insights.powerPeak {
                 HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xs) {
                     Text(ConsumptionInsightsBuilder.powerPhrase(peak.powerKW))
-                        .font(DS.Font.bold(28).monospacedDigit())
+                        .font(DS.Font.bold(28))
                     Text(AppFormatters.powerPeakHourLabel(peak.hourStart))
                         .font(DS.Font.footnote)
                         .foregroundStyle(DS.Color.secondary)
@@ -384,7 +383,7 @@ struct ConsumptionInsightsContent: View {
                         .font(DS.Font.callout)
                         .foregroundStyle(.primary)
                         .fixedSize(horizontal: false, vertical: true)
-                    ChartCaption("El per timme, i kWh")
+                    ChartCaption("kWh per timme")
                     ForEach(ev.dayProfiles) { profile in
                         if ev.dayProfiles.count > 1 {
                             Text(AppFormatters.shortDayAndMonth(profile.day))
@@ -441,7 +440,7 @@ struct ConsumptionInsightsContent: View {
             Text(title)
                 .font(DS.Font.semibold(14))
             Text("\(AppFormatters.wholeNumber(session.costKr)) kr, \(AppFormatters.kWh(session.energyKWh)), \(evDuration(session))")
-                .font(DS.Font.callout.monospacedDigit())
+                .font(DS.Font.callout)
                 .foregroundStyle(.primary)
                 .fixedSize(horizontal: false, vertical: true)
         }

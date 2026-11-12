@@ -184,7 +184,7 @@ private struct SpotpriceWidgetMonthlyStatsRow: View {
             if shouldShow {
                 HStack(spacing: DS.Spacing.xxs) {
                     Text("\(Int(monthlyKWh.rounded()))")
-                        .font(DS.Font.semibold(11).monospacedDigit())
+                        .font(DS.Font.semibold(11))
                     Text("kWh")
                         .font(DS.Font.regular(9))
                         .foregroundStyle(DS.Color.secondary)
@@ -192,7 +192,7 @@ private struct SpotpriceWidgetMonthlyStatsRow: View {
 
                 HStack(spacing: DS.Spacing.xxs) {
                     Text("\(Int(monthlyCostKr.rounded()))")
-                        .font(DS.Font.semibold(11).monospacedDigit())
+                        .font(DS.Font.semibold(11))
                     Text("kr")
                         .font(DS.Font.regular(9))
                         .foregroundStyle(DS.Color.secondary)
@@ -233,7 +233,6 @@ private struct SpotpriceWidgetPriceRow: View {
                     HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
                         Text(totalCostPerKWh, format: .number.precision(.fractionLength(2)))
                             .font(DS.Font.bold(24))
-                            .monospacedDigit()
                             .foregroundStyle(renderingMode == .accented ? .primary : currentPriceColor)
                         Text("kr/kWh")
                             .font(DS.Font.footnote)
@@ -250,7 +249,6 @@ private struct SpotpriceWidgetPriceRow: View {
                 HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
                     Text(Double(spotPriceOre) / 100, format: .number.precision(.fractionLength(2)))
                         .font(DS.Font.bold(24))
-                        .monospacedDigit()
                         .foregroundStyle(renderingMode == .accented ? .primary : currentPriceColor)
                     Text("kr/kWh")
                         .font(DS.Font.footnote)

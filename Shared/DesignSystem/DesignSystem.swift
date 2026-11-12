@@ -1052,8 +1052,8 @@ struct SharedCostBreakdownRow: View {
 
         var amountFont: Font {
             switch self {
-            case .compact: return DS.Font.medium(11).monospacedDigit()
-            case .regular: return DS.Font.semibold(14).monospacedDigit()
+            case .compact: return DS.Font.medium(11)
+            case .regular: return DS.Font.semibold(14)
             }
         }
     }
@@ -1092,7 +1092,7 @@ struct SharedCostBreakdownSubRow: View {
             Spacer()
 
             Text(AppFormatters.wholeKr(amount))
-                .font(DS.Font.regular(10).monospacedDigit())
+                .font(DS.Font.regular(10))
                 .foregroundStyle(DS.Color.secondary)
         }
     }
@@ -1110,7 +1110,7 @@ struct MetricCard: View {
     var icon: String? = nil
     var color: Color = .primary
     var titleColor: Color = DS.Color.secondary
-    var valueFont: Font = DS.Font.bold(20).monospacedDigit()
+    var valueFont: Font = DS.Font.bold(20)
     var unitFont: Font = DS.Font.unit
     var iconSize: CGFloat = DS.Size.iconMedium
     var layout: Layout = .horizontal
@@ -1212,7 +1212,6 @@ struct PriceDisplay: View {
         HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
             Text("\(price)")
                 .font(size.priceFont)
-                .monospacedDigit()
                 .foregroundStyle(useSemanticColor ? DS.Color.textForCategory(category) : .primary)
             Text("öre")
                 .font(size.unitFont)
@@ -1646,6 +1645,77 @@ struct ChartCaption: View {
     }
 }
 
+/// A quiet "Visa detaljer" link that folds longer information in and out,
+/// so a card can lead with the answer and keep the explanation one tap away.
+struct SpriceDisclosureButton: View {
+    @Binding var isOpen: Bool
+    var title: String = "Visa detaljer"
+    var openTitle: String = "Dölj detaljer"
+    /// What VoiceOver calls the button, for example "Vad priset består av".
+    let accessibilityName: String
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        Button {
+            withAnimation(DS.Motion.curve(DS.Motion.reveal, reduceMotion: reduceMotion)) {
+                isOpen.toggle()
+            }
+        } label: {
+            HStack(spacing: DS.Spacing.xs) {
+                Text(isOpen ? openTitle : title)
+                    .font(DS.Font.semibold(14))
+                    .foregroundStyle(DS.Color.accentText)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(DS.Color.accentText)
+                    .rotationEffect(.degrees(isOpen ? 180 : 0))
+                    .accessibilityHidden(true)
+                Spacer(minLength: 0)
+            }
+            .frame(minHeight: 44, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.vertical, -DS.Spacing.xs)
+        .accessibilityLabel(accessibilityName)
+        .accessibilityValue(isOpen ? "Utfälld" : "Hopfälld")
+        .accessibilityAddTraits(.isButton)
+#if DEBUG
+        .onAppear {
+            // `-OpenDetails` unfolds every "Visa detaljer" for screenshots.
+            if ProcessInfo.processInfo.arguments.contains("-OpenDetails") { isOpen = true }
+        }
+#endif
+    }
+}
+
+/// `SpriceDisclosureButton` with its content right under it.
+struct SpriceDisclosure<Content: View>: View {
+    var title: String = "Visa detaljer"
+    var openTitle: String = "Dölj detaljer"
+    let accessibilityName: String
+    @ViewBuilder let content: () -> Content
+
+    @State private var isOpen = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+            SpriceDisclosureButton(
+                isOpen: $isOpen,
+                title: title,
+                openTitle: openTitle,
+                accessibilityName: accessibilityName
+            )
+            if isOpen {
+                content()
+                    .transition(DS.Motion.revealTransition(reduceMotion: reduceMotion))
+            }
+        }
+    }
+}
+
 /// Menu picker whose trailing value is a `DS.Font` `Text`, for grouped Forms.
 struct SpriceSettingsMenuPicker<Selection: Hashable, Options: View>: View {
     let title: String
@@ -1676,7 +1746,7 @@ struct SpriceSettingsMenuPicker<Selection: Hashable, Options: View>: View {
                 }
             } label: {
                 Text(valueText)
-                    .font(monospacedValue ? DS.Font.body.monospacedDigit() : DS.Font.body)
+                    .font(DS.Font.body)
                     .foregroundStyle(.primary)
                     .multilineTextAlignment(.trailing)
             }

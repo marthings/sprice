@@ -33,7 +33,7 @@ struct CostCardView: View {
             if let breakdown = costBreakdown {
                 HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
                     Text(breakdown.formattedTotal)
-                        .font(DS.Font.bold(15).monospacedDigit())
+                        .font(DS.Font.bold(15))
                         .foregroundStyle(.primary)
                     Text("kr")
                         .font(DS.Font.footnote)
