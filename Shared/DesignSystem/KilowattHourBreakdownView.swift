@@ -29,7 +29,7 @@ struct KilowattHourBreakdownView: View {
         VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
             if style == .regular {
                 SectionInfoHeader(
-                    title: "Vad en kWh kostar",
+                    title: "Vad en kWh kostar nu",
                     paragraphs: infoParagraphs
                 )
             }
@@ -147,10 +147,6 @@ struct KilowattHourBreakdownView: View {
             if style == .regular, let priceCategory {
                 PriceLevelBadge(category: priceCategory)
             }
-
-            Text("Just nu")
-                .font(DS.Font.footnote)
-                .foregroundStyle(DS.Color.secondary)
 
             HStack(alignment: .center, spacing: DS.Spacing.xs) {
                 Text(breakdown.totalKrPerKWh, format: .number.precision(.fractionLength(2)))
@@ -284,10 +280,7 @@ struct KilowattHourBreakdownView: View {
     }
 
     private var centerAccessibilityLabel: String {
-        var parts = [
-            "Nu",
-            AppFormatters.krPerKWh(breakdown.totalKrPerKWh)
-        ]
+        var parts = [AppFormatters.krPerKWh(breakdown.totalKrPerKWh)]
         if let priceCategory {
             parts.insert(priceCategory.label, at: 0)
         }
