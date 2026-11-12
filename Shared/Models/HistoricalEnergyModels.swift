@@ -703,6 +703,8 @@ nonisolated enum WidgetHistorySummaryCache: Sendable {
     }
 
     nonisolated static func store(_ summary: WidgetHistorySummary) {
+        // Demo mode never writes what widgets read.
+        guard !DemoMode.isActive else { return }
         var cached = summaries().filter { existing in
             !(existing.monthKey == summary.monthKey && existing.priceArea == summary.priceArea)
         }
@@ -717,6 +719,7 @@ nonisolated enum WidgetHistorySummaryCache: Sendable {
     }
 
     nonisolated static func replaceAll(_ summaries: [WidgetHistorySummary]) {
+        guard !DemoMode.isActive else { return }
         let cached = Array(summaries.sorted { $0.periodStart > $1.periodStart }.prefix(12))
         if let data = try? JSONEncoder().encode(cached) {
             defaults.set(data, forKey: key)
@@ -727,6 +730,7 @@ nonisolated enum WidgetHistorySummaryCache: Sendable {
     }
 
     nonisolated static func clear() {
+        guard !DemoMode.isActive else { return }
         defaults.removeObject(forKey: key)
         defaults.synchronize()
     }

@@ -84,7 +84,7 @@ private struct SpotPriceBarChartHeader: View {
 
                     HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
                         Text(value.amount, format: .number.precision(.fractionLength(2)))
-                            .font(DS.Font.bold(30).monospacedDigit())
+                            .font(DS.Font.fixed(30))
                             .foregroundStyle(value.color)
                             .spriceNumericText(value.amount)
                         Text(value.unit)
@@ -111,7 +111,7 @@ private struct SpotPriceBarChartHeader: View {
                     HStack(spacing: DS.Spacing.xs) {
                         TrendIndicator(current: current, next: next)
                         Text(nextValue.amount, format: .number.precision(.fractionLength(nextValue.decimals)))
-                            .font(DS.Font.semibold(12).monospacedDigit())
+                            .font(DS.Font.semibold(12))
                             .foregroundStyle(nextValue.color)
                         Text(nextValue.unit)
                             .font(DS.Font.footnote)
@@ -122,7 +122,7 @@ private struct SpotPriceBarChartHeader: View {
 
                     HStack(spacing: DS.Spacing.xxs) {
                         Text(nextValue.amount, format: .number.precision(.fractionLength(nextValue.decimals)))
-                            .font(DS.Font.semibold(12).monospacedDigit())
+                            .font(DS.Font.semibold(12))
                             .foregroundStyle(nextValue.color)
                         Text(nextValue.unit)
                             .font(DS.Font.footnote)

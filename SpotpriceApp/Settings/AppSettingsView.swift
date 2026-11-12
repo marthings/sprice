@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct AppSettingsView: View {
     @Environment(\.scenePhase) private var scenePhase
@@ -36,14 +37,32 @@ struct AppSettingsView: View {
     }
 
     var body: some View {
+        ScrollViewReader { proxy in
+            form
+#if DEBUG
+                .task {
+                    // DEBUG only: `-ScrollTo history` scrolls to a section, for screenshots.
+                    let arguments = ProcessInfo.processInfo.arguments
+                    guard let index = arguments.firstIndex(of: "-ScrollTo"), arguments.indices.contains(index + 1) else { return }
+                    try? await Task.sleep(for: .seconds(2))
+                    proxy.scrollTo(arguments[index + 1], anchor: .top)
+                }
+#endif
+        }
+    }
+
+    private var form: some View {
         Form {
             overviewSection
+            demoSection.id("demo")
             consumptionSection
             priceAreaSection
             retailContractSection
             gridTariffSection
             temperaturePlaceSection
             electricCarSection
+            SettingsHistoryDataSection().id("history")
+            aboutSection.id("about")
         }
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
@@ -117,20 +136,50 @@ struct AppSettingsView: View {
         }
     }
 
+    private var demoSection: some View {
+        Section {
+            Toggle(isOn: Binding(
+                get: { settings.isDemoActive },
+                set: { settings.setDemoMode($0) }
+            )) {
+                Text("Visa exempeldata")
+                    .font(DS.Font.body)
+            }
+            .accessibilityHint("Visar påhittad data så att du kan prova appen utan konto")
+            .spriceListRowBackground()
+        } header: {
+            Text("Exempeldata")
+                .spriceSettingsHeaderStyle()
+        } footer: {
+            Text("Påhittad data för ett hushåll som inte finns, så du kan prova appen utan konto. Din riktiga data rörs inte.")
+                .spriceSettingsFooterStyle()
+        }
+    }
+
     private var consumptionSection: some View {
         Section {
-            NavigationLink {
-                ProviderSettingsView()
-            } label: {
+            if settings.isDemoActive {
                 LabeledContent("Datakälla") {
                     Text(providerStatusText)
                         .font(DS.Font.body)
                         .foregroundStyle(DS.Color.secondary)
                         .multilineTextAlignment(.trailing)
                 }
+                .spriceListRowBackground()
+            } else {
+                NavigationLink {
+                    ProviderSettingsView()
+                } label: {
+                    LabeledContent("Datakälla") {
+                        Text(providerStatusText)
+                            .font(DS.Font.body)
+                            .foregroundStyle(DS.Color.secondary)
+                            .multilineTextAlignment(.trailing)
+                    }
+                }
+                .accessibilityHint("Öppnar inställningar för förbrukningsdata")
+                .spriceListRowBackground()
             }
-            .accessibilityHint("Öppnar inställningar för förbrukningsdata")
-            .spriceListRowBackground()
         } header: {
             Text("Förbrukning")
                 .spriceSettingsHeaderStyle()
@@ -252,7 +301,7 @@ struct AppSettingsView: View {
                 .spriceSettingsHeaderStyle()
         } footer: {
             VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                Text("Elnätskostnader används i totalpriset tillsammans med spotpris, elhandel och moms. Beloppen anges som på fakturan, inklusive moms.")
+                Text("Elnätet räknas in i totalpriset. Ange beloppen som på fakturan, med moms.")
                 Text(EffectTariffCopy.explanation)
             }
             .spriceSettingsFooterStyle()
@@ -275,7 +324,57 @@ struct AppSettingsView: View {
             Text("Temperatur")
                 .spriceSettingsHeaderStyle()
         } footer: {
-            Text("Används för att jämföra förbrukningen när det varit varmare eller kallare. Standard är Vaggeryd, nära Vaggeryds elnät. Du väljer ort själv, appen använder inte din position. Dygnstemperatur från Open-Meteo.")
+            Text("Används för att jämföra förbrukningen när det varit varmare eller kallare. Du väljer ort själv, appen använder inte din position. Temperaturen kommer från Open-Meteo.")
+                .spriceSettingsFooterStyle()
+        }
+    }
+
+    private var aboutSection: some View {
+        Section {
+            Link(destination: AppLinks.privacyPolicy) {
+                LabeledContent("Integritetspolicy") {
+                    Image(systemName: "arrow.up.right")
+                        .foregroundStyle(DS.Color.secondary)
+                        .accessibilityHidden(true)
+                }
+            }
+            .accessibilityHint("Öppnar sidan i webbläsaren")
+            .spriceListRowBackground()
+
+            Link(destination: AppLinks.support) {
+                LabeledContent("Support") {
+                    Image(systemName: "arrow.up.right")
+                        .foregroundStyle(DS.Color.secondary)
+                        .accessibilityHidden(true)
+                }
+            }
+            .accessibilityHint("Öppnar sidan i webbläsaren")
+            .spriceListRowBackground()
+
+            Link(destination: AppLinks.priceSource) {
+                LabeledContent("Elpriser från Elpriset just nu.se") {
+                    Image(systemName: "arrow.up.right")
+                        .foregroundStyle(DS.Color.secondary)
+                        .accessibilityHidden(true)
+                }
+            }
+            .accessibilityHint("Öppnar sidan i webbläsaren")
+            .spriceListRowBackground()
+
+            Link(destination: AppLinks.temperatureSource) {
+                LabeledContent("Temperatur från Open-Meteo.com") {
+                    Image(systemName: "arrow.up.right")
+                        .foregroundStyle(DS.Color.secondary)
+                        .accessibilityHidden(true)
+                }
+            }
+            .accessibilityHint("Öppnar sidan i webbläsaren")
+            .spriceListRowBackground()
+        } header: {
+            Text("Om Sprice")
+                .spriceSettingsHeaderStyle()
+        } footer: {
+            Text("All data stannar på din telefon. Appen har ingen inloggning hos oss, inga annonser och ingen spårning.")
                 .spriceSettingsFooterStyle()
         }
     }
@@ -309,7 +408,7 @@ struct AppSettingsView: View {
                     .keyboardType(.decimalPad)
                     .textFieldStyle(.plain)
                     .multilineTextAlignment(.trailing)
-                    .font(DS.Font.body.monospacedDigit())
+                    .font(DS.Font.body)
                     .focused($focusedField, equals: field)
                     .submitLabel(.done)
                     .onSubmit {
@@ -326,14 +425,14 @@ struct AppSettingsView: View {
     }
 
     private var contractFooterText: String {
-        let compare = "Jämför med fast pris används bara för att visa skillnaden mot spot. Standard är 120 öre/kWh inklusive moms."
+        let compare = "Jämför med fast pris visar bara skillnaden mot spotpris. Standard är 120 öre/kWh med moms."
         switch contractType {
         case .spotPriceMarkup:
-            return "Totalpriset följer spotpriset plus påslag, skatter, elnät och moms. Påslag, skatt och elnät anges som på fakturan, inklusive moms. Spotpriset hämtas utan moms. " + compare
+            return "Totalpriset är spotpriset plus påslag, skatt, elnät och moms. Ange påslag och avgifter som på fakturan, med moms. " + compare
         case .variableMonthlyPrice:
-            return "Totalpriset använder ditt rörliga månadspris för elhandeln, inklusive moms. " + compare
+            return "Elhandeln räknas från ditt rörliga månadspris, med moms. " + compare
         case .fixedPrice:
-            return "Totalpriset använder ditt fasta avtalade pris för elhandeln, inklusive moms. " + compare
+            return "Elhandeln räknas från ditt fasta pris, med moms. " + compare
         }
     }
 
@@ -360,10 +459,12 @@ struct AppSettingsView: View {
     }
 
     private var providerOverviewName: String {
-        providerMetadata?.displayName ?? "Ingen leverantör"
+        if settings.isDemoActive { return "Exempeldata" }
+        return providerMetadata?.displayName ?? "Ingen leverantör"
     }
 
     private var overviewStatus: String? {
+        if settings.isDemoActive { return "Påhittad data, inget är sparat" }
         guard let metadata = providerMetadata else { return nil }
         let credentials = settings.getCredentials(for: metadata.identifier)
         return credentials.isComplete(for: metadata.credentialFields)
@@ -377,6 +478,7 @@ struct AppSettingsView: View {
     }
 
     private var providerStatusText: String {
+        if settings.isDemoActive { return "Exempeldata visas" }
         guard let metadata = providerMetadata else {
             return "Ingen leverantör vald"
         }
@@ -600,4 +702,138 @@ struct AppSettingsView: View {
             .navigationTitle("Inställningar")
             .navigationBarTitleDisplayMode(.large)
     }
+}
+
+
+// MARK: - Saved history: export and delete
+
+struct SettingsHistoryDataSection: View {
+    @State private var status = "Läser sparad historik..."
+    @State private var isPreparingExport = false
+    @State private var shareItem: HistoryShareItem?
+    @State private var isConfirmingDeletion = false
+
+    private let settings = ConsumptionSettings.shared
+
+    var body: some View {
+        Section {
+            Text(status)
+                .font(DS.Font.body)
+                .foregroundStyle(DS.Color.secondary)
+                .spriceListRowBackground()
+
+            Button {
+                exportHistory()
+            } label: {
+                HStack {
+                    Label("Exportera historik", systemImage: "square.and.arrow.up")
+                        .font(DS.Font.body)
+                    Spacer()
+                    if isPreparingExport {
+                        ProgressView()
+                    }
+                }
+            }
+            .disabled(isPreparingExport)
+            .accessibilityHint("Öppnar delningsmenyn med historiken som en CSV-fil")
+            .spriceListRowBackground()
+
+            Button(role: .destructive) {
+                isConfirmingDeletion = true
+            } label: {
+                Label("Radera historik", systemImage: "trash")
+                    .font(DS.Font.body)
+                    .foregroundStyle(DS.Color.dangerText)
+            }
+            .accessibilityHint("Tar bort all sparad historik från telefonen efter en bekräftelse")
+            .spriceListRowBackground()
+        } header: {
+            Text("Sparad historik")
+                .spriceSettingsHeaderStyle()
+        } footer: {
+            Text("Historiken finns bara på den här telefonen och delas med widgeten. Exporten är en CSV-fil för till exempel Numbers eller Excel.")
+                .spriceSettingsFooterStyle()
+        }
+        .onAppear { loadStatus() }
+        .sheet(item: $shareItem) { item in
+            HistoryShareSheet(url: item.url)
+                .presentationDetents([.medium, .large])
+        }
+        .confirmationDialog(
+            "Radera historiken?",
+            isPresented: $isConfirmingDeletion,
+            titleVisibility: .visible
+        ) {
+            Button("Radera historik", role: .destructive) {
+                deleteHistory()
+            }
+            Button("Avbryt", role: .cancel) {}
+        } message: {
+            Text("All sparad förbrukning, alla priser och kostnader tas bort från telefonen, för alla månader. Det går inte att ångra. Inställningar och inloggningar finns kvar, och inget raderas hos Tibber, Vaggeryds Energi eller ditt elnätsbolag. Är du kopplad till en datakälla kan appen hämta förbrukningen igen.")
+        }
+    }
+
+    private func loadStatus() {
+        do {
+            let store = try EnergyHistoryStores.reader()
+            let months = try store.fetchMonthlySummaries(priceArea: nil)
+            let monthCount = Set(months.map(\.periodKey)).count
+            switch monthCount {
+            case 0: status = "Ingen sparad historik ännu."
+            case 1: status = "1 sparad månad."
+            default: status = "\(monthCount) sparade månader."
+            }
+        } catch {
+            status = "Kunde inte läsa historiken: \(error.userFacingMessage)"
+        }
+    }
+
+    private func exportHistory() {
+        isPreparingExport = true
+        status = "Förbereder exporten..."
+        let priceArea = settings.priceArea
+        Task {
+            defer { isPreparingExport = false }
+            do {
+                let url = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("sprice-history-\(priceArea).csv", isDirectory: false)
+                let writer = try EnergyHistoryStores.writer()
+                try await writer.exportHistoryCSV(priceArea: priceArea, to: url)
+                loadStatus()
+                shareItem = HistoryShareItem(url: url)
+            } catch {
+                status = "Kunde inte exportera historiken: \(error.userFacingMessage)"
+            }
+        }
+    }
+
+    private func deleteHistory() {
+        Task {
+            do {
+                let writer = try EnergyHistoryStores.writer()
+                try await writer.deleteAllHistory()
+                WidgetHistorySummaryCache.clear()
+                WidgetReload.timelines()
+                NotificationCenter.default.post(name: .consumptionSettingsDidSave, object: nil)
+                status = "Historiken är raderad."
+            } catch {
+                status = "Kunde inte radera historiken: \(error.userFacingMessage)"
+            }
+        }
+    }
+}
+
+private struct HistoryShareItem: Identifiable {
+    let id = UUID()
+    let url: URL
+}
+
+private struct HistoryShareSheet: UIViewControllerRepresentable {
+    let url: URL
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: [url], applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }

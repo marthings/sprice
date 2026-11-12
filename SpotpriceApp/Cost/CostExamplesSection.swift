@@ -6,6 +6,7 @@ struct CostExamplesSection: View {
 
     private let totalCostService = TotalCostService.shared
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @State private var showsBreakdown = false
 
     private var currentPrice: Double {
         payload.day.currentBucket?.orePerKWh ?? PriceBucketAnalytics.averageSpotPrice(payload.day.buckets)
@@ -24,31 +25,39 @@ struct CostExamplesSection: View {
                             spotPriceOre: currentPrice,
                             profile: profile,
                             hoursInPeriod: example.hoursInPeriod
-                        )
+                        ),
+                        showsBreakdown: showsBreakdown
                     )
                 }
             }
+
+            SpriceDisclosureButton(
+                isOpen: $showsBreakdown,
+                title: "Visa vart pengarna går",
+                openTitle: "Dölj uppdelningen",
+                accessibilityName: "Vart pengarna går i exemplen"
+            )
 
         }
     }
 
     private var header: some View {
         SectionInfoHeader(
-            title: "Exempel med detta pris",
+            title: "Vad det kostar just nu",
             paragraphs: infoParagraphs
         )
     }
 
     private var infoParagraphs: [String] {
         var parts = [
-            "Korten visar ungefär vad vanliga saker kostar till det pris som gäller just nu.",
+            "Ungefär vad vanliga saker i hemmet kostar med priset just nu.",
             HouseholdCostExample.catalogFootnote
         ]
         if let basisText = profile.retailContractCostBasisText {
             parts.append(basisText)
         }
         if profile.gridMonthlyFee != nil || profile.gridTransferOrePerKWh != nil {
-            parts.append("Elnätskostnaden baseras på dina elnätsuppgifter och kan avvika från fakturan.")
+            parts.append("Elnätet räknas från dina elnätsuppgifter och kan skilja sig lite från fakturan.")
         }
         return parts
     }
@@ -69,6 +78,7 @@ struct CostExamplesSection: View {
 private struct CostExampleCard: View {
     let example: HouseholdCostExample
     let cost: EnhancedCost
+    var showsBreakdown = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.sm) {
@@ -90,22 +100,25 @@ private struct CostExampleCard: View {
 
             HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
                 Text(cost.totalKr, format: .number.precision(.fractionLength(2)))
-                    .font(DS.Font.bold(20).monospacedDigit())
+                    .font(DS.Font.bold(20))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.78)
                 Text("kr")
-                    .font(DS.Font.footnote)
+                    .font(DS.Font.unit)
                     .foregroundStyle(DS.Color.secondary)
             }
 
-            Divider()
+            if showsBreakdown {
+                Divider()
 
-            VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
-                breakdownRow("Elhandel", cost.providerTotalKr)
-                breakdownRow("Elnät", cost.gridTotalKr)
-                breakdownRow("Skatt och avgifter", cost.taxesAndFeesKr)
-                breakdownRow("Moms", cost.vatKr)
+                VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
+                    breakdownRow("Elhandel", cost.providerTotalKr)
+                    breakdownRow("Elnät", cost.gridTotalKr)
+                    breakdownRow("Skatt och avgifter", cost.taxesAndFeesKr)
+                    breakdownRow("Moms", cost.vatKr)
+                }
+                .transition(.opacity)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -121,7 +134,7 @@ private struct CostExampleCard: View {
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: DS.Spacing.xs)
             Text(value, format: .number.precision(.fractionLength(2)))
-                .font(DS.Font.footnote.monospacedDigit())
+                .font(DS.Font.footnote)
                 .foregroundStyle(DS.Color.secondary)
                 .lineLimit(1)
                 .fixedSize()

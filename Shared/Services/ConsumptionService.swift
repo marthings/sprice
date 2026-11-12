@@ -23,6 +23,10 @@ struct ConsumptionService: Sendable {
 
     /// Creates the current provider instance
     private func currentProvider() async throws -> any ElectricityProvider {
+        // Demo mode: invented data. Real credentials are not read.
+        if DemoMode.isActive {
+            return DemoProvider()
+        }
         let (isConfigured, providerId, credentials) = await MainActor.run {
             let settings = ConsumptionSettings.shared
             return (settings.isConfigured, settings.selectedProviderId, settings.getCredentials(for: settings.selectedProviderId))

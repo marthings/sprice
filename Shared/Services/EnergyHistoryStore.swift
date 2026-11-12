@@ -54,8 +54,28 @@ enum EnergyHistoryStores {
     private static var cachedContainer: ModelContainer?
     private static var cachedReader: SwiftDataEnergyHistoryStore?
     private static var cachedWriter: EnergyHistoryWriter?
+    // Demo mode: a separate in-memory store. The saved history is not opened or written.
+    private static var demoContainer: ModelContainer?
+    private static var demoReader: SwiftDataEnergyHistoryStore?
+    private static var demoWriter: EnergyHistoryWriter?
+
+    /// Throws the demo store away. Called when demo mode is switched on or off.
+    static func resetDemo() {
+        demoContainer = nil
+        demoReader = nil
+        demoWriter = nil
+        DemoHistorySeeder.reset()
+    }
 
     static func container() throws -> ModelContainer {
+        if DemoMode.isActive {
+            if let demoContainer {
+                return demoContainer
+            }
+            let container = try EnergyHistoryModelContainer.makeInMemoryContainer(name: "DemoHistory")
+            demoContainer = container
+            return container
+        }
         if let cachedContainer {
             return cachedContainer
         }
@@ -65,6 +85,14 @@ enum EnergyHistoryStores {
     }
 
     static func reader() throws -> SwiftDataEnergyHistoryStore {
+        if DemoMode.isActive {
+            if let demoReader {
+                return demoReader
+            }
+            let store = SwiftDataEnergyHistoryStore(container: try container())
+            demoReader = store
+            return store
+        }
         if let cachedReader {
             return cachedReader
         }
@@ -74,6 +102,14 @@ enum EnergyHistoryStores {
     }
 
     static func writer() throws -> EnergyHistoryWriter {
+        if DemoMode.isActive {
+            if let demoWriter {
+                return demoWriter
+            }
+            let writer = EnergyHistoryWriter(modelContainer: try container())
+            demoWriter = writer
+            return writer
+        }
         if let cachedWriter {
             return cachedWriter
         }
@@ -301,10 +337,10 @@ enum EnergyHistoryModelContainer {
         }
     }
 
-    static func makeInMemoryContainer() throws -> ModelContainer {
+    static func makeInMemoryContainer(name: String = EnergyHistoryConstants.storeName) throws -> ModelContainer {
         let schema = Schema(versionedSchema: EnergyHistorySchema.self)
         let configuration = ModelConfiguration(
-            EnergyHistoryConstants.storeName,
+            name,
             schema: schema,
             isStoredInMemoryOnly: true,
             allowsSave: true,
@@ -946,6 +982,12 @@ actor EnergyHistoryWriter {
         try EnergyHistoryWriting.deleteAllHistory(context: modelContext)
     }
 
+    /// Removes only what was saved from one data source (consumption, cost and summaries).
+    /// Spot prices saved without a provider stay.
+    func deleteHistory(providerID: String) throws {
+        try EnergyHistoryWriting.deleteHistory(providerID: providerID, context: modelContext)
+    }
+
     func repriceMeasuredRecords(
         lookups: [String: [Date: Double]],
         fallbackProfile: CostProfile
@@ -1208,6 +1250,23 @@ nonisolated enum EnergyHistoryWriting {
         try deleteAll(HistoricalCostProfileSnapshotRecord.self, context: context)
         try context.save()
         WidgetHistorySummaryCache.clear()
+    }
+
+    nonisolated static func deleteHistory(providerID: String, context: ModelContext) throws {
+        let records = try context.fetch(FetchDescriptor<HistoricalEnergyRecord>(
+            predicate: #Predicate { $0.providerID == providerID }
+        ))
+        for record in records { context.delete(record) }
+        let dailies = try context.fetch(FetchDescriptor<HistoricalDailyEnergySummary>(
+            predicate: #Predicate { $0.providerID == providerID }
+        ))
+        for summary in dailies { context.delete(summary) }
+        let months = try context.fetch(FetchDescriptor<HistoricalMonthlyEnergySummary>(
+            predicate: #Predicate { $0.providerID == providerID }
+        ))
+        for summary in months { context.delete(summary) }
+        try context.save()
+        try rebuildWidgetSummaryCache(context: context)
     }
 
     nonisolated static func repriceMeasuredRecords(

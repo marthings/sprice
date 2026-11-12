@@ -266,6 +266,10 @@ final class DailyTemperatureService {
         now: Date = Date(),
         calendar: Calendar = .energyHistory
     ) async -> TemperatureSnapshot {
+        // Demo mode: invented temperatures. No network, and the saved temperature cache is left alone.
+        if DemoMode.isActive {
+            return TemperatureSnapshot(days: DemoData.temperatures(from: start, to: end), notice: nil)
+        }
         let key = "\(place.id)|\(Self.dayKey(start, calendar: calendar))|\(Self.dayKey(end, calendar: calendar))"
         if let existing = inFlight[key] {
             return await existing.value

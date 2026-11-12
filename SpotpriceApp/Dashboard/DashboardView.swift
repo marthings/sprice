@@ -3,6 +3,7 @@ import SwiftUI
 struct DashboardView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var viewModel = SpotPriceViewModel()
+    private let settings = ConsumptionSettings.shared
     @State private var selectedSection = DashboardView.initialSection
 
     /// DEBUG only: `-StartTab 1` opens a given tab, so screenshots can be taken without tapping.
@@ -65,8 +66,15 @@ struct DashboardView: View {
                 }
             }
         }
-        .background { AppCanvasBackground(live: false) }
+        // Everything is rebuilt when example data is switched on or off, so no tab keeps
+        // numbers from the other mode.
+        .id(settings.isDemoActive)
+        .background { AppCanvasBackground() }
         .toolbarBackgroundVisibility(.hidden, for: .tabBar)
+        .onChange(of: settings.isDemoActive) { _, _ in
+            ConsumptionInsightsService.invalidate()
+            viewModel = SpotPriceViewModel()
+        }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
             Task { await viewModel.handleForeground() }
@@ -165,6 +173,13 @@ struct DashboardView: View {
                     .background { AppCanvasBackground() }
                     .navigationTitle(title)
                     .navigationBarTitleDisplayMode(.large)
+                    .toolbar {
+                        if ConsumptionSettings.shared.isDemoActive {
+                            ToolbarItem(placement: .topBarTrailing) {
+                                DemoModeBadge()
+                            }
+                        }
+                    }
             }
         }
 

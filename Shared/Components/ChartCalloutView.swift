@@ -110,7 +110,7 @@ struct ChartCalloutView: View {
 
                 HStack(spacing: DS.Spacing.xs) {
                     Text(totalCostPerKWh, format: .number.precision(.fractionLength(2)))
-                        .font(DS.Font.bold(16).monospacedDigit())
+                        .font(DS.Font.bold(16))
                         .foregroundStyle(DS.Color.infoText)
                     Text("kr/kWh totalt")
                         .font(DS.Font.footnote)
@@ -138,16 +138,16 @@ struct ChartCalloutView: View {
                             .font(DS.Font.footnote)
                             .foregroundStyle(secondaryTextColor)
                         Text("\(percentDiff, specifier: "%.0f")%")
-                            .font(DS.Font.medium(11).monospacedDigit())
+                            .font(DS.Font.medium(11))
                             .foregroundStyle(displayColor)
                     }
                     Spacer()
                     HStack(spacing: DS.Spacing.xs) {
                         Text(totalCostPerKWh, format: .number.precision(.fractionLength(2)))
-                            .font(DS.Font.bold(14).monospacedDigit())
+                            .font(DS.Font.bold(14))
                             .foregroundStyle(DS.Color.infoText)
                         Text("kr/kWh")
-                            .font(DS.Font.footnote)
+                            .font(DS.Font.unit)
                             .foregroundStyle(secondaryTextColor)
                     }
                 }
@@ -175,7 +175,7 @@ struct ChartCalloutView: View {
     private var spotPriceLabel: some View {
         HStack(spacing: DS.Spacing.xs) {
             Text(bucket.orePerKWh / 100, format: .number.precision(.fractionLength(2)))
-                .font(DS.Font.medium(13).monospacedDigit())
+                .font(DS.Font.medium(13))
                 .foregroundStyle(priceColor)
             Text("kr/kWh spotpris")
                 .font(DS.Font.footnote)
@@ -242,7 +242,7 @@ struct ChartValueCallout: View {
                     .foregroundStyle(secondaryText)
             }
             Text(value)
-                .font(DS.Font.semibold(12).monospacedDigit())
+                .font(DS.Font.semibold(12))
                 .foregroundStyle(primaryText)
         }
         .padding(.horizontal, DS.Spacing.sm)
@@ -285,10 +285,10 @@ private struct ChartCalloutBreakdownRow: View {
                 .foregroundStyle(isMainComponent ? primaryTextColor : secondaryTextColor)
             Spacer()
             Text(value, format: .number.precision(.fractionLength(2)))
-                .font(DS.Font.medium(10).monospacedDigit())
+                .font(DS.Font.medium(10))
                 .foregroundStyle(isMainComponent ? primaryTextColor : secondaryTextColor)
             Text("kr")
-                .font(DS.Font.footnote)
+                .font(DS.Font.unit)
                 .foregroundStyle(secondaryTextColor)
         }
     }

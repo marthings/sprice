@@ -521,16 +521,16 @@ enum HistoryInsights {
 
     static func emptyHistoryMessage(hasProvider: Bool) -> String {
         if hasProvider {
-            return "Historik fylls på när appen har hämtat priser. Förbrukningen har inte kommit in ännu. När den finns ser du vad månaden kostat."
+            return "Historiken fylls på när appen har hämtat priser. Förbrukningen har inte kommit in än, men sen ser du vad månaden kostat."
         }
-        return "Historik fylls på när appen har hämtat priser. Gå till Inställningar och lägg till förbrukning. Då kan du se vad månaden kostat."
+        return "Historiken fylls på när appen har hämtat priser. Lägg till förbrukning i Inställningar, så ser du vad månaden kostar."
     }
 
     static func missingConsumptionMessage(hasProvider: Bool) -> String {
         if hasProvider {
-            return "Förbrukningen för den här månaden har inte kommit in ännu. När den finns ser du vad den kostat."
+            return "Månadens förbrukning har inte kommit in än. Så fort den finns ser du vad den kostat."
         }
-        return "Gå till Inställningar och lägg till förbrukning. Då kan du se vad månaden kostat."
+        return "Lägg till förbrukning i Inställningar, så ser du vad månaden kostar."
     }
 
     /// Same-day window cost must be in the same ballpark as the number on screen.

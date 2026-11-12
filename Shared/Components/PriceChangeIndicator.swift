@@ -49,8 +49,8 @@ struct SharedPriceRangeSection: View {
 
         var valueFont: Font {
             switch self {
-            case .compact: return DS.Font.bold(16).monospacedDigit()
-            case .regular: return DS.Font.bold(17).monospacedDigit()
+            case .compact: return DS.Font.bold(16)
+            case .regular: return DS.Font.bold(17)
             }
         }
 
@@ -74,10 +74,10 @@ struct SharedPriceRangeSection: View {
                     titleFont: style.titleFont,
                     titleColor: style.titleColor,
                     paragraphs: [
-                        "Lägsta, högsta och snitt är dagens priser per kilowattimme, med samma delar som i grafen ovan.",
+                        "Dagens lägsta, högsta och snittpris per kilowattimme.",
                         profile.isSpotFollowingRetailContract
-                            ? "Siffrorna är det du betalar, med skatt, avgifter och moms inräknade."
-                            : "Siffrorna är marknadens elpris, utan påslag, nät, skatt och moms."
+                            ? "Det är vad du betalar, med skatt, avgifter och moms, precis som i grafen."
+                            : "Det är marknadens elpris, utan påslag, elnät, skatt och moms."
                     ]
                 )
             } else {
@@ -217,7 +217,7 @@ struct SharedPriceRangeSection: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.82)
             Text("kr/kWh")
-                .font(DS.Font.footnote)
+                .font(DS.Font.unit)
                 .foregroundStyle(DS.Color.secondary)
         }
     }

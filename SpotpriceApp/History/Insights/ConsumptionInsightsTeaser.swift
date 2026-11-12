@@ -84,8 +84,8 @@ struct ConsumptionInsightsTeaserCard: View {
             SectionInfoHeader(
                 title: "Vad drog?",
                 paragraphs: [
-                    "Här ser du det du alltid drar, när topparna kom och när på dygnet det drog mest.",
-                    "Öppna för mer om det du alltid drar, toppar och tid på dygnet."
+                    "Det du alltid drar, när topparna kom och när på dygnet det drog mest.",
+                    "Öppna för att se mer."
                 ]
             )
 

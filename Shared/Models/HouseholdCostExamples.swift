@@ -56,5 +56,5 @@ struct HouseholdCostExample: Identifiable, Sendable {
     ]
 
     static let catalogFootnote =
-        "Ungefärliga värden. Duschen räknas med elvarmvattenberedare. Billaddningen är en vanlig hemmaladdning, inte ett fullt batteri."
+        "Värdena är ungefärliga. Duschen räknas med elberedare, och billaddningen är en vanlig hemmaladdning, inte ett fullt batteri."
 }

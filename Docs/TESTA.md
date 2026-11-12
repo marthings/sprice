@@ -71,7 +71,8 @@ Ta det i den ordning du vill. Skriv upp det som ser konstigt ut, även om du är
 ### Utseende och tillgänglighet
 
 - [ ] Prova mörkt läge. Texten ska vara lätt att läsa mot bakgrunden.
-- [ ] Bakgrunden rör sig mycket långsamt. Är det lugnt eller störande? Slå på Minska rörelse i iPhonens inställningar och se att den då står stilla.
+- [ ] Bakgrunden är landskapsbilden och står stilla. Ser den ut att ha djup (en svag blå himmel högst upp, ett varmt sken vid horisonten) utan att kortens text eller klockan högst upp blir svårare att läsa? Titta i både ljust och mörkt läge.
+- [ ] Slå på **Visa exempeldata** under Inställningar. Alla flikar ska visa påhittad data, med texten Exempeldata högst upp. Slå av igen och se att dina egna siffror är tillbaka.
 - [ ] Gör texten större under Inställningar, Skärm och ljusstyrka, Textstorlek. Inget ska klippas eller hamna över annat.
 
 ## Bra att veta

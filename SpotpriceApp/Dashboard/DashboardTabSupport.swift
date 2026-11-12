@@ -3,11 +3,12 @@ import SwiftUI
 struct DashboardHeader: View {
     let title: String
     let settingsSummary: String
+    @ScaledMetric(relativeTo: .largeTitle) private var titleSize: CGFloat = 40
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
             Text(title)
-                .font(DS.Font.bold(40))
+                .font(DS.Font.fixed(titleSize))
                 .foregroundStyle(.primary)
 
             Text(settingsSummary)
@@ -22,7 +23,7 @@ struct DashboardLoadingView: View {
     var body: some View {
         VStack(spacing: DS.Spacing.md) {
             ProgressView()
-                .tint(DS.Color.warning)
+                .tint(DS.Color.accent)
             Text("Hämtar elpriser")
                 .font(DS.Font.callout)
                 .foregroundStyle(DS.Color.secondary)
@@ -63,5 +64,30 @@ struct DashboardErrorView: View {
         .spriceCard()
         .accessibilityElement(children: .combine)
         .accessibilityLabel(notice.accessibilityText)
+    }
+}
+
+/// Small, calm label in the toolbar (it gets the system's own pill there) at the top of every tab while example data is shown, so that
+/// nobody mistakes it for a real household.
+struct DemoModeBadge: View {
+    var body: some View {
+        Text("Exempeldata")
+            .font(DS.Font.footnote)
+            .foregroundStyle(DS.Color.accentText)
+            .accessibilityLabel("Du ser exempeldata, inte din egen")
+    }
+}
+
+/// Offered where an empty tab says that a data source is missing.
+struct DemoModeButton: View {
+    var body: some View {
+        Button {
+            ConsumptionSettings.shared.setDemoMode(true)
+        } label: {
+            Label("Prova med exempeldata", systemImage: "sparkles")
+        }
+        .buttonStyle(.bordered)
+        .tint(DS.Color.accentText)
+        .accessibilityHint("Visar påhittad data så att du kan prova appen utan konto")
     }
 }

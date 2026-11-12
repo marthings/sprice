@@ -18,7 +18,13 @@ final class ConsumptionSettings {
 
     // MARK: - Shared UserDefaults (App Group)
 
-    private static let defaults = UserDefaults(suiteName: "group.mb.Spotprice") ?? .standard
+    private static let realDefaults = UserDefaults(suiteName: "group.mb.Spotprice") ?? .standard
+    /// Throw-away store used while demo mode is on. The real suite above is not written then.
+    private static let demoSuiteName = "mb.Spotprice.demo"
+    private static let demoDefaults = UserDefaults(suiteName: demoSuiteName) ?? UserDefaults()
+    private static var defaults: UserDefaults {
+        DemoMode.isActive ? demoDefaults : realDefaults
+    }
 
     // MARK: - Keys
 
@@ -62,6 +68,9 @@ final class ConsumptionSettings {
     }
 
     // MARK: - Observable Properties
+
+    /// True while invented example data is shown. Mirrors `DemoMode.isActive`, but observable.
+    private(set) var isDemoActive = false
 
     var selectedProviderId: String {
         didSet {
@@ -274,6 +283,7 @@ final class ConsumptionSettings {
 
     /// Checks if the current provider has all required credentials
     var isConfigured: Bool {
+        if DemoMode.isActive { return true }
         guard let metadata = ProviderRegistry.shared.metadata(for: selectedProviderId) else {
             return false
         }
@@ -583,6 +593,67 @@ final class ConsumptionSettings {
         saveCostProfile(costProfile)
         mirrorCostProfileToLegacyDefaults(costProfile)
         syncLegacyProperties(from: costProfile)
+
+        // The real values are loaded and saved above. Demo mode starts after that, so it
+        // starts from them and can put them back.
+        if DemoMode.preference {
+            setDemoMode(true)
+        }
+    }
+
+    // MARK: - Demo mode
+
+    /// The real in-memory values, kept while demo mode is on.
+    private struct RealValues {
+        let selectedProviderId: String
+        let costProfile: CostProfile
+        let hasElectricCar: Bool
+        let temperaturePlaceId: String
+        let includeHypotheticalEffectTariff: Bool
+        let compareFixedPriceOrePerKWh: Double
+    }
+
+    @ObservationIgnored private var realValues: RealValues?
+
+    /// Turns example data on or off. Nothing real is written in between: while demo is on,
+    /// every setting goes to a throw-away store, and turning it off puts the real values back
+    /// and deletes that store. The real saved history, widget cache and credentials are not touched.
+    func setDemoMode(_ enabled: Bool) {
+        guard enabled != isDemoActive else { return }
+        if enabled {
+            realValues = RealValues(
+                selectedProviderId: selectedProviderId,
+                costProfile: costProfile,
+                hasElectricCar: hasElectricCar,
+                temperaturePlaceId: temperaturePlaceId,
+                includeHypotheticalEffectTariff: includeHypotheticalEffectTariff,
+                compareFixedPriceOrePerKWh: compareFixedPriceOrePerKWh
+            )
+            Self.demoDefaults.removePersistentDomain(forName: Self.demoSuiteName)
+            DemoMode.setActive(true)
+            EnergyHistoryStores.resetDemo()
+            selectedProviderId = DemoMode.providerID
+            costProfile = DemoMode.costProfile
+            hasElectricCar = true
+            temperaturePlaceId = "jonkoping"
+            includeHypotheticalEffectTariff = false
+            compareFixedPriceOrePerKWh = CostUsageInsights.defaultFixedPriceOrePerKWh
+        } else if let real = realValues {
+            // Still in demo mode here, so these assignments land in the throw-away store.
+            selectedProviderId = real.selectedProviderId
+            costProfile = real.costProfile
+            hasElectricCar = real.hasElectricCar
+            temperaturePlaceId = real.temperaturePlaceId
+            includeHypotheticalEffectTariff = real.includeHypotheticalEffectTariff
+            compareFixedPriceOrePerKWh = real.compareFixedPriceOrePerKWh
+            realValues = nil
+            DemoMode.setActive(false)
+            EnergyHistoryStores.resetDemo()
+            Self.demoDefaults.removePersistentDomain(forName: Self.demoSuiteName)
+        }
+        isDemoActive = enabled
+        DemoMode.preference = enabled
+        NotificationCenter.default.post(name: .consumptionSettingsDidSave, object: nil)
     }
 
     // MARK: - Migration
@@ -613,6 +684,44 @@ final class ConsumptionSettings {
         selectedProviderId = "vaggeryd"
 
         // Note: We don't delete legacy keys to allow rollback if needed
+    }
+
+    // MARK: - Disconnect
+
+    /// Forgets a data source: removes its login from the Keychain (and the old
+    /// copy kept in the settings file for Vaggeryd), clears cached consumption
+    /// and stops fetching from it. Saved history is left to the caller.
+    func disconnectProvider(_ providerId: String) {
+        guard !providerId.isEmpty else { return }
+
+        var all = loadAllCredentials()
+        all[providerId] = nil
+        if all.isEmpty {
+            KeychainHelper.delete(forKey: Self.keychainKey)
+        } else {
+            saveAllCredentials(all)
+        }
+        credentialsCache[providerId] = nil
+        // Vaggeryd was the only source before several were supported. Its login was
+        // kept in plain settings for rollback, and would be migrated back otherwise.
+        if providerId == "vaggeryd" {
+            for key in [Keys.customerId, Keys.password, Keys.utilityId, Keys.accountId, Keys.netId, Keys.type] {
+                Self.defaults.removeObject(forKey: key)
+            }
+        }
+
+        if selectedProviderId == providerId {
+            selectedProviderId = ""
+        }
+        cachedConsumption = nil
+        if costProfile.confidence == .providerConnected {
+            costProfile = costProfile.applyingInferredConfidence(
+                preservingProviderConnected: false,
+                configuredSource: .userEntered
+            )
+        }
+        NotificationCenter.default.post(name: .consumptionSettingsDidSave, object: nil)
+        WidgetReload.timelines()
     }
 
     // MARK: - Reset
@@ -810,6 +919,8 @@ enum WidgetKind {
 
 enum WidgetReload {
     static func timelines() {
+        // Widgets keep showing real data, so demo mode never asks them to reload.
+        guard !DemoMode.isActive else { return }
         WidgetCenter.shared.reloadTimelines(ofKind: WidgetKind.iOSApp)
         WidgetCenter.shared.reloadTimelines(ofKind: WidgetKind.macOSMenuBar)
     }
@@ -820,19 +931,19 @@ nonisolated enum EffectTariffCopy {
     nonisolated static let toggleTitle = "Räkna med effektavgift"
     nonisolated static let explanation = "Visar vad toppen hade kostat om elnätet tog betalt för den. Elnätsbolag får i dag inte ta betalt för effekttoppen."
     nonisolated static let lineTitle = "Effektavgift (om den räknades)"
-    nonisolated static let missingRate = "Ingen effektavgift i dina elnätsuppgifter, så toppen visas bara som hur mycket el som gick åt just då (kW)."
+    nonisolated static let missingRate = "Det finns ingen effektavgift i dina elnätsuppgifter, så vi visar bara toppen i kW."
     nonisolated static let dailyBarsNote = "Den syns inte i dygnsstaplarna. Det är en månadsavgift, inte en kostnad per dag."
 }
 
 nonisolated enum ElectricCarCopy {
     nonisolated static let toggleTitle = "Jag har elbil"
-    nonisolated static let toggleExplanation = "När det är på letar appen efter timmar som ser ut som laddning. Det är en gissning, inte ett faktum."
+    nonisolated static let toggleExplanation = "Appen letar efter timmar som ser ut som laddning. Det är en gissning, inte ett faktum."
 
     nonisolated static let infoParagraphs = [
-        "Appen letar efter minst två timmar i rad där du drar tydligt mer än det du alltid drar. Det ska motsvara en vanlig laddbox. En enfasladdare drar ungefär 3,7 kW och en trefasladdare ungefär 11 kW. kW är hur mycket el som går åt just då, och går 1 kW åt i en timme blir det 1 kWh.",
-        "Lasten ska vara ganska jämn, och det sker oftast på kvällen eller natten. Ett kort avbrott på högst en timme räknas in i samma tillfälle.",
-        "Ett tydligt, jämnt och högt uttag mitt på dagen kan också räknas med, eftersom det liknar trefasladdning.",
-        "Det är en gissning. En värmepump, en bastu eller något annat som går länge på jämn last kan se likadant ut."
+        "Appen letar efter minst två timmar i rad där du drar tydligt mer än det du alltid drar, ungefär som en laddbox. En enfasladdare drar runt 3,7 kW och en trefasladdare runt 11 kW.",
+        "Lasten ska vara ganska jämn, och oftast sker det på kvällen eller natten. Ett kort avbrott på högst en timme räknas in.",
+        "Ett högt och jämnt uttag mitt på dagen kan också räknas, eftersom det liknar trefasladdning.",
+        "Det är en gissning. En värmepump, bastu eller annat som går länge på jämn last kan se likadant ut."
     ]
 
 }

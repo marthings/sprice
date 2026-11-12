@@ -12,6 +12,7 @@ struct HistoryMonthHeroSection: View {
     var monthKey: String? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ScaledMetric(relativeTo: .largeTitle) private var heroSize: CGFloat = 48
     @State private var showsDetails = false
     @State private var savedBreakdown: MonthCostBreakdown?
 
@@ -29,7 +30,7 @@ struct HistoryMonthHeroSection: View {
                 .borderBeam(
                     shape: .rounded(DS.Glass.cardRadius),
                     style: .small,
-                    colors: BeamPalette.single(DS.Color.warning),
+                    colors: BeamPalette.single(DS.Color.accent),
                     intensity: 0.45,
                     timing: BeamTiming(rotateDuration: 8)
                 )
@@ -63,7 +64,7 @@ struct HistoryMonthHeroSection: View {
                     .foregroundStyle(.primary)
                     .fixedSize(horizontal: false, vertical: true)
                 } else if let previousMonthName {
-                    Text("Det går inte att jämföra med \(previousMonthName) än. Siffrorna för samma dagar saknas eller ser ofullständiga ut.")
+                    Text("Det går inte att jämföra med \(previousMonthName) än, för siffrorna för samma dagar är inte kompletta.")
                         .font(DS.Font.callout)
                         .foregroundStyle(.primary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -90,6 +91,9 @@ struct HistoryMonthHeroSection: View {
                     .font(DS.Font.footnote)
                     .foregroundStyle(DS.Color.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+                if !hasProvider {
+                    DemoModeButton()
+                }
             } else {
                 Text(HistoryInsights.missingConsumptionMessage(hasProvider: hasProvider))
                     .font(DS.Font.callout)
@@ -199,7 +203,7 @@ struct HistoryMonthHeroSection: View {
                 spoken: "\(AppFormatters.wholeNumber(Double(breakdown.totalWholeKr))) kronor"
             )
 
-            Text("Raderna är utan moms. Momsen står som en egen rad.")
+            Text("Raderna är utan moms, som har en egen rad.")
                 .font(DS.Font.footnote)
                 .foregroundStyle(DS.Color.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -221,7 +225,7 @@ struct HistoryMonthHeroSection: View {
         spoken: String? = nil
     ) -> some View {
         let titleFont = emphasized ? DS.Font.semibold(16) : DS.Font.callout
-        let valueFont = emphasized ? DS.Font.semibold(16).monospacedDigit() : DS.Font.callout.monospacedDigit()
+        let valueFont = emphasized ? DS.Font.semibold(16) : DS.Font.callout
         return VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
             ViewThatFits(in: .horizontal) {
                 HStack(alignment: .firstTextBaseline, spacing: DS.Spacing.sm) {
@@ -287,31 +291,31 @@ struct HistoryMonthHeroSection: View {
         var parts: [String] = []
         if snapshot.isCurrentMonth {
             if snapshot.usedCurrentTariffs {
-                parts.append("När månaden pågår visar siffrorna bara så långt den har hunnit. Kostnaden räknas med de priser och avgifter du har i dag.")
+                parts.append("Månaden pågår, så siffrorna gäller dagarna hittills. Kostnaden räknas med dina priser och avgifter i dag.")
             } else {
-                parts.append("När månaden pågår visar siffrorna bara så långt den har hunnit.")
+                parts.append("Månaden pågår, så siffrorna gäller dagarna hittills.")
             }
         } else if snapshot.usedCurrentTariffs {
-            parts.append("Den sparade månadssumman saknas. Kostnaden är räknad med de priser och avgifter du har i dag.")
+            parts.append("Den sparade månadssumman saknas, så kostnaden är räknad med dina priser och avgifter i dag.")
         }
         if hasPastMonths {
-            parts.append("Äldre månader räknas med de priser och avgifter du har i dag, inte de som gällde då.")
+            parts.append("Äldre månader räknas med dina priser och avgifter i dag, inte de som gällde då.")
         }
         if parts.isEmpty {
-            parts.append("Här ser du månadens kostnad och hur den förhåller sig till förra perioden, så långt det finns mätvärden.")
+            parts.append("Månadens kostnad, jämförd med förra perioden så långt det finns mätvärden.")
         }
         if breakdown != nil {
-            parts.append("Under Visa detaljer ser du vad kostnaden består av: elen själv, elhandlarens påslag, elnätet, skatt och moms. Raderna ger summan ovan.")
-            parts.append("Fasta avgifter räknas per timme, så en månad som pågår får bara sin del av dem.")
+            parts.append("Under Visa detaljer ser du vad kostnaden består av: elen, elhandlarens påslag, elnätet, skatt och moms. Tillsammans blir raderna summan ovan.")
+            parts.append("Fasta avgifter räknas per timme, så en pågående månad får bara sin del av dem.")
         }
         if !temperatureInsights.isEmpty {
             for insight in temperatureInsights {
                 parts.append(contentsOf: insight.details)
             }
-            parts.append("Räknat på samma väder betyder att vi räknar bort skillnaden i temperatur, så att du ser om du själv använde mer eller mindre el.")
-            parts.append("Bara uppvärmningen justeras. Det som går åt hela tiden, till exempel kyl, frys och lampor, räknas som det är.")
-            parts.append("Det är en uppskattning, inte en mätning. Vi utgår bara från dygnets medeltemperatur och hur din förbrukning brukar följa den. Annat som också påverkar syns inte, till exempel elbil, att fler eller färre är hemma, varmvatten, semester och ändrade vanor.")
-            parts.append("Uppskattningen blir grövre när din förbrukning följer vädret svagt, när vi har få dagar att räkna på eller när det saknas mätvärden för en del dagar. Då skriver vi ungefär, och när det inte går att räkna om visar vi bara förbrukningen som den är.")
+            parts.append("Räknat på samma väder betyder att skillnaden i temperatur är borträknad, så du ser om du själv använde mer eller mindre el.")
+            parts.append("Bara uppvärmningen räknas om. Sådant som alltid går, som kyl, frys och lampor, räknas som det är.")
+            parts.append("Det är en uppskattning, inte en mätning. Vi utgår från dygnets medeltemperatur och hur din förbrukning brukar följa den. Elbil, semester, fler hemma och ändrade vanor syns inte.")
+            parts.append("Uppskattningen blir grövre när förbrukningen följer vädret svagt, när det finns få dagar eller när mätvärden saknas. Då skriver vi ungefär, eller visar bara förbrukningen som den är.")
             parts.append("När månaden pågår jämförs samma dagar i båda perioderna, efter det senaste mätvärdet.")
             parts.append("Temperaturen kommer från Open-Meteo för den ort du valt under Inställningar.")
         }
@@ -336,7 +340,7 @@ struct HistoryMonthHeroSection: View {
 
     private func heroNumber(_ value: String, amount: Double, allowsShrink: Bool = false) -> some View {
         Text(value)
-            .font(DS.Font.bold(48).monospacedDigit())
+            .font(DS.Font.fixed(heroSize))
             .foregroundStyle(.primary)
             .lineLimit(1)
             .minimumScaleFactor(allowsShrink ? 0.6 : 1)
@@ -346,8 +350,7 @@ struct HistoryMonthHeroSection: View {
 
     private func heroUnit(_ unit: String) -> some View {
         Text(unit)
-            .font(DS.Font.callout)
-            .fontWeight(.bold)
+            .font(DS.Font.unitLarge)
             .foregroundStyle(DS.Color.secondary)
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)
@@ -379,30 +382,6 @@ struct HistoryPriceConsumptionEffect: View {
                     paragraphs: splitInfoParagraphs
                 )
 
-                effectBar(
-                    title: HistoryInsights.consumptionEffectLabel(split.consumptionEffectKr),
-                    value: split.consumptionEffectKr,
-                    maxMagnitude: maxMagnitude
-                )
-                if let spotEffect = split.spotEffectKr, let contractEffect = split.contractEffectKr {
-                    effectBar(
-                        title: HistoryInsights.spotEffectLabel(spotEffect),
-                        value: spotEffect,
-                        maxMagnitude: maxMagnitude
-                    )
-                    effectBar(
-                        title: HistoryInsights.contractEffectLabel,
-                        value: contractEffect,
-                        maxMagnitude: maxMagnitude
-                    )
-                } else {
-                    effectBar(
-                        title: HistoryInsights.priceEffectLabel(split.priceEffectKr),
-                        value: split.priceEffectKr,
-                        maxMagnitude: maxMagnitude
-                    )
-                }
-
                 Text(HistoryInsights.splitSentence(
                     consumptionEffectKr: split.consumptionEffectKr,
                     priceEffectKr: split.priceEffectKr
@@ -411,15 +390,47 @@ struct HistoryPriceConsumptionEffect: View {
                 .foregroundStyle(.primary)
                 .fixedSize(horizontal: false, vertical: true)
 
+                SpriceDisclosure(
+                    title: "Visa i kronor",
+                    openTitle: "Dölj",
+                    accessibilityName: "Skillnaden i kronor"
+                ) {
+                    VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
+                        effectBar(
+                            title: HistoryInsights.consumptionEffectLabel(split.consumptionEffectKr),
+                            value: split.consumptionEffectKr,
+                            maxMagnitude: maxMagnitude
+                        )
+                        if let spotEffect = split.spotEffectKr, let contractEffect = split.contractEffectKr {
+                            effectBar(
+                                title: HistoryInsights.spotEffectLabel(spotEffect),
+                                value: spotEffect,
+                                maxMagnitude: maxMagnitude
+                            )
+                            effectBar(
+                                title: HistoryInsights.contractEffectLabel,
+                                value: contractEffect,
+                                maxMagnitude: maxMagnitude
+                            )
+                        } else {
+                            effectBar(
+                                title: HistoryInsights.priceEffectLabel(split.priceEffectKr),
+                                value: split.priceEffectKr,
+                                maxMagnitude: maxMagnitude
+                            )
+                        }
+                    }
+                }
+
             } else if let previousMonthName {
                 SectionInfoHeader(
                     title: "Därför blev det dyrare eller billigare",
                     paragraphs: [
-                        "Uppdelningen visar hur mycket som beror på att du använde mer eller mindre el, och hur mycket som beror på att priset ändrades.",
-                        "Jämförelsen gäller samma antal dagar när månaden inte är slut."
+                        "Här ser du hur mycket av skillnaden som beror på att du använde mer eller mindre el, och hur mycket som beror på priset.",
+                        "Så länge månaden pågår jämförs samma antal dagar."
                     ]
                 )
-                Text("Det går inte att jämföra med \(previousMonthName) än. Förbrukning eller kostnad för samma dagar saknas eller ser ofullständig ut.")
+                Text("Det går inte att jämföra med \(previousMonthName) än, för förbrukning eller kostnad för samma dagar saknas.")
                     .font(DS.Font.callout)
                     .foregroundStyle(.primary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -468,14 +479,14 @@ struct HistoryPriceConsumptionEffect: View {
 
     private var splitInfoParagraphs: [String] {
         var parts = [
-            "Uppdelningen visar hur mycket som beror på att du använde mer eller mindre el, och hur mycket som beror på att priset ändrades.",
-            "Jämförelsen gäller samma antal dagar, inte hela månaden, så länge den nya månaden inte är slut. Siffrorna följer senaste mätvärdet."
+            "Här ser du hur mycket av skillnaden som beror på att du använde mer eller mindre el, och hur mycket som beror på priset.",
+            "Så länge månaden pågår jämförs samma antal dagar, fram till senaste mätvärdet."
         ]
         if shownSplit?.spotEffectKr != nil {
-            parts.append("Prisändringen delas i två. Spotpris är vad elen kostade på marknaden, med moms. Påslag, elnät och skatt är resten av priset: elhandlarens påslag, elnätets avgift per kilowattimme och energiskatten.")
-            parts.append("Grönt betyder att raden gjorde månaden billigare. Rött betyder att den gjorde månaden dyrare. Det står också med ord vid beloppet.")
-            parts.append("De fasta månadsavgifterna kostar lika mycket oavsett hur mycket el du använder, så de ingår inte i Mer el eller Mindre el. De syns bara på raden Påslag, elnät och skatt om de ändrats mellan månaderna, eller om den ena månaden har fler dagar.")
-            parts.append("Ändrar du dina avgifter under Inställningar, eller byter elnätet pris, hamnar det på raden Påslag, elnät och skatt.")
+            parts.append("Priset delas i två. Spotpris är elens pris på marknaden, med moms. Påslag, elnät och skatt är resten: elhandlarens påslag, elnätets avgift per kWh och energiskatten.")
+            parts.append("Grönt gjorde månaden billigare och rött dyrare. Det står också i ord vid beloppet.")
+            parts.append("Fasta månadsavgifter kostar lika mycket hur mycket el du än använder, så de hamnar inte i Mer el eller Mindre el. De syns på raden Påslag, elnät och skatt bara om de har ändrats, eller om månaderna har olika många dagar.")
+            parts.append("Ändrar du dina avgifter, eller byter elnätet pris, hamnar det också på den raden.")
         }
         return parts
     }
@@ -500,14 +511,14 @@ struct HistoryPriceConsumptionEffect: View {
                         .font(DS.Font.callout)
                     Spacer(minLength: DS.Spacing.sm)
                     Text(amount)
-                        .font(DS.Font.semibold(14).monospacedDigit())
+                        .font(DS.Font.semibold(14))
                 }
                 VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
                     Text(title)
                         .font(DS.Font.callout)
                         .fixedSize(horizontal: false, vertical: true)
                     Text(amount)
-                        .font(DS.Font.semibold(14).monospacedDigit())
+                        .font(DS.Font.semibold(14))
                 }
             }
 
@@ -556,7 +567,7 @@ struct HistoryPaidVersusSpot: View {
                     fractionLength: 2
                 )
             } else if snapshot.paidKrPerKWh == nil {
-                Text("Varken betalt pris eller spotpris finns sparat för den här månaden.")
+                Text("Inget pris finns sparat för den här månaden.")
                     .font(DS.Font.callout)
                     .foregroundStyle(.primary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -577,12 +588,11 @@ struct HistoryPaidVersusSpot: View {
 
     private var infoParagraphs: [String] {
         var parts = [
-            "Du betalade är vad kilowattimmen kostade i snitt, med allt inräknat. Spot i snitt är börsens elpris, utan påslag, nät, skatt och moms.",
-            "Båda siffrorna är i kronor per kilowattimme (kr/kWh)."
+            "Du betalade är vad en kWh kostade i snitt, med allt inräknat. Spotpris i snitt är elbörsens pris, utan påslag, elnät, skatt och moms."
         ]
         if let comparison {
             parts.append(comparison.title)
-            parts.append("Jämförelsen gäller bara elhandeln den här månaden, mot det fasta pris du angett under Inställningar.")
+            parts.append("Bara elhandeln jämförs, mot det fasta pris du har angett i Inställningar.")
         }
         return parts
     }
@@ -645,7 +655,7 @@ struct HistoryPaidVersusSpot: View {
 
     private func labeledNumber(_ value: Double, fractionLength: Int) -> some View {
         Text(value, format: .number.precision(.fractionLength(fractionLength)))
-            .font(DS.Font.semibold(20).monospacedDigit())
+            .font(DS.Font.bold(20))
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)
             .spriceNumericText(value)
@@ -653,7 +663,7 @@ struct HistoryPaidVersusSpot: View {
 
     private func labeledUnit(_ unit: String) -> some View {
         Text(unit)
-            .font(DS.Font.footnote)
+            .font(DS.Font.unit)
             .foregroundStyle(DS.Color.secondary)
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)

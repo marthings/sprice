@@ -182,22 +182,6 @@
 			);
 			target = 201EA1FC2FBCAC8C0036D7BF /* SpotpriceApp */;
 		};
-		201EA28E2FBCB1030036D7BF /* Exceptions for "Fonts" folder in "SpotpriceWidgetExtension" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				"osans-heavy.otf",
-				"osans-regular.otf",
-			);
-			target = 20861F8C2F2E0B9A0067EDC1 /* SpotpriceWidgetExtension */;
-		};
-		201EA28F2FBCB1030036D7BF /* Exceptions for "Fonts" folder in "SpotpriceApp" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				"osans-heavy.otf",
-				"osans-regular.otf",
-			);
-			target = 201EA1FC2FBCAC8C0036D7BF /* SpotpriceApp */;
-		};
 		201EA2902FBCB1030036D7BF /* Exceptions for "Extensions" folder in "Spotprice" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -224,6 +208,13 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				DesignSystem.swift,
+				"Fonts/DMSans-Black.ttf",
+				"Fonts/DMSans-Bold.ttf",
+				"Fonts/DMSans-ExtraBold.ttf",
+				"Fonts/DMSans-Medium.ttf",
+				"Fonts/DMSans-Regular.ttf",
+				"Fonts/DMSans-SemiBold.ttf",
+				"Fonts/OFL.txt",
 			);
 			target = 20861F8C2F2E0B9A0067EDC1 /* SpotpriceWidgetExtension */;
 		};
@@ -231,6 +222,13 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				DesignSystem.swift,
+				"Fonts/DMSans-Black.ttf",
+				"Fonts/DMSans-Bold.ttf",
+				"Fonts/DMSans-ExtraBold.ttf",
+				"Fonts/DMSans-Medium.ttf",
+				"Fonts/DMSans-Regular.ttf",
+				"Fonts/DMSans-SemiBold.ttf",
+				"Fonts/OFL.txt",
 				KilowattHourBreakdownView.swift,
 			);
 			target = 201EA1FC2FBCAC8C0036D7BF /* SpotpriceApp */;
@@ -295,18 +293,17 @@
 			);
 			target = 202657782FD89ADD004BB572 /* SpotpriceAppWidgetExtension */;
 		};
-		202657AD2FD89F1A004BB572 /* Exceptions for "Fonts" folder in "SpotpriceAppWidgetExtension" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				"osans-heavy.otf",
-				"osans-regular.otf",
-			);
-			target = 202657782FD89ADD004BB572 /* SpotpriceAppWidgetExtension */;
-		};
 		202657AE2FD89F1A004BB572 /* Exceptions for "DesignSystem" folder in "SpotpriceAppWidgetExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				DesignSystem.swift,
+				"Fonts/DMSans-Black.ttf",
+				"Fonts/DMSans-Bold.ttf",
+				"Fonts/DMSans-ExtraBold.ttf",
+				"Fonts/DMSans-Medium.ttf",
+				"Fonts/DMSans-Regular.ttf",
+				"Fonts/DMSans-SemiBold.ttf",
+				"Fonts/OFL.txt",
 			);
 			target = 202657782FD89ADD004BB572 /* SpotpriceAppWidgetExtension */;
 		};
@@ -410,16 +407,6 @@
 				201EA2912FBCB1030036D7BF /* Exceptions for "Extensions" folder in "SpotpriceApp" target */,
 			);
 			path = Extensions;
-			sourceTree = "<group>";
-		};
-		201EA2852FBCB1030036D7BF /* Fonts */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				201EA28E2FBCB1030036D7BF /* Exceptions for "Fonts" folder in "SpotpriceWidgetExtension" target */,
-				201EA28F2FBCB1030036D7BF /* Exceptions for "Fonts" folder in "SpotpriceApp" target */,
-				202657AD2FD89F1A004BB572 /* Exceptions for "Fonts" folder in "SpotpriceAppWidgetExtension" target */,
-			);
-			path = Fonts;
 			sourceTree = "<group>";
 		};
 		201EA2932FBCB10A0036D7BF /* Components */ = {
@@ -542,7 +529,6 @@
 				201EA24B2FBCB0E10036D7BF /* ViewModels */,
 				201EA26F2FBCB0ED0036D7BF /* Providers */,
 				201EA2822FBCB1030036D7BF /* Extensions */,
-				201EA2852FBCB1030036D7BF /* Fonts */,
 				201EA2932FBCB10A0036D7BF /* Components */,
 				201EA2982FBCB1110036D7BF /* Configuration */,
 				201EA29A2FBCB1110036D7BF /* DesignSystem */,
@@ -593,7 +579,6 @@
 				201EA2302FBCB0C70036D7BF /* Models */,
 				201EA24B2FBCB0E10036D7BF /* ViewModels */,
 				201EA26F2FBCB0ED0036D7BF /* Providers */,
-				201EA2852FBCB1030036D7BF /* Fonts */,
 				201EA2932FBCB10A0036D7BF /* Components */,
 				201EA29A2FBCB1110036D7BF /* DesignSystem */,
 			);
@@ -1052,7 +1037,7 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
 		};
@@ -1088,7 +1073,7 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
@@ -1124,7 +1109,7 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
 		};
@@ -1159,7 +1144,7 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;

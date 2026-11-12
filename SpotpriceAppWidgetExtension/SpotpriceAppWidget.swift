@@ -151,13 +151,12 @@ struct SpotpriceAppWidgetView: View {
 
             if let totalCost = entry.totalCostPerKWh {
                 Text(totalCost, format: .number.precision(.fractionLength(2)))
-                    .font(DS.Font.bold(priceFontSize))
-                    .monospacedDigit()
+                    .font(DS.Font.fixed(priceFontSize))
                     .minimumScaleFactor(0.5)
                     .lineLimit(1)
                     .foregroundStyle(renderingMode == .accented ? .primary : priceColor)
                 Text("kr/kWh")
-                    .font(DS.Font.footnote)
+                    .font(DS.Font.unit)
                     .foregroundStyle(DS.Color.secondary)
             } else {
                 Text("--")
@@ -187,7 +186,7 @@ struct SpotpriceAppWidget: Widget {
             SpotpriceAppWidgetView(entry: entry)
         }
         .configurationDisplayName("Spotpris")
-        .description("Visar aktuell kostnad per kWh och dagens prisutveckling.")
+        .description("Vad en kWh kostar nu och hur priset rör sig i dag.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
         .contentMarginsDisabled()
     }

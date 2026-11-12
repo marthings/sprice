@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import CoreText
 #if os(iOS)
 import UIKit
 #elseif os(macOS)
@@ -234,34 +233,20 @@ enum DS {
     // MARK: - Typography
 
     enum Font {
-        /// Widget extensions don't reliably honor `UIAppFonts`/`ATSApplicationFontsPath`,
-        /// so widget entry points register the bundled fonts with CoreText explicitly.
-        static func registerBundledFonts() {
-            _ = registration
-        }
+        /// Apple's text styles at the standard text size. Each size in the app maps to the
+        /// closest one, so Dynamic Type grows and shrinks everything in Apple's own steps.
+        private static let textStyleSizes: [(size: CGFloat, style: SwiftUI.Font.TextStyle)] = [
+            (11, .caption2), (12, .caption), (13, .footnote), (15, .subheadline), (16, .callout),
+            (17, .body), (20, .title3), (22, .title2), (28, .title), (34, .largeTitle)
+        ]
 
-        private static let registration: Void = {
-            for resource in ["osans-regular", "osans-heavy"] {
-                guard let url = Bundle.main.url(forResource: resource, withExtension: "otf") else { continue }
-                CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
-            }
-        }()
-
-        /// Text style a custom size scales with, so Dynamic Type grows big numbers
-        /// and small notes in proportion to Apple's own hierarchy.
+        /// The text style whose standard size is closest to `size`. Ties go to the larger one.
         static func textStyle(forSize size: CGFloat) -> SwiftUI.Font.TextStyle {
-            switch size {
-            case 40...: return .largeTitle
-            case 28..<40: return .title
-            case 22..<28: return .title2
-            case 20..<22: return .title3
-            case 17..<20: return .headline
-            case 16..<17: return .body
-            case 14..<16: return .subheadline
-            case 13..<14: return .footnote
-            case 12..<13: return .caption
-            default: return .caption2
+            var best = textStyleSizes[0]
+            for candidate in textStyleSizes where abs(candidate.size - size) <= abs(best.size - size) {
+                best = candidate
             }
+            return best.style
         }
 
         /// Smallest size used for text that carries information (13 pt).
@@ -271,50 +256,102 @@ enum DS {
             max(size, minimumInformationSize)
         }
 
-        static func regular(_ size: CGFloat, relativeTo style: SwiftUI.Font.TextStyle? = nil) -> SwiftUI.Font {
-            let size = informative(size)
-            return .custom("PPObjectSans-Regular", size: size, relativeTo: style ?? textStyle(forSize: size))
+        /// DM Sans (googlefonts/dm-fonts, static files), under the SIL Open Font License 1.1 (free for commercial apps).
+        /// The files and OFL.txt are in Shared/DesignSystem/Fonts. They are registered
+        /// through UIAppFonts (iOS) and ATSApplicationFontsPath (macOS) in each Info.plist.
+        static let fontNames = [
+            "DMSans-Regular", "DMSans-Medium", "DMSans-SemiBold",
+            "DMSans-Bold", "DMSans-ExtraBold", "DMSans-Black"
+        ]
+
+        /// The DM Sans file for a weight. Headings, amounts and units are meant to look heavy,
+        /// so semibold uses DM Sans Bold, bold uses ExtraBold, and heavy and black use Black (900).
+        /// Body text (regular and medium) keeps its own weight.
+        static func fontName(for weight: SwiftUI.Font.Weight) -> String {
+            switch weight {
+            case .medium: return "DMSans-Medium"
+            case .semibold: return "DMSans-Bold"
+            case .bold: return "DMSans-ExtraBold"
+            case .heavy, .black: return "DMSans-Black"
+            default: return "DMSans-Regular"
+            }
         }
 
-        static func medium(_ size: CGFloat, relativeTo style: SwiftUI.Font.TextStyle? = nil) -> SwiftUI.Font {
-            let size = informative(size)
-            return .custom("PPObjectSans-Regular", size: size, relativeTo: style ?? textStyle(forSize: size)).weight(.medium)
+        /// Font names that did not load. Empty when everything is in place.
+        static func missingFonts() -> [String] {
+            #if os(macOS)
+            return fontNames.filter { NSFont(name: $0, size: 12) == nil }
+            #else
+            return fontNames.filter { UIFont(name: $0, size: 12) == nil }
+            #endif
         }
 
-        static func semibold(_ size: CGFloat, relativeTo style: SwiftUI.Font.TextStyle? = nil) -> SwiftUI.Font {
-            let size = informative(size)
-            return .custom("PPObjectSans-Heavy", size: size, relativeTo: style ?? textStyle(forSize: size))
+        /// iOS: DM Sans at the given size, scaled with the closest text style, so it follows Dynamic Type.
+        /// macOS: exact sizes, since macOS has no Dynamic Type.
+        private static func system(_ size: CGFloat, weight: SwiftUI.Font.Weight) -> SwiftUI.Font {
+            #if os(macOS)
+            return .custom(fontName(for: weight), fixedSize: size)
+            #else
+            return .custom(fontName(for: weight), size: size, relativeTo: textStyle(forSize: size))
+            #endif
         }
 
-        static func bold(_ size: CGFloat, relativeTo style: SwiftUI.Font.TextStyle? = nil) -> SwiftUI.Font {
-            let size = informative(size)
-            return .custom("PPObjectSans-Heavy", size: size, relativeTo: style ?? textStyle(forSize: size))
+        static func regular(_ size: CGFloat) -> SwiftUI.Font {
+            system(informative(size), weight: .regular)
+        }
+
+        static func medium(_ size: CGFloat) -> SwiftUI.Font {
+            system(informative(size), weight: .medium)
+        }
+
+        static func semibold(_ size: CGFloat) -> SwiftUI.Font {
+            system(informative(size), weight: .semibold)
+        }
+
+        static func bold(_ size: CGFloat) -> SwiftUI.Font {
+            system(informative(size), weight: .bold)
+        }
+
+        /// DM Sans Black (900). For navigation titles, big amounts and the units next to them.
+        static func black(_ size: CGFloat) -> SwiftUI.Font {
+            system(informative(size), weight: .black)
+        }
+
+        /// An exact size that does not follow a text style. Use it for big numbers that
+        /// the caller scales itself with `@ScaledMetric(relativeTo:)`, and for widgets
+        /// and menu bar text, where the size is set by the layout.
+        static func fixed(_ size: CGFloat, weight: SwiftUI.Font.Weight = .black) -> SwiftUI.Font {
+            .custom(fontName(for: weight), fixedSize: size)
         }
 
         /// Decoration only (never for text people need to read).
         static func decorative(_ size: CGFloat) -> SwiftUI.Font {
-            .custom("PPObjectSans-Regular", size: size, relativeTo: .caption2)
+            system(size, weight: .regular)
         }
 
         // Preset sizes
-        static let largeTitle = bold(32, relativeTo: .largeTitle)
-        static let title = bold(20, relativeTo: .title3)
-        static let headline = semibold(17, relativeTo: .headline)
-        static let body = regular(15, relativeTo: .body)
-        static let callout = medium(14, relativeTo: .callout)
-        static let caption = medium(13, relativeTo: .footnote)
+        static let largeTitle = bold(32)
+        static let title = bold(20)
+        static let headline = bold(17)
+        static let body = regular(15)
+        static let callout = medium(14)
+        static let caption = medium(13)
         /// Small notes and axis labels. 13 pt, the smallest size for readable text.
-        static let footnote = medium(13, relativeTo: .footnote)
+        static let footnote = medium(13)
+        /// Units next to an amount (kr, kWh, kr/kWh). Heavier than notes so they don't look weak next to the number.
+        static let unit = bold(13)
+        /// Units next to a big hero amount, in DM Sans Black (900).
+        static let unitLarge = black(15)
 
         #if os(iOS)
         /// Navigation titles can't take a SwiftUI `Font`, so UIKit chrome uses this.
         static func configureNavigationBarAppearance() {
             let titleAttributes: [NSAttributedString.Key: Any] = [
-                .font: uiHeavy(size: 17, textStyle: .headline),
+                .font: uiBlack(size: 17, textStyle: .headline),
                 .foregroundColor: UIColor.label
             ]
             let largeTitleAttributes: [NSAttributedString.Key: Any] = [
-                .font: uiHeavy(size: 34, textStyle: .largeTitle),
+                .font: uiBlack(size: 34, textStyle: .largeTitle),
                 .foregroundColor: UIColor.label
             ]
 
@@ -339,9 +376,10 @@ enum DS {
             navigationBar.compactAppearance = compact
         }
 
-        private static func uiHeavy(size: CGFloat, textStyle: UIFont.TextStyle) -> UIFont {
-            let base = UIFont(name: "PPObjectSans-Heavy", size: size)
-                ?? .systemFont(ofSize: size, weight: .heavy)
+        /// Navigation titles in DM Sans Black (900), scaled with Dynamic Type.
+        private static func uiBlack(size: CGFloat, textStyle: UIFont.TextStyle) -> UIFont {
+            let base = UIFont(name: fontName(for: .black), size: size)
+                ?? UIFont.systemFont(ofSize: size, weight: .black)
             return UIFontMetrics(forTextStyle: textStyle).scaledFont(for: base)
         }
         #endif
@@ -356,19 +394,21 @@ enum DS {
         static let info = SwiftUI.Color("InfoColor")
         static let warning = SwiftUI.Color("WarningColor")
         static let danger = SwiftUI.Color("DangerColor")
-        /// Palette orange (`WarningColor`). App tint for toggles, links and selected tabs.
-        static let accent = warning
+        /// Arctic blue. App tint for toggles, buttons, links, selected tabs, highlights and the
+        /// background mesh. Light #2AA3DF, dark #5CC8F5. For fills and icons, not small text.
+        static let accent = adaptive(light: 0x2AA3DF, dark: 0x5CC8F5)
 
         // Text variants. The fill colors above are tuned for shapes and fills and
         // are too light to read as text on the cards (about 2.3 to 3.5 to 1). These
         // reach at least 4.5 to 1 against the card in light and dark mode, and get
         // another step darker (light) or lighter (dark) with Increase Contrast.
-        static let warningText = adaptive(light: 0x8C4207, dark: 0xF5A35C)
+        static let warningText = adaptive(light: 0xA63A00, dark: 0xF5A35C)
         static let infoText = adaptive(light: 0x005580, dark: 0x5CCBEF)
         static let successText = adaptive(light: 0x245810, dark: 0x86CC5A)
         static let dangerText = adaptive(light: 0xA8161A, dark: 0xFF8A80)
-        /// Orange for text and links. The brighter `accent` stays for fills and tint.
-        static let accentText = warningText
+        /// Arctic blue for text and links. Light #0B67A0 (at least 4.7 to 1 on the light cards),
+        /// dark #7FD4FA (at least 6 to 1 on the dark cards). The brighter `accent` stays for fills.
+        static let accentText = adaptive(light: 0x0B67A0, dark: 0x7FD4FA)
 
         static let secondary = SwiftUI.Color.primary.opacity(0.72)
         static let outline = SwiftUI.Color.primary.opacity(0.28)
@@ -1012,8 +1052,8 @@ struct SharedCostBreakdownRow: View {
 
         var amountFont: Font {
             switch self {
-            case .compact: return DS.Font.medium(11).monospacedDigit()
-            case .regular: return DS.Font.semibold(14).monospacedDigit()
+            case .compact: return DS.Font.medium(11)
+            case .regular: return DS.Font.semibold(14)
             }
         }
     }
@@ -1052,7 +1092,7 @@ struct SharedCostBreakdownSubRow: View {
             Spacer()
 
             Text(AppFormatters.wholeKr(amount))
-                .font(DS.Font.regular(10).monospacedDigit())
+                .font(DS.Font.regular(10))
                 .foregroundStyle(DS.Color.secondary)
         }
     }
@@ -1070,8 +1110,8 @@ struct MetricCard: View {
     var icon: String? = nil
     var color: Color = .primary
     var titleColor: Color = DS.Color.secondary
-    var valueFont: Font = DS.Font.bold(20).monospacedDigit()
-    var unitFont: Font = DS.Font.footnote
+    var valueFont: Font = DS.Font.bold(20)
+    var unitFont: Font = DS.Font.unit
     var iconSize: CGFloat = DS.Size.iconMedium
     var layout: Layout = .horizontal
     var subtitle: String? = nil
@@ -1161,9 +1201,9 @@ struct PriceDisplay: View {
 
         var unitFont: Font {
             switch self {
-            case .small: return DS.Font.footnote
-            case .medium: return DS.Font.caption
-            case .large: return DS.Font.callout
+            case .small: return DS.Font.unit
+            case .medium: return DS.Font.unit
+            case .large: return DS.Font.unitLarge
             }
         }
     }
@@ -1172,7 +1212,6 @@ struct PriceDisplay: View {
         HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
             Text("\(price)")
                 .font(size.priceFont)
-                .monospacedDigit()
                 .foregroundStyle(useSemanticColor ? DS.Color.textForCategory(category) : .primary)
             Text("öre")
                 .font(size.unitFont)
@@ -1228,23 +1267,15 @@ struct PriceLevelBadge: View {
 
 // MARK: - Canvas background
 
-/// Full-bleed landscape reused by every screen (light/dark asset).
+/// Full-bleed landscape reused by every screen (light/dark asset). Completely still.
+/// Depth comes from fixed layers on top of the watercolor: a soft sky at the top (deeper
+/// blue at the very top that pales towards the mountains, with a faint haze of light),
+/// a soft warm glow at the horizon, and a faint vignette at the edges. Cards sit above all
+/// of it and keep their own material, so text reads the same in light and dark.
 /// Layout-neutral: the image lives in an overlay so `scaledToFill` never
 /// expands the parent (which would wipe out horizontal padding).
 struct AppCanvasBackground: View {
     @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.scenePhase) private var scenePhase
-    @State private var isLowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled
-
-    /// Screens that sit behind another full screen background pass `false`, so the
-    /// hidden copy does not animate for nothing.
-    var live: Bool = true
-
-    /// Moves only when the user allows motion, the battery is not being saved and the app is on screen.
-    private var animates: Bool {
-        live && !reduceMotion && !isLowPowerMode && scenePhase == .active
-    }
 
     var body: some View {
         base
@@ -1255,101 +1286,80 @@ struct AppCanvasBackground: View {
                     .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity, alignment: .bottom)
                     .allowsHitTesting(false)
             }
-            .overlay {
-                if live {
-                    LiveMeshGlow(isDark: colorScheme == .dark, animates: animates)
-                        .opacity(colorScheme == .dark ? 0.7 : 0.8)
-                }
-            }
+            .overlay { sky }
+            .overlay { skyHaze }
+            .overlay { horizonGlow }
+            .overlay { vignette }
             .clipped()
             .ignoresSafeArea()
             .accessibilityHidden(true)
             .allowsHitTesting(false)
-            .onReceive(NotificationCenter.default.publisher(for: .NSProcessInfoPowerStateDidChange)) { _ in
-                isLowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled
-            }
     }
 
+    private var isDark: Bool { colorScheme == .dark }
+
     private var base: Color {
-        colorScheme == .dark
+        isDark
             ? Color(red: 0.045, green: 0.05, blue: 0.065)
             : Color(red: 0.78, green: 0.86, blue: 0.94)
     }
-}
 
-/// A slow, soft glow in the landscape's own colours: sky blues (deep blue, teal and violet in
-/// dark mode) with the warm sunrise drifting along the horizon. The mesh points travel along
-/// small loops and the warm colour moves between three of them, one full cycle every 24
-/// seconds, at 30 frames a second at most. With `animates` off it shows the resting pose.
-private struct LiveMeshGlow: View {
-    let isDark: Bool
-    let animates: Bool
+    /// The sky: a clear pale blue at the top in light mode, a deep night blue in dark mode,
+    /// both close to the arctic accent. It pales out gradually and is gone well above the
+    /// mountains, so the landscape itself is untouched.
+    private var sky: some View {
+        let top = isDark ? Color(red: 0.03, green: 0.09, blue: 0.22) : Color(red: 0.47, green: 0.72, blue: 0.93)
+        let middle = isDark ? Color(red: 0.06, green: 0.17, blue: 0.33) : Color(red: 0.66, green: 0.83, blue: 0.96)
+        return LinearGradient(
+            stops: [
+                .init(color: top.opacity(isDark ? 0.62 : 0.60), location: 0),
+                .init(color: middle.opacity(isDark ? 0.36 : 0.36), location: 0.22),
+                .init(color: middle.opacity(isDark ? 0.12 : 0.10), location: 0.42),
+                .init(color: middle.opacity(0), location: 0.60)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
 
-    private static let cycleSeconds: Double = 24
-
-    var body: some View {
-        if animates {
-            TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
-                mesh(phase: context.date.timeIntervalSinceReferenceDate / Self.cycleSeconds)
-            }
-        } else {
-            mesh(phase: 0)
+    /// A faint patch of light high up to one side, so the sky has some air in it and does
+    /// not read as one flat band. Whitish in light mode, a cool icy glow in dark mode.
+    private var skyHaze: some View {
+        let light = isDark ? Color(red: 0.36, green: 0.78, blue: 0.96) : Color.white
+        return GeometryReader { geometry in
+            RadialGradient(
+                colors: [light.opacity(isDark ? 0.15 : 0.38), light.opacity(isDark ? 0.04 : 0.12), light.opacity(0)],
+                center: UnitPoint(x: 0.78, y: 0.10),
+                startRadius: 0,
+                endRadius: max(geometry.size.width, geometry.size.height * 0.45) * 0.85
+            )
         }
     }
 
-    private typealias RGB = SIMD3<Double>
-
-    /// `phase` counts whole cycles. Every point and colour uses a whole number of turns per
-    /// cycle, so the motion loops without a jump.
-    private func mesh(phase: Double) -> some View {
-        let turn = phase * 2 * Double.pi
-        let a = Float(sin(turn)), b = Float(cos(turn))
-        let c = Float(sin(turn * 2 + 1)), d = Float(cos(turn * 2 + 2))
-
-        // The warm glow sits mostly at the horizon (bottom middle) and drifts to the sides
-        // and up the edges as the cycle goes round.
-        let warm = isDark ? RGB(0.75, 0.34, 0.11) : RGB(1.00, 0.72, 0.48)
-        let wBottom = 0.62 + 0.22 * sin(turn)
-        let wRight = 0.40 * (0.5 + 0.5 * sin(turn + 4.2))
-        let wLeft = 0.30 * (0.5 + 0.5 * sin(turn + 2.1))
-        let base = isDark ? Self.darkBase : Self.lightBase
-        var colors = base.map { Color(red: $0.x, green: $0.y, blue: $0.z) }
-        colors[3] = Self.color(Self.mix(base[3], warm, wLeft))
-        colors[5] = Self.color(Self.mix(base[5], warm, wRight))
-        colors[7] = Self.color(Self.mix(base[7], warm, wBottom))
-
-        return MeshGradient(
-            width: 3,
-            height: 3,
-            points: [
-                SIMD2(0, 0), SIMD2(0.5 + 0.15 * a, 0), SIMD2(1, 0),
-                SIMD2(0, 0.5 + 0.10 * b), SIMD2(0.5 + 0.12 * b, 0.5 + 0.11 * a), SIMD2(1, 0.5 - 0.10 * c),
-                SIMD2(0, 1), SIMD2(0.5 + 0.20 * d, 1), SIMD2(1, 1)
-            ],
-            colors: colors
-        )
-        .allowsHitTesting(false)
+    /// A soft glow where the sun sits behind the ridge.
+    private var horizonGlow: some View {
+        let warm = isDark ? Color(red: 0.80, green: 0.36, blue: 0.12) : Color(red: 1.00, green: 0.70, blue: 0.45)
+        return GeometryReader { geometry in
+            RadialGradient(
+                colors: [warm.opacity(isDark ? 0.34 : 0.32), warm.opacity(isDark ? 0.10 : 0.10), warm.opacity(0)],
+                center: UnitPoint(x: 0.5, y: 0.82),
+                startRadius: 0,
+                endRadius: max(geometry.size.width, geometry.size.height * 0.5) * 0.9
+            )
+        }
     }
 
-    private static func mix(_ from: RGB, _ to: RGB, _ amount: Double) -> RGB {
-        from + (to - from) * min(max(amount, 0), 1)
+    /// Darkens the corners a little, so the middle of the screen feels closer.
+    private var vignette: some View {
+        GeometryReader { geometry in
+            RadialGradient(
+                colors: [Color.black.opacity(0), Color.black.opacity(isDark ? 0.34 : 0.10)],
+                center: .center,
+                startRadius: min(geometry.size.width, geometry.size.height) * 0.45,
+                endRadius: max(geometry.size.width, geometry.size.height) * 0.78
+            )
+        }
     }
-
-    private static func color(_ rgb: RGB) -> Color {
-        Color(red: rgb.x, green: rgb.y, blue: rgb.z)
-    }
-
-    private static let lightBase: [RGB] = [
-        RGB(0.78, 0.86, 0.96), RGB(0.96, 0.97, 1.00), RGB(0.76, 0.84, 0.95),
-        RGB(0.66, 0.77, 0.91), RGB(0.94, 0.94, 0.98), RGB(0.68, 0.78, 0.93),
-        RGB(0.62, 0.74, 0.89), RGB(0.80, 0.84, 0.94), RGB(0.64, 0.75, 0.90)
-    ]
-
-    private static let darkBase: [RGB] = [
-        RGB(0.07, 0.07, 0.22), RGB(0.04, 0.17, 0.30), RGB(0.10, 0.07, 0.24),
-        RGB(0.05, 0.12, 0.30), RGB(0.12, 0.09, 0.30), RGB(0.04, 0.16, 0.28),
-        RGB(0.04, 0.11, 0.28), RGB(0.06, 0.14, 0.30), RGB(0.07, 0.07, 0.22)
-    ]
 }
 
 // MARK: - Palette-tinted cards
@@ -1635,6 +1645,77 @@ struct ChartCaption: View {
     }
 }
 
+/// A quiet "Visa detaljer" link that folds longer information in and out,
+/// so a card can lead with the answer and keep the explanation one tap away.
+struct SpriceDisclosureButton: View {
+    @Binding var isOpen: Bool
+    var title: String = "Visa detaljer"
+    var openTitle: String = "Dölj detaljer"
+    /// What VoiceOver calls the button, for example "Vad priset består av".
+    let accessibilityName: String
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        Button {
+            withAnimation(DS.Motion.curve(DS.Motion.reveal, reduceMotion: reduceMotion)) {
+                isOpen.toggle()
+            }
+        } label: {
+            HStack(spacing: DS.Spacing.xs) {
+                Text(isOpen ? openTitle : title)
+                    .font(DS.Font.semibold(14))
+                    .foregroundStyle(DS.Color.accentText)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(DS.Color.accentText)
+                    .rotationEffect(.degrees(isOpen ? 180 : 0))
+                    .accessibilityHidden(true)
+                Spacer(minLength: 0)
+            }
+            .frame(minHeight: 44, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.vertical, -DS.Spacing.xs)
+        .accessibilityLabel(accessibilityName)
+        .accessibilityValue(isOpen ? "Utfälld" : "Hopfälld")
+        .accessibilityAddTraits(.isButton)
+#if DEBUG
+        .onAppear {
+            // `-OpenDetails` unfolds every "Visa detaljer" for screenshots.
+            if ProcessInfo.processInfo.arguments.contains("-OpenDetails") { isOpen = true }
+        }
+#endif
+    }
+}
+
+/// `SpriceDisclosureButton` with its content right under it.
+struct SpriceDisclosure<Content: View>: View {
+    var title: String = "Visa detaljer"
+    var openTitle: String = "Dölj detaljer"
+    let accessibilityName: String
+    @ViewBuilder let content: () -> Content
+
+    @State private var isOpen = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+            SpriceDisclosureButton(
+                isOpen: $isOpen,
+                title: title,
+                openTitle: openTitle,
+                accessibilityName: accessibilityName
+            )
+            if isOpen {
+                content()
+                    .transition(DS.Motion.revealTransition(reduceMotion: reduceMotion))
+            }
+        }
+    }
+}
+
 /// Menu picker whose trailing value is a `DS.Font` `Text`, for grouped Forms.
 struct SpriceSettingsMenuPicker<Selection: Hashable, Options: View>: View {
     let title: String
@@ -1665,7 +1746,7 @@ struct SpriceSettingsMenuPicker<Selection: Hashable, Options: View>: View {
                 }
             } label: {
                 Text(valueText)
-                    .font(monospacedValue ? DS.Font.body.monospacedDigit() : DS.Font.body)
+                    .font(DS.Font.body)
                     .foregroundStyle(.primary)
                     .multilineTextAlignment(.trailing)
             }
@@ -1762,7 +1843,7 @@ struct SectionInfoHeader: View {
                     .fixedSize(horizontal: true, vertical: false)
                     .padding(.horizontal, DS.Spacing.sm)
                     .padding(.vertical, DS.Spacing.xxs)
-                    .background(DS.Color.warning.opacity(0.18), in: Capsule())
+                    .background(DS.Color.accent.opacity(0.18), in: Capsule())
                     .padding(.leading, DS.Spacing.sm)
                     .accessibilityLabel(badgeAccessibilityLabel ?? badge)
 

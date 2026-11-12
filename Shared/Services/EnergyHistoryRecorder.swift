@@ -27,6 +27,7 @@ enum EnergyHistorySpotMatching {
     }
 
     static func markComplete() {
+        guard !DemoMode.isActive else { return }
         defaults.set(version, forKey: key)
     }
 }
@@ -159,6 +160,8 @@ final class EnergyHistoryRecorder {
         costProfile: CostProfile
     ) async {
         guard let writer else { return }
+        // Demo mode has nothing to reprice, and must not set the "done" markers of the real history.
+        guard !DemoMode.isActive else { return }
 
         // First the fees. This needs no network: consumption and spot prices stay as they are.
         if EnergyHistoryTariffSchedule.needsReprice {
@@ -269,7 +272,9 @@ final class EnergyHistoryRecorder {
             switch result {
             case .recorded:
                 scheduleHistoryDidUpdate()
-                try? await Task.sleep(for: EnergyHistoryBackfillTiming.monthDelay)
+                if !DemoMode.isActive {
+                    try? await Task.sleep(for: EnergyHistoryBackfillTiming.monthDelay)
+                }
             case .empty:
                 AppLog.history.info("No consumption for \(EnergyHistoryKey.monthKey(for: monthStart), privacy: .public), stopping backfill")
                 return true
@@ -494,6 +499,10 @@ final class EnergyHistoryRecorder {
         area: String,
         service: SpotPriceService
     ) async -> [Date: Double] {
+        // Demo mode: generated prices, and the saved price cache is left alone.
+        if DemoMode.isActive {
+            return SpotPriceCache.lookup(from: DemoData.priceItems(for: day))
+        }
         if let cached = await SpotPriceCache.shared.lookup(for: day, area: area), !cached.isEmpty {
             return cached
         }
@@ -593,6 +602,12 @@ final class EnergyHistoryBackfillController {
             .removeObject(forKey: lastSuccessKey)
     }
 
+    /// Stops a running backfill, for example when a data source is disconnected.
+    func cancelInFlight() {
+        inFlight?.cancel()
+        inFlight = nil
+    }
+
     func runIfNeeded(
         recorder: EnergyHistoryRecorder? = nil,
         consumptionService: ConsumptionService,
@@ -603,6 +618,13 @@ final class EnergyHistoryBackfillController {
         now: Date = Date()
     ) async {
         guard !providerID.isEmpty else { return }
+
+        // Demo mode seeds its own in-memory store (DemoHistorySeeder). The saved history,
+        // the stored recorder and the "last backfill" marker are not used.
+        guard !DemoMode.isActive else {
+            await DemoHistorySeeder.ensureSeeded()
+            return
+        }
 
         if let inFlight {
             await inFlight.value
@@ -644,5 +666,54 @@ final class EnergyHistoryBackfillController {
         inFlight = task
         await task.value
         inFlight = nil
+    }
+}
+
+// MARK: - Demo history
+
+/// Fills the in-memory demo store from the demo data source, with the same code that fills the
+/// real history. The real store is not opened.
+@MainActor
+enum DemoHistorySeeder {
+    private static var task: Task<Void, Never>?
+
+    static func reset() {
+        task?.cancel()
+        task = nil
+    }
+
+    /// Waits until the demo history is ready. Starts filling it the first time.
+    static func ensureSeeded() async {
+        guard DemoMode.isActive else { return }
+        if task == nil {
+            let epoch = DemoMode.epoch
+            task = Task {
+                guard let recorder = try? EnergyHistoryRecorder() else { return }
+                let settings = ConsumptionSettings.shared
+                let consumption = ConsumptionService()
+                let prices = SpotPriceService()
+                let now = Date()
+                await recorder.recordCurrentMonthConsumptionHistory(
+                    consumptionService: consumption,
+                    spotPriceService: prices,
+                    priceArea: settings.priceArea,
+                    providerID: DemoMode.providerID,
+                    costProfile: settings.costProfile,
+                    now: now
+                )
+                guard !Task.isCancelled, epoch == DemoMode.epoch else { return }
+                await recorder.backfillPastConsumptionHistory(
+                    consumptionService: consumption,
+                    spotPriceService: prices,
+                    priceArea: settings.priceArea,
+                    providerID: DemoMode.providerID,
+                    costProfile: settings.costProfile,
+                    now: now
+                )
+                guard !Task.isCancelled, epoch == DemoMode.epoch else { return }
+                NotificationCenter.default.post(name: .energyHistoryDidUpdate, object: nil)
+            }
+        }
+        await task?.value
     }
 }

@@ -20,7 +20,7 @@ struct StatCardView: View {
             icon: icon,
             color: color,
             titleColor: .primary,
-            valueFont: DS.Font.bold(16).monospacedDigit(),
+            valueFont: DS.Font.bold(16),
             unitFont: DS.Font.medium(11),
             iconSize: 14,
             layout: .vertical

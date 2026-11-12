@@ -330,7 +330,10 @@ struct MonthlyCostEstimator: Sendable {
         let through = min(measuredThrough ?? now, now)
         guard through >= monthInterval.start else { return nil }
 
-        let elapsedSeconds = max(through.timeIntervalSince(monthInterval.start), 1)
+        // With under half a day of data the month cannot be extrapolated. The old
+        // one second floor turned a month-start cache into a forecast in the billions.
+        guard through.timeIntervalSince(monthInterval.start) >= 12 * 3600 else { return nil }
+        let elapsedSeconds = through.timeIntervalSince(monthInterval.start)
         let monthSeconds = monthInterval.end.timeIntervalSince(monthInterval.start)
         guard monthSeconds > 0 else { return nil }
 
@@ -594,12 +597,12 @@ enum CostUsageInsights {
             let price = AppFormatters.krPerKWh(fixedOrePerKWh / 100)
             let amount = AppFormatters.wholeNumber(abs(deltaKr))
             if deltaKr < -4 {
-                return "Med spotpris har du betalat \(amount) kr mindre än med ett fast pris på \(price)."
+                return "Spotpris har sparat dig \(amount) kr mot fast pris på \(price)."
             }
             if deltaKr > 4 {
-                return "Med spotpris har du betalat \(amount) kr mer än med ett fast pris på \(price)."
+                return "Spotpris har kostat \(amount) kr mer än fast pris på \(price)."
             }
-            return "Med spotpris har du betalat ungefär lika mycket som med ett fast pris på \(price)."
+            return "Spotpris och fast pris på \(price) har kostat ungefär lika."
         }
     }
 
@@ -614,12 +617,24 @@ enum CostUsageInsights {
             let kr = AppFormatters.krPerKWh(abs(savedOrePerKWh) / 100)
             let kronor = AppFormatters.wholeNumber(abs(savedKr))
             if savedKr > 4 {
-                return "Du betalade \(kr) mindre än om du hade använt lika mycket varje timme, ungefär \(kronor) kr."
+                return "Du har använt mer el när den varit billig. Det har sparat ungefär \(kronor) kr."
             }
             if savedKr < -4 {
-                return "Du betalade \(kr) mer än om du hade använt lika mycket varje timme, ungefär \(kronor) kr."
+                return "Du har använt mer el när den varit dyr. Det har kostat ungefär \(kronor) kr extra."
             }
-            return "Du betalade ungefär samma per kWh som om du hade använt lika mycket varje timme."
+            return "Du har varken vunnit eller förlorat på när du använt elen."
+        }
+
+        /// The longer version, for the info sheet.
+        var detail: String {
+            let kr = AppFormatters.krPerKWh(abs(savedOrePerKWh) / 100)
+            if savedKr > 4 {
+                return "Jämfört med om du hade använt lika mycket el varje timme betalade du \(kr) mindre per kWh."
+            }
+            if savedKr < -4 {
+                return "Jämfört med om du hade använt lika mycket el varje timme betalade du \(kr) mer per kWh."
+            }
+            return "Du betalade ungefär samma per kWh som om du hade använt lika mycket el varje timme."
         }
     }
 
