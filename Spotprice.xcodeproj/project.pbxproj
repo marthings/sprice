@@ -208,12 +208,12 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				DesignSystem.swift,
-				"Fonts/Figtree-Black.ttf",
-				"Fonts/Figtree-Bold.ttf",
-				"Fonts/Figtree-ExtraBold.ttf",
-				"Fonts/Figtree-Medium.ttf",
-				"Fonts/Figtree-Regular.ttf",
-				"Fonts/Figtree-SemiBold.ttf",
+				"Fonts/DMSans-Black.ttf",
+				"Fonts/DMSans-Bold.ttf",
+				"Fonts/DMSans-ExtraBold.ttf",
+				"Fonts/DMSans-Medium.ttf",
+				"Fonts/DMSans-Regular.ttf",
+				"Fonts/DMSans-SemiBold.ttf",
 				"Fonts/OFL.txt",
 			);
 			target = 20861F8C2F2E0B9A0067EDC1 /* SpotpriceWidgetExtension */;
@@ -222,12 +222,12 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				DesignSystem.swift,
-				"Fonts/Figtree-Black.ttf",
-				"Fonts/Figtree-Bold.ttf",
-				"Fonts/Figtree-ExtraBold.ttf",
-				"Fonts/Figtree-Medium.ttf",
-				"Fonts/Figtree-Regular.ttf",
-				"Fonts/Figtree-SemiBold.ttf",
+				"Fonts/DMSans-Black.ttf",
+				"Fonts/DMSans-Bold.ttf",
+				"Fonts/DMSans-ExtraBold.ttf",
+				"Fonts/DMSans-Medium.ttf",
+				"Fonts/DMSans-Regular.ttf",
+				"Fonts/DMSans-SemiBold.ttf",
 				"Fonts/OFL.txt",
 				KilowattHourBreakdownView.swift,
 			);
@@ -297,12 +297,12 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				DesignSystem.swift,
-				"Fonts/Figtree-Black.ttf",
-				"Fonts/Figtree-Bold.ttf",
-				"Fonts/Figtree-ExtraBold.ttf",
-				"Fonts/Figtree-Medium.ttf",
-				"Fonts/Figtree-Regular.ttf",
-				"Fonts/Figtree-SemiBold.ttf",
+				"Fonts/DMSans-Black.ttf",
+				"Fonts/DMSans-Bold.ttf",
+				"Fonts/DMSans-ExtraBold.ttf",
+				"Fonts/DMSans-Medium.ttf",
+				"Fonts/DMSans-Regular.ttf",
+				"Fonts/DMSans-SemiBold.ttf",
 				"Fonts/OFL.txt",
 			);
 			target = 202657782FD89ADD004BB572 /* SpotpriceAppWidgetExtension */;

@@ -40,7 +40,7 @@ Storlek: liten är under en timme, medel är några timmar, stor är en dag elle
 - [ ] Svara på åldersfrågorna i App Store Connect. Svaren står i `Docs/app-store-text.md`, resultatet blir 4+. Martin. Liten.
 - [ ] Fyll i integritetsetiketterna i App Store Connect. Svaren är klara i `Docs/app-store-text.md` (rekommendation: samlar inte in uppgifter). Martin. Liten.
 - [ ] Ange innehållsrättigheter och pris (gratis) i App Store Connect. Martin. Liten.
-- [x] Typsnittet är Figtree i iOS-appen, widgeten och macOS-appen. Figtree har licensen SIL Open Font License 1.1 och är gratis att använda i appar som säljs eller är gratis. Se Typsnitt nedan. Klart.
+- [x] Typsnittet är DM Sans i iOS-appen, widgeten och macOS-appen. DM Sans har licensen SIL Open Font License 1.1 och är gratis att använda i appar som säljs eller är gratis. Se Typsnitt nedan. Klart.
 - [x] iOS-appen har nu Exportera historik (delningsmenyn, samma CSV som macOS) och Radera historik med bekräftelse. Klart.
 - [x] Under Inställningar, Förbrukning finns Koppla från. Den tar bort inloggningen och frågar om historiken från datakällan också ska raderas. Klart.
 - [x] Inställningar har en sektion Om Sprice med länkar till integritetspolicy och support, och en rad om att all data stannar på telefonen. Klart (adresserna är tillfälliga, se ovan).
@@ -89,10 +89,11 @@ Storlek: liten är under en timme, medel är några timmar, stor är en dag elle
 
 ## Typsnitt
 
-- Appen använder Figtree (vikterna Regular, Medium, SemiBold, Bold, ExtraBold och Black) från den officiella källan, github.com/erikdkennedy/figtree. Samma typsnitt finns på Google Fonts.
+- Appen använder DM Sans (statiska filer i vikterna Regular, Medium, SemiBold, Bold, ExtraBold och Black) från den officiella källan, github.com/googlefonts/dm-fonts (`Sans/fonts/ttf`). Samma typsnitt finns på Google Fonts. Kursiv används inte och följer inte med.
 - Licensen är SIL Open Font License 1.1 (OFL). Den tillåter att typsnittet följer med i en app, också en app som kostar pengar. Typsnittet får inte säljas för sig, och licenstexten ska följa med.
 - Filerna och licensen ligger i `Shared/DesignSystem/Fonts/` (`OFL.txt`). Licensen kopieras också in i varje app och widget.
 - iOS-appen och widgeten laddar filerna via `UIAppFonts`, macOS-appen och dess widget via `ATSApplicationFontsPath`.
 - Navigationsrubriker, stora belopp och enheterna bredvid dem använder Black (900). Övriga rubriker är ExtraBold eller Bold. Brödtext är Regular eller Medium.
+- Priser, belopp och axelvärden använder DM Sans tabellsiffror (`tnum`, via `monospacedDigit()`), så siffrorna står rakt under varandra.
 - Textstorleken följer fortfarande telefonens inställning för större text.
-- Flikraden längst ner och axlarna i diagrammen ritas av systemet och visas fortfarande med Apples typsnitt.
+- Flikraden längst ner ritas av systemet och visas fortfarande med Apples typsnitt. Axlarna i diagrammen använder DM Sans.
