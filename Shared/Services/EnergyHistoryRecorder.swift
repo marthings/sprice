@@ -13,6 +13,8 @@ enum EnergyHistoryBackfillTiming {
     static let retryInterval: TimeInterval = 12 * 60 * 60
     static let monthDelay: Duration = .milliseconds(400)
     static let spotDelay: Duration = .milliseconds(150)
+    /// Most missing archive days filled in one run. The rest wait for the next run.
+    static let maxArchiveGapDays = 31
 }
 
 enum EnergyHistorySpotMatching {
@@ -286,6 +288,48 @@ final class EnergyHistoryRecorder {
 
         AppLog.history.info("Finished consumption history backfill")
         return true
+    }
+
+    /// Fills days missing from the spot price archive, from the first day with saved
+    /// history up to yesterday. Most days are already there, because the backfill saves
+    /// the prices of every day it records, so this usually makes no network calls.
+    /// A missing day is taken from the saved history first and fetched only if that fails.
+    /// Never runs in demo mode.
+    @discardableResult
+    func fillSpotPriceArchiveGaps(
+        spotPriceService: SpotPriceService,
+        priceArea: String,
+        now: Date = Date()
+    ) async -> Int {
+        guard !DemoMode.isActive else { return 0 }
+        let firstDay: Date
+        do {
+            guard let oldest = try store.fetchMonthlySummaries(priceArea: priceArea)
+                .map(\.periodStart)
+                .min() else {
+                return 0
+            }
+            firstDay = oldest
+        } catch {
+            AppLog.history.error("Could not read history range for the spot archive: \(error.localizedDescription, privacy: .public)")
+            return 0
+        }
+
+        let today = calendar.startOfDay(for: now)
+        let missing = await SpotPriceCache.shared.missingDays(from: firstDay, to: today, area: priceArea)
+        guard !missing.isEmpty else { return 0 }
+
+        var filled = 0
+        for day in missing.prefix(EnergyHistoryBackfillTiming.maxArchiveGapDays) {
+            if Task.isCancelled { break }
+            let prices = await spotPrices(for: day, area: priceArea, service: spotPriceService)
+            if prices.count >= SpotPriceCachePolicy.minimumPersistedIntervals {
+                filled += 1
+            }
+            try? await Task.sleep(for: EnergyHistoryBackfillTiming.spotDelay)
+        }
+        AppLog.history.info("Spot archive: filled \(filled) of \(missing.count) missing days for \(priceArea, privacy: .public)")
+        return filled
     }
 
     @discardableResult
@@ -660,6 +704,11 @@ final class EnergyHistoryBackfillController {
                 now: now
             )
             if succeeded {
+                await activeRecorder.fillSpotPriceArchiveGaps(
+                    spotPriceService: spotPriceService,
+                    priceArea: priceArea,
+                    now: now
+                )
                 Self.defaults.set(Date(), forKey: Self.lastSuccessKey)
             }
         }
