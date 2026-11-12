@@ -389,6 +389,9 @@ final class ConsumptionSettings {
 
     // MARK: - Rates for today
 
+    /// The effect fee older app versions wrote into the Vaggeryd preset, kr/kW.
+    private static let legacyVaggerydPresetPowerFee = 45.0
+
     /// Brings preset fees and energy tax up to the rows in `HistoricalTariffRates` that apply
     /// today, for example after a new year. Grid fees the user typed in are left alone.
     private static func refreshingRates(
@@ -399,20 +402,12 @@ final class ConsumptionSettings {
         var next = HistoricalTariffRates.profile(profile, forPeriodStarting: now)
         var nextTariff = cachedTariff
 
-        // An effect fee from an older preset row goes when today's rows have none.
-        if let company = next.gridCompanyId,
-           let power = next.effectTariff?.monthlyPricePerKW {
-            let rows = HistoricalTariffRates.gridFeeRates.filter { $0.gridCompanyId == company }
-            let fuses = Set(rows.map(\.fuseSize))
-            let noneToday = !fuses.isEmpty && fuses.allSatisfy { fuse in
-                HistoricalTariffRates.gridFee(company: company, fuseSize: fuse, on: now)?.powerFeeKrPerKW == nil
-            }
-            let fromOlderRow = rows.contains { row in
-                row.powerFeeKrPerKW.map { abs($0 - power) < 0.01 } ?? false
-            }
-            if noneToday && fromOlderRow {
-                next = next.settingEffectTariff(nil)
-            }
+        // Older versions of the app put a 45 kr/kW effect fee in the Vaggeryd preset by
+        // mistake. Säkringskunder pay none, so that preset value goes.
+        if next.gridCompanyId == "vaggeryd",
+           let power = next.effectTariff?.monthlyPricePerKW,
+           abs(power - Self.legacyVaggerydPresetPowerFee) < 0.01 {
+            next = next.settingEffectTariff(nil)
         }
 
         // The cached preset tariff follows today's rows too.

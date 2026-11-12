@@ -718,7 +718,7 @@ nonisolated struct GridFeeRate: Sendable {
 /// - A new year only needs new rows here, plus a bump of `version`.
 nonisolated enum HistoricalTariffRates {
     /// Bump when the table below changes, so saved history is priced again once.
-    static let version = 2
+    static let version = 3
 
     static let energyTaxRates: [EnergyTaxRate] = [
         EnergyTaxRate(validFrom: day(2025, 1, 1), region: .standard, orePerKWhInclVAT: 54.875),
@@ -726,14 +726,27 @@ nonisolated enum HistoricalTariffRates {
         EnergyTaxRate(validFrom: day(2026, 1, 1), region: .reducedNorth, orePerKWhInclVAT: 33.0)
     ]
 
-    /// Vaggeryds Energi (Vaggeryds Elnät). 2025 had an effect fee of 45 kr/kW, 2026 has none.
+    /// Vaggeryds Energi (Vaggeryds Elnät), säkringsabonnemang for houses ("villa"), in kr/mån
+    /// as the price list states them. The cheaper "16 A lgh" (flat) rate is not in the table,
+    /// so a 16 A preset is always the house rate. Säkringskunder pay no effect fee; effect
+    /// subscriptions only apply above 200 A.
+    /// Source: vaggerydsenergi.se/tjanster/elnat/elnatsavgifter, archived by the Wayback Machine
+    /// (2024-06-13, 2024-12-08, 2025-03-24, 2025-10-13) and the live page for 2026.
+    /// The list valid until 2024-01-31 is not here: when it started is not documented.
     static let gridFeeRates: [GridFeeRate] =
         gridRows(
             company: "vaggeryd",
-            from: day(2025, 1, 1),
-            monthlyFees: [16: 187.50, 20: 225.00, 25: 270.00, 35: 360.00, 50: 495.00, 63: 612.50],
-            transferOrePerKWh: 28.13,
-            powerFeeKrPerKW: 45.0
+            from: day(2024, 2, 1),
+            monthlyFees: [16: 427, 20: 688, 25: 906, 35: 1_146, 50: 1_823, 63: 2_292],
+            transferOrePerKWh: 27.50,
+            powerFeeKrPerKW: nil
+        ) +
+        gridRows(
+            company: "vaggeryd",
+            from: day(2025, 2, 1),
+            monthlyFees: [16: 442, 20: 711, 25: 938, 35: 1_186, 50: 1_887, 63: 2_372],
+            transferOrePerKWh: 28.5,
+            powerFeeKrPerKW: nil
         ) +
         gridRows(
             company: "vaggeryd",
@@ -824,8 +837,8 @@ nonisolated enum HistoricalTariffRates {
 }
 
 #if DEBUG
-/// Checks once in DEBUG builds that the table gives the same fees as the old
-/// hard-coded 2025 and 2026 values did.
+/// Checks once in DEBUG builds that the table gives Vaggeryd's published fees
+/// for each period, and the energy tax that applied.
 nonisolated enum HistoricalTariffRatesGuard {
     static let isValid: Bool = {
         var ok = true
@@ -833,9 +846,12 @@ nonisolated enum HistoricalTariffRatesGuard {
             assert(condition, "HistoricalTariffRates: \(message)")
             ok = ok && condition
         }
-        let old2025: [Int: Double] = [16: 187.50, 20: 225.00, 25: 270.00, 35: 360.00, 50: 495.00, 63: 612.50]
-        let old2026: [Int: Double] = [16: 458, 20: 742, 25: 975, 35: 1_233, 50: 1_967, 63: 2_475]
+        let fees2024: [Int: Double] = [16: 427, 20: 688, 25: 906, 35: 1_146, 50: 1_823, 63: 2_292]
+        let fees2025: [Int: Double] = [16: 442, 20: 711, 25: 938, 35: 1_186, 50: 1_887, 63: 2_372]
+        let fees2026: [Int: Double] = [16: 458, 20: 742, 25: 975, 35: 1_233, 50: 1_967, 63: 2_475]
         let in2024 = HistoricalTariffRates.day(2024, 11, 15)
+        let lastOfJanuary2025 = HistoricalTariffRates.day(2025, 2, 1).addingTimeInterval(-1)
+        let firstOfFebruary2025 = HistoricalTariffRates.day(2025, 2, 1)
         let in2025 = HistoricalTariffRates.day(2025, 6, 1)
         let lastOf2025 = HistoricalTariffRates.day(2026, 1, 1).addingTimeInterval(-1)
         let in2026 = HistoricalTariffRates.day(2026, 1, 1)
@@ -846,16 +862,18 @@ nonisolated enum HistoricalTariffRatesGuard {
         }
         check(HistoricalTariffRates.energyTax(for: .reducedNorth, on: in2025) == 33.0, "reduced north keeps 33 before 2026")
 
-        for fuse in old2025.keys.sorted() {
-            for date in [in2024, in2025, lastOf2025] {
-                let row = HistoricalTariffRates.gridFee(company: "vaggeryd", fuseSize: fuse, on: date)
-                check(row?.monthlyFee == old2025[fuse] && row?.transferOrePerKWh == 28.13, "vaggeryd 2025 \(fuse) A")
-            }
-            for date in [in2026, in2027] {
-                let row = HistoricalTariffRates.gridFee(company: "vaggeryd", fuseSize: fuse, on: date)
-                check(row?.monthlyFee == old2026[fuse] && row?.transferOrePerKWh == 29.75, "vaggeryd 2026 \(fuse) A")
+        func expect(_ fees: [Int: Double], transfer: Double, on dates: [Date], _ label: String) {
+            for fuse in fees.keys.sorted() {
+                for date in dates {
+                    let row = HistoricalTariffRates.gridFee(company: "vaggeryd", fuseSize: fuse, on: date)
+                    check(row?.monthlyFee == fees[fuse] && row?.transferOrePerKWh == transfer && row?.powerFeeKrPerKW == nil, "vaggeryd \(label) \(fuse) A")
+                }
             }
         }
+        expect(fees2024, transfer: 27.50, on: [in2024, lastOfJanuary2025], "2024-02-01")
+        expect(fees2025, transfer: 28.5, on: [firstOfFebruary2025, in2025, lastOf2025], "2025-02-01")
+        expect(fees2026, transfer: 29.75, on: [in2026, in2027], "2026-01-01")
+        check(!HistoricalTariffRates.gridFeeRates.contains { $0.powerFeeKrPerKW != nil }, "no effect fee for säkringskunder")
 
         // A profile with 2026 preset values, priced for 2025 and back again.
         let preset2026 = ElectricityCostMath.workedExampleSE3Jonkoping20A().updating(
@@ -867,7 +885,9 @@ nonisolated enum HistoricalTariffRatesGuard {
             energyTaxOrePerKWh: 45
         )
         let as2025 = HistoricalTariffRates.profile(preset2026, forPeriodStarting: in2025)
-        check(as2025.gridMonthlyFee == 187.50 && as2025.gridTransferOrePerKWh == 28.13 && as2025.energyTaxOrePerKWh == 54.875, "2026 preset priced for 2025")
+        check(as2025.gridMonthlyFee == 442 && as2025.gridTransferOrePerKWh == 28.5 && as2025.energyTaxOrePerKWh == 54.875, "2026 preset priced for 2025")
+        let asJanuary2025 = HistoricalTariffRates.profile(preset2026, forPeriodStarting: lastOfJanuary2025)
+        check(asJanuary2025.gridMonthlyFee == 427 && asJanuary2025.gridTransferOrePerKWh == 27.50, "2026 preset priced for January 2025")
         check(HistoricalTariffRates.profile(as2025, forPeriodStarting: in2026) == preset2026, "back to 2026")
         check(HistoricalTariffRates.profile(preset2026, forPeriodStarting: in2026) == preset2026, "2026 unchanged")
 
