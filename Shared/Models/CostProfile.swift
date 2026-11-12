@@ -492,6 +492,179 @@ nonisolated enum EffectTariffActiveHours: String, Codable, Equatable, Sendable {
     case custom
 }
 
+// MARK: - Versions over time
+
+/// One saved version of the household's agreement and fees, and the day it applies from.
+///
+/// The profile belongs to the household, not to the connected data source. A change is
+/// saved as a new version from the start of the day it is made, in Swedish time.
+/// Changes only apply forward: no version is ever dated back in time.
+nonisolated struct CostProfileVersion: Codable, Equatable, Sendable, Identifiable {
+    let id: UUID
+    /// Start of the first day this version applies (Europe/Stockholm).
+    /// `distantPast` for the version that was in use before versions were saved.
+    let validFrom: Date
+    let profile: CostProfile
+    let source: TariffSource
+    /// Not used yet. Meant for values that are estimates until the bill is known.
+    let isPreliminary: Bool
+}
+
+/// Picks and saves `CostProfileVersion`s. Pure functions, so they can be checked without storage.
+nonisolated enum CostProfileHistory {
+    static func dayStart(of date: Date, calendar: Calendar = .energyHistory) -> Date {
+        calendar.startOfDay(for: date)
+    }
+
+    /// The version in force at `date`: the latest one starting on or before it.
+    /// A date before the first version gets the first version.
+    static func version(on date: Date, in versions: [CostProfileVersion]) -> CostProfileVersion? {
+        let sorted = versions.sorted { $0.validFrom < $1.validFrom }
+        return sorted.last { $0.validFrom <= date } ?? sorted.first
+    }
+
+    static func profile(on date: Date, in versions: [CostProfileVersion]) -> CostProfile? {
+        version(on: date, in: versions)?.profile
+    }
+
+    /// Saves `profile` as the version from the start of the day of `date` (normally now).
+    ///
+    /// - Nothing changes when that profile is already in force.
+    /// - A version that already starts that day is replaced, so editing a field several
+    ///   times in one day leaves one version for the day, not a stack of them.
+    /// - If the day's version ends up equal to the one before it, it is dropped.
+    /// - A version dated after that day (only possible if the clock was wrong) is dropped,
+    ///   since the latest change is what applies from today.
+    static func saving(
+        _ profile: CostProfile,
+        on date: Date,
+        to versions: [CostProfileVersion],
+        isPreliminary: Bool = false,
+        calendar: Calendar = .energyHistory
+    ) -> [CostProfileVersion] {
+        let validFrom = dayStart(of: date, calendar: calendar)
+        var next = versions
+            .filter { $0.validFrom <= validFrom }
+            .sorted { $0.validFrom < $1.validFrom }
+
+        if next.count == versions.count,
+           let current = version(on: validFrom, in: next),
+           current.profile == profile,
+           current.isPreliminary == isPreliminary {
+            return next
+        }
+
+        let sameDay = next.firstIndex { $0.validFrom == validFrom }
+        let version = CostProfileVersion(
+            id: sameDay.map { next[$0].id } ?? UUID(),
+            validFrom: validFrom,
+            profile: profile,
+            source: profile.source,
+            isPreliminary: isPreliminary
+        )
+        if let sameDay {
+            next[sameDay] = version
+        } else {
+            next.append(version)
+        }
+
+        // Back to what applied before today: today's version adds nothing.
+        if next.count >= 2 {
+            let last = next[next.count - 1]
+            let previous = next[next.count - 2]
+            if last.validFrom == validFrom,
+               last.profile == previous.profile,
+               last.isPreliminary == previous.isPreliminary {
+                next.removeLast()
+            }
+        }
+        return next
+    }
+
+    /// First start with versions: the profile in use becomes the first version, valid
+    /// from `distantPast`, so all saved history keeps the profile it was priced with.
+    /// Does nothing when versions already exist, so it is safe to run on every start.
+    static func migrated(
+        _ versions: [CostProfileVersion],
+        currentProfile: CostProfile
+    ) -> [CostProfileVersion] {
+        guard versions.isEmpty else { return versions }
+        return [
+            CostProfileVersion(
+                id: UUID(),
+                validFrom: .distantPast,
+                profile: currentProfile,
+                source: currentProfile.source,
+                isPreliminary: false
+            )
+        ]
+    }
+
+    static func encoded(_ versions: [CostProfileVersion]) -> Data? {
+        try? JSONEncoder().encode(versions.sorted { $0.validFrom < $1.validFrom })
+    }
+
+    static func decoded(_ data: Data?) -> [CostProfileVersion] {
+        guard let data,
+              let versions = try? JSONDecoder().decode([CostProfileVersion].self, from: data) else {
+            return []
+        }
+        return versions.sorted { $0.validFrom < $1.validFrom }
+    }
+}
+
+#if DEBUG
+/// Checks the version rules once in DEBUG builds, in the same way as `WorkedExampleGuard`.
+nonisolated enum CostProfileVersionGuard {
+    static let isValid: Bool = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Europe/Stockholm") ?? .current
+        func at(_ y: Int, _ m: Int, _ d: Int, _ h: Int = 0, _ min: Int = 0) -> Date {
+            calendar.date(from: DateComponents(year: y, month: m, day: d, hour: h, minute: min)) ?? .distantPast
+        }
+        let a = ElectricityCostMath.workedExampleSE3Jonkoping20A()
+        let b = a.updating(retailerMarkupOrePerKWh: 6)
+        let c = a.updating(retailerMarkupOrePerKWh: 7)
+        var ok = true
+        func check(_ condition: Bool, _ message: String) {
+            assert(condition, "CostProfileVersion: \(message)")
+            ok = ok && condition
+        }
+
+        // Migration, and running it twice.
+        let first = CostProfileHistory.migrated([], currentProfile: a)
+        check(first.count == 1 && first[0].validFrom == .distantPast && first[0].profile == a, "migration")
+        check(CostProfileHistory.migrated(first, currentProfile: b) == first, "migration twice")
+
+        // Switch day in spring, the day clocks go forward (2026-03-29).
+        let spring = CostProfileHistory.saving(b, on: at(2026, 3, 29, 14, 30), to: first, calendar: calendar)
+        check(spring.count == 2 && spring[1].validFrom == at(2026, 3, 29), "spring validFrom")
+        check(spring[1].validFrom == Date(timeIntervalSince1970: 1_774_738_800), "spring validFrom is 23:00 UTC the day before")
+        check(CostProfileHistory.profile(on: at(2026, 3, 28, 23, 59), in: spring) == a, "day before switch")
+        check(CostProfileHistory.profile(on: at(2026, 3, 29), in: spring) == b, "switch day midnight")
+        check(CostProfileHistory.profile(on: at(2026, 3, 29, 23, 59), in: spring) == b, "late on DST day")
+        check(CostProfileHistory.profile(on: at(2024, 1, 1), in: spring) == a, "old history keeps first version")
+
+        // Same day again: replaced, not stacked. Back to the earlier profile: dropped.
+        let sameDay = CostProfileHistory.saving(c, on: at(2026, 3, 29, 20), to: spring, calendar: calendar)
+        check(sameDay.count == 2 && sameDay[1].profile == c && sameDay[1].id == spring[1].id, "same day replaces")
+        let reverted = CostProfileHistory.saving(a, on: at(2026, 3, 29, 21), to: sameDay, calendar: calendar)
+        check(reverted == first, "back to earlier profile the same day")
+        check(CostProfileHistory.saving(b, on: at(2026, 3, 30, 9), to: spring, calendar: calendar) == spring, "unchanged profile is a no-op")
+
+        // Autumn, the day clocks go back (2026-10-25 has 25 hours).
+        let autumn = CostProfileHistory.saving(c, on: at(2026, 10, 25, 2, 30), to: spring, calendar: calendar)
+        check(autumn.count == 3 && autumn[2].validFrom == Date(timeIntervalSince1970: 1_792_879_200), "autumn validFrom is 22:00 UTC the day before")
+        check(CostProfileHistory.profile(on: at(2026, 10, 24, 23, 59), in: autumn) == b, "day before autumn switch")
+        check(CostProfileHistory.profile(on: at(2026, 10, 25, 23, 59), in: autumn) == c, "late on autumn DST day")
+
+        // Saved and read back.
+        check(CostProfileHistory.decoded(CostProfileHistory.encoded(autumn)) == autumn, "JSON round trip")
+        return ok
+    }()
+}
+#endif
+
 // MARK: - Rates by date
 
 /// The fees that were in force on a given date.
