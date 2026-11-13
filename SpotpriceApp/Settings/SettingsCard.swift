@@ -21,6 +21,7 @@ struct SettingsCard<Content: View>: View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
             Text(title)
                 .font(DS.Font.headline)
+                .headingTracking()
 
             content
 
