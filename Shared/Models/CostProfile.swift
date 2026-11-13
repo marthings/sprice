@@ -747,6 +747,37 @@ nonisolated enum HistoryPricing {
         return total
     }
 
+    /// True when some day of `month` lies under an older version than today's.
+    static func monthHasOlderVersion(_ month: Foundation.DateInterval, versions: [CostProfileVersion]) -> Bool {
+        olderVersion(at: month.start, in: versions) != nil
+    }
+
+    /// The running month: what its days under an older version cost compared with pricing
+    /// them with today's profile (old minus current, per cost line). Live totals and the
+    /// forecast are priced with today's profile, so adding this gives older days their own
+    /// version while the rest of the month stays on today's. Nil when no interval is affected.
+    static func liveAdjustment(
+        intervals: [(start: Date, end: Date, kWh: Double, spotOre: Double)],
+        current: CostProfile,
+        versions: [CostProfileVersion],
+        calendar: Calendar = .energyHistory
+    ) -> EnhancedCost? {
+        let service = TotalCostService.shared
+        var profiles: [String: CostProfile] = [:]
+        var total: EnhancedCost?
+        for interval in intervals where interval.kWh > 0 {
+            guard let version = olderVersion(at: interval.start, in: versions) else { continue }
+            let dayKey = "\(version.id.uuidString)|\(calendar.startOfDay(for: interval.start).timeIntervalSinceReferenceDate)"
+            let old = profiles[dayKey] ?? HistoricalTariffRates.profile(version.profile, forPeriodStarting: interval.start)
+            profiles[dayKey] = old
+            let hours = max(interval.end.timeIntervalSince(interval.start) / 3600, 0)
+            let then = service.calculateTotalCost(kWh: interval.kWh, spotPriceOre: interval.spotOre, profile: old, hoursInPeriod: hours)
+            let now = service.calculateTotalCost(kWh: interval.kWh, spotPriceOre: interval.spotOre, profile: current, hoursInPeriod: hours)
+            total = (total ?? .zero).adding(then).adding(now, scale: -1)
+        }
+        return total
+    }
+
     /// Where repricing must start after the versions changed from `old` to `new`.
     /// Nil when nothing that prices history changed. Without an earlier record (`old` nil)
     /// the first version needs nothing; any later version is priced from its start.
@@ -897,6 +928,26 @@ nonisolated enum HistoryPricingGuard {
         let rated = HistoricalTariffRates.profile(a, forPeriodStarting: month.start)
         let whole = service.calculateTotalCost(kWh: 0, spotPriceOre: 0, profile: rated, hoursInPeriod: month.duration / 3600)
         check(near(single, (whole.fixedFeeCostKr + whole.providerMonthlyFeeKr) * (1 + rated.vatRate)), "whole month unchanged")
+
+        // Running month with a change on the 15th: only the days before it are adjusted,
+        // by old minus current price, and nothing at all without a change.
+        var live: [(start: Date, end: Date, kWh: Double, spotOre: Double)] = []
+        var expected = 0.0
+        var quarterStart = month.start
+        while quarterStart < at(2025, 10, 20) {
+            let end = quarterStart.addingTimeInterval(900)
+            live.append((quarterStart, end, 0.3, 80))
+            if quarterStart < at(2025, 10, 15) {
+                let old = HistoricalTariffRates.profile(a, forPeriodStarting: quarterStart)
+                expected += service.calculateTotalCost(kWh: 0.3, spotPriceOre: 80, profile: old, hoursInPeriod: 0.25).totalKr
+                    - service.calculateTotalCost(kWh: 0.3, spotPriceOre: 80, profile: b, hoursInPeriod: 0.25).totalKr
+            }
+            quarterStart = end
+        }
+        let adjustment = HistoryPricing.liveAdjustment(intervals: live, current: b, versions: mid, calendar: calendar)
+        check(adjustment.map { near($0.totalKr, expected) } ?? false, "live adjustment covers days before the change")
+        check(HistoryPricing.liveAdjustment(intervals: live, current: a, versions: first, calendar: calendar) == nil, "no adjustment without change")
+        check(HistoryPricing.monthHasOlderVersion(month, versions: mid) && !HistoryPricing.monthHasOlderVersion(month, versions: first), "month under older version")
         return ok
     }()
 }
@@ -1168,5 +1219,42 @@ enum EnergyHistoryTariffSchedule {
     static func markPriced(versions: [CostProfileVersion]) {
         guard !DemoMode.isActive, let data = CostProfileHistory.encoded(versions) else { return }
         defaults.set(data, forKey: pricedVersionsKey)
+    }
+
+    // MARK: Hours covered by quarters
+
+    private static let overlapCleanupKey = "energyHistory.overlapCleanupVersion"
+    private static let overlapCleanupVersion = 1
+
+    /// True until saved history has once been cleared of hours that quarter-hours cover.
+    static var needsOverlapCleanup: Bool {
+        (defaults.object(forKey: overlapCleanupKey) as? Int ?? 0) < overlapCleanupVersion
+    }
+
+    static func markOverlapCleanupComplete() {
+        guard !DemoMode.isActive else { return }
+        defaults.set(overlapCleanupVersion, forKey: overlapCleanupKey)
+    }
+}
+
+extension EnhancedCost {
+    nonisolated static let zero = EnhancedCost(
+        spotCostKr: 0, gridEnergyCostKr: 0, fixedFeeCostKr: 0, powerTariffCostKr: 0,
+        energyTaxKr: 0, certificateFeeKr: 0, providerSurchargeKr: 0, providerMonthlyFeeKr: 0, vatKr: 0
+    )
+
+    /// Line by line sum, `other` times `scale` (−1 subtracts).
+    nonisolated func adding(_ other: EnhancedCost, scale: Double = 1) -> EnhancedCost {
+        EnhancedCost(
+            spotCostKr: spotCostKr + scale * other.spotCostKr,
+            gridEnergyCostKr: gridEnergyCostKr + scale * other.gridEnergyCostKr,
+            fixedFeeCostKr: fixedFeeCostKr + scale * other.fixedFeeCostKr,
+            powerTariffCostKr: powerTariffCostKr + scale * other.powerTariffCostKr,
+            energyTaxKr: energyTaxKr + scale * other.energyTaxKr,
+            certificateFeeKr: certificateFeeKr + scale * other.certificateFeeKr,
+            providerSurchargeKr: providerSurchargeKr + scale * other.providerSurchargeKr,
+            providerMonthlyFeeKr: providerMonthlyFeeKr + scale * other.providerMonthlyFeeKr,
+            vatKr: vatKr + scale * other.vatKr
+        )
     }
 }

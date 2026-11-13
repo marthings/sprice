@@ -127,6 +127,10 @@ struct HistoryMonthView: View {
         .onChange(of: livePreciseCost) { _, _ in
             applyLiveValuesIfNeeded()
         }
+        .onChange(of: costProfile) { _, _ in
+            guard initialState == nil else { return }
+            Task { await loadHistory() }
+        }
         .onChange(of: liveMonthlyConsumption) { _, _ in
             applyLiveValuesIfNeeded()
         }

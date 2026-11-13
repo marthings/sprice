@@ -1,4 +1,5 @@
 import SwiftUI
+import os
 import Charts
 
 struct MonthDailyCostSection: View {
@@ -17,6 +18,8 @@ struct MonthDailyCostSection: View {
     @State private var selectedDayTiming: String?
     @State private var loadFailed = false
     @State private var didLoad = false
+    /// Old minus today's price for days this month under an older agreement version.
+    @State private var liveAdjustmentKr: Double = 0
     @ScaledMetric(relativeTo: .body) private var chartHeight: CGFloat = 196
 
     private var calendar: Calendar { .energyHistory }
@@ -60,6 +63,12 @@ struct MonthDailyCostSection: View {
             await loadDays()
         }
         .onChange(of: hasProvider) { _, _ in
+            Task { await loadDays() }
+        }
+        .onChange(of: profile) { _, _ in
+            Task { await loadDays() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .energyHistoryDidUpdate)) { _ in
             Task { await loadDays() }
         }
         .onChange(of: selectedDay) { _, day in
@@ -488,13 +497,12 @@ struct MonthDailyCostSection: View {
         } else {
             through = nil
         }
-        return MonthlyCostEstimator().forecastMonth(
+        return MonthDailyCostBuilder.forecast(
             spentKr: spentSoFarKr,
-            consumptionKWh: 0,
-            spotPriceOre: 0,
+            liveAdjustmentKr: liveAdjustmentKr,
             profile: profile,
             measuredThrough: through
-        )?.forecastKr
+        )
     }
 
     private var lineYMax: Double {
@@ -581,6 +589,11 @@ struct MonthDailyCostSection: View {
         }
 #endif
 
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-historyAudit") {
+            MonthDailyCostBuilder.auditLog(priceArea: priceArea, profile: profile, now: now, calendar: calendar)
+        }
+#endif
         do {
             let history = try EnergyHistoryQueryService().loadMonthHistory(
                 priceArea: priceArea,
@@ -592,6 +605,7 @@ struct MonthDailyCostSection: View {
                 now: now,
                 calendar: calendar
             )
+            liveAdjustmentKr = LiveMonthPricing.adjustment(priceArea: priceArea, current: profile, now: now, calendar: calendar)?.totalKr ?? 0
             loadFailed = false
         } catch {
             days = []
@@ -625,6 +639,25 @@ struct MonthDayCost: Identifiable, Equatable {
 }
 
 enum MonthDailyCostBuilder {
+    /// Month forecast from what is spent so far. Days under an older agreement version are
+    /// done and keep their price; only today's version is extrapolated over the month.
+    static func forecast(
+        spentKr: Double,
+        liveAdjustmentKr: Double,
+        profile: CostProfile,
+        measuredThrough: Date?,
+        now: Date = Date()
+    ) -> Double? {
+        MonthlyCostEstimator().forecastMonth(
+            spentKr: spentKr - liveAdjustmentKr,
+            consumptionKWh: 0,
+            spotPriceOre: 0,
+            profile: profile,
+            measuredThrough: measuredThrough,
+            now: now
+        ).map { $0.forecastKr + liveAdjustmentKr }
+    }
+
     static func bars(
         from intervals: [HistoricalEnergyIntervalValue],
         profile: CostProfile,
@@ -723,6 +756,7 @@ enum MonthDailyCostBuilder {
             let cost = dayCostKr(
                 summary: summary,
                 kWh: kWh,
+                isToday: isToday,
                 hoursInPeriod: hoursInPeriod,
                 profile: HistoryPricing.liveProfile(at: dayStart, current: profile, versions: versions),
                 service: service
@@ -739,10 +773,16 @@ enum MonthDailyCostBuilder {
     private static func dayCostKr(
         summary: HistoricalEnergySummaryValue?,
         kWh: Double?,
+        isToday: Bool,
         hoursInPeriod: Double,
         profile: CostProfile,
         service: TotalCostService
     ) -> Double? {
+        // Finished days use the saved cost: priced per interval with the version and fees
+        // of that day, so the bars add up to the month total. Today is still running.
+        if !isToday, let kWh, kWh > 0, let stored = summary?.totalCostSEK {
+            return stored
+        }
         if let kWh, kWh > 0, let spot = summary?.averageSpotPriceOrePerKWh {
             return service.calculateTotalCost(
                 kWh: kWh,
@@ -754,3 +794,38 @@ enum MonthDailyCostBuilder {
         return summary?.totalCostSEK
     }
 }
+
+#if DEBUG
+extension MonthDailyCostBuilder {
+    /// `-historyAudit`: logs per month the month total, the day bars (now and with the old
+    /// rule: today's profile on kWh times the day's average spot price) and the widget
+    /// summary, and for the running month the live version adjustment and forecast.
+    static func auditLog(priceArea: String, profile: CostProfile, now: Date, calendar: Calendar) {
+        let query = EnergyHistoryQueryService()
+        guard let history = try? query.loadMonthHistory(priceArea: priceArea, selectedMonthKey: nil) else { return }
+        let service = TotalCostService.shared
+        for month in history.months.sorted(by: { $0.periodStart < $1.periodStart }) {
+            guard let days = try? query.loadMonthHistory(priceArea: priceArea, selectedMonthKey: month.periodKey).dailySummaries,
+                  let interval = calendar.dateInterval(of: .month, for: month.periodStart) else { continue }
+            let isCurrent = calendar.isDate(month.periodStart, equalTo: now, toGranularity: .month)
+            let lastDay = isCurrent ? now : interval.end.addingTimeInterval(-1)
+            let bars = Self.bars(from: days, profile: profile, monthStart: interval.start, lastDay: lastDay, now: now, calendar: calendar)
+            let oldBars = days.reduce(0.0) { total, day in
+                guard let kWh = day.totalConsumptionKWh, kWh > 0, let spot = day.averageSpotPriceOrePerKWh else {
+                    return total + (day.totalCostSEK ?? 0)
+                }
+                return total + service.calculateTotalCost(kWh: kWh, spotPriceOre: spot, profile: profile, hoursInPeriod: 24).totalKr
+            }
+            let barSum = bars.compactMap(\.costKr).reduce(0, +)
+            let widget = WidgetHistorySummaryCache.summary(monthKey: month.periodKey, priceArea: priceArea)?.totalCostSEK
+            var line = "HistoryAudit \(month.periodKey) month=\(String(format: "%.4f", month.totalCostSEK ?? -1)) bars=\(String(format: "%.4f", barSum)) oldBars=\(String(format: "%.4f", oldBars)) widget=\(String(format: "%.4f", widget ?? -1))"
+            if isCurrent {
+                let adjustment = LiveMonthPricing.adjustment(priceArea: priceArea, current: profile, now: now, calendar: calendar)?.totalKr ?? 0
+                let forecast = Self.forecast(spentKr: barSum, liveAdjustmentKr: adjustment, profile: profile, measuredThrough: now, now: now) ?? -1
+                line += " liveAdjustment=\(String(format: "%.4f", adjustment)) forecastFromBars=\(String(format: "%.4f", forecast))"
+            }
+            AppLog.history.info("\(line, privacy: .public)")
+        }
+    }
+}
+#endif

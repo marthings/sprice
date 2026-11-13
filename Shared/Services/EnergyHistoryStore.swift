@@ -119,6 +119,38 @@ enum EnergyHistoryStores {
     }
 }
 
+/// The running month when part of it lies under an older agreement version.
+@MainActor
+enum LiveMonthPricing {
+    /// Old minus today's price for the month's saved intervals under an older version.
+    /// Nil (and no reading) in the normal case where the whole month uses today's version.
+    static func adjustment(
+        priceArea: String?,
+        current: CostProfile,
+        now: Date = Date(),
+        calendar: Calendar = .energyHistory
+    ) -> EnhancedCost? {
+        let versions = HistoryPricing.savedVersions()
+        guard let month = calendar.dateInterval(of: .month, for: now),
+              HistoryPricing.monthHasOlderVersion(month, versions: versions) else {
+            return nil
+        }
+        let monthKey = EnergyHistoryKey.monthKey(for: now, calendar: calendar)
+        guard let intervals = try? EnergyHistoryQueryService().loadPreferredIntervals(monthKey: monthKey, priceArea: priceArea) else {
+            return nil
+        }
+        return HistoryPricing.liveAdjustment(
+            intervals: intervals.compactMap { interval in
+                guard let kWh = interval.consumptionKWh, kWh > 0 else { return nil }
+                return (interval.intervalStart, interval.intervalEnd, kWh, interval.spotPriceOrePerKWh)
+            },
+            current: current,
+            versions: versions,
+            calendar: calendar
+        )
+    }
+}
+
 @MainActor
 final class EnergyHistoryQueryService: EnergyHistoryQuerying {
     private let store: (any EnergyHistoryStore)?
@@ -1085,20 +1117,50 @@ nonisolated enum EnergyHistoryWriting {
         var existingByKey = try fetchExistingRecords(for: drafts, context: context)
         var affectedDayKeys = Set<String>()
         var affectedMonthKeys = Set<String>()
+        // Same interval saved under an older key (the repeated autumn hour got its own key
+        // later): update that row instead of adding a second one.
+        var existingByInterval: [String: HistoricalEnergyRecord] = [:]
+        for record in existingByKey.values {
+            existingByInterval[intervalIdentity(
+                start: record.intervalStart,
+                end: record.intervalEnd,
+                priceArea: record.priceArea,
+                providerID: record.providerID,
+                source: record.sourceRawValue
+            )] = record
+        }
 
         for (index, draft) in drafts.enumerated() {
             affectedDayKeys.insert(draft.dayKey)
             affectedMonthKeys.insert(draft.monthKey)
             let snapshotData = draftSnapshots[index].data
             let snapshotHash = draftSnapshots[index].hash
+            let identity = intervalIdentity(
+                start: draft.intervalStart,
+                end: draft.intervalEnd,
+                priceArea: draft.priceArea,
+                providerID: draft.providerID,
+                source: draft.source.rawValue
+            )
 
-            if let existingRecord = existingByKey[draft.deduplicationKey] {
+            if let existingRecord = existingByKey[draft.deduplicationKey] ?? existingByInterval[identity] {
+                let oldIdentity = intervalIdentity(
+                    start: existingRecord.intervalStart,
+                    end: existingRecord.intervalEnd,
+                    priceArea: existingRecord.priceArea,
+                    providerID: existingRecord.providerID,
+                    source: existingRecord.sourceRawValue
+                )
                 existingRecord.update(
                     from: draft,
                     snapshotData: snapshotData,
                     snapshotHash: snapshotHash,
                     updatedAt: now
                 )
+                if existingByInterval[oldIdentity] === existingRecord {
+                    existingByInterval[oldIdentity] = nil
+                }
+                existingByInterval[identity] = existingRecord
             } else {
                 let record = draft.makeRecord(
                     createdAt: now,
@@ -1107,13 +1169,101 @@ nonisolated enum EnergyHistoryWriting {
                 )
                 context.insert(record)
                 existingByKey[draft.deduplicationKey] = record
+                existingByInterval[identity] = record
             }
+        }
+
+        // Quarters win over hours: an hour whose four quarters are saved is not counted twice.
+        var nearby = Array(existingByKey.values)
+        if let first = drafts.map(\.intervalStart).min(),
+           let hourStart = calendar.dateInterval(of: .hour, for: first)?.start, hourStart < first {
+            nearby += try context.fetch(FetchDescriptor<HistoricalEnergyRecord>(
+                predicate: #Predicate { $0.intervalStart >= hourStart && $0.intervalStart < first }
+            ))
+        }
+        let removed = removeHoursCoveredByQuarters(nearby, context: context)
+        if !removed.isEmpty {
+            for record in removed {
+                affectedDayKeys.insert(record.dayKey)
+                affectedMonthKeys.insert(record.monthKey)
+            }
+            AppLog.history.info("Removed \(removed.count) hourly intervals already covered by quarter-hours")
         }
 
         try rebuildDailySummaries(dayKeys: affectedDayKeys, updatedAt: now, context: context, calendar: calendar)
         try rebuildMonthlySummaries(monthKeys: affectedMonthKeys, updatedAt: now, context: context, calendar: calendar)
         try context.save()
         try updateWidgetSummaryCache(monthKeys: affectedMonthKeys, updatedAt: now, context: context)
+    }
+
+    nonisolated private static func intervalIdentity(
+        start: Date,
+        end: Date,
+        priceArea: String,
+        providerID: String?,
+        source: String
+    ) -> String {
+        "\(start.timeIntervalSinceReferenceDate)|\(end.timeIntervalSinceReferenceDate)|\(priceArea)|\(providerID ?? "none")|\(source)"
+    }
+
+    /// Deletes hourly consumption rows whose four quarter-hours are saved for the same
+    /// price area and source. Only such hours are removed, never anything else.
+    /// Returns what was deleted (key values are read before deleting).
+    nonisolated private static func removeHoursCoveredByQuarters(
+        _ records: [HistoricalEnergyRecord],
+        context: ModelContext
+    ) -> [(dayKey: String, monthKey: String)] {
+        var seen = Set<ObjectIdentifier>()
+        let measured = records.filter { record in
+            record.consumptionKWh != nil && seen.insert(ObjectIdentifier(record)).inserted
+        }
+        let items = measured.map { record in
+            IntervalCoverage.Item(
+                start: record.intervalStart,
+                end: record.intervalEnd,
+                group: "\(record.priceArea)|\(record.providerID ?? "none")|\(record.sourceRawValue)"
+            )
+        }
+        return IntervalCoverage.coveredHourIndices(items).map { index in
+            let record = measured[index]
+            let keys = (record.dayKey, record.monthKey)
+            context.delete(record)
+            return keys
+        }
+    }
+
+    /// One pass over saved history that removes hours already covered by quarter-hours,
+    /// month by month with its own context, saving after each month. Safe to run again.
+    nonisolated static func removeHoursCoveredByQuarters(
+        container: ModelContainer,
+        calendar: Calendar
+    ) throws -> Int {
+        let monthKeys = Set(
+            try ModelContext(container)
+                .fetch(FetchDescriptor<HistoricalMonthlyEnergySummary>())
+                .map(\.monthKey)
+        ).sorted()
+        var removedTotal = 0
+        var changedMonths = Set<String>()
+        for monthKey in monthKeys {
+            try Task.checkCancellation()
+            let context = ModelContext(container)
+            context.autosaveEnabled = false
+            let records = try fetchRecords(monthKey: monthKey, priceArea: nil, context: context)
+            let removed = removeHoursCoveredByQuarters(records, context: context)
+            guard !removed.isEmpty else { continue }
+            try context.save()
+            let now = Date()
+            try rebuildDailySummaries(dayKeys: Set(removed.map(\.dayKey)), updatedAt: now, context: context, calendar: calendar)
+            try rebuildMonthlySummaries(monthKeys: Set(removed.map(\.monthKey)), updatedAt: now, context: context, calendar: calendar)
+            try context.save()
+            removedTotal += removed.count
+            changedMonths.formUnion(removed.map(\.monthKey))
+        }
+        if !changedMonths.isEmpty {
+            try updateWidgetSummaryCache(monthKeys: changedMonths, updatedAt: Date(), context: ModelContext(container))
+        }
+        return removedTotal
     }
 
     nonisolated static func exportHistoryCSV(

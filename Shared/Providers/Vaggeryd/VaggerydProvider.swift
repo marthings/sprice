@@ -187,8 +187,10 @@ struct VaggerydProvider: ElectricityProvider, QuarterlyConsumptionProvider {
         let apiResponse = try decodeResponse(ConsumptionAPIResponse.self, from: data)
         logger.info("Vaggeryd hourly consumption decoded \(apiResponse.consumptionValues.count) values")
 
-        return apiResponse.consumptionValues
-            .map { HourlyConsumption(date: $0.date, kWh: $0.consumption) }
+        // Times come without offset: the repeated autumn hour must not collapse into one.
+        let dates = ClockChangeTimes.resolvingRepeatedHour(apiResponse.consumptionValues.map(\.date))
+        return zip(apiResponse.consumptionValues, dates)
+            .map { value, date in HourlyConsumption(date: date, kWh: value.consumption) }
             .filter { $0.kWh > 0 }
             .sorted { $0.date < $1.date }
     }
@@ -210,8 +212,10 @@ struct VaggerydProvider: ElectricityProvider, QuarterlyConsumptionProvider {
         let apiResponse = try decodeResponse(ConsumptionAPIResponse.self, from: data)
         logger.info("Vaggeryd quarterly consumption decoded \(apiResponse.consumptionValues.count) values")
 
-        return apiResponse.consumptionValues
-            .map { QuarterlyConsumption(date: $0.date, kWh: $0.consumption) }
+        // Times come without offset: the repeated autumn hour must not collapse into one.
+        let dates = ClockChangeTimes.resolvingRepeatedHour(apiResponse.consumptionValues.map(\.date))
+        return zip(apiResponse.consumptionValues, dates)
+            .map { value, date in QuarterlyConsumption(date: date, kWh: value.consumption) }
             .filter { $0.kWh > 0 }
             .sorted { $0.date < $1.date }
     }

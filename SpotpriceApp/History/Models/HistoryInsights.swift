@@ -125,12 +125,17 @@ enum HistoryInsights {
         let periodProfile = isCurrent
             ? costProfile
             : HistoryPricing.periodProfile(at: summary.periodStart, current: costProfile, versions: versions)
+        // Running month: days under an older version keep it, the rest uses today's.
+        let liveAdjustment = isCurrent
+            ? LiveMonthPricing.adjustment(priceArea: summary.priceArea, current: costProfile, now: now, calendar: calendar)
+            : nil
         let cost = monthCost(
             summary: summary,
             isCurrentMonth: isCurrent,
             kWh: kWh,
             spotOre: spotOre,
             costProfile: periodProfile,
+            liveAdjustment: liveAdjustment,
             livePreciseCost: livePreciseCost,
             now: now,
             calendar: calendar
@@ -577,6 +582,7 @@ enum HistoryInsights {
         kWh: Double?,
         spotOre: Double?,
         costProfile: CostProfile,
+        liveAdjustment: EnhancedCost? = nil,
         livePreciseCost: PreciseMonthlyCost?,
         now: Date,
         calendar: Calendar
@@ -586,21 +592,23 @@ enum HistoryInsights {
         if isCurrentMonth {
             if let livePreciseCost, livePreciseCost.totalKWh > 0 {
                 let effectiveSpot = (livePreciseCost.totalCostKr / livePreciseCost.totalKWh) * 100
-                let parts = service.calculateTotalCost(
+                var parts = service.calculateTotalCost(
                     kWh: livePreciseCost.totalKWh,
                     spotPriceOre: effectiveSpot,
                     profile: costProfile,
                     hoursInPeriod: elapsedHours(from: summary.periodStart, now: now, calendar: calendar)
                 )
+                if let liveAdjustment { parts = parts.adding(liveAdjustment) }
                 return MonthCostResult(amount: parts.totalKr, usedCurrentTariffs: true, parts: parts, spotBasis: effectiveSpot)
             }
             if let kWh, kWh > 0, let spotOre {
-                let parts = service.calculateTotalCost(
+                var parts = service.calculateTotalCost(
                     kWh: kWh,
                     spotPriceOre: spotOre,
                     profile: costProfile,
                     hoursInPeriod: elapsedHours(from: summary.periodStart, now: now, calendar: calendar)
                 )
+                if let liveAdjustment { parts = parts.adding(liveAdjustment) }
                 return MonthCostResult(amount: parts.totalKr, usedCurrentTariffs: true, parts: parts, spotBasis: spotOre)
             }
             return MonthCostResult(amount: summary.totalCostSEK, usedCurrentTariffs: false)
