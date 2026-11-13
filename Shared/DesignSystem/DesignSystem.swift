@@ -1267,98 +1267,24 @@ struct PriceLevelBadge: View {
 
 // MARK: - Canvas background
 
-/// Full-bleed landscape reused by every screen (light/dark asset). Completely still.
-/// Depth comes from fixed layers on top of the watercolor: a soft sky at the top (deeper
-/// blue at the very top that pales towards the mountains, with a faint haze of light),
-/// a soft warm glow at the horizon, and a faint vignette at the edges. Cards sit above all
-/// of it and keep their own material, so text reads the same in light and dark.
-/// Layout-neutral: the image lives in an overlay so `scaledToFill` never
-/// expands the parent (which would wipe out horizontal padding).
+/// Plain, still background reused by every screen: one flat colour from the arctic palette.
+/// Light: an almost white surface with a faint blue tone. Dark: a deep blue-black.
+/// Cards sit on top with their own fill and a hairline edge, so they stay distinct.
 struct AppCanvasBackground: View {
     @Environment(\.colorScheme) private var colorScheme
 
+    /// #F4F8FB in light mode, #0B1320 in dark mode.
+    static func color(for colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark
+            ? Color(red: 11 / 255, green: 19 / 255, blue: 32 / 255)
+            : Color(red: 244 / 255, green: 248 / 255, blue: 251 / 255)
+    }
+
     var body: some View {
-        base
-            .overlay(alignment: .bottom) {
-                Image("LandscapeBackground")
-                    .resizable()
-                    .scaledToFill()
-                    .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity, alignment: .bottom)
-                    .allowsHitTesting(false)
-            }
-            .overlay { sky }
-            .overlay { skyHaze }
-            .overlay { horizonGlow }
-            .overlay { vignette }
-            .clipped()
+        Self.color(for: colorScheme)
             .ignoresSafeArea()
             .accessibilityHidden(true)
             .allowsHitTesting(false)
-    }
-
-    private var isDark: Bool { colorScheme == .dark }
-
-    private var base: Color {
-        isDark
-            ? Color(red: 0.045, green: 0.05, blue: 0.065)
-            : Color(red: 0.78, green: 0.86, blue: 0.94)
-    }
-
-    /// The sky: a clear pale blue at the top in light mode, a deep night blue in dark mode,
-    /// both close to the arctic accent. It pales out gradually and is gone well above the
-    /// mountains, so the landscape itself is untouched.
-    private var sky: some View {
-        let top = isDark ? Color(red: 0.03, green: 0.09, blue: 0.22) : Color(red: 0.47, green: 0.72, blue: 0.93)
-        let middle = isDark ? Color(red: 0.06, green: 0.17, blue: 0.33) : Color(red: 0.66, green: 0.83, blue: 0.96)
-        return LinearGradient(
-            stops: [
-                .init(color: top.opacity(isDark ? 0.62 : 0.60), location: 0),
-                .init(color: middle.opacity(isDark ? 0.36 : 0.36), location: 0.22),
-                .init(color: middle.opacity(isDark ? 0.12 : 0.10), location: 0.42),
-                .init(color: middle.opacity(0), location: 0.60)
-            ],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-    }
-
-    /// A faint patch of light high up to one side, so the sky has some air in it and does
-    /// not read as one flat band. Whitish in light mode, a cool icy glow in dark mode.
-    private var skyHaze: some View {
-        let light = isDark ? Color(red: 0.36, green: 0.78, blue: 0.96) : Color.white
-        return GeometryReader { geometry in
-            RadialGradient(
-                colors: [light.opacity(isDark ? 0.15 : 0.38), light.opacity(isDark ? 0.04 : 0.12), light.opacity(0)],
-                center: UnitPoint(x: 0.78, y: 0.10),
-                startRadius: 0,
-                endRadius: max(geometry.size.width, geometry.size.height * 0.45) * 0.85
-            )
-        }
-    }
-
-    /// A soft glow where the sun sits behind the ridge.
-    private var horizonGlow: some View {
-        let warm = isDark ? Color(red: 0.80, green: 0.36, blue: 0.12) : Color(red: 1.00, green: 0.70, blue: 0.45)
-        return GeometryReader { geometry in
-            RadialGradient(
-                colors: [warm.opacity(isDark ? 0.34 : 0.32), warm.opacity(isDark ? 0.10 : 0.10), warm.opacity(0)],
-                center: UnitPoint(x: 0.5, y: 0.82),
-                startRadius: 0,
-                endRadius: max(geometry.size.width, geometry.size.height * 0.5) * 0.9
-            )
-        }
-    }
-
-    /// Darkens the corners a little, so the middle of the screen feels closer.
-    private var vignette: some View {
-        GeometryReader { geometry in
-            RadialGradient(
-                colors: [Color.black.opacity(0), Color.black.opacity(isDark ? 0.34 : 0.10)],
-                center: .center,
-                startRadius: min(geometry.size.width, geometry.size.height) * 0.45,
-                endRadius: max(geometry.size.width, geometry.size.height) * 0.78
-            )
-        }
     }
 }
 
@@ -1409,19 +1335,21 @@ struct SpriceCardBackground: View {
 
     private var paletteColor: Color { tone.paletteColor }
 
-    /// Very faint lift *under* the ultra-thin material so `.primary` stays at
-    /// WCAG AA (4.5:1) against the landscape in both appearances, without
-    /// making the card look solid.
+    /// Lift *under* the ultra-thin material so the card reads as its own surface on the
+    /// flat canvas: near-white on the pale canvas, a touch lighter than the deep blue-black
+    /// in dark mode. Text stays well above WCAG AA (4.5:1) in both.
     private var contrastFill: Color {
         let increased = contrast == .increased
         return colorScheme == .dark
-            ? Color.black.opacity(increased ? 0.5 : 0.32)
-            : Color.white.opacity(increased ? 0.62 : 0.40)
+            ? Color.white.opacity(increased ? 0.10 : 0.05)
+            : Color.white.opacity(increased ? 0.95 : 0.80)
     }
 
-    /// With Increase Contrast on, cards get a clear edge so they stand out from the landscape.
+    /// A hairline edge so cards stay distinct from the canvas. With Increase Contrast on it
+    /// becomes a clear line.
     private var increasedContrastEdge: some View {
-        cardShape.strokeBorder(Color.primary.opacity(contrast == .increased ? 0.5 : 0), lineWidth: 1)
+        let hairline = colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.06)
+        return cardShape.strokeBorder(contrast == .increased ? Color.primary.opacity(0.5) : hairline, lineWidth: 1)
     }
 
     private var opaqueBase: Color {
