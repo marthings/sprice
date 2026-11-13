@@ -9,6 +9,7 @@ struct DashboardHeader: View {
         VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
             Text(title)
                 .font(DS.Font.fixed(titleSize))
+                .tracking(DS.Font.headingTracking(forSize: titleSize))
                 .foregroundStyle(.primary)
 
             Text(settingsSummary)

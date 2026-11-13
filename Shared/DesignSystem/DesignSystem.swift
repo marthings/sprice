@@ -329,10 +329,18 @@ enum DS {
             system(size, weight: .regular)
         }
 
-        // Preset sizes
-        static let largeTitle = bold(32)
-        static let title = bold(20)
-        static let headline = bold(17)
+        /// Headings are tightened a little, as DM Sans display sizes usually are: -0.02 em,
+        /// about -0.8 pt at 40 pt and -0.34 pt at 17 pt. Body text keeps no tracking.
+        static let headingTrackingEm: CGFloat = -0.02
+
+        static func headingTracking(forSize size: CGFloat) -> CGFloat {
+            size * headingTrackingEm
+        }
+
+        // Preset sizes. Headings use DM Sans Black (900).
+        static let largeTitle = black(32)
+        static let title = black(20)
+        static let headline = black(17)
         static let body = regular(15)
         static let callout = medium(14)
         static let caption = medium(13)
@@ -346,14 +354,8 @@ enum DS {
         #if os(iOS)
         /// Navigation titles can't take a SwiftUI `Font`, so UIKit chrome uses this.
         static func configureNavigationBarAppearance() {
-            let titleAttributes: [NSAttributedString.Key: Any] = [
-                .font: uiBlack(size: 17, textStyle: .headline),
-                .foregroundColor: UIColor.label
-            ]
-            let largeTitleAttributes: [NSAttributedString.Key: Any] = [
-                .font: uiBlack(size: 34, textStyle: .largeTitle),
-                .foregroundColor: UIColor.label
-            ]
+            let titleAttributes = navigationTitleAttributes(size: 17, textStyle: .headline)
+            let largeTitleAttributes = navigationTitleAttributes(size: 34, textStyle: .largeTitle)
 
             let standard = UINavigationBarAppearance()
             standard.configureWithDefaultBackground()
@@ -381,6 +383,16 @@ enum DS {
             let base = UIFont(name: fontName(for: .black), size: size)
                 ?? UIFont.systemFont(ofSize: size, weight: .black)
             return UIFontMetrics(forTextStyle: textStyle).scaledFont(for: base)
+        }
+
+        /// Title attributes with heading tracking taken from the scaled size.
+        private static func navigationTitleAttributes(size: CGFloat, textStyle: UIFont.TextStyle) -> [NSAttributedString.Key: Any] {
+            let font = uiBlack(size: size, textStyle: textStyle)
+            return [
+                .font: font,
+                .kern: headingTracking(forSize: font.pointSize),
+                .foregroundColor: UIColor.label
+            ]
         }
         #endif
     }
@@ -1265,6 +1277,32 @@ struct PriceLevelBadge: View {
     }
 }
 
+// MARK: - Heading tracking
+
+/// Slightly negative tracking for a heading of the given design size. It scales with
+/// Dynamic Type through the same text style as the font, so it stays at -0.02 em.
+struct HeadingTracking: ViewModifier {
+    @ScaledMetric private var tracking: CGFloat
+
+    init(size: CGFloat) {
+        _tracking = ScaledMetric(
+            wrappedValue: DS.Font.headingTracking(forSize: size),
+            relativeTo: DS.Font.textStyle(forSize: size)
+        )
+    }
+
+    func body(content: Content) -> some View {
+        content.tracking(tracking)
+    }
+}
+
+extension View {
+    /// Tightens a heading set at `size` points (17 for card and section titles).
+    func headingTracking(size: CGFloat = 17) -> some View {
+        modifier(HeadingTracking(size: size))
+    }
+}
+
 // MARK: - Canvas background
 
 /// Plain, still background reused by every screen: one flat colour from the arctic palette.
@@ -1345,11 +1383,9 @@ struct SpriceCardBackground: View {
             : Color.white.opacity(increased ? 0.95 : 0.80)
     }
 
-    /// A hairline edge so cards stay distinct from the canvas. With Increase Contrast on it
-    /// becomes a clear line.
+    /// With Increase Contrast on, cards get a clear edge. Otherwise no border.
     private var increasedContrastEdge: some View {
-        let hairline = colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.06)
-        return cardShape.strokeBorder(contrast == .increased ? Color.primary.opacity(0.5) : hairline, lineWidth: 1)
+        cardShape.strokeBorder(Color.primary.opacity(contrast == .increased ? 0.5 : 0), lineWidth: 1)
     }
 
     private var opaqueBase: Color {
@@ -1753,10 +1789,13 @@ struct SectionInfoHeader: View {
     var badge: String? = nil
     var badgeAccessibilityLabel: String? = nil
 
+    @ScaledMetric(relativeTo: .headline) private var headlineTracking: CGFloat = DS.Font.headingTracking(forSize: 17)
+
     var body: some View {
         HStack(alignment: .center, spacing: 0) {
             Text(title)
                 .font(titleFont)
+                .tracking(titleFont == DS.Font.headline ? headlineTracking : 0)
                 .foregroundStyle(titleColor)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: badge == nil ? .infinity : nil, alignment: .leading)
