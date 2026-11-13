@@ -34,6 +34,9 @@ nonisolated enum HistoricalEnergyConfidence: String, Codable, CaseIterable, Equa
     case measured
     case partial
     case recalculated
+    /// Measured, but the value or its cost may still change (see `HistoryPreliminary`).
+    /// Saved in the same string as the other cases, so no schema change.
+    case preliminary
 }
 
 // MARK: - Historical Cost Profile Snapshot
@@ -125,6 +128,8 @@ final class HistoricalEnergyRecord {
     var sourceRawValue: String
     var confidenceRawValue: String
     var createdAt: Date
+    /// When the row was last written from fetched data. Repricing leaves it alone, so for a
+    /// measured row it tells when the value was fetched (used by `HistoryPreliminary`).
     var updatedAt: Date
 
     init(
@@ -617,6 +622,11 @@ nonisolated struct HistoricalEnergySummaryValue: Equatable, Identifiable, Sendab
     var hasMissingConsumptionIntervals: Bool {
         measuredIntervalCount > 0 && measuredIntervalCount < intervalCount
     }
+
+    /// Some value or cost in the period may still change.
+    var isPreliminary: Bool {
+        confidence == .preliminary
+    }
 }
 
 nonisolated enum HistoricalEnergyDataCoverage: String, Codable, CaseIterable, Sendable {
@@ -671,6 +681,8 @@ nonisolated struct WidgetHistorySummary: Codable, Equatable, Sendable {
     let averageSpotPriceOrePerKWh: Double?
     let dataCoverage: HistoricalEnergyDataCoverage
     let measuredCoverageRatio: Double?
+    /// Optional so a summary cached before this field still decodes.
+    let isPreliminary: Bool?
     let updatedAt: Date
 
     init(summary: HistoricalEnergySummaryValue, updatedAt: Date = Date()) {
@@ -682,6 +694,7 @@ nonisolated struct WidgetHistorySummary: Codable, Equatable, Sendable {
         self.averageSpotPriceOrePerKWh = summary.averageSpotPriceOrePerKWh
         self.dataCoverage = summary.dataCoverage
         self.measuredCoverageRatio = summary.measuredCoverageRatio
+        self.isPreliminary = summary.isPreliminary
         self.updatedAt = updatedAt
     }
 

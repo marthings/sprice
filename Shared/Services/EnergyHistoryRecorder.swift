@@ -129,7 +129,7 @@ final class EnergyHistoryRecorder {
             return
         }
 
-        let windowStart = now.addingTimeInterval(-48 * 60 * 60)
+        let windowStart = now.addingTimeInterval(-HistoryPreliminary.refetchWindow)
         var rangeStart = max(monthStart, windowStart)
         do {
             let monthKey = EnergyHistoryKey.monthKey(for: monthStart, calendar: calendar)
@@ -143,6 +143,20 @@ final class EnergyHistoryRecorder {
             rangeStart = monthStart
         }
 
+        // Values fetched before they were 48 hours old stay preliminary until fetched again.
+        // When the app was not opened for a while, go back to the oldest such value (at
+        // most to the start of last month), so it can settle.
+        var prefetched = quarterlyConsumption
+        if let previousMonthStart = calendar.date(byAdding: .month, value: -1, to: monthStart),
+           let oldest = await oldestEarlyFetchedMeasurement(from: previousMonthStart, before: rangeStart),
+           oldest < rangeStart {
+            rangeStart = oldest
+            if let first = prefetched?.map(\.date).min(), first > rangeStart {
+                prefetched = nil
+            }
+            AppLog.history.info("Fetching again from \(rangeStart, privacy: .public) so preliminary values can settle")
+        }
+
         _ = await recordConsumptionHistory(
             from: rangeStart,
             to: now,
@@ -152,8 +166,15 @@ final class EnergyHistoryRecorder {
             providerID: providerID,
             costProfile: costProfile,
             now: now,
-            prefetchedQuarterly: quarterlyConsumption
+            prefetchedQuarterly: prefetched
         )
+    }
+
+    private func oldestEarlyFetchedMeasurement(from: Date, before: Date) async -> Date? {
+        guard let container = try? EnergyHistoryStores.container() else { return nil }
+        return try? await Task.detached(priority: .utility) {
+            try EnergyHistoryWriting.oldestEarlyFetchedMeasurement(from: from, before: before, container: container)
+        }.value
     }
 
     func repriceStoredHistoryIfNeeded(
@@ -182,6 +203,26 @@ final class EnergyHistoryRecorder {
                 }
             } catch {
                 AppLog.history.error("Could not remove overlapping hours: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+
+        // Rows saved before preliminary marks existed are marked once (amounts stay).
+        if EnergyHistoryTariffSchedule.needsPreliminaryPass {
+            do {
+                let container = try EnergyHistoryStores.container()
+                let calendar = self.calendar
+                let versions = HistoryPricing.savedVersions()
+                let result = try await Task.detached(priority: .utility) {
+                    try EnergyHistoryWriting.markPreliminary(versions: versions, container: container, calendar: calendar)
+                }.value
+                EnergyHistoryTariffSchedule.markPreliminaryPassComplete()
+                AppLog.history.info("Preliminary marks: \(result.marked) marked, \(result.settled) settled")
+                if result.marked + result.settled > 0 {
+                    scheduleHistoryDidUpdate()
+                    WidgetReload.timelines()
+                }
+            } catch {
+                AppLog.history.error("Could not mark preliminary values: \(error.localizedDescription, privacy: .public)")
             }
         }
 

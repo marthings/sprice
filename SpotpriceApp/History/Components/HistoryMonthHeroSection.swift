@@ -44,8 +44,8 @@ struct HistoryMonthHeroSection: View {
             SectionInfoHeader(
                 title: "Månadens siffror",
                 paragraphs: infoParagraphs,
-                badge: snapshot.isCurrentMonth ? "Pågår" : nil,
-                badgeAccessibilityLabel: "Månaden pågår"
+                badge: heroBadge?.text,
+                badgeAccessibilityLabel: heroBadge?.accessibilityLabel
             )
 
             if let cost = snapshot.costKr {
@@ -287,8 +287,23 @@ struct HistoryMonthHeroSection: View {
         )
     }
 
+    /// "Pågår" for the running month (its latest days are preliminary by nature), and
+    /// "Preliminärt" for an ended month that still has values that may change.
+    private var heroBadge: (text: String, accessibilityLabel: String)? {
+        if snapshot.isCurrentMonth {
+            return ("Pågår", "Månaden pågår")
+        }
+        if snapshot.summary.isPreliminary {
+            return ("Preliminärt", "Preliminärt, siffrorna kan ändras")
+        }
+        return nil
+    }
+
     private var infoParagraphs: [String] {
         var parts: [String] = []
+        if snapshot.summary.isPreliminary {
+            parts.append(HistoryPreliminaryCopy.month)
+        }
         if snapshot.isCurrentMonth {
             if snapshot.usedCurrentTariffs {
                 parts.append("Månaden pågår, så siffrorna gäller dagarna hittills. Kostnaden räknas med dina priser och avgifter i dag.")

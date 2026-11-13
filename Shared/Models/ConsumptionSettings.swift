@@ -622,6 +622,7 @@ final class ConsumptionSettings {
         _ = HistoricalTariffRatesGuard.isValid
         _ = HistoryPricingGuard.isValid
         _ = IntervalCoverageGuard.isValid
+        _ = HistoryPreliminaryGuard.isValid
 #endif
 
         // The real values are loaded and saved above. Demo mode starts after that, so it

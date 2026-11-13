@@ -1057,6 +1057,27 @@ nonisolated enum HistoricalTariffRates {
         return gridFeeRates.contains { $0.gridCompanyId == gridCompanyId }
     }
 
+    /// First day the table no longer covers. The latest rows are the price lists and the
+    /// energy tax for 2026; what applies after that is not known yet.
+    static let documentedUntil = day(2027, 1, 1)
+
+    /// True when the table holds the grid fees that applied on `date`: on or after the
+    /// company's first row and before `documentedUntil`. Before the first row the first
+    /// row is used, but what applied then is not documented.
+    static func documentsGridFees(company gridCompanyId: String?, on date: Date) -> Bool {
+        guard let gridCompanyId,
+              let first = gridFeeRates.filter({ $0.gridCompanyId == gridCompanyId }).map(\.validFrom).min() else {
+            return false
+        }
+        return date >= first && date < documentedUntil
+    }
+
+    /// True when the energy tax for `date` is known. Dates before the first row keep the
+    /// first row's rate (Martin's choice for 2024), so only dates after the table count.
+    static func documentsEnergyTax(on date: Date) -> Bool {
+        date < documentedUntil
+    }
+
     /// `profile` with the fees that applied on `date`.
     static func profile(_ profile: CostProfile, forPeriodStarting date: Date) -> CostProfile {
         var tax: Double?
@@ -1185,6 +1206,130 @@ nonisolated enum HistoricalTariffRatesGuard {
 }
 #endif
 
+// MARK: - Preliminary values
+
+/// Marks values that may still change, so the app can tell them from settled ones
+/// (EIFS: the customer should be able to see when a value is preliminary). The mark never
+/// changes an amount.
+///
+/// Vaggeryd sends no status or quality code with its values, only date, consumption and
+/// price, so the rule is the app's own:
+/// - A measured value is preliminary when it was fetched before its interval was 48 hours
+///   old. The app fetches the last 48 hours again on every load, and Vaggeryd can still
+///   correct them. Fetched again after that, the value is settled and loses the mark.
+/// - A cost is preliminary when it was priced with something not known yet: an agreement
+///   version marked preliminary, a guessed price (default estimate), or table fees for a
+///   date the table does not cover.
+nonisolated enum HistoryPreliminary {
+    /// The window the app fetches again on every load.
+    static let refetchWindow: TimeInterval = 48 * 60 * 60
+
+    static func measurementIsPreliminary(intervalEnd: Date, fetchedAt: Date) -> Bool {
+        fetchedAt < intervalEnd.addingTimeInterval(refetchWindow)
+    }
+
+    /// `profile` is the one the interval was priced with (its snapshot).
+    static func costIsPreliminary(profile: CostProfile?, at date: Date, versions: [CostProfileVersion]) -> Bool {
+        if CostProfileHistory.version(on: date, in: versions)?.isPreliminary == true { return true }
+        guard let profile else { return false }
+        if profile.confidence == .estimated { return true }
+        if (profile.retailContractSource ?? .defaultEstimate) == .defaultEstimate { return true }
+        switch profile.gridCostSource {
+        case .userEntered, .providerData, .remoteTariff:
+            break
+        case .localPreset:
+            if !HistoricalTariffRates.documentsGridFees(company: profile.gridCompanyId, on: date) { return true }
+        case .defaultEstimate, nil:
+            return true
+        }
+        return !HistoricalTariffRates.documentsEnergyTax(on: date)
+    }
+
+    /// The confidence a saved row should have. Only measured rows are marked; price-only
+    /// and estimated rows keep theirs. A row that is settled again goes back to measured.
+    static func confidence(
+        current: HistoricalEnergyConfidence,
+        hasConsumption: Bool,
+        intervalStart: Date,
+        intervalEnd: Date,
+        fetchedAt: Date,
+        profile: CostProfile?,
+        versions: [CostProfileVersion]
+    ) -> HistoricalEnergyConfidence {
+        guard hasConsumption, [.measured, .partial, .preliminary].contains(current) else { return current }
+        if measurementIsPreliminary(intervalEnd: intervalEnd, fetchedAt: fetchedAt)
+            || costIsPreliminary(profile: profile, at: intervalStart, versions: versions) {
+            return .preliminary
+        }
+        return current == .preliminary ? .measured : current
+    }
+}
+
+#if DEBUG
+nonisolated enum HistoryPreliminaryGuard {
+    static let isValid: Bool = {
+        var ok = true
+        func check(_ condition: Bool, _ message: String) {
+            assert(condition, "HistoryPreliminary: \(message)")
+            ok = ok && condition
+        }
+        let end = HistoricalTariffRates.day(2026, 11, 10)
+        let start = end.addingTimeInterval(-15 * 60)
+        let hour: TimeInterval = 60 * 60
+        check(HistoryPreliminary.measurementIsPreliminary(intervalEnd: end, fetchedAt: end.addingTimeInterval(hour)), "fetched after 1 h")
+        check(HistoryPreliminary.measurementIsPreliminary(intervalEnd: end, fetchedAt: end.addingTimeInterval(47 * hour)), "fetched after 47 h")
+        check(!HistoryPreliminary.measurementIsPreliminary(intervalEnd: end, fetchedAt: end.addingTimeInterval(48 * hour)), "fetched after 48 h")
+
+        let user = ElectricityCostMath.workedExampleSE3Jonkoping20A().updating(
+            retailContractSource: .userEntered,
+            gridCostSource: .userEntered
+        )
+        let preset = user.updating(gridCompanyId: "vaggeryd", fuseSize: 16, gridCostSource: .localPreset)
+        let guessed = user.updating(retailContractSource: .defaultEstimate)
+        let noGrid = ElectricityCostMath.workedExampleSE3Jonkoping20A().updating(retailContractSource: .userEntered)
+        let in2025 = HistoricalTariffRates.day(2025, 6, 1)
+        let before2024List = HistoricalTariffRates.day(2024, 1, 15)
+        let in2027 = HistoricalTariffRates.day(2027, 2, 1)
+        check(!HistoryPreliminary.costIsPreliminary(profile: user, at: in2025, versions: []), "user values are settled")
+        check(!HistoryPreliminary.costIsPreliminary(profile: preset, at: in2025, versions: []), "preset with a documented row")
+        check(HistoryPreliminary.costIsPreliminary(profile: preset, at: before2024List, versions: []), "preset before the first row")
+        check(HistoryPreliminary.costIsPreliminary(profile: preset, at: in2027, versions: []), "preset after the last documented row")
+        check(HistoryPreliminary.costIsPreliminary(profile: user, at: in2027, versions: []), "energy tax after the table")
+        check(HistoryPreliminary.costIsPreliminary(profile: guessed, at: in2025, versions: []), "guessed retail price")
+        if noGrid.gridCostSource == nil || noGrid.gridCostSource == .defaultEstimate {
+            check(HistoryPreliminary.costIsPreliminary(profile: noGrid, at: in2025, versions: []), "no grid source")
+        }
+        let preliminaryVersion = CostProfileVersion(
+            id: UUID(), validFrom: HistoricalTariffRates.day(2025, 5, 1), profile: user, source: .userEntered, isPreliminary: true
+        )
+        let firstVersion = CostProfileVersion(
+            id: UUID(), validFrom: .distantPast, profile: user, source: .userEntered, isPreliminary: false
+        )
+        let versions = [firstVersion, preliminaryVersion]
+        check(HistoryPreliminary.costIsPreliminary(profile: user, at: in2025, versions: versions), "preliminary version")
+        check(!HistoryPreliminary.costIsPreliminary(profile: user, at: HistoricalTariffRates.day(2025, 4, 1), versions: versions), "before the preliminary version")
+
+        let fetchedLate = end.addingTimeInterval(49 * hour)
+        let fetchedEarly = end.addingTimeInterval(2 * hour)
+        func confidence(_ current: HistoricalEnergyConfidence, consumption: Bool = true, fetchedAt: Date, profile: CostProfile = user) -> HistoricalEnergyConfidence {
+            HistoryPreliminary.confidence(
+                current: current, hasConsumption: consumption, intervalStart: start, intervalEnd: end,
+                fetchedAt: fetchedAt, profile: profile, versions: []
+            )
+        }
+        check(confidence(.measured, fetchedAt: fetchedEarly) == .preliminary, "fresh value is marked")
+        check(confidence(.partial, fetchedAt: fetchedEarly) == .preliminary, "fresh partial value is marked")
+        check(confidence(.preliminary, fetchedAt: fetchedLate) == .measured, "fetched again later loses the mark")
+        check(confidence(.measured, fetchedAt: fetchedLate) == .measured, "settled stays settled")
+        check(confidence(.partial, fetchedAt: fetchedLate) == .partial, "settled partial keeps partial")
+        check(confidence(.measured, fetchedAt: fetchedLate, profile: guessed) == .preliminary, "guessed cost is marked")
+        check(confidence(.priceOnly, consumption: false, fetchedAt: fetchedEarly) == .priceOnly, "price rows are not marked")
+        check(confidence(.estimated, fetchedAt: fetchedEarly) == .estimated, "estimates are not marked")
+        return ok
+    }()
+}
+#endif
+
 /// Remembers that saved history has been priced with `HistoricalTariffRates`.
 enum EnergyHistoryTariffSchedule {
     private static let key = "energyHistory.tariffScheduleVersion"
@@ -1234,6 +1379,21 @@ enum EnergyHistoryTariffSchedule {
     static func markOverlapCleanupComplete() {
         guard !DemoMode.isActive else { return }
         defaults.set(overlapCleanupVersion, forKey: overlapCleanupKey)
+    }
+
+    // MARK: Preliminary marks
+
+    private static let preliminaryPassKey = "energyHistory.preliminaryPassVersion"
+    private static let preliminaryPassVersion = 1
+
+    /// True until rows saved before preliminary marks existed have been marked once.
+    static var needsPreliminaryPass: Bool {
+        (defaults.object(forKey: preliminaryPassKey) as? Int ?? 0) < preliminaryPassVersion
+    }
+
+    static func markPreliminaryPassComplete() {
+        guard !DemoMode.isActive else { return }
+        defaults.set(preliminaryPassVersion, forKey: preliminaryPassKey)
     }
 }
 

@@ -86,6 +86,9 @@ struct MonthDailyCostSection: View {
             parts.append("Så här har månaden kostat hittills.")
         }
         parts.append("Dagens stapel växer under dagen, och mätvärden kan komma in med lite fördröjning.")
+        if days.contains(where: { $0.isPreliminary && $0.costKr != nil }) {
+            parts.append(MonthDayCost.preliminaryExplanation)
+        }
         if hypotheticalEffectTariffKr != nil {
             parts.append("Effektavgiften gäller hela månaden, så den syns inte i staplarna.")
         }
@@ -223,6 +226,8 @@ struct MonthDailyCostSection: View {
                 .foregroundStyle(barColor(for: day, expensiveID: expensive?.id))
                 .cornerRadius(3)
                 .opacity(barOpacity(for: day))
+                .accessibilityLabel(AppFormatters.weekdayDayMonth(day.date))
+                .accessibilityValue(day.accessibilityValue)
             }
 
             if let selectedDay {
@@ -540,10 +545,8 @@ struct MonthDailyCostSection: View {
         if day.costKr == nil {
             return 0.18
         }
-        if selectedDay == nil || selectedDay?.id == day.id {
-            return 1
-        }
-        return 0.35
+        let opacity = selectedDay == nil || selectedDay?.id == day.id ? 1 : 0.35
+        return opacity * day.preliminaryOpacity
     }
 
     @MainActor
@@ -634,8 +637,21 @@ struct MonthDayCost: Identifiable, Equatable {
     let costKr: Double?
     let kWh: Double?
     let isToday: Bool
+    /// Some value or cost of the day may still change. Drawn a little lighter.
+    var isPreliminary: Bool = false
 
     var id: Date { date }
+
+    /// How much lighter a preliminary bar is drawn.
+    var preliminaryOpacity: Double { isPreliminary ? 0.5 : 1 }
+
+    var accessibilityValue: String {
+        guard let costKr else { return "ingen kostnad sparad" }
+        let amount = "\(AppFormatters.wholeNumber(costKr)) kronor"
+        return isPreliminary ? "\(amount), preliminärt" : amount
+    }
+
+    static let preliminaryExplanation = "Ljusare staplar är preliminära. Mätvärden kan ändras de första två dygnen, och ett pris som inte är känt än kan också ändras."
 }
 
 enum MonthDailyCostBuilder {
@@ -762,7 +778,14 @@ enum MonthDailyCostBuilder {
                 service: service
             )
 
-            bars.append(MonthDayCost(date: dayStart, costKr: cost, kWh: kWh, isToday: isToday))
+            // Today is still being measured; other days follow their saved rows.
+            bars.append(MonthDayCost(
+                date: dayStart,
+                costKr: cost,
+                kWh: kWh,
+                isToday: isToday,
+                isPreliminary: isToday || summary?.isPreliminary == true
+            ))
             guard let next = calendar.date(byAdding: .day, value: 1, to: dayStart) else { break }
             dayStart = next
         }
@@ -824,6 +847,9 @@ extension MonthDailyCostBuilder {
                 let forecast = Self.forecast(spentKr: barSum, liveAdjustmentKr: adjustment, profile: profile, measuredThrough: now, now: now) ?? -1
                 line += " liveAdjustment=\(String(format: "%.4f", adjustment)) forecastFromBars=\(String(format: "%.4f", forecast))"
             }
+            let preliminaryDays = days.filter(\.isPreliminary).map(\.periodKey).sorted()
+            let widgetPreliminary = WidgetHistorySummaryCache.summary(monthKey: month.periodKey, priceArea: priceArea)?.isPreliminary
+            line += " preliminary=\(month.isPreliminary) widgetPreliminary=\(widgetPreliminary.map(String.init(describing:)) ?? "nil") preliminaryDays=\(preliminaryDays.joined(separator: ","))"
             AppLog.history.info("\(line, privacy: .public)")
         }
     }

@@ -972,6 +972,10 @@ final class SwiftDataEnergyHistoryStore: EnergyHistoryStore {
         guard !records.isEmpty else { return .priceOnly }
 
         let confidences = Set(records.map(\.confidence))
+        // Preliminary wins: one value that may change makes the day or month preliminary.
+        if confidences.contains(.preliminary) {
+            return .preliminary
+        }
         if confidences == [.measured] {
             return .measured
         }
@@ -1095,6 +1099,14 @@ nonisolated enum EnergyHistoryWriting {
         guard !drafts.isEmpty else { return }
 
         let now = Date()
+        let versions = HistoryPricing.savedVersions()
+        var draftProfiles: [Int: CostProfile] = [:]
+        func pricedProfile(_ index: Int) -> CostProfile? {
+            if let known = draftProfiles[index] { return known }
+            let profile = drafts[index].costProfileSnapshot.flatMap(CostProfile.init(historySnapshot:))
+            draftProfiles[index] = profile
+            return profile
+        }
         // Each draft keeps its own profile: intervals under different agreement versions
         // or fee periods can be saved in one batch.
         var snapshotHashes: [Data: String] = [:]
@@ -1157,6 +1169,8 @@ nonisolated enum EnergyHistoryWriting {
                     snapshotHash: snapshotHash,
                     updatedAt: now
                 )
+                // Fetched now: marked while it may still change, settled when fetched late enough.
+                applyPreliminary(to: existingRecord, profile: pricedProfile(index), versions: versions)
                 if existingByInterval[oldIdentity] === existingRecord {
                     existingByInterval[oldIdentity] = nil
                 }
@@ -1167,6 +1181,7 @@ nonisolated enum EnergyHistoryWriting {
                     snapshotData: snapshotData,
                     snapshotHash: snapshotHash
                 )
+                applyPreliminary(to: record, profile: pricedProfile(index), versions: versions)
                 context.insert(record)
                 existingByKey[draft.deduplicationKey] = record
                 existingByInterval[identity] = record
@@ -1194,6 +1209,109 @@ nonisolated enum EnergyHistoryWriting {
         try rebuildMonthlySummaries(monthKeys: affectedMonthKeys, updatedAt: now, context: context, calendar: calendar)
         try context.save()
         try updateWidgetSummaryCache(monthKeys: affectedMonthKeys, updatedAt: now, context: context)
+    }
+
+    /// Sets the row's confidence from `HistoryPreliminary`, with `updatedAt` as the time the
+    /// value was fetched and `profile` as the one it was priced with. True when it changed.
+    @discardableResult
+    nonisolated private static func applyPreliminary(
+        to record: HistoricalEnergyRecord,
+        profile: CostProfile?,
+        versions: [CostProfileVersion]
+    ) -> Bool {
+        let next = HistoryPreliminary.confidence(
+            current: record.confidence,
+            hasConsumption: record.consumptionKWh != nil,
+            intervalStart: record.intervalStart,
+            intervalEnd: record.intervalEnd,
+            fetchedAt: record.updatedAt,
+            profile: profile,
+            versions: versions
+        )
+        guard next != record.confidence else { return false }
+        record.confidenceRawValue = next.rawValue
+        return true
+    }
+
+    /// Marks saved rows once with `HistoryPreliminary` (rows saved before the marks existed),
+    /// month by month with its own context, saving after each month. Amounts are not touched.
+    /// Safe to run again: a second run changes nothing.
+    nonisolated static func markPreliminary(
+        versions: [CostProfileVersion],
+        container: ModelContainer,
+        calendar: Calendar
+    ) throws -> (marked: Int, settled: Int) {
+        let monthKeys = Set(
+            try ModelContext(container)
+                .fetch(FetchDescriptor<HistoricalMonthlyEnergySummary>())
+                .map(\.monthKey)
+        ).sorted()
+        var marked = 0
+        var settled = 0
+        var changedMonths = Set<String>()
+        for monthKey in monthKeys {
+            try Task.checkCancellation()
+            let context = ModelContext(container)
+            context.autosaveEnabled = false
+            let profiles = try storedProfiles(context: context)
+            var changedDays = Set<String>()
+            for record in try fetchRecords(monthKey: monthKey, priceArea: nil, context: context) {
+                guard record.consumptionKWh != nil else { continue }
+                let profile: CostProfile?
+                if let hash = record.snapshotHash, let known = profiles[hash] {
+                    profile = known
+                } else if let data = record.costProfileSnapshotData,
+                          let snapshot = try? JSONDecoder().decode(HistoricalCostProfileSnapshot.self, from: data) {
+                    profile = CostProfile(historySnapshot: snapshot)
+                } else {
+                    profile = nil
+                }
+                guard applyPreliminary(to: record, profile: profile, versions: versions) else { continue }
+                if record.confidence == .preliminary { marked += 1 } else { settled += 1 }
+                changedDays.insert(record.dayKey)
+            }
+            guard !changedDays.isEmpty else { continue }
+            let now = Date()
+            try rebuildDailySummaries(dayKeys: changedDays, updatedAt: now, context: context, calendar: calendar)
+            try rebuildMonthlySummaries(monthKeys: [monthKey], updatedAt: now, context: context, calendar: calendar)
+            try context.save()
+            changedMonths.insert(monthKey)
+        }
+        if !changedMonths.isEmpty {
+            try updateWidgetSummaryCache(monthKeys: changedMonths, updatedAt: Date(), context: ModelContext(container))
+        }
+        return (marked, settled)
+    }
+
+    /// Start of the oldest measured row in `[from, before)` that is still marked because it
+    /// was fetched too early. The recorder fetches back to it, so the row can settle.
+    nonisolated static func oldestEarlyFetchedMeasurement(
+        from: Date,
+        before: Date,
+        container: ModelContainer
+    ) throws -> Date? {
+        let preliminary = HistoricalEnergyConfidence.preliminary.rawValue
+        let descriptor = FetchDescriptor<HistoricalEnergyRecord>(
+            predicate: #Predicate<HistoricalEnergyRecord> { record in
+                record.confidenceRawValue == preliminary && record.intervalStart >= from && record.intervalStart < before
+            },
+            sortBy: [SortDescriptor(\HistoricalEnergyRecord.intervalStart)]
+        )
+        return try ModelContext(container).fetch(descriptor).first { record in
+            record.consumptionKWh != nil
+                && HistoryPreliminary.measurementIsPreliminary(intervalEnd: record.intervalEnd, fetchedAt: record.updatedAt)
+        }?.intervalStart
+    }
+
+    nonisolated private static func storedProfiles(context: ModelContext) throws -> [String: CostProfile] {
+        var profiles: [String: CostProfile] = [:]
+        for stored in try context.fetch(FetchDescriptor<HistoricalCostProfileSnapshotRecord>()) {
+            if let snapshot = try? JSONDecoder().decode(HistoricalCostProfileSnapshot.self, from: stored.snapshotData),
+               let profile = CostProfile(historySnapshot: snapshot) {
+                profiles[stored.snapshotHash] = profile
+            }
+        }
+        return profiles
     }
 
     nonisolated private static func intervalIdentity(
@@ -1479,15 +1597,18 @@ nonisolated enum EnergyHistoryWriting {
             )
             let spotChanged = abs(record.spotPriceOrePerKWh - spot) > 0.0001
             let totalChanged = abs((record.totalCostSEK ?? 0) - cost.totalKr) > 0.0001
-            guard spotChanged || totalChanged else { continue }
+            // `updatedAt` stays: it tells when the value was fetched, not when it was priced.
+            let markChanged = applyPreliminary(to: record, profile: profile, versions: versions)
+            guard spotChanged || totalChanged || markChanged else { continue }
 
-            record.spotPriceOrePerKWh = spot
-            record.energyCostSEK = cost.providerTotalKr
-            record.gridCostSEK = cost.gridTotalKr
-            record.taxCostSEK = cost.taxesAndFeesKr
-            record.vatCostSEK = cost.vatKr
-            record.totalCostSEK = cost.totalKr
-            record.updatedAt = Date()
+            if spotChanged || totalChanged {
+                record.spotPriceOrePerKWh = spot
+                record.energyCostSEK = cost.providerTotalKr
+                record.gridCostSEK = cost.gridTotalKr
+                record.taxCostSEK = cost.taxesAndFeesKr
+                record.vatCostSEK = cost.vatKr
+                record.totalCostSEK = cost.totalKr
+            }
             changedDays.insert(record.dayKey)
             changedMonths.insert(record.monthKey)
             updated += 1
@@ -1647,8 +1768,11 @@ nonisolated enum EnergyHistoryWriting {
                 }
             }
 
+            // `updatedAt` stays: it tells when the value was fetched, not when it was priced.
+            if applyPreliminary(to: record, profile: rated, versions: versions) {
+                changed = true
+            }
             if changed {
-                record.updatedAt = Date()
                 changedDays.insert(record.dayKey)
             }
         }
@@ -2061,6 +2185,10 @@ nonisolated enum EnergyHistoryWriting {
     nonisolated private static func summaryConfidence(for confidences: [HistoricalEnergyConfidence]) -> HistoricalEnergyConfidence {
         guard !confidences.isEmpty else { return .priceOnly }
         let unique = Set(confidences)
+        // Preliminary wins: one value that may change makes the day or month preliminary.
+        if unique.contains(.preliminary) {
+            return .preliminary
+        }
         if unique == [.measured] {
             return .measured
         }

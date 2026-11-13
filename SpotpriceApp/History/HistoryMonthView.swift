@@ -14,6 +14,9 @@ struct HistoryMonthView: View {
     @State private var temperatureInsights: [TemperatureInsight] = []
     @State private var temperatureNotice: FetchNotice?
     @State private var dailyTemperatures: [Date: Double] = [:]
+#if DEBUG
+    @State private var debugOpenedMonth = false
+#endif
 
     private let historyQuery: any EnergyHistoryQuerying
     private let initialState: HistoryMonthLoadState?
@@ -101,6 +104,15 @@ struct HistoryMonthView: View {
                     // The invented history is made in memory first, so the tab opens with data.
                     await DemoHistorySeeder.ensureSeeded()
                 }
+#if DEBUG
+                // `-OpenMonth 0` opens this month (1 last month, and so on), for screenshots.
+                // A history update can load the default month first, so this sets it anyway, once.
+                if let monthsAgo = DebugLaunch.value(after: "-OpenMonth"), !debugOpenedMonth,
+                   let date = Calendar.energyHistory.date(byAdding: .month, value: -Int(monthsAgo), to: Date()) {
+                    debugOpenedMonth = true
+                    selectedMonthKey = EnergyHistoryKey.monthKey(for: date)
+                }
+#endif
                 await loadHistory()
                 startBackfill()
             }

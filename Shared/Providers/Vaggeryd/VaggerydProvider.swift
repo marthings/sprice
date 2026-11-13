@@ -316,6 +316,9 @@ struct VaggerydProvider: ElectricityProvider, QuarterlyConsumptionProvider {
 
     private func decodeResponse<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
         let decoder = AppFormatters.vaggerydDateDecoder()
+#if DEBUG
+        VaggerydResponseKeys.record(data)
+#endif
 
         do {
             return try decoder.decode(type, from: data)
@@ -324,6 +327,49 @@ struct VaggerydProvider: ElectricityProvider, QuarterlyConsumptionProvider {
         }
     }
 }
+
+#if DEBUG
+/// Which fields Vaggeryd sends with each value (names only, never values), to see whether
+/// it has a status or quality code. Logged and kept in the app group under
+/// `debug_vaggerydValueKeys`.
+private enum VaggerydResponseKeys {
+    static func record(_ data: Data) {
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let values = object["consumptionValues"] as? [[String: Any]] else { return }
+        let valueKeys = Set(values.flatMap(\.keys)).sorted().joined(separator: ",")
+        let topKeys = object.keys.sorted().joined(separator: ",")
+        logger.info("Vaggeryd response keys: top \(topKeys, privacy: .public), value \(valueKeys, privacy: .public)")
+        let defaults = UserDefaults(suiteName: EnergyHistoryConstants.appGroupIdentifier)
+        defaults?.set("top: \(topKeys); value: \(valueKeys)", forKey: "debug_vaggerydValueKeys")
+
+        // Status fields per value, grouped, with the first and last date of each group.
+        // No amounts are kept.
+        func text(_ value: Any?) -> String {
+            switch value {
+            case nil, is NSNull: return "-"
+            case let value as String: return value
+            case let value as NSNumber: return value.stringValue
+            default: return "?"
+            }
+        }
+        var groups: [String: (count: Int, first: String, last: String)] = [:]
+        for value in values {
+            let key = "status=\(text(value["status"])) priceStatus=\(text(value["priceStatus"])) isMdbValue=\(text(value["isMdbValue"])) flow=\(text(value["flow"]))"
+            let date = text(value["date"])
+            let known = groups[key] ?? (0, date, date)
+            groups[key] = (known.count + 1, min(known.first, date), max(known.last, date))
+        }
+        let summary = groups.keys.sorted().map { key in
+            let group = groups[key]!
+            return "\(key) n=\(group.count) \(group.first)..\(group.last)"
+        }.joined(separator: " | ")
+        logger.info("Vaggeryd value status: \(summary, privacy: .public)")
+        var calls = defaults?.stringArray(forKey: "debug_vaggerydValueStatus") ?? []
+        calls.append("\(Date().formatted(.iso8601)) \(summary)")
+        defaults?.set(Array(calls.suffix(12)), forKey: "debug_vaggerydValueStatus")
+    }
+}
+#endif
 
 // MARK: - API Response Models (Private)
 
