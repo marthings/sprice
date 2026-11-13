@@ -15,6 +15,7 @@ struct HistoryDayView: View {
     @State private var insights: ConsumptionInsights?
     @State private var openedInsights: HistoryDayInsightsRoute?
     @State private var loadFailed = false
+    @State private var isPreliminary = false
 
     init(
         date: Date,
@@ -44,7 +45,7 @@ struct HistoryDayView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: DS.Spacing.lg) {
                     if let snapshot {
-                        HistoryDayTotals(snapshot: snapshot)
+                        HistoryDayTotals(snapshot: snapshot, isPreliminary: isPreliminary)
                         if snapshot.hasMeasuredUse || insights != nil {
                             ConsumptionInsightsDayTeaser(
                                 insights: insights,
@@ -99,6 +100,17 @@ struct HistoryDayView: View {
         }
     }
 
+    /// Today is still being measured; other days follow their saved rows. Read from the
+    /// store, since the summary handed in can be missing (or older than a new fetch).
+    private func loadIsPreliminary() -> Bool {
+        if Calendar.energyHistory.isDateInToday(date) { return true }
+        let stored = try? historyQuery.loadMonthHistory(
+            priceArea: priceArea,
+            selectedMonthKey: EnergyHistoryKey.monthKey(for: date)
+        ).dailySummaries.first { $0.periodKey == dayKey }
+        return (stored ?? dailySummary)?.isPreliminary == true
+    }
+
     private func openInsights() {
         openedInsights = HistoryDayInsightsRoute(
             insights: ConsumptionInsightsRoute(
@@ -127,6 +139,7 @@ struct HistoryDayView: View {
             return
         }
 #endif
+        isPreliminary = loadIsPreliminary()
         do {
             let intervals = try historyQuery.loadDayIntervals(dayKey: dayKey, priceArea: priceArea)
             snapshot = HistoryDayInsights.snapshot(
@@ -178,6 +191,7 @@ private struct HistoryDayInsightsRoute: Hashable, Identifiable {
 
 private struct HistoryDayTotals: View {
     let snapshot: HistoryDaySnapshot
+    var isPreliminary = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
@@ -186,7 +200,9 @@ private struct HistoryDayTotals: View {
                 paragraphs: [
                     "Vad dagen kostade och hur mycket el som gick åt.",
                     "Är dagen inte slut visas det som hänt hittills."
-                ]
+                ] + (isPreliminary ? [HistoryPreliminaryCopy.day] : []),
+                badge: isPreliminary ? "Preliminärt" : nil,
+                badgeAccessibilityLabel: "Preliminärt, siffrorna kan ändras"
             )
 
             ViewThatFits(in: .horizontal) {

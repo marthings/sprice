@@ -173,3 +173,9 @@ enum HistoryMonthFormatting {
         summary.periodKey == EnergyHistoryKey.monthKey(for: Date(), calendar: calendar)
     }
 }
+
+/// Short explanations of the "Preliminärt" mark, kept behind the info button.
+enum HistoryPreliminaryCopy {
+    static let day = "Preliminärt betyder att siffrorna kan ändras. Mätvärden kan rättas de första två dygnen, och ett pris som inte är känt än kan också ändras."
+    static let month = "Preliminärt betyder att några dagar har siffror som kan ändras. Mätvärden kan rättas de första två dygnen, och ett pris som inte är känt än kan också ändras."
+}
