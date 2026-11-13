@@ -93,7 +93,9 @@ private enum CostTabForecast {
         ) else {
             return nil
         }
-        return forecast + (hypotheticalEffectTariffKr ?? 0)
+        // Days this month under an older agreement version keep that version's price.
+        let adjustment = LiveMonthPricing.adjustment(priceArea: profile.priceArea, current: profile)?.totalKr ?? 0
+        return forecast + adjustment + (hypotheticalEffectTariffKr ?? 0)
     }
 }
 

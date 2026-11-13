@@ -165,6 +165,26 @@ final class EnergyHistoryRecorder {
         // Demo mode has nothing to reprice, and must not set the "done" markers of the real history.
         guard !DemoMode.isActive else { return }
 
+        // Hours saved next to the quarter-hours that cover them are counted twice. Remove
+        // them once (new saves no longer add them).
+        if EnergyHistoryTariffSchedule.needsOverlapCleanup {
+            do {
+                let container = try EnergyHistoryStores.container()
+                let calendar = self.calendar
+                let removed = try await Task.detached(priority: .utility) {
+                    try EnergyHistoryWriting.removeHoursCoveredByQuarters(container: container, calendar: calendar)
+                }.value
+                EnergyHistoryTariffSchedule.markOverlapCleanupComplete()
+                AppLog.history.info("Removed \(removed) hourly intervals already covered by quarter-hours")
+                if removed > 0 {
+                    scheduleHistoryDidUpdate()
+                    WidgetReload.timelines()
+                }
+            } catch {
+                AppLog.history.error("Could not remove overlapping hours: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+
         // First the fees and agreement versions. This needs no network: consumption and spot
         // prices stay as they are. New fee rates reprice everything; a changed version only
         // from the first day it touches (normally today).
@@ -188,6 +208,11 @@ final class EnergyHistoryRecorder {
                 }.value
                 EnergyHistoryTariffSchedule.markComplete()
                 EnergyHistoryTariffSchedule.markPriced(versions: versions)
+                // Views and widgets read the new sums (and today's profile) without a restart.
+                if updated > 0 || versionStart != nil {
+                    scheduleHistoryDidUpdate()
+                    WidgetReload.timelines()
+                }
                 if updated > 0 {
                     scheduleHistoryDidUpdate()
                     AppLog.history.info("Priced \(updated) history intervals with the fees of their own period")
