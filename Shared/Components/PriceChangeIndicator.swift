@@ -21,7 +21,7 @@ struct PriceChangeIndicator: View {
             let color: Color = isIncrease ? DS.Color.danger : isDecrease ? DS.Color.success : DS.Color.secondary
 
             Image(systemName: icon)
-                .font(.system(size: fontSize, weight: .bold))
+                .font(.system(size: fontSize, weight: .semibold))
                 .foregroundStyle(color)
                 .accessibilityLabel(isIncrease ? "Ökar" : isDecrease ? "Minskar" : "Stabilt")
         }
@@ -50,7 +50,7 @@ struct SharedPriceRangeSection: View {
         var valueFont: Font {
             switch self {
             case .compact: return DS.Font.bold(16)
-            case .regular: return DS.Font.bold(17)
+            case .regular: return DS.Font.black(20)
             }
         }
 
@@ -183,26 +183,28 @@ struct SharedPriceRangeSection: View {
                     priceValue(value, color: color)
                 }
             } else {
-                VStack(spacing: DS.Spacing.xs) {
+                VStack(alignment: .leading, spacing: DS.Spacing.sm) {
                     // The arrow and the word say what the color says, so the card
                     // reads the same without color.
-                    Image(systemName: icon)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(color)
-                        .accessibilityHidden(true)
-
-                    Text(title)
-                        .font(DS.Font.footnote)
-                        .foregroundStyle(style == .compact ? .primary : DS.Color.secondary)
-                        .multilineTextAlignment(.center)
+                    HStack(spacing: DS.Spacing.xs) {
+                        Image(systemName: icon)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(color)
+                            .accessibilityHidden(true)
+                        Text(title)
+                            .font(DS.Font.footnote)
+                            .foregroundStyle(style == .compact ? .primary : DS.Color.secondary)
+                            .lineLimit(1)
+                    }
 
                     priceValue(value, color: color)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, style == .compact ? DS.Spacing.sm : DS.Spacing.md)
-        .padding(.horizontal, style == .compact ? DS.Spacing.xs : DS.Spacing.sm)
+        .padding(.horizontal, style == .compact ? DS.Spacing.sm : DS.Spacing.md)
         .spriceCard(tone: .price)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(title)
@@ -210,7 +212,7 @@ struct SharedPriceRangeSection: View {
     }
 
     private func priceValue(_ value: Double, color: Color) -> some View {
-        VStack(spacing: 0) {
+        VStack(alignment: .leading, spacing: 0) {
             Text(value, format: .number.precision(.fractionLength(2)))
                 .font(style.valueFont)
                 .foregroundStyle(color)

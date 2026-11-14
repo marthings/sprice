@@ -97,7 +97,7 @@ struct CostCalculationSection: View {
     private func color(for exampleId: String) -> Color {
         switch exampleId {
         case "shower":
-            return .blue
+            return DS.Color.accent
         case "oven":
             return DS.Color.warning
         case "dishwasher":

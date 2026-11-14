@@ -256,9 +256,9 @@ private struct PriceChartCanvas: View {
         }
         .chartXAxis {
             AxisMarks(values: .stride(by: .hour, count: 3)) { value in
-                AxisGridLine()
-                    .foregroundStyle(.tertiary)
-                AxisTick()
+                AxisGridLine(stroke: HistoryChartAxis.gridStroke)
+                    .foregroundStyle(DS.Color.gridLine)
+                AxisTick(length: 0)
                 if let date = value.as(Date.self) {
                     AxisValueLabel {
                         Text(date.formatted(.dateTime.hour()))
@@ -269,9 +269,9 @@ private struct PriceChartCanvas: View {
         }
         .chartYAxis {
             AxisMarks(position: .leading) { value in
-                AxisGridLine()
-                    .foregroundStyle(.tertiary)
-                AxisTick()
+                AxisGridLine(stroke: HistoryChartAxis.gridStroke)
+                    .foregroundStyle(DS.Color.gridLine)
+                AxisTick(length: 0)
                 AxisValueLabel {
                     if let price = value.as(Double.self) {
                         Text(price, format: .number.precision(.fractionLength(2)))

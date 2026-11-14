@@ -98,7 +98,7 @@ struct HistoryMonthDaysChart: View {
                     y: .value("kr", day.costKr ?? 0)
                 )
                 .foregroundStyle(barColor(for: day, expensiveID: expensive?.id))
-                .cornerRadius(3)
+                .cornerRadius(HistoryChartAxis.barRadius)
                 .opacity(barOpacity(for: day))
             }
 
@@ -116,9 +116,9 @@ struct HistoryMonthDaysChart: View {
         }
         .chartXAxis {
             AxisMarks(values: .stride(by: .day, count: xAxisStride)) { value in
-                AxisGridLine()
-                    .foregroundStyle(.tertiary)
-                AxisTick()
+                AxisGridLine(stroke: HistoryChartAxis.gridStroke)
+                    .foregroundStyle(DS.Color.gridLine)
+                AxisTick(length: 0)
                     .foregroundStyle(.tertiary)
                 if let date = value.as(Date.self) {
                     AxisValueLabel {
@@ -129,9 +129,9 @@ struct HistoryMonthDaysChart: View {
         }
         .chartYAxis {
             AxisMarks(position: .leading) { value in
-                AxisGridLine()
-                    .foregroundStyle(.tertiary)
-                AxisTick()
+                AxisGridLine(stroke: HistoryChartAxis.gridStroke)
+                    .foregroundStyle(DS.Color.gridLine)
+                AxisTick(length: 0)
                 AxisValueLabel {
                     if let amount = value.as(Double.self) {
                         Text(amount, format: .number.precision(.fractionLength(0)))

@@ -309,23 +309,23 @@ struct KilowattHourBreakdownView: View {
     private func color(for kind: KilowattHourLineKind) -> Color {
         switch kind {
         case .retailEnergy:
-            return DS.Color.info
+            return DS.Color.Breakdown.energy
         case .markup:
-            return DS.Color.brand
+            return DS.Color.Breakdown.markup
         case .gridTransfer:
-            return DS.Color.warning
+            return DS.Color.Breakdown.grid
         case .energyTax:
-            return DS.Color.success
+            return DS.Color.Breakdown.tax
         case .certificates:
-            return Color.purple
+            return DS.Color.Breakdown.certificates
         case .monthlyFees:
-            return Color.orange
+            return DS.Color.Breakdown.fees
         case .powerTariff:
-            return DS.Color.danger
+            return DS.Color.Breakdown.power
         case .vat:
-            return Color.gray
+            return DS.Color.Breakdown.vat
         case .other:
-            return Color.teal
+            return DS.Color.Breakdown.other
         }
     }
 }
