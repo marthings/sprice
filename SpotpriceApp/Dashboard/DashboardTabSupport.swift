@@ -9,6 +9,7 @@ struct DashboardHeader: View {
         VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
             Text(title)
                 .font(DS.Font.fixed(titleSize))
+                .tracking(DS.Font.headingTracking(forSize: titleSize))
                 .foregroundStyle(.primary)
 
             Text(settingsSummary)
@@ -39,7 +40,7 @@ struct DashboardErrorView: View {
     var body: some View {
         VStack(spacing: DS.Spacing.md) {
             Image(systemName: notice.icon)
-                .font(.system(size: DS.Size.iconXL, weight: .light))
+                .font(.system(size: DS.Size.iconXL, weight: .semibold))
                 .foregroundStyle(DS.Color.danger)
                 .accessibilityHidden(true)
             Text(notice.title)

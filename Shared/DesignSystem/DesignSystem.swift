@@ -329,10 +329,18 @@ enum DS {
             system(size, weight: .regular)
         }
 
-        // Preset sizes
-        static let largeTitle = bold(32)
-        static let title = bold(20)
-        static let headline = bold(17)
+        /// Headings are tightened a little, as DM Sans display sizes usually are: -0.02 em,
+        /// about -0.8 pt at 40 pt and -0.34 pt at 17 pt. Body text keeps no tracking.
+        static let headingTrackingEm: CGFloat = -0.02
+
+        static func headingTracking(forSize size: CGFloat) -> CGFloat {
+            size * headingTrackingEm
+        }
+
+        // Preset sizes. Headings use DM Sans Black (900).
+        static let largeTitle = black(32)
+        static let title = black(20)
+        static let headline = black(17)
         static let body = regular(15)
         static let callout = medium(14)
         static let caption = medium(13)
@@ -346,14 +354,8 @@ enum DS {
         #if os(iOS)
         /// Navigation titles can't take a SwiftUI `Font`, so UIKit chrome uses this.
         static func configureNavigationBarAppearance() {
-            let titleAttributes: [NSAttributedString.Key: Any] = [
-                .font: uiBlack(size: 17, textStyle: .headline),
-                .foregroundColor: UIColor.label
-            ]
-            let largeTitleAttributes: [NSAttributedString.Key: Any] = [
-                .font: uiBlack(size: 34, textStyle: .largeTitle),
-                .foregroundColor: UIColor.label
-            ]
+            let titleAttributes = navigationTitleAttributes(size: 17, textStyle: .headline)
+            let largeTitleAttributes = navigationTitleAttributes(size: 34, textStyle: .largeTitle)
 
             let standard = UINavigationBarAppearance()
             standard.configureWithDefaultBackground()
@@ -382,6 +384,16 @@ enum DS {
                 ?? UIFont.systemFont(ofSize: size, weight: .black)
             return UIFontMetrics(forTextStyle: textStyle).scaledFont(for: base)
         }
+
+        /// Title attributes with heading tracking taken from the scaled size.
+        private static func navigationTitleAttributes(size: CGFloat, textStyle: UIFont.TextStyle) -> [NSAttributedString.Key: Any] {
+            let font = uiBlack(size: size, textStyle: textStyle)
+            return [
+                .font: font,
+                .kern: headingTracking(forSize: font.pointSize),
+                .foregroundColor: UIColor.label
+            ]
+        }
         #endif
     }
 
@@ -402,13 +414,36 @@ enum DS {
         // are too light to read as text on the cards (about 2.3 to 3.5 to 1). These
         // reach at least 4.5 to 1 against the card in light and dark mode, and get
         // another step darker (light) or lighter (dark) with Increase Contrast.
-        static let warningText = adaptive(light: 0xA63A00, dark: 0xF5A35C)
+        static let warningText = adaptive(light: 0x9A4A00, dark: 0xF6B25E)
         static let infoText = adaptive(light: 0x005580, dark: 0x5CCBEF)
-        static let successText = adaptive(light: 0x245810, dark: 0x86CC5A)
-        static let dangerText = adaptive(light: 0xA8161A, dark: 0xFF8A80)
+        static let successText = adaptive(light: 0x16704A, dark: 0x5FD39A)
+        static let dangerText = adaptive(light: 0xB3261E, dark: 0xFF8C7A)
         /// Arctic blue for text and links. Light #0B67A0 (at least 4.7 to 1 on the light cards),
         /// dark #7FD4FA (at least 6 to 1 on the dark cards). The brighter `accent` stays for fills.
         static let accentText = adaptive(light: 0x0B67A0, dark: 0x7FD4FA)
+
+        /// Card surface. Light #FFFFFF on the #F4F8FB canvas, dark #162236 on #0B1320.
+        static let surface = adaptive(light: 0xFFFFFF, dark: 0x162236)
+        /// A quiet inset inside a card (tiles, chips, the selected segment).
+        /// Light #EEF4F9, dark #1E2C42.
+        static let surfaceInset = adaptive(light: 0xEEF4F9, dark: 0x1E2C42)
+        /// Chart gridlines: thin and quiet so the data leads.
+        static let gridLine = SwiftUI.Color.primary.opacity(0.08)
+
+        /// Categorical colours for what a kWh is made of. Built around arctic blue and kept
+        /// apart from the cheap/expensive colours, so a part of the price never reads as
+        /// "cheap" or "expensive".
+        enum Breakdown {
+            static let energy = DS.Color.accent
+            static let markup = adaptive(light: 0x1B2733, dark: 0xDCE6F0)
+            static let grid = adaptive(light: 0x6E7FE8, dark: 0x8E9CF5)
+            static let tax = adaptive(light: 0x1FA595, dark: 0x4FD1C0)
+            static let certificates = adaptive(light: 0xA17FD9, dark: 0xBFA3EE)
+            static let fees = adaptive(light: 0xE9A93A, dark: 0xF4C35E)
+            static let power = adaptive(light: 0xE0664F, dark: 0xFF8C76)
+            static let vat = adaptive(light: 0x9AA8B8, dark: 0x7D8CA0)
+            static let other = adaptive(light: 0x5FB98A, dark: 0x7FD3A6)
+        }
 
         static let secondary = SwiftUI.Color.primary.opacity(0.72)
         static let outline = SwiftUI.Color.primary.opacity(0.28)
@@ -507,6 +542,18 @@ enum DS {
         /// and pushed screens. Tight but not flush; Form screens use the same
         /// value via `contentMargins` so they match ScrollView padding.
         static let titleToContent: CGFloat = 10
+    }
+
+    // MARK: - Elevation
+
+    /// One soft, cool shadow for cards in light mode. Dark mode lifts cards with a lighter
+    /// surface instead, since shadows don't read on a dark canvas.
+    enum Elevation {
+        /// Deep arctic navy (#0B2540) so the shadow feels cool, not grey.
+        static let cardShadowColor = SwiftUI.Color(red: 11 / 255, green: 37 / 255, blue: 64 / 255)
+        static let cardShadowOpacity: Double = 0.07
+        static let cardShadowRadius: CGFloat = 14
+        static let cardShadowY: CGFloat = 4
     }
 
     // MARK: - Radius
@@ -1110,7 +1157,7 @@ struct MetricCard: View {
     var icon: String? = nil
     var color: Color = .primary
     var titleColor: Color = DS.Color.secondary
-    var valueFont: Font = DS.Font.bold(20)
+    var valueFont: Font = DS.Font.black(20)
     var unitFont: Font = DS.Font.unit
     var iconSize: CGFloat = DS.Size.iconMedium
     var layout: Layout = .horizontal
@@ -1194,8 +1241,8 @@ struct PriceDisplay: View {
         var priceFont: Font {
             switch self {
             case .small: return DS.Font.bold(16)
-            case .medium: return DS.Font.bold(24)
-            case .large: return DS.Font.bold(32)
+            case .medium: return DS.Font.black(24)
+            case .large: return DS.Font.black(32)
             }
         }
 
@@ -1265,100 +1312,52 @@ struct PriceLevelBadge: View {
     }
 }
 
-// MARK: - Canvas background
+// MARK: - Heading tracking
 
-/// Full-bleed landscape reused by every screen (light/dark asset). Completely still.
-/// Depth comes from fixed layers on top of the watercolor: a soft sky at the top (deeper
-/// blue at the very top that pales towards the mountains, with a faint haze of light),
-/// a soft warm glow at the horizon, and a faint vignette at the edges. Cards sit above all
-/// of it and keep their own material, so text reads the same in light and dark.
-/// Layout-neutral: the image lives in an overlay so `scaledToFill` never
-/// expands the parent (which would wipe out horizontal padding).
-struct AppCanvasBackground: View {
-    @Environment(\.colorScheme) private var colorScheme
+/// Slightly negative tracking for a heading of the given design size. It scales with
+/// Dynamic Type through the same text style as the font, so it stays at -0.02 em.
+struct HeadingTracking: ViewModifier {
+    @ScaledMetric private var tracking: CGFloat
 
-    var body: some View {
-        base
-            .overlay(alignment: .bottom) {
-                Image("LandscapeBackground")
-                    .resizable()
-                    .scaledToFill()
-                    .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity, alignment: .bottom)
-                    .allowsHitTesting(false)
-            }
-            .overlay { sky }
-            .overlay { skyHaze }
-            .overlay { horizonGlow }
-            .overlay { vignette }
-            .clipped()
-            .ignoresSafeArea()
-            .accessibilityHidden(true)
-            .allowsHitTesting(false)
-    }
-
-    private var isDark: Bool { colorScheme == .dark }
-
-    private var base: Color {
-        isDark
-            ? Color(red: 0.045, green: 0.05, blue: 0.065)
-            : Color(red: 0.78, green: 0.86, blue: 0.94)
-    }
-
-    /// The sky: a clear pale blue at the top in light mode, a deep night blue in dark mode,
-    /// both close to the arctic accent. It pales out gradually and is gone well above the
-    /// mountains, so the landscape itself is untouched.
-    private var sky: some View {
-        let top = isDark ? Color(red: 0.03, green: 0.09, blue: 0.22) : Color(red: 0.47, green: 0.72, blue: 0.93)
-        let middle = isDark ? Color(red: 0.06, green: 0.17, blue: 0.33) : Color(red: 0.66, green: 0.83, blue: 0.96)
-        return LinearGradient(
-            stops: [
-                .init(color: top.opacity(isDark ? 0.62 : 0.60), location: 0),
-                .init(color: middle.opacity(isDark ? 0.36 : 0.36), location: 0.22),
-                .init(color: middle.opacity(isDark ? 0.12 : 0.10), location: 0.42),
-                .init(color: middle.opacity(0), location: 0.60)
-            ],
-            startPoint: .top,
-            endPoint: .bottom
+    init(size: CGFloat) {
+        _tracking = ScaledMetric(
+            wrappedValue: DS.Font.headingTracking(forSize: size),
+            relativeTo: DS.Font.textStyle(forSize: size)
         )
     }
 
-    /// A faint patch of light high up to one side, so the sky has some air in it and does
-    /// not read as one flat band. Whitish in light mode, a cool icy glow in dark mode.
-    private var skyHaze: some View {
-        let light = isDark ? Color(red: 0.36, green: 0.78, blue: 0.96) : Color.white
-        return GeometryReader { geometry in
-            RadialGradient(
-                colors: [light.opacity(isDark ? 0.15 : 0.38), light.opacity(isDark ? 0.04 : 0.12), light.opacity(0)],
-                center: UnitPoint(x: 0.78, y: 0.10),
-                startRadius: 0,
-                endRadius: max(geometry.size.width, geometry.size.height * 0.45) * 0.85
-            )
-        }
+    func body(content: Content) -> some View {
+        content.tracking(tracking)
+    }
+}
+
+extension View {
+    /// Tightens a heading set at `size` points (17 for card and section titles).
+    func headingTracking(size: CGFloat = 17) -> some View {
+        modifier(HeadingTracking(size: size))
+    }
+}
+
+// MARK: - Canvas background
+
+/// Plain, still background reused by every screen: one flat colour from the arctic palette.
+/// Light: an almost white surface with a faint blue tone. Dark: a deep blue-black.
+/// Cards sit on top with their own fill and a hairline edge, so they stay distinct.
+struct AppCanvasBackground: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    /// #F4F8FB in light mode, #0B1320 in dark mode.
+    static func color(for colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark
+            ? Color(red: 11 / 255, green: 19 / 255, blue: 32 / 255)
+            : Color(red: 244 / 255, green: 248 / 255, blue: 251 / 255)
     }
 
-    /// A soft glow where the sun sits behind the ridge.
-    private var horizonGlow: some View {
-        let warm = isDark ? Color(red: 0.80, green: 0.36, blue: 0.12) : Color(red: 1.00, green: 0.70, blue: 0.45)
-        return GeometryReader { geometry in
-            RadialGradient(
-                colors: [warm.opacity(isDark ? 0.34 : 0.32), warm.opacity(isDark ? 0.10 : 0.10), warm.opacity(0)],
-                center: UnitPoint(x: 0.5, y: 0.82),
-                startRadius: 0,
-                endRadius: max(geometry.size.width, geometry.size.height * 0.5) * 0.9
-            )
-        }
-    }
-
-    /// Darkens the corners a little, so the middle of the screen feels closer.
-    private var vignette: some View {
-        GeometryReader { geometry in
-            RadialGradient(
-                colors: [Color.black.opacity(0), Color.black.opacity(isDark ? 0.34 : 0.10)],
-                center: .center,
-                startRadius: min(geometry.size.width, geometry.size.height) * 0.45,
-                endRadius: max(geometry.size.width, geometry.size.height) * 0.78
-            )
-        }
+    var body: some View {
+        Self.color(for: colorScheme)
+            .ignoresSafeArea()
+            .accessibilityHidden(true)
+            .allowsHitTesting(false)
     }
 }
 
@@ -1392,111 +1391,44 @@ enum SpriceCardTone: Equatable {
     }
 }
 
-/// Palette fill used by `spriceCard` and by Form `listRowBackground`.
+/// Solid card surface used by `spriceCard` and by Form `listRowBackground`.
+/// Light: white on the #F4F8FB canvas with a soft, cool shadow. Dark: a raised navy
+/// (#162236) on the #0B1320 canvas, no shadow. No border, except with Increase Contrast.
 struct SpriceCardBackground: View {
     var tone: SpriceCardTone = .default
     var cornerRadius: CGFloat = DS.Glass.cardRadius
-    /// Flat fill for grouped Form rows: no per-row gradient, so rows share one wash.
+    /// Grouped Form rows: same surface, no shadow, so rows join into one card.
     var isListRow: Bool = false
 
     @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorSchemeContrast) private var contrast
 
     private var cardShape: RoundedRectangle {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
     }
 
-    private var paletteColor: Color { tone.paletteColor }
-
-    /// Very faint lift *under* the ultra-thin material so `.primary` stays at
-    /// WCAG AA (4.5:1) against the landscape in both appearances, without
-    /// making the card look solid.
-    private var contrastFill: Color {
-        let increased = contrast == .increased
-        return colorScheme == .dark
-            ? Color.black.opacity(increased ? 0.5 : 0.32)
-            : Color.white.opacity(increased ? 0.62 : 0.40)
-    }
-
-    /// With Increase Contrast on, cards get a clear edge so they stand out from the landscape.
+    /// With Increase Contrast on, cards get a clear edge. Otherwise no border.
     private var increasedContrastEdge: some View {
         cardShape.strokeBorder(Color.primary.opacity(contrast == .increased ? 0.5 : 0), lineWidth: 1)
     }
 
-    private var opaqueBase: Color {
-        colorScheme == .dark ? Color.black : Color.white
-    }
-
-    private var washOpacity: Double {
-        reduceTransparency
-            ? tone.reducedTransparencyOverlayOpacity(colorScheme: colorScheme)
-            : tone.overlayOpacity(colorScheme: colorScheme)
-    }
-
-    private var paletteWash: LinearGradient {
-        LinearGradient(
-            colors: [
-                paletteColor.opacity(washOpacity),
-                paletteColor.opacity(washOpacity * 0.35)
-            ],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-    }
-
-    private var flatPaletteFill: Color {
-        paletteColor.opacity(washOpacity)
-    }
+    private var isDark: Bool { colorScheme == .dark }
 
     var body: some View {
-        Group {
-            if isListRow {
-                listRowBackground
-            } else if reduceTransparency {
-                cardShape
-                    .fill(opaqueBase)
-                    .overlay {
-                        cardShape.fill(paletteWash)
-                    }
-                    .overlay { increasedContrastEdge }
-            } else {
-                cardShape
-                    .fill(contrastFill)
-                    .overlay {
-                        cardShape.fill(.ultraThinMaterial)
-                    }
-                    .overlay {
-                        cardShape.fill(paletteWash)
-                    }
-                    .overlay { increasedContrastEdge }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var listRowBackground: some View {
-        if reduceTransparency {
-            cardShape
-                .fill(opaqueBase)
-                .overlay {
-                    cardShape.fill(flatPaletteFill)
-                }
-        } else {
-            cardShape
-                .fill(contrastFill)
-                .overlay {
-                    cardShape.fill(.ultraThinMaterial)
-                }
-                .overlay {
-                    cardShape.fill(flatPaletteFill)
-                }
-        }
+        cardShape
+            .fill(DS.Color.surface)
+            .overlay { increasedContrastEdge }
+            .shadow(
+                color: DS.Elevation.cardShadowColor.opacity(isListRow || isDark ? 0 : DS.Elevation.cardShadowOpacity),
+                radius: DS.Elevation.cardShadowRadius,
+                x: 0,
+                y: DS.Elevation.cardShadowY
+            )
     }
 }
 
-/// Palette-tinted material card. Only the background is clipped so chart
-/// callouts can overflow.
+/// Solid card. The background is not clipped, so the shadow shows, and chart
+/// callouts can still overflow the content.
 struct SpriceCardModifier: ViewModifier {
     let tone: SpriceCardTone
     let cornerRadius: CGFloat
@@ -1512,7 +1444,6 @@ struct SpriceCardModifier: ViewModifier {
                     tone: tone,
                     cornerRadius: cornerRadius
                 )
-                .clipShape(cardShape)
             }
             .containerShape(cardShape)
     }
@@ -1582,9 +1513,9 @@ extension View {
     }
 
     func spriceSettingsHeaderStyle() -> some View {
-        font(DS.Font.caption)
+        font(DS.Font.semibold(13))
             .foregroundStyle(DS.Color.secondary)
-            .textCase(.uppercase)
+            .textCase(nil)
     }
 
     func spriceSettingsFooterStyle() -> some View {
@@ -1791,7 +1722,7 @@ struct TrendIndicator: View {
     var body: some View {
         HStack(spacing: DS.Spacing.xxs) {
             Image(systemName: icon)
-                .font(.system(size: 10, weight: .bold))
+                .font(.system(size: 10, weight: .semibold))
         }
         .foregroundStyle(color)
         .accessibilityLabel(accessibilityLabel)
@@ -1825,10 +1756,13 @@ struct SectionInfoHeader: View {
     var badge: String? = nil
     var badgeAccessibilityLabel: String? = nil
 
+    @ScaledMetric(relativeTo: .headline) private var headlineTracking: CGFloat = DS.Font.headingTracking(forSize: 17)
+
     var body: some View {
         HStack(alignment: .center, spacing: 0) {
             Text(title)
                 .font(titleFont)
+                .tracking(titleFont == DS.Font.headline ? headlineTracking : 0)
                 .foregroundStyle(titleColor)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: badge == nil ? .infinity : nil, alignment: .leading)
@@ -1872,7 +1806,7 @@ struct SectionInfoButton: View {
             isPresented = true
         } label: {
             Image(systemName: "info.circle")
-                .font(.system(size: DS.Size.infoIcon, weight: .regular))
+                .font(.system(size: DS.Size.infoIcon, weight: .semibold))
                 .foregroundStyle(DS.Color.secondary)
                 .frame(width: DS.Size.infoHit, height: DS.Size.infoHit, alignment: .center)
                 .contentShape(Rectangle())

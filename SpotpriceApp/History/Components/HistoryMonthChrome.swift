@@ -31,6 +31,7 @@ struct HistoryMonthChrome: View {
                 VStack(spacing: DS.Spacing.xxs) {
                     Text(monthTitle)
                         .font(DS.Font.headline)
+                        .headingTracking()
                         .foregroundStyle(.primary)
                         .multilineTextAlignment(.center)
                         .accessibilityValue(isSelectedMonthInProgress ? "Månaden pågår" : "")

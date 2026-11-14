@@ -100,7 +100,7 @@ private struct CostExampleCard: View {
 
             HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
                 Text(cost.totalKr, format: .number.precision(.fractionLength(2)))
-                    .font(DS.Font.bold(20))
+                    .font(DS.Font.black(20))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.78)

@@ -34,6 +34,9 @@ nonisolated enum HistoricalEnergyConfidence: String, Codable, CaseIterable, Equa
     case measured
     case partial
     case recalculated
+    /// Measured, but the value or its cost may still change (see `HistoryPreliminary`).
+    /// Saved in the same string as the other cases, so no schema change.
+    case preliminary
 }
 
 // MARK: - Historical Cost Profile Snapshot
@@ -125,6 +128,8 @@ final class HistoricalEnergyRecord {
     var sourceRawValue: String
     var confidenceRawValue: String
     var createdAt: Date
+    /// When the row was last written from fetched data. Repricing leaves it alone, so for a
+    /// measured row it tells when the value was fetched (used by `HistoryPreliminary`).
     var updatedAt: Date
 
     init(
@@ -617,6 +622,11 @@ nonisolated struct HistoricalEnergySummaryValue: Equatable, Identifiable, Sendab
     var hasMissingConsumptionIntervals: Bool {
         measuredIntervalCount > 0 && measuredIntervalCount < intervalCount
     }
+
+    /// Some value or cost in the period may still change.
+    var isPreliminary: Bool {
+        confidence == .preliminary
+    }
 }
 
 nonisolated enum HistoricalEnergyDataCoverage: String, Codable, CaseIterable, Sendable {
@@ -671,6 +681,8 @@ nonisolated struct WidgetHistorySummary: Codable, Equatable, Sendable {
     let averageSpotPriceOrePerKWh: Double?
     let dataCoverage: HistoricalEnergyDataCoverage
     let measuredCoverageRatio: Double?
+    /// Optional so a summary cached before this field still decodes.
+    let isPreliminary: Bool?
     let updatedAt: Date
 
     init(summary: HistoricalEnergySummaryValue, updatedAt: Date = Date()) {
@@ -682,6 +694,7 @@ nonisolated struct WidgetHistorySummary: Codable, Equatable, Sendable {
         self.averageSpotPriceOrePerKWh = summary.averageSpotPriceOrePerKWh
         self.dataCoverage = summary.dataCoverage
         self.measuredCoverageRatio = summary.measuredCoverageRatio
+        self.isPreliminary = summary.isPreliminary
         self.updatedAt = updatedAt
     }
 
@@ -744,6 +757,122 @@ nonisolated enum WidgetHistorySummaryCache: Sendable {
     }
 }
 
+// MARK: - Interval coverage
+
+/// Finds hourly consumption that quarter-hours already cover. Quarters win: an hour whose
+/// four quarters are all saved (same price area and source) must not be counted again.
+nonisolated enum IntervalCoverage {
+    struct Item: Sendable {
+        let start: Date
+        let end: Date
+        /// Price area and provider. Only the same group can cover an hour.
+        let group: String
+    }
+
+    /// Indices of the hours (exactly 60 minutes) whose four quarters are all present.
+    /// Nothing else is ever returned: not quarters, not days, not hours with a quarter missing.
+    static func coveredHourIndices(_ items: [Item]) -> [Int] {
+        var quarters = Set<String>()
+        for item in items where item.end.timeIntervalSince(item.start) == 15 * 60 {
+            quarters.insert("\(item.group)|\(item.start.timeIntervalSinceReferenceDate)")
+        }
+        guard !quarters.isEmpty else { return [] }
+        return items.indices.filter { index in
+            let item = items[index]
+            guard item.end.timeIntervalSince(item.start) == 60 * 60 else { return false }
+            return (0..<4).allSatisfy { quarter in
+                let start = item.start.addingTimeInterval(Double(quarter) * 15 * 60)
+                return quarters.contains("\(item.group)|\(start.timeIntervalSinceReferenceDate)")
+            }
+        }
+    }
+}
+
+// MARK: - Clock change
+
+/// Times without a UTC offset ("2025-10-26T02:15:00") are ambiguous in the hour the clocks
+/// go back: it happens twice. A date parser gives the same instant both times.
+nonisolated enum ClockChangeTimes {
+    /// When the same instant comes twice and the other reading of that wall-clock time
+    /// exists, the second one is moved to it, in the order the values came. Nothing else changes.
+    static func resolvingRepeatedHour(_ dates: [Date], calendar: Calendar = .energyHistory) -> [Date] {
+        var seen = Set<Date>()
+        var result: [Date] = []
+        result.reserveCapacity(dates.count)
+        for date in dates {
+            guard seen.contains(date) else {
+                seen.insert(date)
+                result.append(date)
+                continue
+            }
+            let candidates = [date.addingTimeInterval(3600), date.addingTimeInterval(-3600)]
+            let wallClock = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+            if let other = candidates.first(where: { candidate in
+                !seen.contains(candidate)
+                    && calendar.dateComponents([.year, .month, .day, .hour, .minute], from: candidate) == wallClock
+            }) {
+                seen.insert(other)
+                result.append(other)
+            } else {
+                result.append(date)
+            }
+        }
+        return result
+    }
+
+    /// True for instants in the second pass of the repeated hour (standard time again,
+    /// while the same wall-clock time an hour earlier was summer time).
+    static func isSecondPass(_ date: Date, calendar: Calendar) -> Bool {
+        let zone = calendar.timeZone
+        return !zone.isDaylightSavingTime(for: date) && zone.isDaylightSavingTime(for: date.addingTimeInterval(-3600))
+    }
+}
+
+#if DEBUG
+/// Checks coverage and clock-change rules once in DEBUG builds.
+nonisolated enum IntervalCoverageGuard {
+    static let isValid: Bool = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Europe/Stockholm") ?? .current
+        var ok = true
+        func check(_ condition: Bool, _ message: String) {
+            assert(condition, "IntervalCoverage: \(message)")
+            ok = ok && condition
+        }
+        let hour = calendar.date(from: DateComponents(year: 2026, month: 11, day: 11, hour: 1)) ?? .distantPast
+        func quarter(_ n: Int, _ group: String = "SE3|vaggeryd") -> IntervalCoverage.Item {
+            let start = hour.addingTimeInterval(Double(n) * 900)
+            return IntervalCoverage.Item(start: start, end: start.addingTimeInterval(900), group: group)
+        }
+        let hourly = IntervalCoverage.Item(start: hour, end: hour.addingTimeInterval(3600), group: "SE3|vaggeryd")
+        let full = [quarter(0), quarter(1), quarter(2), quarter(3), hourly]
+        check(IntervalCoverage.coveredHourIndices(full) == [4], "four quarters cover the hour")
+        check(IntervalCoverage.coveredHourIndices([quarter(0), quarter(1), quarter(3), hourly]).isEmpty, "a missing quarter keeps the hour")
+        check(IntervalCoverage.coveredHourIndices([quarter(0, "SE4|x"), quarter(1, "SE4|x"), quarter(2, "SE4|x"), quarter(3, "SE4|x"), hourly]).isEmpty, "other source keeps the hour")
+        check(IntervalCoverage.coveredHourIndices([hourly]).isEmpty, "hour alone stays")
+        let day = IntervalCoverage.Item(start: hour, end: hour.addingTimeInterval(86_400), group: "SE3|vaggeryd")
+        check(IntervalCoverage.coveredHourIndices(full.dropLast() + [day]).isEmpty, "never a day")
+
+        // 2025-10-26: 02:00 local happens at 00:00 and 01:00 UTC.
+        let first = Date(timeIntervalSince1970: 1_761_436_800) // 2025-10-26 00:00 UTC, 02:00 summer time
+        let second = first.addingTimeInterval(3600) // 01:00 UTC, 02:00 standard time
+        check(calendar.component(.hour, from: first) == 2 && calendar.component(.hour, from: second) == 2, "repeated hour")
+        check(ClockChangeTimes.resolvingRepeatedHour([first, second], calendar: calendar) == [first, second], "distinct instants unchanged")
+        check(ClockChangeTimes.resolvingRepeatedHour([second, second], calendar: calendar) == [second, first], "parsed twice: other reading")
+        check(ClockChangeTimes.resolvingRepeatedHour([hour, hour], calendar: calendar) == [hour, hour], "ordinary hour is not moved")
+        check(!ClockChangeTimes.isSecondPass(first, calendar: calendar) && ClockChangeTimes.isSecondPass(second, calendar: calendar), "second pass")
+        let firstKey = EnergyHistoryKey.recordKey(intervalStart: first, intervalEnd: first.addingTimeInterval(900), priceArea: "SE3", providerID: "p", source: .measuredConsumption, calendar: calendar)
+        let secondKey = EnergyHistoryKey.recordKey(intervalStart: second, intervalEnd: second.addingTimeInterval(900), priceArea: "SE3", providerID: "p", source: .measuredConsumption, calendar: calendar)
+        check(firstKey != secondKey, "both passes get their own key")
+        check(firstKey.hasPrefix("2025-10-26T02:00|2025-10-26T02:15|"), "summer pass keeps the old key")
+        // Spring 2026-03-29 has 23 hours: 02:00 does not exist, keys are unchanged.
+        let spring = calendar.date(from: DateComponents(year: 2026, month: 3, day: 29, hour: 3)) ?? .distantPast
+        check(EnergyHistoryKey.recordKey(intervalStart: spring, intervalEnd: spring.addingTimeInterval(900), priceArea: "SE3", providerID: "p", source: .measuredConsumption, calendar: calendar).hasPrefix("2026-03-29T03:00|2026-03-29T03:15|"), "spring keys")
+        return ok
+    }()
+}
+#endif
+
 // MARK: - Keys
 
 nonisolated enum EnergyHistoryKey: Sendable {
@@ -789,7 +918,10 @@ nonisolated enum EnergyHistoryKey: Sendable {
 
     nonisolated private static func instantKey(for date: Date, calendar: Calendar) -> String {
         let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
-        return "\(paddedYear(components.year ?? 0))-\(paddedTwo(components.month ?? 0))-\(paddedTwo(components.day ?? 0))T\(paddedTwo(components.hour ?? 0)):\(paddedTwo(components.minute ?? 0))"
+        let key = "\(paddedYear(components.year ?? 0))-\(paddedTwo(components.month ?? 0))-\(paddedTwo(components.day ?? 0))T\(paddedTwo(components.hour ?? 0)):\(paddedTwo(components.minute ?? 0))"
+        // The hour the clocks go back happens twice. The second pass gets a suffix so both
+        // are kept; every other key stays as before, so saved rows still match.
+        return ClockChangeTimes.isSecondPass(date, calendar: calendar) ? key + "+std" : key
     }
 
     nonisolated private static func paddedTwo(_ value: Int) -> String {

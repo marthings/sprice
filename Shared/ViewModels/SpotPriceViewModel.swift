@@ -56,6 +56,8 @@ final class SpotPriceViewModel {
     // Task för settings-notifikation
     @ObservationIgnored
     private var settingsRefreshTask: Task<Void, Never>?
+    @ObservationIgnored
+    private var historyRefreshTask: Task<Void, Never>?
     // Generation counter – stale loads discard their results
     @ObservationIgnored
     private var loadGeneration = 0
@@ -120,6 +122,7 @@ final class SpotPriceViewModel {
     deinit {
         refreshTask?.cancel()
         settingsRefreshTask?.cancel()
+        historyRefreshTask?.cancel()
     }
     
     func load() async {
@@ -492,6 +495,14 @@ final class SpotPriceViewModel {
     }
 
     private func observeSettingsChanges() {
+        historyRefreshTask?.cancel()
+        // Repriced history (a new agreement version, say) reaches the month summary at once.
+        historyRefreshTask = Task { [weak self] in
+            for await _ in NotificationCenter.default.notifications(named: .energyHistoryDidUpdate) {
+                if Task.isCancelled { break }
+                self?.loadCurrentMonthHistorySummary()
+            }
+        }
         settingsRefreshTask?.cancel()
         settingsRefreshTask = Task { [weak self] in
             let notifications = NotificationCenter.default.notifications(named: .consumptionSettingsDidSave)

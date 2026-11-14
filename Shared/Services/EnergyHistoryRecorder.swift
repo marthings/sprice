@@ -13,6 +13,8 @@ enum EnergyHistoryBackfillTiming {
     static let retryInterval: TimeInterval = 12 * 60 * 60
     static let monthDelay: Duration = .milliseconds(400)
     static let spotDelay: Duration = .milliseconds(150)
+    /// Most missing archive days filled in one run. The rest wait for the next run.
+    static let maxArchiveGapDays = 31
 }
 
 enum EnergyHistorySpotMatching {
@@ -127,7 +129,7 @@ final class EnergyHistoryRecorder {
             return
         }
 
-        let windowStart = now.addingTimeInterval(-48 * 60 * 60)
+        let windowStart = now.addingTimeInterval(-HistoryPreliminary.refetchWindow)
         var rangeStart = max(monthStart, windowStart)
         do {
             let monthKey = EnergyHistoryKey.monthKey(for: monthStart, calendar: calendar)
@@ -141,6 +143,20 @@ final class EnergyHistoryRecorder {
             rangeStart = monthStart
         }
 
+        // Values fetched before they were 48 hours old stay preliminary until fetched again.
+        // When the app was not opened for a while, go back to the oldest such value (at
+        // most to the start of last month), so it can settle.
+        var prefetched = quarterlyConsumption
+        if let previousMonthStart = calendar.date(byAdding: .month, value: -1, to: monthStart),
+           let oldest = await oldestEarlyFetchedMeasurement(from: previousMonthStart, before: rangeStart),
+           oldest < rangeStart {
+            rangeStart = oldest
+            if let first = prefetched?.map(\.date).min(), first > rangeStart {
+                prefetched = nil
+            }
+            AppLog.history.info("Fetching again from \(rangeStart, privacy: .public) so preliminary values can settle")
+        }
+
         _ = await recordConsumptionHistory(
             from: rangeStart,
             to: now,
@@ -150,8 +166,15 @@ final class EnergyHistoryRecorder {
             providerID: providerID,
             costProfile: costProfile,
             now: now,
-            prefetchedQuarterly: quarterlyConsumption
+            prefetchedQuarterly: prefetched
         )
+    }
+
+    private func oldestEarlyFetchedMeasurement(from: Date, before: Date) async -> Date? {
+        guard let container = try? EnergyHistoryStores.container() else { return nil }
+        return try? await Task.detached(priority: .utility) {
+            try EnergyHistoryWriting.oldestEarlyFetchedMeasurement(from: from, before: before, container: container)
+        }.value
     }
 
     func repriceStoredHistoryIfNeeded(
@@ -163,20 +186,74 @@ final class EnergyHistoryRecorder {
         // Demo mode has nothing to reprice, and must not set the "done" markers of the real history.
         guard !DemoMode.isActive else { return }
 
-        // First the fees. This needs no network: consumption and spot prices stay as they are.
-        if EnergyHistoryTariffSchedule.needsReprice {
+        // Hours saved next to the quarter-hours that cover them are counted twice. Remove
+        // them once (new saves no longer add them).
+        if EnergyHistoryTariffSchedule.needsOverlapCleanup {
+            do {
+                let container = try EnergyHistoryStores.container()
+                let calendar = self.calendar
+                let removed = try await Task.detached(priority: .utility) {
+                    try EnergyHistoryWriting.removeHoursCoveredByQuarters(container: container, calendar: calendar)
+                }.value
+                EnergyHistoryTariffSchedule.markOverlapCleanupComplete()
+                AppLog.history.info("Removed \(removed) hourly intervals already covered by quarter-hours")
+                if removed > 0 {
+                    scheduleHistoryDidUpdate()
+                    WidgetReload.timelines()
+                }
+            } catch {
+                AppLog.history.error("Could not remove overlapping hours: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+
+        // Rows saved before preliminary marks existed are marked once (amounts stay).
+        if EnergyHistoryTariffSchedule.needsPreliminaryPass {
+            do {
+                let container = try EnergyHistoryStores.container()
+                let calendar = self.calendar
+                let versions = HistoryPricing.savedVersions()
+                let result = try await Task.detached(priority: .utility) {
+                    try EnergyHistoryWriting.markPreliminary(versions: versions, container: container, calendar: calendar)
+                }.value
+                EnergyHistoryTariffSchedule.markPreliminaryPassComplete()
+                AppLog.history.info("Preliminary marks: \(result.marked) marked, \(result.settled) settled")
+                if result.marked + result.settled > 0 {
+                    scheduleHistoryDidUpdate()
+                    WidgetReload.timelines()
+                }
+            } catch {
+                AppLog.history.error("Could not mark preliminary values: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+
+        // First the fees and agreement versions. This needs no network: consumption and spot
+        // prices stay as they are. New fee rates reprice everything; a changed version only
+        // from the first day it touches (normally today).
+        let versions = HistoryPricing.savedVersions()
+        let feesChanged = EnergyHistoryTariffSchedule.needsReprice
+        let versionStart = EnergyHistoryTariffSchedule.versionRepriceStart(for: versions)
+        if feesChanged || versionStart != nil {
             do {
                 // Off the main thread: the writer actor runs on main, and this is a lot of rows.
                 let container = try EnergyHistoryStores.container()
                 let calendar = self.calendar
+                let from: Date? = feesChanged ? nil : versionStart.map { calendar.startOfDay(for: $0) }
                 let updated = try await Task.detached(priority: .utility) {
                     try EnergyHistoryWriting.repriceTariffs(
                         fallbackProfile: costProfile,
+                        versions: versions,
+                        from: from,
                         container: container,
                         calendar: calendar
                     )
                 }.value
                 EnergyHistoryTariffSchedule.markComplete()
+                EnergyHistoryTariffSchedule.markPriced(versions: versions)
+                // Views and widgets read the new sums (and today's profile) without a restart.
+                if updated > 0 || versionStart != nil {
+                    scheduleHistoryDidUpdate()
+                    WidgetReload.timelines()
+                }
                 if updated > 0 {
                     scheduleHistoryDidUpdate()
                     AppLog.history.info("Priced \(updated) history intervals with the fees of their own period")
@@ -208,7 +285,8 @@ final class EnergyHistoryRecorder {
 
             let updated = try await writer.repriceMeasuredRecords(
                 lookups: lookups,
-                fallbackProfile: costProfile
+                fallbackProfile: costProfile,
+                versions: HistoryPricing.savedVersions()
             )
             EnergyHistorySpotMatching.markComplete()
             if updated > 0 {
@@ -288,6 +366,48 @@ final class EnergyHistoryRecorder {
         return true
     }
 
+    /// Fills days missing from the spot price archive, from the first day with saved
+    /// history up to yesterday. Most days are already there, because the backfill saves
+    /// the prices of every day it records, so this usually makes no network calls.
+    /// A missing day is taken from the saved history first and fetched only if that fails.
+    /// Never runs in demo mode.
+    @discardableResult
+    func fillSpotPriceArchiveGaps(
+        spotPriceService: SpotPriceService,
+        priceArea: String,
+        now: Date = Date()
+    ) async -> Int {
+        guard !DemoMode.isActive else { return 0 }
+        let firstDay: Date
+        do {
+            guard let oldest = try store.fetchMonthlySummaries(priceArea: priceArea)
+                .map(\.periodStart)
+                .min() else {
+                return 0
+            }
+            firstDay = oldest
+        } catch {
+            AppLog.history.error("Could not read history range for the spot archive: \(error.localizedDescription, privacy: .public)")
+            return 0
+        }
+
+        let today = calendar.startOfDay(for: now)
+        let missing = await SpotPriceCache.shared.missingDays(from: firstDay, to: today, area: priceArea)
+        guard !missing.isEmpty else { return 0 }
+
+        var filled = 0
+        for day in missing.prefix(EnergyHistoryBackfillTiming.maxArchiveGapDays) {
+            if Task.isCancelled { break }
+            let prices = await spotPrices(for: day, area: priceArea, service: spotPriceService)
+            if prices.count >= SpotPriceCachePolicy.minimumPersistedIntervals {
+                filled += 1
+            }
+            try? await Task.sleep(for: EnergyHistoryBackfillTiming.spotDelay)
+        }
+        AppLog.history.info("Spot archive: filled \(filled) of \(missing.count) missing days for \(priceArea, privacy: .public)")
+        return filled
+    }
+
     @discardableResult
     private func recordConsumptionHistory(
         from startDate: Date,
@@ -321,9 +441,18 @@ final class EnergyHistoryRecorder {
                 priceArea: priceArea,
                 throttle: calendar.dateInterval(of: .month, for: startDate)?.start != calendar.dateInterval(of: .month, for: now)?.start
             )
-            // Price the period with the fees that applied then, not with today's.
-            let periodProfile = HistoricalTariffRates.profile(costProfile, forPeriodStarting: startDate)
-            let snapshot = HistoricalCostProfileSnapshot(profile: periodProfile, capturedAt: now)
+            // Each interval with the agreement version and the fees that applied when it
+            // started, not with today's. Versions start at midnight, so one profile per day.
+            let versions = HistoryPricing.savedVersions()
+            var profilesByDay: [Date: (profile: CostProfile, snapshot: HistoricalCostProfileSnapshot)] = [:]
+            func periodProfile(for start: Date) -> (profile: CostProfile, snapshot: HistoricalCostProfileSnapshot) {
+                let day = calendar.startOfDay(for: start)
+                if let known = profilesByDay[day] { return known }
+                let profile = HistoryPricing.periodProfile(at: start, current: costProfile, versions: versions)
+                let value = (profile, HistoricalCostProfileSnapshot(profile: profile, capturedAt: now))
+                profilesByDay[day] = value
+                return value
+            }
 
             let matchedIntervals = intervals.compactMap { interval -> (interval: ConsumptionInterval, spotPriceOre: Double)? in
                 guard let spotPriceOre = representativeSpotPrice(for: interval, in: spotPriceLookup) else {
@@ -345,10 +474,11 @@ final class EnergyHistoryRecorder {
             }
 
             let drafts = matchedIntervals.map { matched in
+                let priced = periodProfile(for: matched.interval.start)
                 let cost = totalCostService.calculateTotalCost(
                     kWh: matched.interval.kWh,
                     spotPriceOre: matched.spotPriceOre,
-                    profile: periodProfile,
+                    profile: priced.profile,
                     hoursInPeriod: matched.interval.hoursInPeriod
                 )
 
@@ -364,7 +494,7 @@ final class EnergyHistoryRecorder {
                     taxCostSEK: cost.taxesAndFeesKr,
                     vatCostSEK: cost.vatKr,
                     totalCostSEK: cost.totalKr,
-                    costProfileSnapshot: snapshot,
+                    costProfileSnapshot: priced.snapshot,
                     source: fetched.resolution.source,
                     confidence: confidence,
                     calendar: calendar
@@ -660,6 +790,11 @@ final class EnergyHistoryBackfillController {
                 now: now
             )
             if succeeded {
+                await activeRecorder.fillSpotPriceArchiveGaps(
+                    spotPriceService: spotPriceService,
+                    priceArea: priceArea,
+                    now: now
+                )
                 Self.defaults.set(Date(), forKey: Self.lastSuccessKey)
             }
         }
