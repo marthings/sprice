@@ -115,7 +115,7 @@ private struct HypotheticalEffectTariffCard: View {
             if let amountKr {
                 HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xs) {
                     Text(AppFormatters.wholeNumber(amountKr))
-                        .font(DS.Font.bold(28))
+                        .font(DS.Font.black(28))
                         .spriceNumericText(amountKr)
                     Text("kr")
                         .font(DS.Font.unitLarge)

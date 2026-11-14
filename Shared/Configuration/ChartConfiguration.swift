@@ -26,6 +26,10 @@ enum HistoryChartAxis {
     static let plotBottomPadding: CGFloat = DS.Spacing.md
     static let labelTopPadding: CGFloat = DS.Spacing.xs
     static let hourStrideHours = 6
+    /// One chart style: hairline gridlines in `DS.Color.gridLine`, no ticks, labels in
+    /// footnote secondary, bars with a 3 pt radius.
+    static let gridStroke = StrokeStyle(lineWidth: 0.5)
+    static let barRadius: CGFloat = 3
     static let clockHourMarks: [Double] = [0, 6, 12, 18]
 
     static func monthDayStride(dayCount: Int) -> Int {
@@ -163,6 +167,12 @@ struct TotalPriceChartSeries {
         )
     }
 
+    /// The cheap, middle and expensive fills from the asset catalog (light values), so the
+    /// line matches the price badges.
+    private static let cheap = Color(red: 0x25 / 255, green: 0x93 / 255, blue: 0x6A / 255)
+    private static let middle = Color(red: 0xE0 / 255, green: 0x7A / 255, blue: 0x1A / 255)
+    private static let expensive = Color(red: 0xDE / 255, green: 0x4A / 255, blue: 0x3A / 255)
+
     private static func smoothPriceColor(for price: Double, min minPrice: Double, max maxPrice: Double) -> Color {
         let range = maxPrice - minPrice
         guard range > 0 else { return DS.Color.warning }
@@ -170,17 +180,9 @@ struct TotalPriceChartSeries {
         let normalized = Swift.min(Swift.max((price - minPrice) / range, 0), 1)
         switch normalized {
         case ..<0.5:
-            return interpolateColor(
-                from: Color(red: 0.02, green: 0.56, blue: 0.24),
-                to: Color(red: 0.95, green: 0.38, blue: 0.02),
-                progress: normalized / 0.5
-            )
+            return interpolateColor(from: cheap, to: middle, progress: normalized / 0.5)
         default:
-            return interpolateColor(
-                from: Color(red: 0.95, green: 0.38, blue: 0.02),
-                to: Color(red: 0.82, green: 0.04, blue: 0.04),
-                progress: (normalized - 0.5) / 0.5
-            )
+            return interpolateColor(from: middle, to: expensive, progress: (normalized - 0.5) / 0.5)
         }
     }
 

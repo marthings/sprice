@@ -28,7 +28,7 @@ struct SettingsGridSection: View {
             } else if let error = dsoLoadError {
                 Section {
                     Text(error)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(DS.Color.dangerText)
                 }
             } else {
                 Section {
@@ -126,7 +126,7 @@ struct SettingsGridSection: View {
 
                             if let tariffFreshnessText {
                                 Text(tariffFreshnessText)
-                                    .foregroundStyle(settings.costProfile.isTariffExpired ? .orange : .secondary)
+                                    .foregroundStyle(settings.costProfile.isTariffExpired ? DS.Color.warningText : .secondary)
                             }
                         }
                     }

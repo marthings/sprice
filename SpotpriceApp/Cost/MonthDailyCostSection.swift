@@ -224,7 +224,7 @@ struct MonthDailyCostSection: View {
                     y: .value("Kronor per dag", day.costKr ?? 0)
                 )
                 .foregroundStyle(barColor(for: day, expensiveID: expensive?.id))
-                .cornerRadius(3)
+                .cornerRadius(HistoryChartAxis.barRadius)
                 .opacity(barOpacity(for: day))
                 .accessibilityLabel(AppFormatters.weekdayDayMonth(day.date))
                 .accessibilityValue(day.accessibilityValue)
@@ -246,9 +246,9 @@ struct MonthDailyCostSection: View {
         .chartYScale(domain: 0...(dailyYMax * 1.18))
         .chartXAxis {
             AxisMarks(values: .stride(by: .day, count: xAxisStride)) { value in
-                AxisGridLine()
-                    .foregroundStyle(.tertiary)
-                AxisTick()
+                AxisGridLine(stroke: HistoryChartAxis.gridStroke)
+                    .foregroundStyle(DS.Color.gridLine)
+                AxisTick(length: 0)
                     .foregroundStyle(.tertiary)
                 if let date = value.as(Date.self) {
                     AxisValueLabel {
@@ -259,9 +259,9 @@ struct MonthDailyCostSection: View {
         }
         .chartYAxis {
             AxisMarks(position: .leading) { value in
-                AxisGridLine()
-                    .foregroundStyle(.tertiary)
-                AxisTick()
+                AxisGridLine(stroke: HistoryChartAxis.gridStroke)
+                    .foregroundStyle(DS.Color.gridLine)
+                AxisTick(length: 0)
                 AxisValueLabel {
                     axisAmountLabel(value.as(Double.self), visible: true, trailing: false)
                 }
@@ -340,7 +340,7 @@ struct MonthDailyCostSection: View {
             AxisMarks(values: .stride(by: .day, count: xAxisStride)) { value in
                 AxisGridLine()
                     .foregroundStyle(.clear)
-                AxisTick()
+                AxisTick(length: 0)
                     .foregroundStyle(.clear)
                 if let date = value.as(Date.self) {
                     AxisValueLabel {
@@ -354,16 +354,16 @@ struct MonthDailyCostSection: View {
             AxisMarks(position: .leading) { value in
                 AxisGridLine()
                     .foregroundStyle(.clear)
-                AxisTick()
+                AxisTick(length: 0)
                     .foregroundStyle(.clear)
                 AxisValueLabel {
                     axisAmountLabel(value.as(Double.self), visible: false, trailing: false)
                 }
             }
             AxisMarks(position: .trailing) { value in
-                AxisGridLine()
-                    .foregroundStyle(.tertiary)
-                AxisTick()
+                AxisGridLine(stroke: HistoryChartAxis.gridStroke)
+                    .foregroundStyle(DS.Color.gridLine)
+                AxisTick(length: 0)
                 AxisValueLabel {
                     axisAmountLabel(value.as(Double.self), visible: true, trailing: true)
                 }
