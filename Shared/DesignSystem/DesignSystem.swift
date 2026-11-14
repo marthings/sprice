@@ -414,13 +414,36 @@ enum DS {
         // are too light to read as text on the cards (about 2.3 to 3.5 to 1). These
         // reach at least 4.5 to 1 against the card in light and dark mode, and get
         // another step darker (light) or lighter (dark) with Increase Contrast.
-        static let warningText = adaptive(light: 0xA63A00, dark: 0xF5A35C)
+        static let warningText = adaptive(light: 0x9A4A00, dark: 0xF6B25E)
         static let infoText = adaptive(light: 0x005580, dark: 0x5CCBEF)
-        static let successText = adaptive(light: 0x245810, dark: 0x86CC5A)
-        static let dangerText = adaptive(light: 0xA8161A, dark: 0xFF8A80)
+        static let successText = adaptive(light: 0x16704A, dark: 0x5FD39A)
+        static let dangerText = adaptive(light: 0xB3261E, dark: 0xFF8C7A)
         /// Arctic blue for text and links. Light #0B67A0 (at least 4.7 to 1 on the light cards),
         /// dark #7FD4FA (at least 6 to 1 on the dark cards). The brighter `accent` stays for fills.
         static let accentText = adaptive(light: 0x0B67A0, dark: 0x7FD4FA)
+
+        /// Card surface. Light #FFFFFF on the #F4F8FB canvas, dark #162236 on #0B1320.
+        static let surface = adaptive(light: 0xFFFFFF, dark: 0x162236)
+        /// A quiet inset inside a card (tiles, chips, the selected segment).
+        /// Light #EEF4F9, dark #1E2C42.
+        static let surfaceInset = adaptive(light: 0xEEF4F9, dark: 0x1E2C42)
+        /// Chart gridlines: thin and quiet so the data leads.
+        static let gridLine = SwiftUI.Color.primary.opacity(0.08)
+
+        /// Categorical colours for what a kWh is made of. Built around arctic blue and kept
+        /// apart from the cheap/expensive colours, so a part of the price never reads as
+        /// "cheap" or "expensive".
+        enum Breakdown {
+            static let energy = DS.Color.accent
+            static let markup = adaptive(light: 0x1B2733, dark: 0xDCE6F0)
+            static let grid = adaptive(light: 0x6E7FE8, dark: 0x8E9CF5)
+            static let tax = adaptive(light: 0x1FA595, dark: 0x4FD1C0)
+            static let certificates = adaptive(light: 0xA17FD9, dark: 0xBFA3EE)
+            static let fees = adaptive(light: 0xE9A93A, dark: 0xF4C35E)
+            static let power = adaptive(light: 0xE0664F, dark: 0xFF8C76)
+            static let vat = adaptive(light: 0x9AA8B8, dark: 0x7D8CA0)
+            static let other = adaptive(light: 0x5FB98A, dark: 0x7FD3A6)
+        }
 
         static let secondary = SwiftUI.Color.primary.opacity(0.72)
         static let outline = SwiftUI.Color.primary.opacity(0.28)
@@ -519,6 +542,18 @@ enum DS {
         /// and pushed screens. Tight but not flush; Form screens use the same
         /// value via `contentMargins` so they match ScrollView padding.
         static let titleToContent: CGFloat = 10
+    }
+
+    // MARK: - Elevation
+
+    /// One soft, cool shadow for cards in light mode. Dark mode lifts cards with a lighter
+    /// surface instead, since shadows don't read on a dark canvas.
+    enum Elevation {
+        /// Deep arctic navy (#0B2540) so the shadow feels cool, not grey.
+        static let cardShadowColor = SwiftUI.Color(red: 11 / 255, green: 37 / 255, blue: 64 / 255)
+        static let cardShadowOpacity: Double = 0.07
+        static let cardShadowRadius: CGFloat = 14
+        static let cardShadowY: CGFloat = 4
     }
 
     // MARK: - Radius
@@ -1122,7 +1157,7 @@ struct MetricCard: View {
     var icon: String? = nil
     var color: Color = .primary
     var titleColor: Color = DS.Color.secondary
-    var valueFont: Font = DS.Font.bold(20)
+    var valueFont: Font = DS.Font.black(20)
     var unitFont: Font = DS.Font.unit
     var iconSize: CGFloat = DS.Size.iconMedium
     var layout: Layout = .horizontal
@@ -1206,8 +1241,8 @@ struct PriceDisplay: View {
         var priceFont: Font {
             switch self {
             case .small: return DS.Font.bold(16)
-            case .medium: return DS.Font.bold(24)
-            case .large: return DS.Font.bold(32)
+            case .medium: return DS.Font.black(24)
+            case .large: return DS.Font.black(32)
             }
         }
 
@@ -1356,31 +1391,20 @@ enum SpriceCardTone: Equatable {
     }
 }
 
-/// Palette fill used by `spriceCard` and by Form `listRowBackground`.
+/// Solid card surface used by `spriceCard` and by Form `listRowBackground`.
+/// Light: white on the #F4F8FB canvas with a soft, cool shadow. Dark: a raised navy
+/// (#162236) on the #0B1320 canvas, no shadow. No border, except with Increase Contrast.
 struct SpriceCardBackground: View {
     var tone: SpriceCardTone = .default
     var cornerRadius: CGFloat = DS.Glass.cardRadius
-    /// Flat fill for grouped Form rows: no per-row gradient, so rows share one wash.
+    /// Grouped Form rows: same surface, no shadow, so rows join into one card.
     var isListRow: Bool = false
 
     @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorSchemeContrast) private var contrast
 
     private var cardShape: RoundedRectangle {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-    }
-
-    private var paletteColor: Color { tone.paletteColor }
-
-    /// Lift *under* the ultra-thin material so the card reads as its own surface on the
-    /// flat canvas: near-white on the pale canvas, a touch lighter than the deep blue-black
-    /// in dark mode. Text stays well above WCAG AA (4.5:1) in both.
-    private var contrastFill: Color {
-        let increased = contrast == .increased
-        return colorScheme == .dark
-            ? Color.white.opacity(increased ? 0.10 : 0.05)
-            : Color.white.opacity(increased ? 0.95 : 0.80)
     }
 
     /// With Increase Contrast on, cards get a clear edge. Otherwise no border.
@@ -1388,79 +1412,23 @@ struct SpriceCardBackground: View {
         cardShape.strokeBorder(Color.primary.opacity(contrast == .increased ? 0.5 : 0), lineWidth: 1)
     }
 
-    private var opaqueBase: Color {
-        colorScheme == .dark ? Color.black : Color.white
-    }
-
-    private var washOpacity: Double {
-        reduceTransparency
-            ? tone.reducedTransparencyOverlayOpacity(colorScheme: colorScheme)
-            : tone.overlayOpacity(colorScheme: colorScheme)
-    }
-
-    private var paletteWash: LinearGradient {
-        LinearGradient(
-            colors: [
-                paletteColor.opacity(washOpacity),
-                paletteColor.opacity(washOpacity * 0.35)
-            ],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-    }
-
-    private var flatPaletteFill: Color {
-        paletteColor.opacity(washOpacity)
-    }
+    private var isDark: Bool { colorScheme == .dark }
 
     var body: some View {
-        Group {
-            if isListRow {
-                listRowBackground
-            } else if reduceTransparency {
-                cardShape
-                    .fill(opaqueBase)
-                    .overlay {
-                        cardShape.fill(paletteWash)
-                    }
-                    .overlay { increasedContrastEdge }
-            } else {
-                cardShape
-                    .fill(contrastFill)
-                    .overlay {
-                        cardShape.fill(.ultraThinMaterial)
-                    }
-                    .overlay {
-                        cardShape.fill(paletteWash)
-                    }
-                    .overlay { increasedContrastEdge }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var listRowBackground: some View {
-        if reduceTransparency {
-            cardShape
-                .fill(opaqueBase)
-                .overlay {
-                    cardShape.fill(flatPaletteFill)
-                }
-        } else {
-            cardShape
-                .fill(contrastFill)
-                .overlay {
-                    cardShape.fill(.ultraThinMaterial)
-                }
-                .overlay {
-                    cardShape.fill(flatPaletteFill)
-                }
-        }
+        cardShape
+            .fill(DS.Color.surface)
+            .overlay { increasedContrastEdge }
+            .shadow(
+                color: DS.Elevation.cardShadowColor.opacity(isListRow || isDark ? 0 : DS.Elevation.cardShadowOpacity),
+                radius: DS.Elevation.cardShadowRadius,
+                x: 0,
+                y: DS.Elevation.cardShadowY
+            )
     }
 }
 
-/// Palette-tinted material card. Only the background is clipped so chart
-/// callouts can overflow.
+/// Solid card. The background is not clipped, so the shadow shows, and chart
+/// callouts can still overflow the content.
 struct SpriceCardModifier: ViewModifier {
     let tone: SpriceCardTone
     let cornerRadius: CGFloat
@@ -1476,7 +1444,6 @@ struct SpriceCardModifier: ViewModifier {
                     tone: tone,
                     cornerRadius: cornerRadius
                 )
-                .clipShape(cardShape)
             }
             .containerShape(cardShape)
     }
@@ -1546,9 +1513,9 @@ extension View {
     }
 
     func spriceSettingsHeaderStyle() -> some View {
-        font(DS.Font.caption)
+        font(DS.Font.semibold(13))
             .foregroundStyle(DS.Color.secondary)
-            .textCase(.uppercase)
+            .textCase(nil)
     }
 
     func spriceSettingsFooterStyle() -> some View {
@@ -1755,7 +1722,7 @@ struct TrendIndicator: View {
     var body: some View {
         HStack(spacing: DS.Spacing.xxs) {
             Image(systemName: icon)
-                .font(.system(size: 10, weight: .bold))
+                .font(.system(size: 10, weight: .semibold))
         }
         .foregroundStyle(color)
         .accessibilityLabel(accessibilityLabel)
@@ -1839,7 +1806,7 @@ struct SectionInfoButton: View {
             isPresented = true
         } label: {
             Image(systemName: "info.circle")
-                .font(.system(size: DS.Size.infoIcon, weight: .regular))
+                .font(.system(size: DS.Size.infoIcon, weight: .semibold))
                 .foregroundStyle(DS.Color.secondary)
                 .frame(width: DS.Size.infoHit, height: DS.Size.infoHit, alignment: .center)
                 .contentShape(Rectangle())
