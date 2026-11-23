@@ -20,6 +20,19 @@ struct DashboardView: View {
     }
 
     var body: some View {
+#if DEBUG
+        // `-BareCanvas` shows only the background, so it can be exported for review.
+        if ProcessInfo.processInfo.arguments.contains("-BareCanvas") {
+            AppCanvasBackground()
+        } else {
+            tabs
+        }
+#else
+        tabs
+#endif
+    }
+
+    private var tabs: some View {
         TabView(selection: $selectedSection) {
             Tab("Kostnad", systemImage: "wallet.bifold.fill", value: 0) {
                 CostTab(

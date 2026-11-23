@@ -422,8 +422,8 @@ enum DS {
         /// dark #7FD4FA (at least 6 to 1 on the dark cards). The brighter `accent` stays for fills.
         static let accentText = adaptive(light: 0x0B67A0, dark: 0x7FD4FA)
 
-        /// Card surface. Light #FFFFFF on the #F4F8FB canvas, dark #162236 on #0B1320.
-        static let surface = adaptive(light: 0xFFFFFF, dark: 0x162236)
+        /// Card surface. Light #FFFFFF on the #F2F6FA canvas, dark navy #17263D on #0A1220.
+        static let surface = adaptive(light: 0xFFFFFF, dark: 0x17263D)
         /// A quiet inset inside a card (tiles, chips, the selected segment).
         /// Light #EEF4F9, dark #1E2C42.
         static let surfaceInset = adaptive(light: 0xEEF4F9, dark: 0x1E2C42)
@@ -1340,24 +1340,107 @@ extension View {
 
 // MARK: - Canvas background
 
-/// Plain, still background reused by every screen: one flat colour from the arctic palette.
-/// Light: an almost white surface with a faint blue tone. Dark: a deep blue-black.
-/// Cards sit on top with their own fill and a hairline edge, so they stay distinct.
+/// Abstract, still background reused by every screen. A cool base with a few very large,
+/// soft light falls in arctic blue, so the page has a hint of depth without competing with
+/// the cards. Light: near-white #F2F6FA with faint blue glows. Dark: deep navy #0A1220 with a
+/// faint lighter-blue glow at the top and a darker edge. A fine, fixed grain stops banding.
+/// Reduce Transparency and Increase Contrast fall back to the plain colour.
 struct AppCanvasBackground: View {
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var contrast
 
-    /// #F4F8FB in light mode, #0B1320 in dark mode.
+    /// The plain base: #F2F6FA in light mode, #0A1220 in dark mode.
     static func color(for colorScheme: ColorScheme) -> Color {
         colorScheme == .dark
-            ? Color(red: 11 / 255, green: 19 / 255, blue: 32 / 255)
-            : Color(red: 244 / 255, green: 248 / 255, blue: 251 / 255)
+            ? Color(red: 10 / 255, green: 18 / 255, blue: 32 / 255)
+            : Color(red: 242 / 255, green: 246 / 255, blue: 250 / 255)
     }
+
+    private var isDark: Bool { colorScheme == .dark }
+    private var isPlain: Bool { reduceTransparency || contrast == .increased }
 
     var body: some View {
         Self.color(for: colorScheme)
+            .overlay {
+                if !isPlain {
+                    GeometryReader { geometry in
+                        depth(in: geometry.size)
+                    }
+                }
+            }
             .ignoresSafeArea()
             .accessibilityHidden(true)
             .allowsHitTesting(false)
+    }
+
+    @ViewBuilder
+    private func depth(in size: CGSize) -> some View {
+        let long = max(size.width, size.height)
+        ZStack {
+            if isDark {
+                // A faint lighter blue falling in from the top.
+                glow(Color(red: 0x1C / 255, green: 0x3A / 255, blue: 0x5E / 255), opacity: 0.55,
+                     center: UnitPoint(x: 0.45, y: -0.08), radius: long * 0.62)
+                // A second, cooler fall to the right, lower down.
+                glow(Color(red: 0x14 / 255, green: 0x33 / 255, blue: 0x52 / 255), opacity: 0.35,
+                     center: UnitPoint(x: 1.05, y: 0.42), radius: long * 0.48)
+                // Darker edges.
+                RadialGradient(
+                    colors: [.clear, Color.black.opacity(0.32)],
+                    center: UnitPoint(x: 0.5, y: 0.38),
+                    startRadius: long * 0.30,
+                    endRadius: long * 0.78
+                )
+            } else {
+                // Faint arctic glow at the top right.
+                glow(Color(red: 0xC9 / 255, green: 0xE3 / 255, blue: 0xF6 / 255), opacity: 0.75,
+                     center: UnitPoint(x: 0.92, y: -0.04), radius: long * 0.58)
+                // A softer, paler wash low on the left.
+                glow(Color(red: 0xD9 / 255, green: 0xE9 / 255, blue: 0xF6 / 255), opacity: 0.6,
+                     center: UnitPoint(x: -0.08, y: 0.62), radius: long * 0.52)
+                // A breath of white in the middle, so cards sit on light.
+                glow(.white, opacity: 0.55, center: UnitPoint(x: 0.5, y: 0.34), radius: long * 0.42)
+            }
+            CanvasGrain(isDark: isDark)
+        }
+    }
+
+    private func glow(_ color: Color, opacity: Double, center: UnitPoint, radius: CGFloat) -> some View {
+        RadialGradient(
+            stops: [
+                .init(color: color.opacity(opacity), location: 0),
+                .init(color: color.opacity(opacity * 0.45), location: 0.45),
+                .init(color: color.opacity(0), location: 1)
+            ],
+            center: center,
+            startRadius: 0,
+            endRadius: radius
+        )
+    }
+}
+
+/// Very fine, fixed grain (the same dots every time) that breaks up gradient banding.
+/// Drawn once into a flat layer; nothing moves.
+private struct CanvasGrain: View {
+    let isDark: Bool
+
+    var body: some View {
+        Canvas(rendersAsynchronously: true) { context, size in
+            var seed: UInt64 = 0x5EED_C0FFEE
+            func next() -> Double {
+                seed = seed &* 6364136223846793005 &+ 1442695040888963407
+                return Double(seed >> 33) / Double(1 << 31)
+            }
+            let count = Int(size.width * size.height / 90)
+            let light = GraphicsContext.Shading.color(.white.opacity(isDark ? 0.035 : 0.5))
+            let dark = GraphicsContext.Shading.color(Color(red: 0.04, green: 0.15, blue: 0.25).opacity(isDark ? 0.10 : 0.03))
+            for index in 0..<count {
+                let rect = CGRect(x: next() * size.width, y: next() * size.height, width: 1, height: 1)
+                context.fill(Path(rect), with: index.isMultiple(of: 2) ? light : dark)
+            }
+        }
+        .drawingGroup()
     }
 }
 
@@ -1392,8 +1475,8 @@ enum SpriceCardTone: Equatable {
 }
 
 /// Solid card surface used by `spriceCard` and by Form `listRowBackground`.
-/// Light: white on the #F4F8FB canvas with a soft, cool shadow. Dark: a raised navy
-/// (#162236) on the #0B1320 canvas, no shadow. No border, except with Increase Contrast.
+/// Light: white on the #F2F6FA canvas with a soft, cool shadow. Dark: a raised navy
+/// (#17263D) on the #0A1220 canvas, no shadow. No border, except with Increase Contrast.
 struct SpriceCardBackground: View {
     var tone: SpriceCardTone = .default
     var cornerRadius: CGFloat = DS.Glass.cardRadius
