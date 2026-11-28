@@ -60,6 +60,8 @@ final class ConsumptionSettings {
 
         // Central cost profile
         static let costProfile = "settings_costProfile"
+        /// Every saved version of the profile, with the day each applies from (`CostProfileVersion`).
+        static let costProfileVersions = "settings_costProfileVersions"
 
         static let includeHypotheticalEffectTariff = "settings_includeHypotheticalEffectTariff"
         static let compareFixedPriceOrePerKWh = "settings_compareFixedPriceOrePerKWh"
@@ -145,6 +147,7 @@ final class ConsumptionSettings {
         didSet {
             guard costProfile != oldValue else { return }
             saveCostProfile(costProfile)
+            saveCostProfileVersion(costProfile)
             mirrorCostProfileToLegacyDefaults(costProfile)
             syncLegacyProperties(from: costProfile)
             NotificationCenter.default.post(name: .consumptionSettingsDidSave, object: nil)
@@ -384,56 +387,43 @@ final class ConsumptionSettings {
         }
     }
 
-    // MARK: - 2026 rate refresh
+    // MARK: - Rates for today
 
-    /// Old 2025 energy tax stored including VAT. Exact match only, so a custom value is left alone.
-    private static let legacyEnergyTax2025InclVAT = HistoricalTariffRates.energyTax2025InclVAT
-    private static let legacyVaggerydMonthlyFees = HistoricalTariffRates.vaggerydMonthlyFees2025
-    private static let legacyVaggerydTransferOrePerKWh = HistoricalTariffRates.vaggerydTransfer2025OrePerKWh
-    private static let legacyVaggerydPowerTariff = HistoricalTariffRates.vaggerydPowerTariff2025KrPerKW
+    /// The effect fee older app versions wrote into the Vaggeryd preset, kr/kW.
+    private static let legacyVaggerydPresetPowerFee = 45.0
 
-    private static func refreshing2026Rates(
+    /// Brings preset fees and energy tax up to the rows in `HistoricalTariffRates` that apply
+    /// today, for example after a new year. Grid fees the user typed in are left alone.
+    private static func refreshingRates(
         _ profile: CostProfile,
-        cachedTariff: SimplifiedTariff?
+        cachedTariff: SimplifiedTariff?,
+        now: Date = Date()
     ) -> (profile: CostProfile, cachedTariff: SimplifiedTariff?) {
-        var next = profile
+        var next = HistoricalTariffRates.profile(profile, forPeriodStarting: now)
         var nextTariff = cachedTariff
 
-        if abs(next.energyTaxOrePerKWh - legacyEnergyTax2025InclVAT) < 0.001 {
-            next = next.updating(energyTaxOrePerKWh: CostProfile.SwedishDefaults.energyTaxOrePerKWh)
+        // Older versions of the app put a 45 kr/kW effect fee in the Vaggeryd preset by
+        // mistake. Säkringskunder pay none, so that preset value goes.
+        if next.gridCompanyId == "vaggeryd",
+           let power = next.effectTariff?.monthlyPricePerKW,
+           abs(power - Self.legacyVaggerydPresetPowerFee) < 0.01 {
+            next = next.settingEffectTariff(nil)
         }
 
-        if (next.gridCompanyId ?? "") == "vaggeryd" {
-            let fuse = next.fuseSize ?? 20
-            let hasLegacyFee = next.gridMonthlyFee.map { fee in
-                legacyVaggerydMonthlyFees.values.contains { abs($0 - fee) < 0.01 }
-            } ?? false
-            let hasLegacyTransfer = next.gridTransferOrePerKWh.map {
-                abs($0 - legacyVaggerydTransferOrePerKWh) < 0.01
-            } ?? false
-            if hasLegacyFee || hasLegacyTransfer {
-                let fees = HistoricalTariffRates.vaggerydMonthlyFees2026
-                next = next.updating(
-                    gridMonthlyFee: fees[fuse] ?? 742,
-                    gridTransferOrePerKWh: 29.75,
-                    energyTaxOrePerKWh: CostProfile.SwedishDefaults.energyTaxOrePerKWh
-                )
-            }
-            if let power = next.effectTariff?.monthlyPricePerKW,
-               abs(power - legacyVaggerydPowerTariff) < 0.01 {
-                next = next.settingEffectTariff(nil)
-            }
-        }
-
-        if var tariff = nextTariff, tariff.dsoOrgNo == "vaggeryd" {
-            let hasLegacyFee = legacyVaggerydMonthlyFees.values.contains {
-                abs($0 - tariff.monthlyFixedFee) < 0.01
-            }
-            let hasLegacyTransfer = abs(tariff.energyTariffPerKWh - 0.2813) < 0.0001
-            if hasLegacyFee || hasLegacyTransfer || abs((tariff.energyTaxPerKWh) - legacyEnergyTax2025InclVAT) < 0.001 {
-                if let fresh = GridTariffService().localPresetTariff(forDSO: "vaggeryd", fuseSize: tariff.fuseSize ?? next.fuseSize ?? 20) {
-                    nextTariff = fresh
-                }
+        // The cached preset tariff follows today's rows too.
+        if let tariff = nextTariff,
+           let fuse = tariff.fuseSize ?? next.fuseSize,
+           let row = HistoricalTariffRates.gridFee(company: tariff.dsoOrgNo, fuseSize: fuse, on: now) {
+            let tax = HistoricalTariffRates.energyTax(
+                for: EnergyTaxRegion.forGridCompany(tariff.dsoOrgNo),
+                on: now
+            )
+            let isOutdated = abs(tariff.monthlyFixedFee - row.monthlyFee) > 0.01
+                || abs(tariff.energyTariffPerKWh * 100.0 - row.transferOrePerKWh) > 0.01
+                || (tax.map { abs(tariff.energyTaxPerKWh - $0) > 0.001 } ?? false)
+            if isOutdated,
+               let fresh = GridTariffService().localPresetTariff(forDSO: tariff.dsoOrgNo, fuseSize: fuse) {
+                nextTariff = fresh
             }
         }
 
@@ -454,6 +444,38 @@ final class ConsumptionSettings {
             return
         }
         Self.defaults.set(data, forKey: Keys.costProfile)
+    }
+
+    // MARK: - Cost Profile Versions
+
+    /// Every saved version of the profile, oldest first. `costProfile` is the one in force today.
+    var costProfileVersions: [CostProfileVersion] {
+        CostProfileHistory.decoded(Self.defaults.data(forKey: Keys.costProfileVersions))
+    }
+
+    /// The profile that applied at `date`. Costs are still priced with `costProfile` for now;
+    /// choosing the version per interval comes later.
+    func profile(on date: Date) -> CostProfile {
+        CostProfileHistory.profile(on: date, in: costProfileVersions) ?? costProfile
+    }
+
+    /// The first time versions are used, the saved profile becomes the first version.
+    /// Runs on every start and does nothing once versions exist.
+    private func migrateCostProfileVersionsIfNeeded() {
+        let existing = costProfileVersions
+        guard existing.isEmpty else { return }
+        let migrated = CostProfileHistory.migrated(existing, currentProfile: costProfile)
+        if let data = CostProfileHistory.encoded(migrated) {
+            Self.defaults.set(data, forKey: Keys.costProfileVersions)
+        }
+    }
+
+    /// Saves `profile` as the version from the start of today. Changes only apply forward.
+    private func saveCostProfileVersion(_ profile: CostProfile, now: Date = Date()) {
+        let existing = costProfileVersions
+        let next = CostProfileHistory.saving(profile, on: now, to: existing)
+        guard next != existing, let data = CostProfileHistory.encoded(next) else { return }
+        Self.defaults.set(data, forKey: Keys.costProfileVersions)
     }
 
     private func mirrorCostProfileToLegacyDefaults(_ profile: CostProfile) {
@@ -584,15 +606,24 @@ final class ConsumptionSettings {
         // Migrate legacy credentials if needed
         migrateFromLegacyIfNeeded()
 
-        let refreshed = Self.refreshing2026Rates(costProfile, cachedTariff: Self.loadCachedTariff())
+        let refreshed = Self.refreshingRates(costProfile, cachedTariff: Self.loadCachedTariff())
         self.costProfile = refreshed.profile
         if let tariff = refreshed.cachedTariff {
             self.cachedTariff = tariff
         }
 
         saveCostProfile(costProfile)
+        migrateCostProfileVersionsIfNeeded()
+        saveCostProfileVersion(costProfile)
         mirrorCostProfileToLegacyDefaults(costProfile)
         syncLegacyProperties(from: costProfile)
+#if DEBUG
+        _ = CostProfileVersionGuard.isValid
+        _ = HistoricalTariffRatesGuard.isValid
+        _ = HistoryPricingGuard.isValid
+        _ = IntervalCoverageGuard.isValid
+        _ = HistoryPreliminaryGuard.isValid
+#endif
 
         // The real values are loaded and saved above. Demo mode starts after that, so it
         // starts from them and can put them back.

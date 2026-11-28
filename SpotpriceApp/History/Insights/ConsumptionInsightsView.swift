@@ -142,7 +142,7 @@ struct ConsumptionInsightsContent: View {
             if let baseload = insights.baseload {
                 HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xs) {
                     Text(ConsumptionInsightsBuilder.powerPhrase(baseload.powerKW))
-                        .font(DS.Font.bold(28))
+                        .font(DS.Font.black(28))
                     Text("alltid på")
                         .font(DS.Font.footnote)
                         .foregroundStyle(DS.Color.secondary)
@@ -331,7 +331,7 @@ struct ConsumptionInsightsContent: View {
             if let peak = insights.powerPeak {
                 HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xs) {
                     Text(ConsumptionInsightsBuilder.powerPhrase(peak.powerKW))
-                        .font(DS.Font.bold(28))
+                        .font(DS.Font.black(28))
                     Text(AppFormatters.powerPeakHourLabel(peak.hourStart))
                         .font(DS.Font.footnote)
                         .foregroundStyle(DS.Color.secondary)
@@ -496,7 +496,7 @@ private struct ConsumptionEVChargingHourChart: View {
                     y: .value("kWh", max(bar.kWh, 0))
                 )
                 .foregroundStyle(barStyle(for: bar))
-                .cornerRadius(2)
+                .cornerRadius(HistoryChartAxis.barRadius)
                 .opacity(barOpacity(for: bar))
             }
 
@@ -521,9 +521,9 @@ private struct ConsumptionEVChargingHourChart: View {
         .chartXScale(domain: -0.5...23.5)
         .chartXAxis {
             AxisMarks(values: HistoryChartAxis.clockHourMarks) { value in
-                AxisGridLine()
-                    .foregroundStyle(.tertiary)
-                AxisTick()
+                AxisGridLine(stroke: HistoryChartAxis.gridStroke)
+                    .foregroundStyle(DS.Color.gridLine)
+                AxisTick(length: 0)
                     .foregroundStyle(.tertiary)
                 if let hour = value.as(Double.self) {
                     AxisValueLabel {
@@ -534,8 +534,8 @@ private struct ConsumptionEVChargingHourChart: View {
         }
         .chartYAxis {
             AxisMarks(position: .leading) { value in
-                AxisGridLine()
-                    .foregroundStyle(.tertiary)
+                AxisGridLine(stroke: HistoryChartAxis.gridStroke)
+                    .foregroundStyle(DS.Color.gridLine)
                 AxisValueLabel {
                     if let amount = value.as(Double.self) {
                         Text(amount, format: .number.precision(.fractionLength(0...1)))
@@ -602,7 +602,7 @@ private struct ConsumptionInsightsHourChart: View {
                     y: .value("kWh", bar.averageKWh)
                 )
                 .foregroundStyle(barColor(for: bar))
-                .cornerRadius(2)
+                .cornerRadius(HistoryChartAxis.barRadius)
                 .opacity(barOpacity(for: bar))
             }
 
@@ -620,9 +620,9 @@ private struct ConsumptionInsightsHourChart: View {
         .chartXScale(domain: -0.5...23.5)
         .chartXAxis {
             AxisMarks(values: HistoryChartAxis.clockHourMarks) { value in
-                AxisGridLine()
-                    .foregroundStyle(.tertiary)
-                AxisTick()
+                AxisGridLine(stroke: HistoryChartAxis.gridStroke)
+                    .foregroundStyle(DS.Color.gridLine)
+                AxisTick(length: 0)
                     .foregroundStyle(.tertiary)
                 if let hour = value.as(Double.self) {
                     AxisValueLabel {
@@ -633,8 +633,8 @@ private struct ConsumptionInsightsHourChart: View {
         }
         .chartYAxis {
             AxisMarks(position: .leading) { value in
-                AxisGridLine()
-                    .foregroundStyle(.tertiary)
+                AxisGridLine(stroke: HistoryChartAxis.gridStroke)
+                    .foregroundStyle(DS.Color.gridLine)
                 AxisValueLabel {
                     if let amount = value.as(Double.self) {
                         Text(amount, format: .number.precision(.fractionLength(0...1)))

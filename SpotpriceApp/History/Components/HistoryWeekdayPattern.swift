@@ -30,7 +30,7 @@ struct HistoryWeekdayPattern: View {
                             y: .value("kr", weekday.averageCostKr ?? 0)
                         )
                         .foregroundStyle(barColor(for: weekday))
-                        .cornerRadius(3)
+                        .cornerRadius(HistoryChartAxis.barRadius)
                         .opacity(selectedLabel == nil || selectedLabel == weekday.label ? 1 : 0.4)
                     }
 
@@ -46,7 +46,7 @@ struct HistoryWeekdayPattern: View {
                 .chartXSelection(value: $selectedLabel)
                 .chartXAxis {
                     AxisMarks { value in
-                        AxisTick()
+                        AxisTick(length: 0)
                             .foregroundStyle(.tertiary)
                         AxisValueLabel {
                             if let label = value.as(String.self) {
@@ -57,8 +57,8 @@ struct HistoryWeekdayPattern: View {
                 }
                 .chartYAxis {
                     AxisMarks(position: .leading) { value in
-                        AxisGridLine()
-                            .foregroundStyle(.tertiary)
+                        AxisGridLine(stroke: HistoryChartAxis.gridStroke)
+                            .foregroundStyle(DS.Color.gridLine)
                         AxisValueLabel {
                             if let amount = value.as(Double.self) {
                                 Text(amount, format: .number.precision(.fractionLength(0)))

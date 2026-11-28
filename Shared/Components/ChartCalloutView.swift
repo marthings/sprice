@@ -210,7 +210,7 @@ struct ChartCalloutView: View {
                 }
         case .opaque:
             RoundedRectangle(cornerRadius: DS.Radius.sm)
-                .fill(colorScheme == .dark ? Color(red: 0.08, green: 0.09, blue: 0.11) : Color.white)
+                .fill(colorScheme == .dark ? DS.Color.surfaceInset : Color.white)
                 .overlay {
                     RoundedRectangle(cornerRadius: DS.Radius.sm)
                         .stroke(
@@ -249,7 +249,7 @@ struct ChartValueCallout: View {
         .padding(.vertical, DS.Spacing.xs)
         .background {
             RoundedRectangle(cornerRadius: DS.Radius.sm, style: .continuous)
-                .fill(colorScheme == .dark ? Color(red: 0.12, green: 0.13, blue: 0.16) : Color.white)
+                .fill(colorScheme == .dark ? DS.Color.surfaceInset : Color.white)
         }
         .overlay {
             RoundedRectangle(cornerRadius: DS.Radius.sm, style: .continuous)
@@ -258,7 +258,7 @@ struct ChartValueCallout: View {
                     lineWidth: 0.5
                 )
         }
-        .shadow(color: .black.opacity(colorScheme == .dark ? 0.35 : 0.12), radius: 4, y: 2)
+        .shadow(color: DS.Elevation.cardShadowColor.opacity(colorScheme == .dark ? 0.5 : 0.12), radius: 6, y: 2)
         .fixedSize()
     }
 

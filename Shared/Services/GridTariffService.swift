@@ -104,7 +104,7 @@ final class GridTariffService: Sendable {
             let providerMonthlyFeeKr = (providerMonthlyFee / hoursInMonth) * hoursInPeriod
 
             // Swedish standard taxes (2025/2026)
-            let standardEnergyTax = 45.0    // öre/kWh incl. VAT, 2026
+            let standardEnergyTax = CostProfile.SwedishDefaults.energyTaxOrePerKWh    // öre/kWh incl. VAT, today's row in HistoricalTariffRates
             let standardCertificateFee = 1.75  // öre/kWh incl. VAT
             let energyTaxKr = (standardEnergyTax / 100.0) * kWh
             let certificateFeeKr = (standardCertificateFee / 100.0) * kWh
@@ -179,7 +179,9 @@ final class GridTariffService: Sendable {
     
     private func getLocalPresetTariff(forDSO orgNo: String, fuseSize: Int) -> SimplifiedTariff? {
         // Local preset values for 2026 (incl. VAT). User-entered values still win.
-        // Fixed fees are monthly, energy is per kWh, power is per kW/month
+        // Fixed fees are monthly, energy is per kWh, power is per kW/month.
+        // Where `HistoricalTariffRates` has rows (energy tax, Vaggeryd's fees), today's row
+        // is used instead of the values below, so a new year only needs a new row there.
         
         // Fuse-based tariffs (monthly fixed fee by ampere rating)
         let fuseTariffs: [String: (name: String, fuseFees: [Int: Double], energy: Double, power: Double?, energyTax: Double)] = [
@@ -255,16 +257,22 @@ final class GridTariffService: Sendable {
         }
         
         let fixedFee = data.fuseFees[matchedSize] ?? data.fuseFees[20] ?? 0
-        
+        let today = Date()
+        let row = HistoricalTariffRates.gridFee(company: orgNo, fuseSize: matchedSize, on: today)
+        let energyTax = HistoricalTariffRates.energyTax(
+            for: EnergyTaxRegion.forGridCompany(orgNo),
+            on: today
+        ) ?? data.energyTax
+
         return SimplifiedTariff(
             dsoName: data.name,
             dsoOrgNo: orgNo,
-            monthlyFixedFee: fixedFee,
-            energyTariffPerKWh: data.energy,
-            powerTariffPerKW: data.power,
-            validFrom: Date(),
+            monthlyFixedFee: row?.monthlyFee ?? fixedFee,
+            energyTariffPerKWh: row.map { $0.transferOrePerKWh / 100.0 } ?? data.energy,
+            powerTariffPerKW: row == nil ? data.power : row?.powerFeeKrPerKW,
+            validFrom: today,
             validTo: nil,
-            energyTaxPerKWh: data.energyTax,
+            energyTaxPerKWh: energyTax,
             certificateFeePerKWh: 1.75,     // Electricity certificate fee (öre/kWh incl. VAT)
             fuseSize: matchedSize
         )

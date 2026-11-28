@@ -93,7 +93,7 @@ private struct SpotPriceBarChartHeader: View {
                     }
                 } else {
                     Text("–")
-                        .font(DS.Font.bold(20))
+                        .font(DS.Font.black(20))
                         .foregroundStyle(DS.Color.secondary)
                 }
             }
@@ -249,15 +249,15 @@ private struct SpotPriceBarChartPlot: View {
 
             if !costProfile.isSpotFollowingRetailContract, let contractPrice = costProfile.contractPriceOrePerKWh {
                 RuleMark(y: .value("Avtalat pris", contractPrice))
-                    .foregroundStyle(.blue.opacity(0.7))
+                    .foregroundStyle(DS.Color.accent.opacity(0.7))
                     .lineStyle(StrokeStyle(lineWidth: 2, dash: [6, 4]))
                     .annotation(position: .top, alignment: .trailing, overflowResolution: ChartCalloutOverflow.resolution) {
                         Text("Ditt avtal: \((contractPrice / 100).formatted(.number.precision(.fractionLength(2)))) kr/kWh")
                             .font(DS.Font.footnote)
-                            .foregroundStyle(.blue)
+                            .foregroundStyle(DS.Color.accentText)
                             .padding(.horizontal, DS.Spacing.xs)
                             .padding(.vertical, DS.Spacing.xxs)
-                            .background(.blue.opacity(0.1), in: .capsule)
+                            .background(DS.Color.accent.opacity(0.1), in: .capsule)
                     }
                     .accessibilityLabel("Avtalat elpris")
             }
@@ -308,9 +308,9 @@ private struct SpotPriceBarChartPlot: View {
         .chartXAxis {
             if configuration.showXAxisLabels {
                 AxisMarks(values: .stride(by: .hour, count: 6)) { value in
-                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
-                        .foregroundStyle(.tertiary)
-                    AxisTick(stroke: StrokeStyle(lineWidth: 0.5))
+                    AxisGridLine(stroke: HistoryChartAxis.gridStroke)
+                        .foregroundStyle(DS.Color.gridLine)
+                    AxisTick(length: 0)
                         .foregroundStyle(DS.Color.secondary)
                     if let date = value.as(Date.self) {
                         AxisValueLabel {
@@ -325,9 +325,9 @@ private struct SpotPriceBarChartPlot: View {
         .chartYAxis {
             if configuration.showYAxisLabels {
                 AxisMarks(position: .leading) { value in
-                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
-                        .foregroundStyle(.tertiary)
-                    AxisTick(stroke: StrokeStyle(lineWidth: 0.5))
+                    AxisGridLine(stroke: HistoryChartAxis.gridStroke)
+                        .foregroundStyle(DS.Color.gridLine)
+                    AxisTick(length: 0)
                         .foregroundStyle(DS.Color.secondary)
                     AxisValueLabel {
                         if let price = value.as(Double.self) {

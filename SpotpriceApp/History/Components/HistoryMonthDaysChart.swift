@@ -42,6 +42,9 @@ struct HistoryMonthDaysChart: View {
         } else {
             parts.append("Varje stapel är vad en dag har kostat. Tryck på en dag för att se timmarna.")
         }
+        if days.contains(where: { $0.isPreliminary && $0.costKr != nil }) {
+            parts.append(MonthDayCost.preliminaryExplanation)
+        }
         if !temperaturePoints.isEmpty {
             parts.append("Linjen är temperaturen ute. Skalan till höger hör till linjen.")
             parts.append("Temperaturen kommer från Open-Meteo för den ort du valt under Inställningar.")
@@ -95,7 +98,7 @@ struct HistoryMonthDaysChart: View {
                     y: .value("kr", day.costKr ?? 0)
                 )
                 .foregroundStyle(barColor(for: day, expensiveID: expensive?.id))
-                .cornerRadius(3)
+                .cornerRadius(HistoryChartAxis.barRadius)
                 .opacity(barOpacity(for: day))
             }
 
@@ -113,9 +116,9 @@ struct HistoryMonthDaysChart: View {
         }
         .chartXAxis {
             AxisMarks(values: .stride(by: .day, count: xAxisStride)) { value in
-                AxisGridLine()
-                    .foregroundStyle(.tertiary)
-                AxisTick()
+                AxisGridLine(stroke: HistoryChartAxis.gridStroke)
+                    .foregroundStyle(DS.Color.gridLine)
+                AxisTick(length: 0)
                     .foregroundStyle(.tertiary)
                 if let date = value.as(Date.self) {
                     AxisValueLabel {
@@ -126,9 +129,9 @@ struct HistoryMonthDaysChart: View {
         }
         .chartYAxis {
             AxisMarks(position: .leading) { value in
-                AxisGridLine()
-                    .foregroundStyle(.tertiary)
-                AxisTick()
+                AxisGridLine(stroke: HistoryChartAxis.gridStroke)
+                    .foregroundStyle(DS.Color.gridLine)
+                AxisTick(length: 0)
                 AxisValueLabel {
                     if let amount = value.as(Double.self) {
                         Text(amount, format: .number.precision(.fractionLength(0)))
@@ -250,10 +253,8 @@ struct HistoryMonthDaysChart: View {
         if day.costKr == nil {
             return 0.18
         }
-        if selectedDay == nil || selectedDay?.id == day.id {
-            return 1
-        }
-        return 0.35
+        let opacity = selectedDay == nil || selectedDay?.id == day.id ? 1 : 0.35
+        return opacity * day.preliminaryOpacity
     }
 
     private func open(_ day: MonthDayCost) {
@@ -264,10 +265,6 @@ struct HistoryMonthDaysChart: View {
     }
 
     private func accessibilityLabel(for day: MonthDayCost) -> String {
-        let heading = AppFormatters.weekdayDayMonth(day.date)
-        if let cost = day.costKr {
-            return "\(heading), \(AppFormatters.wholeNumber(cost)) kronor"
-        }
-        return "\(heading), ingen kostnad sparad"
+        "\(AppFormatters.weekdayDayMonth(day.date)), \(day.accessibilityValue)"
     }
 }

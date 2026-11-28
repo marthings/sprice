@@ -1,4 +1,5 @@
 import SwiftUI
+import os
 import Charts
 
 struct MonthDailyCostSection: View {
@@ -17,6 +18,8 @@ struct MonthDailyCostSection: View {
     @State private var selectedDayTiming: String?
     @State private var loadFailed = false
     @State private var didLoad = false
+    /// Old minus today's price for days this month under an older agreement version.
+    @State private var liveAdjustmentKr: Double = 0
     @ScaledMetric(relativeTo: .body) private var chartHeight: CGFloat = 196
 
     private var calendar: Calendar { .energyHistory }
@@ -62,6 +65,12 @@ struct MonthDailyCostSection: View {
         .onChange(of: hasProvider) { _, _ in
             Task { await loadDays() }
         }
+        .onChange(of: profile) { _, _ in
+            Task { await loadDays() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .energyHistoryDidUpdate)) { _ in
+            Task { await loadDays() }
+        }
         .onChange(of: selectedDay) { _, day in
             Task { await loadTiming(for: day) }
         }
@@ -77,6 +86,9 @@ struct MonthDailyCostSection: View {
             parts.append("Så här har månaden kostat hittills.")
         }
         parts.append("Dagens stapel växer under dagen, och mätvärden kan komma in med lite fördröjning.")
+        if days.contains(where: { $0.isPreliminary && $0.costKr != nil }) {
+            parts.append(MonthDayCost.preliminaryExplanation)
+        }
         if hypotheticalEffectTariffKr != nil {
             parts.append("Effektavgiften gäller hela månaden, så den syns inte i staplarna.")
         }
@@ -212,8 +224,10 @@ struct MonthDailyCostSection: View {
                     y: .value("Kronor per dag", day.costKr ?? 0)
                 )
                 .foregroundStyle(barColor(for: day, expensiveID: expensive?.id))
-                .cornerRadius(3)
+                .cornerRadius(HistoryChartAxis.barRadius)
                 .opacity(barOpacity(for: day))
+                .accessibilityLabel(AppFormatters.weekdayDayMonth(day.date))
+                .accessibilityValue(day.accessibilityValue)
             }
 
             if let selectedDay {
@@ -232,9 +246,9 @@ struct MonthDailyCostSection: View {
         .chartYScale(domain: 0...(dailyYMax * 1.18))
         .chartXAxis {
             AxisMarks(values: .stride(by: .day, count: xAxisStride)) { value in
-                AxisGridLine()
-                    .foregroundStyle(.tertiary)
-                AxisTick()
+                AxisGridLine(stroke: HistoryChartAxis.gridStroke)
+                    .foregroundStyle(DS.Color.gridLine)
+                AxisTick(length: 0)
                     .foregroundStyle(.tertiary)
                 if let date = value.as(Date.self) {
                     AxisValueLabel {
@@ -245,9 +259,9 @@ struct MonthDailyCostSection: View {
         }
         .chartYAxis {
             AxisMarks(position: .leading) { value in
-                AxisGridLine()
-                    .foregroundStyle(.tertiary)
-                AxisTick()
+                AxisGridLine(stroke: HistoryChartAxis.gridStroke)
+                    .foregroundStyle(DS.Color.gridLine)
+                AxisTick(length: 0)
                 AxisValueLabel {
                     axisAmountLabel(value.as(Double.self), visible: true, trailing: false)
                 }
@@ -326,7 +340,7 @@ struct MonthDailyCostSection: View {
             AxisMarks(values: .stride(by: .day, count: xAxisStride)) { value in
                 AxisGridLine()
                     .foregroundStyle(.clear)
-                AxisTick()
+                AxisTick(length: 0)
                     .foregroundStyle(.clear)
                 if let date = value.as(Date.self) {
                     AxisValueLabel {
@@ -340,16 +354,16 @@ struct MonthDailyCostSection: View {
             AxisMarks(position: .leading) { value in
                 AxisGridLine()
                     .foregroundStyle(.clear)
-                AxisTick()
+                AxisTick(length: 0)
                     .foregroundStyle(.clear)
                 AxisValueLabel {
                     axisAmountLabel(value.as(Double.self), visible: false, trailing: false)
                 }
             }
             AxisMarks(position: .trailing) { value in
-                AxisGridLine()
-                    .foregroundStyle(.tertiary)
-                AxisTick()
+                AxisGridLine(stroke: HistoryChartAxis.gridStroke)
+                    .foregroundStyle(DS.Color.gridLine)
+                AxisTick(length: 0)
                 AxisValueLabel {
                     axisAmountLabel(value.as(Double.self), visible: true, trailing: true)
                 }
@@ -488,13 +502,12 @@ struct MonthDailyCostSection: View {
         } else {
             through = nil
         }
-        return MonthlyCostEstimator().forecastMonth(
+        return MonthDailyCostBuilder.forecast(
             spentKr: spentSoFarKr,
-            consumptionKWh: 0,
-            spotPriceOre: 0,
+            liveAdjustmentKr: liveAdjustmentKr,
             profile: profile,
             measuredThrough: through
-        )?.forecastKr
+        )
     }
 
     private var lineYMax: Double {
@@ -532,10 +545,8 @@ struct MonthDailyCostSection: View {
         if day.costKr == nil {
             return 0.18
         }
-        if selectedDay == nil || selectedDay?.id == day.id {
-            return 1
-        }
-        return 0.35
+        let opacity = selectedDay == nil || selectedDay?.id == day.id ? 1 : 0.35
+        return opacity * day.preliminaryOpacity
     }
 
     @MainActor
@@ -581,6 +592,11 @@ struct MonthDailyCostSection: View {
         }
 #endif
 
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-historyAudit") {
+            MonthDailyCostBuilder.auditLog(priceArea: priceArea, profile: profile, now: now, calendar: calendar)
+        }
+#endif
         do {
             let history = try EnergyHistoryQueryService().loadMonthHistory(
                 priceArea: priceArea,
@@ -592,6 +608,7 @@ struct MonthDailyCostSection: View {
                 now: now,
                 calendar: calendar
             )
+            liveAdjustmentKr = LiveMonthPricing.adjustment(priceArea: priceArea, current: profile, now: now, calendar: calendar)?.totalKr ?? 0
             loadFailed = false
         } catch {
             days = []
@@ -620,11 +637,43 @@ struct MonthDayCost: Identifiable, Equatable {
     let costKr: Double?
     let kWh: Double?
     let isToday: Bool
+    /// Some value or cost of the day may still change. Drawn a little lighter.
+    var isPreliminary: Bool = false
 
     var id: Date { date }
+
+    /// How much lighter a preliminary bar is drawn.
+    var preliminaryOpacity: Double { isPreliminary ? 0.5 : 1 }
+
+    var accessibilityValue: String {
+        guard let costKr else { return "ingen kostnad sparad" }
+        let amount = "\(AppFormatters.wholeNumber(costKr)) kronor"
+        return isPreliminary ? "\(amount), preliminärt" : amount
+    }
+
+    static let preliminaryExplanation = "Ljusare staplar är preliminära. Mätvärden kan ändras de första två dygnen, och ett pris som inte är känt än kan också ändras."
 }
 
 enum MonthDailyCostBuilder {
+    /// Month forecast from what is spent so far. Days under an older agreement version are
+    /// done and keep their price; only today's version is extrapolated over the month.
+    static func forecast(
+        spentKr: Double,
+        liveAdjustmentKr: Double,
+        profile: CostProfile,
+        measuredThrough: Date?,
+        now: Date = Date()
+    ) -> Double? {
+        MonthlyCostEstimator().forecastMonth(
+            spentKr: spentKr - liveAdjustmentKr,
+            consumptionKWh: 0,
+            spotPriceOre: 0,
+            profile: profile,
+            measuredThrough: measuredThrough,
+            now: now
+        ).map { $0.forecastKr + liveAdjustmentKr }
+    }
+
     static func bars(
         from intervals: [HistoricalEnergyIntervalValue],
         profile: CostProfile,
@@ -632,16 +681,22 @@ enum MonthDailyCostBuilder {
         calendar: Calendar
     ) -> [MonthDayCost] {
         let service = TotalCostService.shared
+        let versions = HistoryPricing.savedVersions()
         var costByDay: [Date: (cost: Double, kWh: Double)] = [:]
+        var profileByDay: [Date: CostProfile] = [:]
         for interval in intervals {
             let kWh = interval.consumptionKWh ?? 0
             guard kWh > 0 else { continue }
             let dayStart = calendar.startOfDay(for: interval.intervalStart)
             let hours = max(interval.intervalEnd.timeIntervalSince(interval.intervalStart) / 3600, 0)
+            // Each day with the agreement version in force that day.
+            let dayProfile = profileByDay[dayStart]
+                ?? HistoryPricing.liveProfile(at: dayStart, current: profile, versions: versions)
+            profileByDay[dayStart] = dayProfile
             let cost = service.calculateTotalCost(
                 kWh: kWh,
                 spotPriceOre: interval.spotPriceOrePerKWh,
-                profile: profile,
+                profile: dayProfile,
                 hoursInPeriod: hours
             ).totalKr
             let current = costByDay[dayStart] ?? (0, 0)
@@ -701,6 +756,7 @@ enum MonthDailyCostBuilder {
             uniquingKeysWith: { first, _ in first }
         )
         let service = TotalCostService.shared
+        let versions = HistoryPricing.savedVersions()
         var bars: [MonthDayCost] = []
         var dayStart = monthStart
         let lastDayStart = calendar.startOfDay(for: lastDay)
@@ -716,12 +772,20 @@ enum MonthDailyCostBuilder {
             let cost = dayCostKr(
                 summary: summary,
                 kWh: kWh,
+                isToday: isToday,
                 hoursInPeriod: hoursInPeriod,
-                profile: profile,
+                profile: HistoryPricing.liveProfile(at: dayStart, current: profile, versions: versions),
                 service: service
             )
 
-            bars.append(MonthDayCost(date: dayStart, costKr: cost, kWh: kWh, isToday: isToday))
+            // Today is still being measured; other days follow their saved rows.
+            bars.append(MonthDayCost(
+                date: dayStart,
+                costKr: cost,
+                kWh: kWh,
+                isToday: isToday,
+                isPreliminary: isToday || summary?.isPreliminary == true
+            ))
             guard let next = calendar.date(byAdding: .day, value: 1, to: dayStart) else { break }
             dayStart = next
         }
@@ -732,10 +796,16 @@ enum MonthDailyCostBuilder {
     private static func dayCostKr(
         summary: HistoricalEnergySummaryValue?,
         kWh: Double?,
+        isToday: Bool,
         hoursInPeriod: Double,
         profile: CostProfile,
         service: TotalCostService
     ) -> Double? {
+        // Finished days use the saved cost: priced per interval with the version and fees
+        // of that day, so the bars add up to the month total. Today is still running.
+        if !isToday, let kWh, kWh > 0, let stored = summary?.totalCostSEK {
+            return stored
+        }
         if let kWh, kWh > 0, let spot = summary?.averageSpotPriceOrePerKWh {
             return service.calculateTotalCost(
                 kWh: kWh,
@@ -747,3 +817,41 @@ enum MonthDailyCostBuilder {
         return summary?.totalCostSEK
     }
 }
+
+#if DEBUG
+extension MonthDailyCostBuilder {
+    /// `-historyAudit`: logs per month the month total, the day bars (now and with the old
+    /// rule: today's profile on kWh times the day's average spot price) and the widget
+    /// summary, and for the running month the live version adjustment and forecast.
+    static func auditLog(priceArea: String, profile: CostProfile, now: Date, calendar: Calendar) {
+        let query = EnergyHistoryQueryService()
+        guard let history = try? query.loadMonthHistory(priceArea: priceArea, selectedMonthKey: nil) else { return }
+        let service = TotalCostService.shared
+        for month in history.months.sorted(by: { $0.periodStart < $1.periodStart }) {
+            guard let days = try? query.loadMonthHistory(priceArea: priceArea, selectedMonthKey: month.periodKey).dailySummaries,
+                  let interval = calendar.dateInterval(of: .month, for: month.periodStart) else { continue }
+            let isCurrent = calendar.isDate(month.periodStart, equalTo: now, toGranularity: .month)
+            let lastDay = isCurrent ? now : interval.end.addingTimeInterval(-1)
+            let bars = Self.bars(from: days, profile: profile, monthStart: interval.start, lastDay: lastDay, now: now, calendar: calendar)
+            let oldBars = days.reduce(0.0) { total, day in
+                guard let kWh = day.totalConsumptionKWh, kWh > 0, let spot = day.averageSpotPriceOrePerKWh else {
+                    return total + (day.totalCostSEK ?? 0)
+                }
+                return total + service.calculateTotalCost(kWh: kWh, spotPriceOre: spot, profile: profile, hoursInPeriod: 24).totalKr
+            }
+            let barSum = bars.compactMap(\.costKr).reduce(0, +)
+            let widget = WidgetHistorySummaryCache.summary(monthKey: month.periodKey, priceArea: priceArea)?.totalCostSEK
+            var line = "HistoryAudit \(month.periodKey) month=\(String(format: "%.4f", month.totalCostSEK ?? -1)) bars=\(String(format: "%.4f", barSum)) oldBars=\(String(format: "%.4f", oldBars)) widget=\(String(format: "%.4f", widget ?? -1))"
+            if isCurrent {
+                let adjustment = LiveMonthPricing.adjustment(priceArea: priceArea, current: profile, now: now, calendar: calendar)?.totalKr ?? 0
+                let forecast = Self.forecast(spentKr: barSum, liveAdjustmentKr: adjustment, profile: profile, measuredThrough: now, now: now) ?? -1
+                line += " liveAdjustment=\(String(format: "%.4f", adjustment)) forecastFromBars=\(String(format: "%.4f", forecast))"
+            }
+            let preliminaryDays = days.filter(\.isPreliminary).map(\.periodKey).sorted()
+            let widgetPreliminary = WidgetHistorySummaryCache.summary(monthKey: month.periodKey, priceArea: priceArea)?.isPreliminary
+            line += " preliminary=\(month.isPreliminary) widgetPreliminary=\(widgetPreliminary.map(String.init(describing:)) ?? "nil") preliminaryDays=\(preliminaryDays.joined(separator: ","))"
+            AppLog.history.info("\(line, privacy: .public)")
+        }
+    }
+}
+#endif

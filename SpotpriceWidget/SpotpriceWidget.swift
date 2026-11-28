@@ -232,7 +232,7 @@ private struct SpotpriceWidgetPriceRow: View {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
                         Text(totalCostPerKWh, format: .number.precision(.fractionLength(2)))
-                            .font(DS.Font.bold(24))
+                            .font(DS.Font.black(24))
                             .foregroundStyle(renderingMode == .accented ? .primary : currentPriceColor)
                         Text("kr/kWh")
                             .font(DS.Font.footnote)
@@ -248,7 +248,7 @@ private struct SpotpriceWidgetPriceRow: View {
             } else if let spotPriceOre {
                 HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
                     Text(Double(spotPriceOre) / 100, format: .number.precision(.fractionLength(2)))
-                        .font(DS.Font.bold(24))
+                        .font(DS.Font.black(24))
                         .foregroundStyle(renderingMode == .accented ? .primary : currentPriceColor)
                     Text("kr/kWh")
                         .font(DS.Font.footnote)

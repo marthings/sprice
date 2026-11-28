@@ -46,7 +46,7 @@ struct MonthlyCostCard: View {
             // Total cost - primary focus
             HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
                 Text(displayedTotalKr, format: .number.precision(.fractionLength(0)))
-                    .font(DS.Font.bold(28))
+                    .font(DS.Font.black(28))
                     .foregroundStyle(.primary)
                     .spriceNumericText(displayedTotalKr)
                 Text("kr")
@@ -66,10 +66,10 @@ struct MonthlyCostCard: View {
                 HStack(spacing: DS.Spacing.xs) {
                     Image(systemName: "info.circle.fill")
                         .font(.system(size: 11))
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(DS.Color.accentText)
                     Text("Lägg till elhandelsavtal eller elnätsuppgifter för bättre uppskattning")
                         .font(DS.Font.footnote)
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(DS.Color.accentText)
                 }
                 .padding(.top, DS.Spacing.xxs)
             }
@@ -89,7 +89,7 @@ struct MonthlyCostCard: View {
                 CostBreakdownRow(
                     label: "Elhandel",
                     amount: enhancedCost.providerTotalKr,
-                    color: .blue
+                    color: DS.Color.accent
                 )
                 if enhancedCost.spotCostKr > 0 {
                     CostBreakdownSubRow(
@@ -115,7 +115,7 @@ struct MonthlyCostCard: View {
                     CostBreakdownRow(
                         label: "Nät",
                         amount: enhancedCost.gridTotalKr,
-                        color: .orange
+                        color: DS.Color.warning
                     )
                     if enhancedCost.gridEnergyCostKr > 0 {
                         CostBreakdownSubRow(
@@ -150,7 +150,7 @@ struct MonthlyCostCard: View {
                     CostBreakdownRow(
                         label: "Skatter & avgifter",
                         amount: enhancedCost.taxesAndFeesKr,
-                        color: .green
+                        color: DS.Color.success
                     )
                     if enhancedCost.energyTaxKr > 0 {
                         CostBreakdownSubRow(

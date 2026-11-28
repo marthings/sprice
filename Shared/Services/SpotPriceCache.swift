@@ -2,7 +2,14 @@
 //  SpotPriceCache.swift
 //  Spotprice
 //
-//  Persistent App Group cache for daily spot prices, shared by the app, backfill and widgets.
+//  Spot price archive: one JSON file per day and elområde in the App Group
+//  (`SpotPriceCache/<område>/<dag>.json`), shared by the app, backfill and widgets.
+//
+//  This is an archive, not a throw-away cache. The spot price of a past day never
+//  changes, so a saved day is kept for good and nothing here deletes old days.
+//  History can then always be priced again from these files. Only today and
+//  tomorrow are fetched again, while their prices may still be incomplete.
+//  The folder keeps its old name so files already saved are still found.
 //
 
 import Foundation
@@ -53,6 +60,24 @@ actor SpotPriceCache {
             return nil
         }
         return Self.lookup(from: items)
+    }
+
+    /// Whole days in `start..<end` (Swedish time) that have no saved prices for `area`.
+    /// Reads only the folder listing, not the files.
+    func missingDays(from start: Date, to end: Date, area: String) -> [Date] {
+        let archived = Self.archivedDayKeys(area: area)
+        var missing: [Date] = []
+        var day = calendar.startOfDay(for: start)
+        let endDay = calendar.startOfDay(for: end)
+        while day < endDay {
+            let dayKey = EnergyHistoryKey.dayKey(for: day, calendar: calendar)
+            if memory[Self.memoryKey(area: area, dayKey: dayKey)] == nil, !archived.contains(dayKey) {
+                missing.append(day)
+            }
+            guard let next = calendar.date(byAdding: .day, value: 1, to: day) else { break }
+            day = next
+        }
+        return missing
     }
 
     func store(_ items: [SpotPriceItem], area: String, now: Date = Date()) {
@@ -190,6 +215,14 @@ actor SpotPriceCache {
             .appendingPathComponent(SpotPriceCachePolicy.folderName, isDirectory: true)
             .appendingPathComponent(area, isDirectory: true)
             .appendingPathComponent("\(dayKey).json", isDirectory: false)
+    }
+
+    nonisolated private static func archivedDayKeys(area: String) -> Set<String> {
+        guard let folder = fileURL(area: area, dayKey: "x")?.deletingLastPathComponent(),
+              let names = try? FileManager.default.contentsOfDirectory(atPath: folder.path) else {
+            return []
+        }
+        return Set(names.filter { $0.hasSuffix(".json") }.map { String($0.dropLast(5)) })
     }
 
     nonisolated private static func date(fromDayKey dayKey: String, calendar: Calendar) -> Date? {

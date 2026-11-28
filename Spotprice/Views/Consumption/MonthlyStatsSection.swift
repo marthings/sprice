@@ -131,12 +131,20 @@ struct MonthlyStatsSection: View {
         let avgSpotPriceOre = kWh > 0 ? (spotCostKr / kWh) * 100.0 : 0
 
         // Use full month hours for monthly fixed fees
-        return service.calculateTotalCost(
+        let cost = service.calculateTotalCost(
             kWh: kWh,
             spotPriceOre: avgSpotPriceOre,
             profile: settings.costProfile,
             hoursInPeriod: 730  // Full month
         )
+        // Days this month under an older agreement version keep that version's price.
+        guard let adjustment = LiveMonthPricing.adjustment(
+            priceArea: settings.costProfile.priceArea,
+            current: settings.costProfile
+        ) else {
+            return cost
+        }
+        return cost.adding(adjustment)
     }
 
     private func historySummaryCard(_ summary: HistoricalEnergySummaryValue) -> some View {

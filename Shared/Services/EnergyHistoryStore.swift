@@ -119,6 +119,38 @@ enum EnergyHistoryStores {
     }
 }
 
+/// The running month when part of it lies under an older agreement version.
+@MainActor
+enum LiveMonthPricing {
+    /// Old minus today's price for the month's saved intervals under an older version.
+    /// Nil (and no reading) in the normal case where the whole month uses today's version.
+    static func adjustment(
+        priceArea: String?,
+        current: CostProfile,
+        now: Date = Date(),
+        calendar: Calendar = .energyHistory
+    ) -> EnhancedCost? {
+        let versions = HistoryPricing.savedVersions()
+        guard let month = calendar.dateInterval(of: .month, for: now),
+              HistoryPricing.monthHasOlderVersion(month, versions: versions) else {
+            return nil
+        }
+        let monthKey = EnergyHistoryKey.monthKey(for: now, calendar: calendar)
+        guard let intervals = try? EnergyHistoryQueryService().loadPreferredIntervals(monthKey: monthKey, priceArea: priceArea) else {
+            return nil
+        }
+        return HistoryPricing.liveAdjustment(
+            intervals: intervals.compactMap { interval in
+                guard let kWh = interval.consumptionKWh, kWh > 0 else { return nil }
+                return (interval.intervalStart, interval.intervalEnd, kWh, interval.spotPriceOrePerKWh)
+            },
+            current: current,
+            versions: versions,
+            calendar: calendar
+        )
+    }
+}
+
 @MainActor
 final class EnergyHistoryQueryService: EnergyHistoryQuerying {
     private let store: (any EnergyHistoryStore)?
@@ -940,6 +972,10 @@ final class SwiftDataEnergyHistoryStore: EnergyHistoryStore {
         guard !records.isEmpty else { return .priceOnly }
 
         let confidences = Set(records.map(\.confidence))
+        // Preliminary wins: one value that may change makes the day or month preliminary.
+        if confidences.contains(.preliminary) {
+            return .preliminary
+        }
         if confidences == [.measured] {
             return .measured
         }
@@ -990,11 +1026,13 @@ actor EnergyHistoryWriter {
 
     func repriceMeasuredRecords(
         lookups: [String: [Date: Double]],
-        fallbackProfile: CostProfile
+        fallbackProfile: CostProfile,
+        versions: [CostProfileVersion]
     ) throws -> Int {
         try EnergyHistoryWriting.repriceMeasuredRecords(
             lookups: lookups,
             fallbackProfile: fallbackProfile,
+            versions: versions,
             context: modelContext,
             calendar: .energyHistory
         )
@@ -1061,43 +1099,289 @@ nonisolated enum EnergyHistoryWriting {
         guard !drafts.isEmpty else { return }
 
         let now = Date()
-        let snapshotData = drafts.lazy.compactMap(\.costProfileSnapshot).first.flatMap(
-            HistoricalCostProfileSnapshot.encodedData
-        )
-        let snapshotHash = snapshotData.map(HistoricalCostProfileSnapshot.hash(of:))
-        if let snapshotData, let snapshotHash {
-            try upsertSnapshotRecord(snapshotHash: snapshotHash, data: snapshotData, context: context)
+        let versions = HistoryPricing.savedVersions()
+        var draftProfiles: [Int: CostProfile] = [:]
+        func pricedProfile(_ index: Int) -> CostProfile? {
+            if let known = draftProfiles[index] { return known }
+            let profile = drafts[index].costProfileSnapshot.flatMap(CostProfile.init(historySnapshot:))
+            draftProfiles[index] = profile
+            return profile
+        }
+        // Each draft keeps its own profile: intervals under different agreement versions
+        // or fee periods can be saved in one batch.
+        var snapshotHashes: [Data: String] = [:]
+        var draftSnapshots: [(data: Data?, hash: String?)] = []
+        draftSnapshots.reserveCapacity(drafts.count)
+        for draft in drafts {
+            guard let data = draft.costProfileSnapshot.flatMap(HistoricalCostProfileSnapshot.encodedData) else {
+                draftSnapshots.append((nil, nil))
+                continue
+            }
+            if let hash = snapshotHashes[data] {
+                draftSnapshots.append((data, hash))
+                continue
+            }
+            let hash = HistoricalCostProfileSnapshot.hash(of: data)
+            try upsertSnapshotRecord(snapshotHash: hash, data: data, context: context)
+            snapshotHashes[data] = hash
+            draftSnapshots.append((data, hash))
         }
         var existingByKey = try fetchExistingRecords(for: drafts, context: context)
         var affectedDayKeys = Set<String>()
         var affectedMonthKeys = Set<String>()
+        // Same interval saved under an older key (the repeated autumn hour got its own key
+        // later): update that row instead of adding a second one.
+        var existingByInterval: [String: HistoricalEnergyRecord] = [:]
+        for record in existingByKey.values {
+            existingByInterval[intervalIdentity(
+                start: record.intervalStart,
+                end: record.intervalEnd,
+                priceArea: record.priceArea,
+                providerID: record.providerID,
+                source: record.sourceRawValue
+            )] = record
+        }
 
-        for draft in drafts {
+        for (index, draft) in drafts.enumerated() {
             affectedDayKeys.insert(draft.dayKey)
             affectedMonthKeys.insert(draft.monthKey)
+            let snapshotData = draftSnapshots[index].data
+            let snapshotHash = draftSnapshots[index].hash
+            let identity = intervalIdentity(
+                start: draft.intervalStart,
+                end: draft.intervalEnd,
+                priceArea: draft.priceArea,
+                providerID: draft.providerID,
+                source: draft.source.rawValue
+            )
 
-            if let existingRecord = existingByKey[draft.deduplicationKey] {
+            if let existingRecord = existingByKey[draft.deduplicationKey] ?? existingByInterval[identity] {
+                let oldIdentity = intervalIdentity(
+                    start: existingRecord.intervalStart,
+                    end: existingRecord.intervalEnd,
+                    priceArea: existingRecord.priceArea,
+                    providerID: existingRecord.providerID,
+                    source: existingRecord.sourceRawValue
+                )
                 existingRecord.update(
                     from: draft,
                     snapshotData: snapshotData,
                     snapshotHash: snapshotHash,
                     updatedAt: now
                 )
+                // Fetched now: marked while it may still change, settled when fetched late enough.
+                applyPreliminary(to: existingRecord, profile: pricedProfile(index), versions: versions)
+                if existingByInterval[oldIdentity] === existingRecord {
+                    existingByInterval[oldIdentity] = nil
+                }
+                existingByInterval[identity] = existingRecord
             } else {
                 let record = draft.makeRecord(
                     createdAt: now,
                     snapshotData: snapshotData,
                     snapshotHash: snapshotHash
                 )
+                applyPreliminary(to: record, profile: pricedProfile(index), versions: versions)
                 context.insert(record)
                 existingByKey[draft.deduplicationKey] = record
+                existingByInterval[identity] = record
             }
+        }
+
+        // Quarters win over hours: an hour whose four quarters are saved is not counted twice.
+        var nearby = Array(existingByKey.values)
+        if let first = drafts.map(\.intervalStart).min(),
+           let hourStart = calendar.dateInterval(of: .hour, for: first)?.start, hourStart < first {
+            nearby += try context.fetch(FetchDescriptor<HistoricalEnergyRecord>(
+                predicate: #Predicate { $0.intervalStart >= hourStart && $0.intervalStart < first }
+            ))
+        }
+        let removed = removeHoursCoveredByQuarters(nearby, context: context)
+        if !removed.isEmpty {
+            for record in removed {
+                affectedDayKeys.insert(record.dayKey)
+                affectedMonthKeys.insert(record.monthKey)
+            }
+            AppLog.history.info("Removed \(removed.count) hourly intervals already covered by quarter-hours")
         }
 
         try rebuildDailySummaries(dayKeys: affectedDayKeys, updatedAt: now, context: context, calendar: calendar)
         try rebuildMonthlySummaries(monthKeys: affectedMonthKeys, updatedAt: now, context: context, calendar: calendar)
         try context.save()
         try updateWidgetSummaryCache(monthKeys: affectedMonthKeys, updatedAt: now, context: context)
+    }
+
+    /// Sets the row's confidence from `HistoryPreliminary`, with `updatedAt` as the time the
+    /// value was fetched and `profile` as the one it was priced with. True when it changed.
+    @discardableResult
+    nonisolated private static func applyPreliminary(
+        to record: HistoricalEnergyRecord,
+        profile: CostProfile?,
+        versions: [CostProfileVersion]
+    ) -> Bool {
+        let next = HistoryPreliminary.confidence(
+            current: record.confidence,
+            hasConsumption: record.consumptionKWh != nil,
+            intervalStart: record.intervalStart,
+            intervalEnd: record.intervalEnd,
+            fetchedAt: record.updatedAt,
+            profile: profile,
+            versions: versions
+        )
+        guard next != record.confidence else { return false }
+        record.confidenceRawValue = next.rawValue
+        return true
+    }
+
+    /// Marks saved rows once with `HistoryPreliminary` (rows saved before the marks existed),
+    /// month by month with its own context, saving after each month. Amounts are not touched.
+    /// Safe to run again: a second run changes nothing.
+    nonisolated static func markPreliminary(
+        versions: [CostProfileVersion],
+        container: ModelContainer,
+        calendar: Calendar
+    ) throws -> (marked: Int, settled: Int) {
+        let monthKeys = Set(
+            try ModelContext(container)
+                .fetch(FetchDescriptor<HistoricalMonthlyEnergySummary>())
+                .map(\.monthKey)
+        ).sorted()
+        var marked = 0
+        var settled = 0
+        var changedMonths = Set<String>()
+        for monthKey in monthKeys {
+            try Task.checkCancellation()
+            let context = ModelContext(container)
+            context.autosaveEnabled = false
+            let profiles = try storedProfiles(context: context)
+            var changedDays = Set<String>()
+            for record in try fetchRecords(monthKey: monthKey, priceArea: nil, context: context) {
+                guard record.consumptionKWh != nil else { continue }
+                let profile: CostProfile?
+                if let hash = record.snapshotHash, let known = profiles[hash] {
+                    profile = known
+                } else if let data = record.costProfileSnapshotData,
+                          let snapshot = try? JSONDecoder().decode(HistoricalCostProfileSnapshot.self, from: data) {
+                    profile = CostProfile(historySnapshot: snapshot)
+                } else {
+                    profile = nil
+                }
+                guard applyPreliminary(to: record, profile: profile, versions: versions) else { continue }
+                if record.confidence == .preliminary { marked += 1 } else { settled += 1 }
+                changedDays.insert(record.dayKey)
+            }
+            guard !changedDays.isEmpty else { continue }
+            let now = Date()
+            try rebuildDailySummaries(dayKeys: changedDays, updatedAt: now, context: context, calendar: calendar)
+            try rebuildMonthlySummaries(monthKeys: [monthKey], updatedAt: now, context: context, calendar: calendar)
+            try context.save()
+            changedMonths.insert(monthKey)
+        }
+        if !changedMonths.isEmpty {
+            try updateWidgetSummaryCache(monthKeys: changedMonths, updatedAt: Date(), context: ModelContext(container))
+        }
+        return (marked, settled)
+    }
+
+    /// Start of the oldest measured row in `[from, before)` that is still marked because it
+    /// was fetched too early. The recorder fetches back to it, so the row can settle.
+    nonisolated static func oldestEarlyFetchedMeasurement(
+        from: Date,
+        before: Date,
+        container: ModelContainer
+    ) throws -> Date? {
+        let preliminary = HistoricalEnergyConfidence.preliminary.rawValue
+        let descriptor = FetchDescriptor<HistoricalEnergyRecord>(
+            predicate: #Predicate<HistoricalEnergyRecord> { record in
+                record.confidenceRawValue == preliminary && record.intervalStart >= from && record.intervalStart < before
+            },
+            sortBy: [SortDescriptor(\HistoricalEnergyRecord.intervalStart)]
+        )
+        return try ModelContext(container).fetch(descriptor).first { record in
+            record.consumptionKWh != nil
+                && HistoryPreliminary.measurementIsPreliminary(intervalEnd: record.intervalEnd, fetchedAt: record.updatedAt)
+        }?.intervalStart
+    }
+
+    nonisolated private static func storedProfiles(context: ModelContext) throws -> [String: CostProfile] {
+        var profiles: [String: CostProfile] = [:]
+        for stored in try context.fetch(FetchDescriptor<HistoricalCostProfileSnapshotRecord>()) {
+            if let snapshot = try? JSONDecoder().decode(HistoricalCostProfileSnapshot.self, from: stored.snapshotData),
+               let profile = CostProfile(historySnapshot: snapshot) {
+                profiles[stored.snapshotHash] = profile
+            }
+        }
+        return profiles
+    }
+
+    nonisolated private static func intervalIdentity(
+        start: Date,
+        end: Date,
+        priceArea: String,
+        providerID: String?,
+        source: String
+    ) -> String {
+        "\(start.timeIntervalSinceReferenceDate)|\(end.timeIntervalSinceReferenceDate)|\(priceArea)|\(providerID ?? "none")|\(source)"
+    }
+
+    /// Deletes hourly consumption rows whose four quarter-hours are saved for the same
+    /// price area and source. Only such hours are removed, never anything else.
+    /// Returns what was deleted (key values are read before deleting).
+    nonisolated private static func removeHoursCoveredByQuarters(
+        _ records: [HistoricalEnergyRecord],
+        context: ModelContext
+    ) -> [(dayKey: String, monthKey: String)] {
+        var seen = Set<ObjectIdentifier>()
+        let measured = records.filter { record in
+            record.consumptionKWh != nil && seen.insert(ObjectIdentifier(record)).inserted
+        }
+        let items = measured.map { record in
+            IntervalCoverage.Item(
+                start: record.intervalStart,
+                end: record.intervalEnd,
+                group: "\(record.priceArea)|\(record.providerID ?? "none")|\(record.sourceRawValue)"
+            )
+        }
+        return IntervalCoverage.coveredHourIndices(items).map { index in
+            let record = measured[index]
+            let keys = (record.dayKey, record.monthKey)
+            context.delete(record)
+            return keys
+        }
+    }
+
+    /// One pass over saved history that removes hours already covered by quarter-hours,
+    /// month by month with its own context, saving after each month. Safe to run again.
+    nonisolated static func removeHoursCoveredByQuarters(
+        container: ModelContainer,
+        calendar: Calendar
+    ) throws -> Int {
+        let monthKeys = Set(
+            try ModelContext(container)
+                .fetch(FetchDescriptor<HistoricalMonthlyEnergySummary>())
+                .map(\.monthKey)
+        ).sorted()
+        var removedTotal = 0
+        var changedMonths = Set<String>()
+        for monthKey in monthKeys {
+            try Task.checkCancellation()
+            let context = ModelContext(container)
+            context.autosaveEnabled = false
+            let records = try fetchRecords(monthKey: monthKey, priceArea: nil, context: context)
+            let removed = removeHoursCoveredByQuarters(records, context: context)
+            guard !removed.isEmpty else { continue }
+            try context.save()
+            let now = Date()
+            try rebuildDailySummaries(dayKeys: Set(removed.map(\.dayKey)), updatedAt: now, context: context, calendar: calendar)
+            try rebuildMonthlySummaries(monthKeys: Set(removed.map(\.monthKey)), updatedAt: now, context: context, calendar: calendar)
+            try context.save()
+            removedTotal += removed.count
+            changedMonths.formUnion(removed.map(\.monthKey))
+        }
+        if !changedMonths.isEmpty {
+            try updateWidgetSummaryCache(monthKeys: changedMonths, updatedAt: Date(), context: ModelContext(container))
+        }
+        return removedTotal
     }
 
     nonisolated static func exportHistoryCSV(
@@ -1272,6 +1556,7 @@ nonisolated enum EnergyHistoryWriting {
     nonisolated static func repriceMeasuredRecords(
         lookups: [String: [Date: Double]],
         fallbackProfile: CostProfile,
+        versions: [CostProfileVersion] = [],
         context: ModelContext,
         calendar: Calendar
     ) throws -> Int {
@@ -1295,8 +1580,14 @@ nonisolated enum EnergyHistoryWriting {
                 continue
             }
 
-            let storedProfile = try costProfile(for: record, context: context) ?? fallbackProfile
-            let profile = HistoricalTariffRates.profile(storedProfile, forPeriodStarting: record.intervalStart)
+            // The agreement version of the interval's own time, with that date's fees.
+            let base = HistoryPricing.recordBase(
+                at: record.intervalStart,
+                saved: try costProfile(for: record, context: context),
+                fallback: fallbackProfile,
+                versions: versions
+            )
+            let profile = HistoricalTariffRates.profile(base.profile, forPeriodStarting: record.intervalStart)
 
             let cost = service.calculateTotalCost(
                 kWh: consumption,
@@ -1306,15 +1597,18 @@ nonisolated enum EnergyHistoryWriting {
             )
             let spotChanged = abs(record.spotPriceOrePerKWh - spot) > 0.0001
             let totalChanged = abs((record.totalCostSEK ?? 0) - cost.totalKr) > 0.0001
-            guard spotChanged || totalChanged else { continue }
+            // `updatedAt` stays: it tells when the value was fetched, not when it was priced.
+            let markChanged = applyPreliminary(to: record, profile: profile, versions: versions)
+            guard spotChanged || totalChanged || markChanged else { continue }
 
-            record.spotPriceOrePerKWh = spot
-            record.energyCostSEK = cost.providerTotalKr
-            record.gridCostSEK = cost.gridTotalKr
-            record.taxCostSEK = cost.taxesAndFeesKr
-            record.vatCostSEK = cost.vatKr
-            record.totalCostSEK = cost.totalKr
-            record.updatedAt = Date()
+            if spotChanged || totalChanged {
+                record.spotPriceOrePerKWh = spot
+                record.energyCostSEK = cost.providerTotalKr
+                record.gridCostSEK = cost.gridTotalKr
+                record.taxCostSEK = cost.taxesAndFeesKr
+                record.vatCostSEK = cost.vatKr
+                record.totalCostSEK = cost.totalKr
+            }
             changedDays.insert(record.dayKey)
             changedMonths.insert(record.monthKey)
             updated += 1
@@ -1330,23 +1624,31 @@ nonisolated enum EnergyHistoryWriting {
         return updated
     }
 
-    /// Prices saved intervals again with the fees that applied in their own period
-    /// (see `HistoricalTariffRates`). Consumption and spot prices are not touched.
-    /// Safe to run twice: a second run finds nothing to change.
+    /// Prices saved intervals again with the agreement version and the fees that applied
+    /// in their own period (see `HistoryPricing` and `HistoricalTariffRates`). Consumption
+    /// and spot prices are not touched. Safe to run twice: a second run finds nothing to change.
+    ///
+    /// With `from`, only intervals starting at or after it are looked at (a new version
+    /// from today leaves older rows alone).
     ///
     /// Call this away from the main thread. It works one month at a time with its
     /// own short-lived context and saves after each month, so an interrupted run
     /// keeps what it has done.
     nonisolated static func repriceTariffs(
         fallbackProfile: CostProfile,
+        versions: [CostProfileVersion] = [],
+        from: Date? = nil,
         container: ModelContainer,
         calendar: Calendar
     ) throws -> Int {
+        let firstMonthKey = from.map { EnergyHistoryKey.monthKey(for: $0, calendar: calendar) }
         let monthKeys = Set(
             try ModelContext(container)
                 .fetch(FetchDescriptor<HistoricalMonthlyEnergySummary>())
                 .map(\.monthKey)
-        ).sorted()
+        )
+        .filter { key in firstMonthKey.map { key >= $0 } ?? true }
+        .sorted()
 
         var updated = 0
         var changedMonths = Set<String>()
@@ -1357,6 +1659,8 @@ nonisolated enum EnergyHistoryWriting {
             let changedInMonth = try repriceTariffs(
                 monthKey: monthKey,
                 fallbackProfile: fallbackProfile,
+                versions: versions,
+                from: from,
                 context: context,
                 calendar: calendar
             )
@@ -1375,6 +1679,8 @@ nonisolated enum EnergyHistoryWriting {
     nonisolated private static func repriceTariffs(
         monthKey: String,
         fallbackProfile: CostProfile,
+        versions: [CostProfileVersion],
+        from: Date?,
         context: ModelContext,
         calendar: Calendar
     ) throws -> Int {
@@ -1387,13 +1693,14 @@ nonisolated enum EnergyHistoryWriting {
                 storedSnapshots[stored.snapshotHash] = snapshot
             }
         }
-        // (old hash, era) -> hash of the snapshot with that era's fees
+        // (old hash, fees applied) -> hash of the snapshot with those fees
         var swappedHashes: [String: String] = [:]
         var changedDays = Set<String>()
         var updated = 0
 
         for record in records {
             guard let consumption = record.consumptionKWh, consumption > 0 else { continue }
+            if let from, record.intervalStart < from { continue }
 
             let original: HistoricalCostProfileSnapshot?
             if let hash = record.snapshotHash, let snapshot = storedSnapshots[hash] {
@@ -1403,8 +1710,16 @@ nonisolated enum EnergyHistoryWriting {
             } else {
                 original = nil
             }
-            let stored = original.flatMap(CostProfile.init(historySnapshot:)) ?? fallbackProfile
-            let rated = HistoricalTariffRates.profile(stored, forPeriodStarting: record.intervalStart)
+            let saved = original.flatMap(CostProfile.init(historySnapshot:))
+            let stored = saved ?? fallbackProfile
+            // The agreement version in force when the interval started, then that date's fees.
+            let base = HistoryPricing.recordBase(
+                at: record.intervalStart,
+                saved: saved,
+                fallback: fallbackProfile,
+                versions: versions
+            )
+            let rated = HistoricalTariffRates.profile(base.profile, forPeriodStarting: record.intervalStart)
 
             let hoursInPeriod = max(record.intervalEnd.timeIntervalSince(record.intervalStart) / 3600, 1 / 60)
             let cost = service.calculateTotalCost(
@@ -1426,13 +1741,17 @@ nonisolated enum EnergyHistoryWriting {
             }
 
             // Keep the saved profile in step with the fees the interval was priced with.
-            if let original, rated != stored {
-                let cacheKey = "\(record.snapshotHash ?? "embedded")|\(HistoricalTariffRates.isFrom2026(record.intervalStart))"
+            // The key holds what the snapshot is built from: the version (or the saved
+            // snapshot under the first version) and the fees for the row's date.
+            if original != nil || base.version != nil, rated != stored {
+                let sourceKey = base.version.map { "v:\($0.id.uuidString)" } ?? (record.snapshotHash ?? "embedded")
+                let cacheKey = "\(sourceKey)|\(rated.gridMonthlyFee ?? -1)|\(rated.gridTransferOrePerKWh ?? -1)|\(rated.energyTaxOrePerKWh)"
                 let newHash: String?
                 if let known = swappedHashes[cacheKey] {
                     newHash = known
                 } else {
-                    let snapshot = HistoricalCostProfileSnapshot(profile: rated, capturedAt: original.capturedAt)
+                    let capturedAt = base.version?.validFrom ?? original?.capturedAt ?? record.intervalStart
+                    let snapshot = HistoricalCostProfileSnapshot(profile: rated, capturedAt: capturedAt)
                     if let data = HistoricalCostProfileSnapshot.encodedData(snapshot) {
                         let hash = HistoricalCostProfileSnapshot.hash(of: data)
                         try upsertSnapshotRecord(snapshotHash: hash, data: data, context: context)
@@ -1449,8 +1768,11 @@ nonisolated enum EnergyHistoryWriting {
                 }
             }
 
+            // `updatedAt` stays: it tells when the value was fetched, not when it was priced.
+            if applyPreliminary(to: record, profile: rated, versions: versions) {
+                changed = true
+            }
             if changed {
-                record.updatedAt = Date()
                 changedDays.insert(record.dayKey)
             }
         }
@@ -1863,6 +2185,10 @@ nonisolated enum EnergyHistoryWriting {
     nonisolated private static func summaryConfidence(for confidences: [HistoricalEnergyConfidence]) -> HistoricalEnergyConfidence {
         guard !confidences.isEmpty else { return .priceOnly }
         let unique = Set(confidences)
+        // Preliminary wins: one value that may change makes the day or month preliminary.
+        if unique.contains(.preliminary) {
+            return .preliminary
+        }
         if unique == [.measured] {
             return .measured
         }

@@ -15,6 +15,7 @@ struct HistoryDayView: View {
     @State private var insights: ConsumptionInsights?
     @State private var openedInsights: HistoryDayInsightsRoute?
     @State private var loadFailed = false
+    @State private var isPreliminary = false
 
     init(
         date: Date,
@@ -44,7 +45,7 @@ struct HistoryDayView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: DS.Spacing.lg) {
                     if let snapshot {
-                        HistoryDayTotals(snapshot: snapshot)
+                        HistoryDayTotals(snapshot: snapshot, isPreliminary: isPreliminary)
                         if snapshot.hasMeasuredUse || insights != nil {
                             ConsumptionInsightsDayTeaser(
                                 insights: insights,
@@ -99,6 +100,17 @@ struct HistoryDayView: View {
         }
     }
 
+    /// Today is still being measured; other days follow their saved rows. Read from the
+    /// store, since the summary handed in can be missing (or older than a new fetch).
+    private func loadIsPreliminary() -> Bool {
+        if Calendar.energyHistory.isDateInToday(date) { return true }
+        let stored = try? historyQuery.loadMonthHistory(
+            priceArea: priceArea,
+            selectedMonthKey: EnergyHistoryKey.monthKey(for: date)
+        ).dailySummaries.first { $0.periodKey == dayKey }
+        return (stored ?? dailySummary)?.isPreliminary == true
+    }
+
     private func openInsights() {
         openedInsights = HistoryDayInsightsRoute(
             insights: ConsumptionInsightsRoute(
@@ -127,6 +139,7 @@ struct HistoryDayView: View {
             return
         }
 #endif
+        isPreliminary = loadIsPreliminary()
         do {
             let intervals = try historyQuery.loadDayIntervals(dayKey: dayKey, priceArea: priceArea)
             snapshot = HistoryDayInsights.snapshot(
@@ -178,6 +191,7 @@ private struct HistoryDayInsightsRoute: Hashable, Identifiable {
 
 private struct HistoryDayTotals: View {
     let snapshot: HistoryDaySnapshot
+    var isPreliminary = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
@@ -186,7 +200,9 @@ private struct HistoryDayTotals: View {
                 paragraphs: [
                     "Vad dagen kostade och hur mycket el som gick åt.",
                     "Är dagen inte slut visas det som hänt hittills."
-                ]
+                ] + (isPreliminary ? [HistoryPreliminaryCopy.day] : []),
+                badge: isPreliminary ? "Preliminärt" : nil,
+                badgeAccessibilityLabel: "Preliminärt, siffrorna kan ändras"
             )
 
             ViewThatFits(in: .horizontal) {
@@ -260,7 +276,7 @@ private struct HistoryDayTotals: View {
 
     private func dayMetricNumber(_ value: String, amount: Double) -> some View {
         Text(value)
-            .font(DS.Font.bold(28))
+            .font(DS.Font.black(28))
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)
             .spriceNumericText(amount)
@@ -321,7 +337,7 @@ private struct HistoryDayHourChart: View {
                             y: .value("kr", hour.costKr ?? 0)
                         )
                         .foregroundStyle(costBarStyle(for: hour))
-                        .cornerRadius(2)
+                        .cornerRadius(HistoryChartAxis.barRadius)
                     }
 
                     if let selected = selectedCostHour.flatMap({ nearestHour(to: $0, in: snapshot.costHours) }),
@@ -339,9 +355,9 @@ private struct HistoryDayHourChart: View {
                 .chartXScale(domain: hourDomain)
                 .chartXAxis {
                     AxisMarks(values: .stride(by: .hour, count: HistoryChartAxis.hourStrideHours)) { value in
-                        AxisGridLine()
-                            .foregroundStyle(.tertiary)
-                        AxisTick()
+                        AxisGridLine(stroke: HistoryChartAxis.gridStroke)
+                            .foregroundStyle(DS.Color.gridLine)
+                        AxisTick(length: 0)
                             .foregroundStyle(.tertiary)
                         if let date = value.as(Date.self) {
                             AxisValueLabel {
@@ -352,8 +368,8 @@ private struct HistoryDayHourChart: View {
                 }
                 .chartYAxis {
                     AxisMarks(position: .leading) { value in
-                        AxisGridLine()
-                            .foregroundStyle(.tertiary)
+                        AxisGridLine(stroke: HistoryChartAxis.gridStroke)
+                            .foregroundStyle(DS.Color.gridLine)
                         AxisValueLabel {
                             if let amount = value.as(Double.self) {
                                 Text(amount, format: .number.precision(.fractionLength(0)))
@@ -417,9 +433,9 @@ private struct HistoryDayHourChart: View {
                 .chartXScale(domain: hourDomain)
                 .chartXAxis {
                     AxisMarks(values: .stride(by: .hour, count: HistoryChartAxis.hourStrideHours)) { value in
-                        AxisGridLine()
-                            .foregroundStyle(.tertiary)
-                        AxisTick()
+                        AxisGridLine(stroke: HistoryChartAxis.gridStroke)
+                            .foregroundStyle(DS.Color.gridLine)
+                        AxisTick(length: 0)
                             .foregroundStyle(.tertiary)
                         if let date = value.as(Date.self) {
                             AxisValueLabel {
@@ -430,8 +446,8 @@ private struct HistoryDayHourChart: View {
                 }
                 .chartYAxis {
                     AxisMarks(position: .leading) { value in
-                        AxisGridLine()
-                            .foregroundStyle(.tertiary)
+                        AxisGridLine(stroke: HistoryChartAxis.gridStroke)
+                            .foregroundStyle(DS.Color.gridLine)
                         AxisValueLabel {
                             if let amount = value.as(Double.self) {
                                 Text(amount, format: .number.precision(.fractionLength(0...1)))
@@ -597,10 +613,10 @@ private struct HistoryDayCostSplitView: View {
 
     private var rows: [HistoryDayCostSplitRow] {
         [
-            HistoryDayCostSplitRow(id: "energy", title: "Elhandel", amount: split.energyKr, color: DS.Color.info),
-            HistoryDayCostSplitRow(id: "grid", title: "Elnät", amount: split.gridKr, color: DS.Color.warning),
-            HistoryDayCostSplitRow(id: "tax", title: "Skatt på el", amount: split.taxKr, color: DS.Color.success),
-            HistoryDayCostSplitRow(id: "vat", title: "Moms", amount: split.vatKr, color: Color.gray)
+            HistoryDayCostSplitRow(id: "energy", title: "Elhandel", amount: split.energyKr, color: DS.Color.Breakdown.energy),
+            HistoryDayCostSplitRow(id: "grid", title: "Elnät", amount: split.gridKr, color: DS.Color.Breakdown.grid),
+            HistoryDayCostSplitRow(id: "tax", title: "Skatt på el", amount: split.taxKr, color: DS.Color.Breakdown.tax),
+            HistoryDayCostSplitRow(id: "vat", title: "Moms", amount: split.vatKr, color: DS.Color.Breakdown.vat)
         ]
     }
 
