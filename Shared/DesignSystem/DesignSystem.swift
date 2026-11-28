@@ -1900,6 +1900,17 @@ struct SectionInfoButton: View {
         .accessibilityLabel("Mer om \(title)")
         .accessibilityHint("Visar en förklaring")
         .accessibilityAddTraits(.isButton)
+#if DEBUG
+        .onAppear {
+            // `-OpenInfo "Månadens siffror"` opens that info sheet for screenshots.
+            let arguments = ProcessInfo.processInfo.arguments
+            if let index = arguments.firstIndex(of: "-OpenInfo"),
+               arguments.indices.contains(index + 1),
+               arguments[index + 1] == title {
+                isPresented = true
+            }
+        }
+#endif
 #if os(macOS)
         .popover(isPresented: $isPresented, arrowEdge: .bottom) {
             SectionInfoSheet(title: title, paragraphs: paragraphs, legend: legend)
