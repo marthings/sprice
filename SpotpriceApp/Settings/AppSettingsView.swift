@@ -16,6 +16,10 @@ struct AppSettingsView: View {
     @State private var fuseSize = 20
     @State private var includeHypotheticalEffectTariff = false
     @State private var hasElectricCar = false
+    /// First day the agreement above applies. Today unless a later day is picked.
+    @State private var effectiveDate = CostProfileHistory.dayStart(of: Date())
+    @State private var plannedContract: CostProfileVersion?
+    @State private var earlierContracts: [CostProfileHistory.ContractPeriod] = []
     @State private var dsoOptions: [DSOOption] = []
     @State private var gridTariffError: String?
     @State private var fieldError: String?
@@ -57,7 +61,7 @@ struct AppSettingsView: View {
             demoSection.id("demo")
             consumptionSection
             priceAreaSection
-            retailContractSection
+            retailContractSection.id("contract")
             gridTariffSection
             temperaturePlaceSection
             electricCarSection
@@ -93,6 +97,7 @@ struct AppSettingsView: View {
         .onChange(of: fuseSize) { _, _ in commitImmediately() }
         .onChange(of: includeHypotheticalEffectTariff) { _, _ in commitEffectTariffToggle() }
         .onChange(of: hasElectricCar) { _, _ in commitElectricCarToggle() }
+        .onChange(of: effectiveDate) { _, _ in commitImmediately() }
         .onChange(of: retailerMarkupOrePerKWh) { _, _ in scheduleCommit() }
         .onChange(of: contractPriceOrePerKWh) { _, _ in scheduleCommit() }
         .onChange(of: retailerMonthlyFee) { _, _ in scheduleCommit() }
@@ -236,6 +241,12 @@ struct AppSettingsView: View {
                 field: .monthlyFee
             )
 
+            effectiveDateRow
+
+            if let plannedContract {
+                plannedContractRow(plannedContract)
+            }
+
             currencyField(
                 title: "Jämför med fast pris",
                 value: $compareFixedPriceOrePerKWh,
@@ -249,12 +260,23 @@ struct AppSettingsView: View {
                     .foregroundStyle(DS.Color.warningText)
                     .spriceListRowBackground()
             }
+
+            if !earlierContracts.isEmpty {
+                earlierContractsRow
+            }
         } header: {
             Text("Elhandel")
                 .spriceSettingsHeaderStyle()
         } footer: {
-            Text(contractFooterText)
-                .spriceSettingsFooterStyle()
+            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                Text(contractFooterText)
+                if isPlanning {
+                    Text("Ändringen gäller från \(Self.longDate(effectiveDate)). Tills dess gäller ditt nuvarande avtal.")
+                } else {
+                    Text("Ändringar gäller från idag eller senare. Tidigare månader behåller sina priser.")
+                }
+            }
+            .spriceSettingsFooterStyle()
         }
     }
 
@@ -424,6 +446,119 @@ struct AppSettingsView: View {
         .spriceListRowBackground()
     }
 
+    // MARK: - Agreement dates
+
+    private static let dateFormat: Date.FormatStyle = {
+        var style = Date.FormatStyle(date: .abbreviated, time: .omitted, locale: Locale(identifier: "sv_SE"), calendar: .energyHistory, timeZone: Calendar.energyHistory.timeZone)
+        style.calendar = .energyHistory
+        return style
+    }()
+
+    private static func longDate(_ date: Date) -> String {
+        date.formatted(dateFormat)
+    }
+
+    private var today: Date { CostProfileHistory.dayStart(of: Date()) }
+
+    /// True when a later day than today is picked, so the change is planned, not applied.
+    private var isPlanning: Bool { effectiveDate > today }
+
+    private var effectiveDateRow: some View {
+        DatePicker(
+            "Gäller från",
+            selection: $effectiveDate,
+            in: today...,
+            displayedComponents: .date
+        )
+        .font(DS.Font.body)
+        .tint(DS.Color.accentText)
+        .environment(\.locale, Locale(identifier: "sv_SE"))
+        .environment(\.calendar, .energyHistory)
+        .environment(\.timeZone, Calendar.energyHistory.timeZone)
+        .accessibilityHint("Välj idag eller en senare dag. Ändringen gäller inte bakåt.")
+        .spriceListRowBackground()
+    }
+
+    private func plannedContractRow(_ planned: CostProfileVersion) -> some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
+            Text("Kommande avtal")
+                .font(DS.Font.semibold(15))
+            Text("Från \(Self.longDate(planned.validFrom)). \(Self.contractSummary(planned.profile))")
+                .font(DS.Font.footnote)
+                .foregroundStyle(DS.Color.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Button("Ta bort") {
+                clearPlannedContract()
+            }
+            .font(DS.Font.semibold(14))
+            .foregroundStyle(DS.Color.accentText)
+            .buttonStyle(.plain)
+            .frame(minHeight: 44, alignment: .leading)
+            .accessibilityLabel("Ta bort kommande avtal")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .contain)
+        .spriceListRowBackground()
+    }
+
+    private var earlierContractsRow: some View {
+        SpriceDisclosure(
+            title: "Visa tidigare avtal",
+            openTitle: "Dölj tidigare avtal",
+            accessibilityName: "Tidigare avtal"
+        ) {
+            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                ForEach(earlierContracts) { period in
+                    VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
+                        Text(Self.periodText(period))
+                            .font(DS.Font.semibold(14))
+                        Text(Self.contractSummary(period.profile))
+                            .font(DS.Font.footnote)
+                            .foregroundStyle(DS.Color.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityElement(children: .combine)
+                }
+            }
+        }
+        .spriceListRowBackground()
+    }
+
+    private static func periodText(_ period: CostProfileHistory.ContractPeriod) -> String {
+        guard let start = period.start else { return "Till \(longDate(period.end))" }
+        return "\(longDate(start)) till \(longDate(period.end))"
+    }
+
+    /// "Kvartspris, påslag 5 öre/kWh, 39 kr/mån", the main prices of an agreement.
+    private static func contractSummary(_ profile: CostProfile) -> String {
+        func number(_ value: Double) -> String {
+            value.formatted(.number.precision(.fractionLength(0...2)).locale(Locale(identifier: "sv_SE")))
+        }
+        var parts: [String]
+        switch profile.retailContractType {
+        case .spotPriceMarkup:
+            parts = ["Kvartspris", "påslag \(number(profile.retailerMarkupOrePerKWh)) öre/kWh"]
+        case .variableMonthlyPrice:
+            parts = ["Rörligt månadspris", "\(number(profile.contractPriceOrePerKWh ?? 0)) öre/kWh"]
+        case .fixedPrice:
+            parts = ["Fast pris", "\(number(profile.contractPriceOrePerKWh ?? 0)) öre/kWh"]
+        }
+        parts.append("\(number(profile.retailerMonthlyFee)) kr/mån")
+        return parts.joined(separator: ", ")
+    }
+
+    private func refreshContracts() {
+        plannedContract = settings.plannedCostProfile
+        earlierContracts = CostProfileHistory.earlierContracts(in: settings.costProfileVersions, now: Date())
+    }
+
+    private func clearPlannedContract() {
+        settings.clearPlannedCostProfile()
+        effectiveDate = today
+        refreshContracts()
+    }
+
     private var contractFooterText: String {
         let compare = "Jämför med fast pris visar bara skillnaden mot spotpris. Standard är 120 öre/kWh med moms."
         switch contractType {
@@ -513,7 +648,32 @@ struct AppSettingsView: View {
         hasElectricCar = settings.hasElectricCar
         compareFixedPriceOrePerKWh = settings.compareFixedPriceOrePerKWh
         temperaturePlaceId = settings.temperaturePlaceId
+#if DEBUG
+        // DEBUG only, for screenshots and checks: `-SeedContracts` saves example agreements,
+        // `-SeedDuePlan` makes the planned one start in the past, `-PlanTest` plans a change.
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("-SeedContracts") {
+            settings.debugSeedContracts(planDue: arguments.contains("-SeedDuePlan"))
+        }
+#endif
+        settings.applyDuePlannedCostProfile()
+        let applied = settings.costProfile
+        contractType = applied.retailContractType
+        retailerMarkupOrePerKWh = applied.retailerMarkupOrePerKWh
+        contractPriceOrePerKWh = applied.contractPriceOrePerKWh ?? 0
+        retailerMonthlyFee = applied.retailerMonthlyFee
+        refreshContracts()
         isReady = true
+#if DEBUG
+        if arguments.contains("-PlanTest") {
+            Task {
+                try? await Task.sleep(for: .seconds(1))
+                effectiveDate = CostProfileHistory.dayStart(of: Date().addingTimeInterval(40 * 86_400))
+                contractType = .fixedPrice
+                contractPriceOrePerKWh = 88
+            }
+        }
+#endif
     }
 
     private func loadDSOOptions() async {
@@ -591,7 +751,7 @@ struct AppSettingsView: View {
         settings.temperaturePlaceId = temperaturePlaceId
 
         var next = settings.costProfile.updating(priceArea: priceArea)
-        next = next.settingRetailContract(
+        let typedContract = next.settingRetailContract(
             type: contractType,
             retailerMarkupOrePerKWh: retailerMarkupOrePerKWh,
             contractPriceOrePerKWh: contractType == .spotPriceMarkup ? nil : contractPriceOrePerKWh,
@@ -600,6 +760,16 @@ struct AppSettingsView: View {
             confidence: .userConfigured,
             source: .userEntered
         )
+        if isPlanning {
+            // A later day: the agreement is saved as a plan. What applies today stays as it is.
+            if !CostProfileHistory.sameContract(typedContract, settings.costProfile) {
+                settings.planCostProfile(typedContract, from: effectiveDate)
+                refreshContracts()
+                flashSaved()
+            }
+        } else {
+            next = typedContract
+        }
 
         let gridSelectionChanged =
             selectedDSOOrgNo != (settings.costProfile.gridCompanyId ?? settings.selectedDSOOrgNo) ||
@@ -652,6 +822,11 @@ struct AppSettingsView: View {
 
     private func flashSavedIfNeeded(previous: CostProfile) {
         guard settings.costProfile != previous else { return }
+        refreshContracts()
+        flashSaved()
+    }
+
+    private func flashSaved() {
         showSaved = true
         hideSavedTask?.cancel()
         hideSavedTask = Task {
