@@ -38,12 +38,12 @@ struct HistoryMonthDaysChart: View {
     private var infoParagraphs: [String] {
         var parts: [String] = []
         if isCurrentMonth {
-            parts.append("Staplarna visar vad varje dag har kostat den här månaden, så långt den har hunnit. Tryck på en dag för att se timmarna.")
+            parts.append("Varje stapel är vad en dag har kostat hittills den här månaden. Tryck på en dag för att se timmarna.")
         } else {
-            parts.append("Staplarna visar vad varje dag har kostat. Tryck på en dag för att se hur kostnaden fördelades över timmarna.")
+            parts.append("Varje stapel är vad en dag har kostat. Tryck på en dag för att se timmarna.")
         }
         if !temperaturePoints.isEmpty {
-            parts.append("Linjen visar hur kallt det var ute, i grader. Skalan till höger gäller linjen, inte staplarna.")
+            parts.append("Linjen är temperaturen ute. Skalan till höger hör till linjen.")
             parts.append("Temperaturen kommer från Open-Meteo för den ort du valt under Inställningar.")
         }
         return parts
@@ -75,7 +75,7 @@ struct HistoryMonthDaysChart: View {
  some View {
         let expensive = mostExpensiveDay
         if let expensive, let cost = expensive.costKr {
-            Text("Dyrast (röd stapel): \(AppFormatters.weekdayDayMonth(expensive.date)), \(AppFormatters.wholeNumber(cost)) kr")
+            Text("Dyrast var \(AppFormatters.weekdayDayMonth(expensive.date)), \(AppFormatters.wholeNumber(cost)) kr")
                 .font(DS.Font.semibold(12))
                 .foregroundStyle(.primary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -83,9 +83,9 @@ struct HistoryMonthDaysChart: View {
                     "Dyraste dagen är \(AppFormatters.weekdayDayMonth(expensive.date)), \(AppFormatters.wholeNumber(cost)) kronor"
                 )
         }
-        ChartCaption(temperaturePoints.isEmpty
-            ? "Kostnad per dag, i kronor"
-            : "Kostnad per dag, i kronor (staplar), och temperatur ute i grader (linje)")
+        if !temperaturePoints.isEmpty {
+            ChartCaption("Staplarna är kronor, linjen är temperaturen ute.")
+        }
 
         ZStack {
         Chart {

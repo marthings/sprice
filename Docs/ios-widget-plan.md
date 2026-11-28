@@ -51,7 +51,6 @@ This is safer than trying to make the existing macOS widget extension serve both
    - `Shared/Services`
    - `Shared/Providers`
    - `Shared/DesignSystem`
-   - `Shared/Fonts`
    - Any small shared components/configuration referenced by the widget.
 
 5. Add App Group entitlements to the iOS app target.

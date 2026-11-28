@@ -11,6 +11,8 @@ struct ProviderSettingsView: View {
     @State private var isReady = false
     @State private var pendingSave: Task<Void, Never>?
     @State private var hideSavedTask: Task<Void, Never>?
+    @State private var isConfirmingDisconnect = false
+    @State private var disconnectError: String?
 
     private let settings = ConsumptionSettings.shared
     private let providers = ProviderRegistry.shared.allProviderMetadata()
@@ -20,10 +22,19 @@ struct ProviderSettingsView: View {
             AppCanvasBackground()
 
             Form {
+                if let disconnectError {
+                    Section {
+                        Label(disconnectError, systemImage: "exclamationmark.triangle.fill")
+                            .font(DS.Font.body)
+                            .foregroundStyle(DS.Color.warningText)
+                            .spriceListRowBackground()
+                    }
+                }
                 providerSection
                 if selectedMetadata != nil {
                     credentialsSection
                     connectionSection
+                    disconnectSection
                 }
             }
             .formStyle(.grouped)
@@ -75,6 +86,21 @@ struct ProviderSettingsView: View {
                     focusedField = nil
                 }
             }
+        }
+        .confirmationDialog(
+            "Koppla från \(selectedProviderName)?",
+            isPresented: $isConfirmingDisconnect,
+            titleVisibility: .visible
+        ) {
+            Button("Koppla från och behåll historiken") {
+                disconnect(deletingHistory: false)
+            }
+            Button("Koppla från och radera historiken", role: .destructive) {
+                disconnect(deletingHistory: true)
+            }
+            Button("Avbryt", role: .cancel) {}
+        } message: {
+            Text("Inloggningen tas bort från telefonen och appen slutar hämta förbrukning från \(selectedProviderName). Vill du också radera historiken som kom därifrån? Elpriser och inställningar finns kvar.")
         }
     }
 
@@ -171,12 +197,36 @@ struct ProviderSettingsView: View {
             } footer: {
                 Text(
                     canSave
-                        ? "Uppgifterna sparas automatiskt. Testa när du vill kontrollera att inloggningen fungerar."
+                        ? "Uppgifterna sparas direkt. Testa när du vill se att inloggningen fungerar."
                         : "Fyll i uppgifterna innan du testar anslutningen."
                 )
                 .spriceSettingsFooterStyle()
             }
         }
+    }
+
+    @ViewBuilder
+    private var disconnectSection: some View {
+        if hasStoredLogin {
+            Section {
+                Button(role: .destructive) {
+                    isConfirmingDisconnect = true
+                } label: {
+                    Label("Koppla från", systemImage: "link.badge.minus")
+                        .font(DS.Font.body)
+                        .foregroundStyle(DS.Color.dangerText)
+                }
+                .accessibilityHint("Tar bort inloggningen från telefonen och slutar hämta förbrukning")
+                .spriceListRowBackground()
+            } footer: {
+                Text("Tar bort inloggningen från telefonen. Ditt konto hos \(selectedProviderName) påverkas inte.")
+                    .spriceSettingsFooterStyle()
+            }
+        }
+    }
+
+    private var hasStoredLogin: Bool {
+        credentialValues.values.contains { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
     }
 
     private func credentialField(_ field: CredentialField) -> some View {
@@ -322,6 +372,30 @@ struct ProviderSettingsView: View {
             NotificationCenter.default.post(name: .consumptionSettingsDidSave, object: nil)
         } catch {
             testState = .failure(error.userFacingMessage)
+        }
+    }
+
+    private func disconnect(deletingHistory: Bool) {
+        let providerId = selectedProviderId
+        guard !providerId.isEmpty else { return }
+        pendingSave?.cancel()
+        disconnectError = nil
+        EnergyHistoryBackfillController.shared.cancelInFlight()
+        settings.disconnectProvider(providerId)
+        credentialValues = [:]
+        selectedProviderId = ""
+        testState = .idle
+
+        guard deletingHistory else { return }
+        Task {
+            do {
+                let writer = try EnergyHistoryStores.writer()
+                try await writer.deleteHistory(providerID: providerId)
+                WidgetReload.timelines()
+                NotificationCenter.default.post(name: .consumptionSettingsDidSave, object: nil)
+            } catch {
+                disconnectError = "Du är frånkopplad, men historiken gick inte att radera: \(error.userFacingMessage)"
+            }
         }
     }
 

@@ -43,6 +43,11 @@ final class SpotPriceViewModel {
     private let settings: ConsumptionSettings
     private let nowProvider: () -> Date
 
+    // The demo mode this view model was made for. After a switch it must not load or save
+    // anything, because its recorder and caches belong to the other mode.
+    @ObservationIgnored
+    private let modeEpoch = DemoMode.epoch
+
     // Periodisk uppdaterings-Task
     @ObservationIgnored
     private var refreshTask: Task<Void, Never>?
@@ -145,8 +150,15 @@ final class SpotPriceViewModel {
     }
 
     func loadConsumption() async {
+        guard modeEpoch == DemoMode.epoch else { return }
+        if DemoMode.isActive {
+            // The invented history is made first, so the other tabs have it when they open.
+            await DemoHistorySeeder.ensureSeeded()
+        }
         let result = await consumptionLoadService.load()
-let showingCached: Bool
+        // Demo mode may have been switched while this was loading. Then the result belongs to the other mode.
+        guard modeEpoch == DemoMode.epoch else { return }
+        let showingCached: Bool
         if let fresh = result.monthlyConsumption {
             monthlyConsumption = fresh
             settings.cachedConsumption = fresh
@@ -263,6 +275,7 @@ let showingCached: Bool
     }
 
     private func loadPrices(force: Bool) async {
+        guard modeEpoch == DemoMode.epoch else { return }
         loadGeneration += 1
         let myGeneration = loadGeneration
         let hasLoadedData: Bool
@@ -292,7 +305,7 @@ let showingCached: Bool
                 ignoreCache: force
             )
 
-            guard myGeneration == loadGeneration else { return }
+            guard myGeneration == loadGeneration, modeEpoch == DemoMode.epoch else { return }
 
             cachedToday = result.payload.day
             cachedTomorrow = result.tomorrow

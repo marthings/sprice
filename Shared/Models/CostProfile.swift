@@ -581,6 +581,7 @@ enum EnergyHistoryTariffSchedule {
     }
 
     static func markComplete() {
+        guard !DemoMode.isActive else { return }
         defaults.set(HistoricalTariffRates.version, forKey: key)
     }
 }

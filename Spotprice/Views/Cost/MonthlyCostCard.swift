@@ -46,7 +46,7 @@ struct MonthlyCostCard: View {
             // Total cost - primary focus
             HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xxs) {
                 Text(displayedTotalKr, format: .number.precision(.fractionLength(0)))
-                    .font(DS.Font.bold(28).monospacedDigit())
+                    .font(DS.Font.bold(28))
                     .foregroundStyle(.primary)
                     .spriceNumericText(displayedTotalKr)
                 Text("kr")

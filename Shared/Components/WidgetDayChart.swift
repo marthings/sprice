@@ -56,7 +56,7 @@ struct WidgetDayChart: View {
             )
         default:
             return LinearGradient(
-                colors: [DS.Color.warning.opacity(0.4), DS.Color.warning.opacity(0.1), .clear],
+                colors: [DS.Color.accent.opacity(0.4), DS.Color.accent.opacity(0.1), .clear],
                 startPoint: .top,
                 endPoint: .bottom
             )

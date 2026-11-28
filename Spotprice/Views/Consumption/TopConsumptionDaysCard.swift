@@ -51,7 +51,7 @@ struct TopConsumptionDaysCard: View {
                     .cornerRadius(DS.Radius.sm)
                     .annotation(position: .top, spacing: DS.Spacing.xxs, overflowResolution: ChartCalloutOverflow.resolution) {
                         Text(peak.kW, format: .number.precision(.fractionLength(1)))
-                            .font(DS.Font.bold(11).monospacedDigit())
+                            .font(DS.Font.bold(11))
                             .foregroundStyle(.primary)
                     }
                 }

@@ -107,16 +107,16 @@ private struct HypotheticalEffectTariffCard: View {
                 title: EffectTariffCopy.lineTitle,
                 paragraphs: [
                     EffectTariffCopy.explanation,
-                    "Om beloppet visas är det räknat på den högsta timmen den här månaden. Den visas i kilowatt (kW), alltså hur mycket el som gick åt just då."
+                    "Beloppet räknas på månadens högsta timme. Den mäts i kilowatt (kW), alltså hur mycket el som gick åt just då."
                 ]
             )
             if let amountKr {
                 HStack(alignment: .lastTextBaseline, spacing: DS.Spacing.xs) {
                     Text(AppFormatters.wholeNumber(amountKr))
-                        .font(DS.Font.bold(28).monospacedDigit())
+                        .font(DS.Font.bold(28))
                         .spriceNumericText(amountKr)
                     Text("kr")
-                        .font(DS.Font.footnote)
+                        .font(DS.Font.unitLarge)
                         .foregroundStyle(DS.Color.secondary)
                 }
                 if let peak {
@@ -290,11 +290,11 @@ private struct CostLoadedContent: View {
         var parts: [String] = []
         if let fixedComparison {
             parts.append(fixedComparison.title)
-            parts.append("Jämförelsen gäller bara elhandeln, mot det fasta pris du angett under Inställningar. Nät, skatt och moms är desamma i båda fallen.")
+            parts.append("Bara elhandeln jämförs, mot det fasta pris du har angett i Inställningar. Elnät, skatt och moms blir samma i båda fallen.")
         }
         if let timing {
             parts.append(timing.title)
-            parts.append("Det visar om du använde mer el när den var billig eller när den var dyr, jämfört med om du hade använt lika mycket varje timme.")
+            parts.append(timing.detail)
         }
         return parts
     }
@@ -315,6 +315,7 @@ private struct CostLoadedContent: View {
 
     @MainActor
     private func load() async {
+        if DemoMode.isActive { await DemoHistorySeeder.ensureSeeded() }
         var intervals: [HistoricalEnergyIntervalValue] = []
         var summaries: [HistoricalEnergySummaryValue] = []
         let now = Date()
