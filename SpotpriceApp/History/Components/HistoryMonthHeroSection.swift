@@ -306,7 +306,7 @@ struct HistoryMonthHeroSection: View {
         }
         if snapshot.isCurrentMonth {
             if snapshot.usedCurrentTariffs {
-                parts.append("Månaden pågår, så siffrorna gäller dagarna hittills. Kostnaden räknas med dina priser och avgifter i dag.")
+                parts.append("Månaden pågår, så siffrorna gäller dagarna hittills. Kostnaden räknas med det som gäller för varje dag.")
             } else {
                 parts.append("Månaden pågår, så siffrorna gäller dagarna hittills.")
             }
@@ -314,7 +314,7 @@ struct HistoryMonthHeroSection: View {
             parts.append("Den sparade månadssumman saknas, så kostnaden är räknad med dina priser och avgifter i dag.")
         }
         if hasPastMonths {
-            parts.append("Äldre månader räknas med dina priser och avgifter i dag, inte de som gällde då.")
+            parts.append("Varje månad räknas med det avtal och de avgifter som gällde då.")
         }
         if parts.isEmpty {
             parts.append("Månadens kostnad, jämförd med förra perioden så långt det finns mätvärden.")
