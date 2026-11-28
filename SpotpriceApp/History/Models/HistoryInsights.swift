@@ -8,6 +8,15 @@ struct HistoryMonthSnapshot {
     let paidKrPerKWh: Double?
     let spotOrePerKWh: Double?
     let usedCurrentTariffs: Bool
+    /// Cost split by component, when the total was calculated from the cost profile.
+    /// Its total is exactly `costKr`.
+    var costParts: EnhancedCost? = nil
+    var costProfile: CostProfile? = nil
+    /// The spot price (öre/kWh, excluding VAT) that the cost was calculated with.
+    var spotBasisOrePerKWh: Double? = nil
+    /// The part of `costKr` that does not depend on how much electricity was used: the grid
+    /// monthly fee and the retailer's monthly fee, for the days the cost covers. Nil when unknown.
+    var fixedFeeKr: Double? = nil
 
     var spotKrPerKWh: Double? {
         spotOrePerKWh.map { $0 / 100 }
@@ -40,6 +49,26 @@ struct HistoryPriceConsumptionSplit {
     let priceEffectKr: Double
     let previousMonthName: String
     let comparesSameDays: Bool
+    /// The part of `priceEffectKr` that comes from the market spot price. Nil when it cannot be told apart.
+    var spotEffectKr: Double? = nil
+    /// What the spot share is calculated from, so it can be refined with saved intervals.
+    var currentKWh: Double = 0
+    var vatRate: Double = 0.25
+    var isSpotBased = false
+
+    /// Recalculates the spot share from kWh-weighted spot prices (öre/kWh, excluding VAT).
+    func refined(currentSpotOre: Double, previousSpotOre: Double) -> HistoryPriceConsumptionSplit {
+        guard isSpotBased, currentKWh > 0 else { return self }
+        var copy = self
+        copy.spotEffectKr = currentKWh * (currentSpotOre - previousSpotOre) / 100 * (1 + vatRate)
+        return copy
+    }
+
+    /// The rest of the price change: markup, grid transfer and tax per kWh, plus any change in
+    /// the fixed monthly fees between the two periods.
+    var contractEffectKr: Double? {
+        spotEffectKr.map { priceEffectKr - $0 }
+    }
 }
 
 struct HistoryWeekdayAverage: Identifiable {
@@ -83,21 +112,38 @@ enum HistoryInsights {
         calendar: Calendar = .energyHistory
     ) -> HistoryMonthSnapshot {
         let isCurrent = summary.periodKey == EnergyHistoryKey.monthKey(for: now, calendar: calendar)
+        // Live numbers from another month (an old cache, say) must never stand in for this month.
+        let liveThisMonth = liveMonthlyConsumption.flatMap { live in
+            calendar.isDate(live.monthDate, equalTo: summary.periodStart, toGranularity: .month) ? live : nil
+        }
         let kWh = isCurrent
-            ? (liveMonthlyConsumption?.totalKWh ?? summary.totalConsumptionKWh)
+            ? (liveThisMonth?.totalKWh ?? summary.totalConsumptionKWh)
             : summary.totalConsumptionKWh
         let spotOre = summary.averageSpotPriceOrePerKWh
+        // Past months use the fees of their own period.
+        let periodProfile = isCurrent
+            ? costProfile
+            : HistoricalTariffRates.profile(costProfile, forPeriodStarting: summary.periodStart)
         let cost = monthCost(
             summary: summary,
             isCurrentMonth: isCurrent,
             kWh: kWh,
             spotOre: spotOre,
-            costProfile: costProfile,
+            costProfile: periodProfile,
             livePreciseCost: livePreciseCost,
             now: now,
             calendar: calendar
         )
         let paid = paidKrPerKWh(costKr: cost.amount, kWh: kWh)
+        let fixedFee = fixedFeeKr(
+            costKr: cost.amount,
+            parts: cost.parts,
+            profile: periodProfile,
+            hours: isCurrent
+                ? elapsedHours(from: summary.periodStart, now: now, calendar: calendar)
+                : hoursInMonth(containing: summary.periodStart, calendar: calendar),
+            measuredShare: summary.measuredCoverageRatio ?? 1
+        )
 
         return HistoryMonthSnapshot(
             summary: summary,
@@ -106,7 +152,11 @@ enum HistoryInsights {
             kWh: kWh,
             paidKrPerKWh: paid,
             spotOrePerKWh: spotOre,
-            usedCurrentTariffs: cost.usedCurrentTariffs
+            usedCurrentTariffs: cost.usedCurrentTariffs,
+            costParts: cost.parts,
+            costProfile: periodProfile,
+            spotBasisOrePerKWh: cost.spotBasis ?? spotOre,
+            fixedFeeKr: fixedFee
         )
     }
 
@@ -147,27 +197,59 @@ enum HistoryInsights {
         guard let previous,
               let currentKWh = current.kWh, currentKWh > 0,
               let previousKWh = previous.kWh, previousKWh > 0,
-              let currentPaid = current.paidKrPerKWh,
-              let previousPaid = previous.paidKrPerKWh,
               let currentCost = current.costKr,
               let previousCost = previous.costKr,
               isCredibleComparison(currentCost: currentCost, previousCost: previousCost) else {
             return nil
         }
 
-        let consumptionEffectKr = (currentKWh - previousKWh) * previousPaid
-        let priceEffectKr = currentKWh * (currentPaid - previousPaid)
+        // The three effects add up to the cost change exactly. Fixed monthly fees cost the same
+        // however much electricity is used, so they are taken out before the per kWh price is
+        // worked out. Otherwise a month with more use would look cheaper per kWh just because
+        // the same fixed fees were shared over more kWh.
+        //   variable cost  = cost - fixed fees           (what depends on the kWh)
+        //   consumption    = (kWh now - kWh before) * variable price per kWh before
+        //   price          = kWh now * (variable price per kWh now - before) + change in fixed fees
+        // Fixed fees only land in the price part when they differ between the two periods,
+        // for example across New Year, or when one period has more days than the other.
+        // If a fixed share is unknown for either period, both are treated as 0.
+        var currentFixed = 0.0
+        var previousFixed = 0.0
+        if let currentShare = current.fixedFeeKr, let previousShare = previous.fixedFeeKr {
+            currentFixed = min(max(currentShare, 0), currentCost)
+            previousFixed = min(max(previousShare, 0), previousCost)
+        }
+        let currentVariablePerKWh = (currentCost - currentFixed) / currentKWh
+        let previousVariablePerKWh = (previousCost - previousFixed) / previousKWh
+
+        let consumptionEffectKr = (currentKWh - previousKWh) * previousVariablePerKWh
+        let priceEffectKr = currentKWh * (currentVariablePerKWh - previousVariablePerKWh)
+            + (currentFixed - previousFixed)
         let reconstructed = consumptionEffectKr + priceEffectKr
         let delta = currentCost - previousCost
         guard abs(reconstructed - delta) <= max(5, abs(delta) * 0.2) else {
             return nil
         }
 
+        // Spot price share of the price change, with VAT, on this month's kWh.
+        // Only when both periods price the electricity from the spot price.
+        var spotEffectKr: Double?
+        if let profile = current.costProfile,
+           profile.retailContractType == .spotPriceMarkup,
+           let currentSpot = current.spotBasisOrePerKWh,
+           let previousSpot = previous.spotBasisOrePerKWh {
+            spotEffectKr = currentKWh * (currentSpot - previousSpot) / 100 * (1 + profile.vatRate)
+        }
+
         return HistoryPriceConsumptionSplit(
             consumptionEffectKr: consumptionEffectKr,
             priceEffectKr: priceEffectKr,
             previousMonthName: previousRangeLabel,
-            comparesSameDays: comparesSameDays
+            comparesSameDays: comparesSameDays,
+            spotEffectKr: spotEffectKr,
+            currentKWh: currentKWh,
+            vatRate: current.costProfile?.vatRate ?? 0.25,
+            isSpotBased: current.costProfile?.retailContractType == .spotPriceMarkup
         )
     }
 
@@ -237,17 +319,40 @@ enum HistoryInsights {
 
         let cost: Double?
         let usedCurrentTariffs: Bool
+        var parts: EnhancedCost?
+        var fixedFee: Double?
+        let windowProfile = base.isCurrentMonth
+            ? costProfile
+            : HistoricalTariffRates.profile(costProfile, forPeriodStarting: monthStart)
         if !usedLiveKWh, storedCost.count == measuredDays.count, !storedCost.isEmpty {
             cost = storedCost.reduce(0, +)
             usedCurrentTariffs = false
+            // Saved costs carry the fixed fees for the measured days only.
+            let measuredHours = measuredDays.reduce(0.0) { $0 + 24 * ($1.measuredCoverageRatio ?? 1) }
+            fixedFee = fixedFeeKr(
+                costKr: cost,
+                parts: nil,
+                profile: base.costProfile ?? windowProfile,
+                hours: measuredHours,
+                measuredShare: 1
+            )
         } else if let spotOre {
-            cost = TotalCostService.shared.calculateTotalCost(
+            let calculated = TotalCostService.shared.calculateTotalCost(
                 kWh: kWh,
                 spotPriceOre: spotOre,
-                profile: costProfile,
+                profile: windowProfile,
                 hoursInPeriod: hours
-            ).totalKr
+            )
+            parts = calculated
+            cost = calculated.totalKr
             usedCurrentTariffs = true
+            fixedFee = fixedFeeKr(
+                costKr: cost,
+                parts: calculated,
+                profile: windowProfile,
+                hours: hours,
+                measuredShare: 1
+            )
         } else {
             cost = storedCost.isEmpty ? nil : storedCost.reduce(0, +)
             usedCurrentTariffs = false
@@ -260,7 +365,11 @@ enum HistoryInsights {
             kWh: kWh,
             paidKrPerKWh: paidKrPerKWh(costKr: cost, kWh: kWh),
             spotOrePerKWh: spotOre,
-            usedCurrentTariffs: usedCurrentTariffs
+            usedCurrentTariffs: usedCurrentTariffs,
+            costParts: parts,
+            costProfile: base.costProfile ?? costProfile,
+            spotBasisOrePerKWh: spotOre,
+            fixedFeeKr: fixedFee
         )
     }
 
@@ -354,6 +463,28 @@ enum HistoryInsights {
         value >= 0 ? "Högre pris" : "Lägre pris"
     }
 
+    static func spotEffectLabel(_ value: Double) -> String {
+        if abs(value) < negligibleKr { return "Spotpris" }
+        return value > 0 ? "Högre spotpris" : "Lägre spotpris"
+    }
+
+    static let contractEffectLabel = "Påslag, elnät och skatt"
+
+    /// "billigare" or "dyrare", so the meaning does not rest on green and red alone.
+    /// Nil when the amount is too small to matter.
+    static func effectDirectionWord(_ value: Double) -> String? {
+        if value > negligibleKr { return "dyrare" }
+        if value < -negligibleKr { return "billigare" }
+        return nil
+    }
+
+    /// For example "-120 kr billigare" or "+45 kr dyrare".
+    static func effectAmountText(_ value: Double) -> String {
+        let amount = signedKr(value)
+        guard let word = effectDirectionWord(value) else { return amount }
+        return "\(amount) \(word)"
+    }
+
     static func splitSentence(consumptionEffectKr: Double, priceEffectKr: Double) -> String {
         let moreUse = consumptionEffectKr > negligibleKr
         let lessUse = consumptionEffectKr < -negligibleKr
@@ -422,6 +553,13 @@ enum HistoryInsights {
         return ratio >= 0.12 && ratio <= 8
     }
 
+    private struct MonthCostResult {
+        var amount: Double?
+        var usedCurrentTariffs: Bool
+        var parts: EnhancedCost? = nil
+        var spotBasis: Double? = nil
+    }
+
     private static func monthCost(
         summary: HistoricalEnergySummaryValue,
         isCurrentMonth: Bool,
@@ -431,51 +569,45 @@ enum HistoryInsights {
         livePreciseCost: PreciseMonthlyCost?,
         now: Date,
         calendar: Calendar
-    ) -> (amount: Double?, usedCurrentTariffs: Bool) {
+    ) -> MonthCostResult {
         let service = TotalCostService.shared
 
         if isCurrentMonth {
             if let livePreciseCost, livePreciseCost.totalKWh > 0 {
                 let effectiveSpot = (livePreciseCost.totalCostKr / livePreciseCost.totalKWh) * 100
-                return (
-                    service.calculateTotalCost(
-                        kWh: livePreciseCost.totalKWh,
-                        spotPriceOre: effectiveSpot,
-                        profile: costProfile,
-                        hoursInPeriod: elapsedHours(from: summary.periodStart, now: now, calendar: calendar)
-                    ).totalKr,
-                    true
+                let parts = service.calculateTotalCost(
+                    kWh: livePreciseCost.totalKWh,
+                    spotPriceOre: effectiveSpot,
+                    profile: costProfile,
+                    hoursInPeriod: elapsedHours(from: summary.periodStart, now: now, calendar: calendar)
                 )
+                return MonthCostResult(amount: parts.totalKr, usedCurrentTariffs: true, parts: parts, spotBasis: effectiveSpot)
             }
             if let kWh, kWh > 0, let spotOre {
-                return (
-                    service.calculateTotalCost(
-                        kWh: kWh,
-                        spotPriceOre: spotOre,
-                        profile: costProfile,
-                        hoursInPeriod: elapsedHours(from: summary.periodStart, now: now, calendar: calendar)
-                    ).totalKr,
-                    true
-                )
-            }
-            return (summary.totalCostSEK, false)
-        }
-
-        if let stored = summary.totalCostSEK {
-            return (stored, false)
-        }
-        if let kWh, kWh > 0, let spotOre {
-            return (
-                service.calculateTotalCost(
+                let parts = service.calculateTotalCost(
                     kWh: kWh,
                     spotPriceOre: spotOre,
                     profile: costProfile,
-                    hoursInPeriod: hoursInMonth(containing: summary.periodStart, calendar: calendar)
-                ).totalKr,
-                true
-            )
+                    hoursInPeriod: elapsedHours(from: summary.periodStart, now: now, calendar: calendar)
+                )
+                return MonthCostResult(amount: parts.totalKr, usedCurrentTariffs: true, parts: parts, spotBasis: spotOre)
+            }
+            return MonthCostResult(amount: summary.totalCostSEK, usedCurrentTariffs: false)
         }
-        return (nil, false)
+
+        if let stored = summary.totalCostSEK {
+            return MonthCostResult(amount: stored, usedCurrentTariffs: false)
+        }
+        if let kWh, kWh > 0, let spotOre {
+            let parts = service.calculateTotalCost(
+                kWh: kWh,
+                spotPriceOre: spotOre,
+                profile: costProfile,
+                hoursInPeriod: hoursInMonth(containing: summary.periodStart, calendar: calendar)
+            )
+            return MonthCostResult(amount: parts.totalKr, usedCurrentTariffs: true, parts: parts, spotBasis: spotOre)
+        }
+        return MonthCostResult(amount: nil, usedCurrentTariffs: false)
     }
 
     private static func hoursInMonth(containing date: Date, calendar: Calendar) -> Double {
@@ -486,6 +618,30 @@ enum HistoryInsights {
     private static func elapsedHours(from monthStart: Date, now: Date, calendar: Calendar) -> Double {
         let start = calendar.dateInterval(of: .month, for: monthStart)?.start ?? monthStart
         return max(now.timeIntervalSince(start) / 3600, 1 / 60)
+    }
+
+    /// The fixed monthly fees inside a cost, with VAT. From the cost parts when they exist,
+    /// otherwise from the profile's monthly fees, spread over the hours the cost covers
+    /// (730 hours to a month, the same as the cost calculation). Nil when it cannot be told.
+    private static func fixedFeeKr(
+        costKr: Double?,
+        parts: EnhancedCost?,
+        profile: CostProfile?,
+        hours: Double,
+        measuredShare: Double
+    ) -> Double? {
+        guard let costKr else { return nil }
+        let vat = profile?.vatRate ?? 0.25
+        let fee: Double
+        if let parts {
+            fee = (parts.fixedFeeCostKr + parts.powerTariffCostKr + parts.providerMonthlyFeeKr) * (1 + vat)
+        } else if let profile {
+            let monthly = (profile.gridMonthlyFee ?? 0) + profile.retailerMonthlyFee
+            fee = monthly / 730 * hours * min(max(measuredShare, 0), 1)
+        } else {
+            return nil
+        }
+        return min(max(fee, 0), max(costKr, 0))
     }
 
     private static func paidKrPerKWh(costKr: Double?, kWh: Double?) -> Double? {
@@ -514,6 +670,145 @@ enum HistoryInsights {
 }
 
 
+// MARK: - Month cost breakdown
+
+struct MonthCostLine: Identifiable, Equatable, Sendable {
+    let id: String
+    let title: String
+    /// Excluding VAT, except the "Moms" line itself.
+    let amountKr: Double
+    /// Rounded for display. The lines add up to `MonthCostBreakdown.totalWholeKr`.
+    var wholeKr: Int = 0
+    /// What is inside a folded line.
+    var detail: String? = nil
+}
+
+/// What one month's cost consists of, in kronor. The lines add up to the
+/// number on the card exactly, rounded the same way.
+struct MonthCostBreakdown: Equatable, Sendable {
+    let lines: [MonthCostLine]
+    let totalKr: Double
+    let totalWholeKr: Int
+    let kWh: Double?
+    /// Shown under the lines, for example when the grid fee is not included.
+    var note: String? = nil
+
+    var krPerKWh: Double? {
+        guard let kWh, kWh > 0 else { return nil }
+        return totalKr / kWh
+    }
+
+    /// Full split, from the same cost calculation as the total.
+    static func make(parts cost: EnhancedCost, profile: CostProfile, kWh: Double?) -> MonthCostBreakdown {
+        var raw: [MonthCostLine] = []
+        func add(_ id: String, _ title: String, _ amount: Double) {
+            guard amount > 0.0000001 else { return }
+            raw.append(MonthCostLine(id: id, title: title, amountKr: amount))
+        }
+        let spotTitle = profile.retailContractType == .spotPriceMarkup ? "Spotpris" : profile.retailContractDisplayName
+        add("spot", spotTitle, cost.spotCostKr)
+        if profile.retailContractType == .spotPriceMarkup {
+            add("markup", "Elhandlarens påslag", cost.providerSurchargeKr)
+        }
+        add("retailFee", "Elhandlarens månadsavgift", cost.providerMonthlyFeeKr)
+        if profile.hasConfiguredGridCosts {
+            add("grid", "Elnätsavgift", cost.gridEnergyCostKr)
+        }
+        add("gridFee", "Elnätets månadsavgift", cost.fixedFeeCostKr)
+        add("power", EffectTariffCopy.lineTitle, cost.powerTariffCostKr)
+        add("tax", "Skatt på el", cost.energyTaxKr)
+        add("cert", "Elcertifikat", cost.certificateFeeKr)
+
+        // Lines under 2 % of the total go into one "Annat smått" line, as in the kr/kWh view.
+        let total = cost.totalKr
+        let keepIds: Set<String> = ["spot", "markup"]
+        let small = raw.filter { !keepIds.contains($0.id) && total > 0 && $0.amountKr / total < 0.02 }
+        if small.count > 1 {
+            let folded = MonthCostLine(
+                id: "other",
+                title: "Annat smått",
+                amountKr: small.reduce(0) { $0 + $1.amountKr },
+                detail: small.map(\.title).joined(separator: ", ")
+            )
+            raw = raw.filter { line in !small.contains { $0.id == line.id } }
+            raw.append(folded)
+        }
+        add("vat", "Moms", cost.vatKr)
+
+        return finish(
+            raw,
+            totalKr: total,
+            kWh: kWh,
+            note: profile.hasConfiguredGridCosts ? nil : "Elnätsavgift ingår inte. Välj elnätsbolag under Inställningar."
+        )
+    }
+
+    /// Coarser split for saved months, from the saved intervals. Returns nil unless the
+    /// intervals add up to the total on the card.
+    static func make(
+        intervals: [HistoricalEnergyIntervalValue],
+        retailContractType: RetailContractType,
+        displayedTotalKr: Double
+    ) -> MonthCostBreakdown? {
+        var kWh = 0.0, spot = 0.0, energy = 0.0, grid = 0.0, tax = 0.0, vat = 0.0, total = 0.0
+        for interval in intervals {
+            guard let used = interval.consumptionKWh, used > 0,
+                  let intervalTotal = interval.totalCostSEK else { continue }
+            kWh += used
+            spot += used * interval.spotPriceOrePerKWh / 100
+            energy += interval.energyCostSEK ?? 0
+            grid += interval.gridCostSEK ?? 0
+            tax += interval.taxCostSEK ?? 0
+            vat += interval.vatCostSEK ?? 0
+            total += intervalTotal
+        }
+        guard kWh > 0, abs(total - displayedTotalKr) <= 1.5 else { return nil }
+
+        var raw: [MonthCostLine] = []
+        func add(_ id: String, _ title: String, _ amount: Double) {
+            guard amount > 0.0000001 else { return }
+            raw.append(MonthCostLine(id: id, title: title, amountKr: amount))
+        }
+        if retailContractType == .spotPriceMarkup {
+            let rest = energy - spot
+            guard rest > -0.5 else { return nil }
+            add("spot", "Spotpris", spot)
+            add("markup", "Elhandlarens påslag och avgifter", max(rest, 0))
+        } else {
+            add("spot", "Elhandel", energy)
+        }
+        add("grid", "Elnät, överföring och fasta avgifter", grid)
+        add("tax", "Skatt på el och elcertifikat", tax)
+        add("vat", "Moms", vat)
+        return finish(raw, totalKr: total, kWh: kWh, note: nil)
+    }
+
+    /// Rounds to whole kronor so the shown lines add up to the shown total.
+    private static func finish(_ lines: [MonthCostLine], totalKr: Double, kWh: Double?, note: String?) -> MonthCostBreakdown {
+        let totalWhole = Int(totalKr.rounded())
+        var rounded = lines
+        let floors = lines.map { Int($0.amountKr.rounded(.down)) }
+        for index in rounded.indices { rounded[index].wholeKr = floors[index] }
+        var missing = totalWhole - floors.reduce(0, +)
+        let order = lines.indices.sorted {
+            (lines[$0].amountKr - Double(floors[$0])) > (lines[$1].amountKr - Double(floors[$1]))
+        }
+        var cursor = 0
+        while missing > 0, !order.isEmpty {
+            rounded[order[cursor % order.count]].wholeKr += 1
+            missing -= 1
+            cursor += 1
+        }
+        while missing < 0, !order.isEmpty {
+            let index = order[order.count - 1 - (cursor % order.count)]
+            if rounded[index].wholeKr > 0 { rounded[index].wholeKr -= 1; missing += 1 }
+            cursor += 1
+            if cursor > order.count * 4 { break }
+        }
+        return MonthCostBreakdown(lines: rounded, totalKr: totalKr, totalWholeKr: totalWhole, kWh: kWh, note: note)
+    }
+}
+
 // MARK: - Temperature-adjusted consumption
 
 nonisolated struct TemperatureUsagePeriod: Equatable, Sendable {
@@ -522,11 +817,23 @@ nonisolated struct TemperatureUsagePeriod: Equatable, Sendable {
     var meanTempC: Double
     var heatingDegreeDays: Double
     var dayCount: Int
+    /// Days in the compared window, with or without measurements. 0 when unknown.
+    var windowDays: Int = 0
+}
+
+/// Which two periods a temperature comparison sets side by side.
+/// `partial` means only the days measured so far are compared.
+nonisolated enum TemperatureComparisonKind: Equatable, Sendable {
+    case previousMonth(partial: Bool)
+    case yearAgo(partial: Bool)
 }
 
 nonisolated struct TemperatureInsight: Equatable, Sendable, Identifiable {
     var id: String
+    /// Short text for the card.
     var title: String
+    /// Longer explanation for the info sheet.
+    var details: [String]
     var isUncertain: Bool
 }
 
@@ -569,7 +876,8 @@ nonisolated enum TemperatureAdjustment {
             kWh: usedKWh,
             meanTempC: usedTemp / Double(count),
             heatingDegreeDays: usedHDD,
-            dayCount: count
+            dayCount: count,
+            windowDays: days.count
         )
     }
 
@@ -626,14 +934,18 @@ nonisolated enum TemperatureAdjustment {
         current: TemperatureUsagePeriod,
         reference: TemperatureUsagePeriod,
         fit: (baseKWhPerDay: Double, slope: Double, correlation: Double, samples: Int)?,
-        id: String
+        id: String,
+        kind: TemperatureComparisonKind
     ) -> TemperatureInsight? {
         guard current.dayCount >= 3, reference.dayCount >= 3, reference.kWh > 0 else { return nil }
         let rawPercent = (current.kWh - reference.kWh) / reference.kWh * 100
         let colder = current.meanTempC <= reference.meanTempC - similarTempC
         let warmer = current.meanTempC >= reference.meanTempC + similarTempC
-        let temps = "I snitt \(degrees(current.meanTempC)) nu, mot \(degrees(reference.meanTempC)) \(named(reference.name))."
+        let weatherDiffers = colder || warmer
 
+        // Why the weather adjustment is missing or rougher than usual. These go
+        // behind the info button, never on the card.
+        var notes: [String] = []
         let adjusted: Double?
         let uncertain: Bool
         if let fit {
@@ -642,77 +954,166 @@ nonisolated enum TemperatureAdjustment {
             if current.heatingDegreeDays < 0.5 && reference.heatingDegreeDays < 0.5 {
                 adjusted = current.kWh
                 uncertain = fit.correlation < confidentCorrelation
+                if uncertain {
+                    notes.append("Din förbrukning följer vädret bara svagt.")
+                }
             } else if current.heatingDegreeDays < 0.5 || heat < current.kWh * 0.08 {
                 // Use is at or below the estimated always-on part, so a weather
                 // scale would invent a different total. Keep the raw number.
                 adjusted = nil
                 uncertain = true
+                notes.append("Nästan all el gick åt till annat än värme, så en omräkning för vädret skulle bli missvisande.")
             } else {
                 adjusted = base + heat * (reference.heatingDegreeDays / current.heatingDegreeDays)
                 uncertain = fit.correlation < confidentCorrelation || fit.samples < 21
+                if fit.correlation < confidentCorrelation {
+                    notes.append("Din förbrukning följer vädret bara svagt.")
+                }
+                if fit.samples < 21 {
+                    notes.append("Vi har färre än tre veckors dagar med mätvärden att räkna på.")
+                }
             }
         } else {
             adjusted = nil
             uncertain = true
+            notes.append("Vi har för få dagar med både mätvärden och temperatur, eller så följer din förbrukning inte vädret tydligt nog.")
         }
 
-        let rawClause = usedClause(rawPercent, name: reference.name)
-        let weather: String
+        let subject = subjectText(current.name, kind: kind)
+        let temps = temperaturePair(current.meanTempC, reference.meanTempC)
+        let comparedTo = titleReference(reference.name, kind: kind)
+
+        // Card text: one sentence about the weather, one about the use.
+        let weatherSentence: String
         if colder {
-            weather = "men det var kallare"
+            weatherSentence = "\(subject) var kallare än \(comparedTo) (\(temps))."
         } else if warmer {
-            weather = "men det var varmare"
+            weatherSentence = "\(subject) var varmare än \(comparedTo) (\(temps))."
         } else {
-            weather = "och det var ungefär lika varmt"
+            weatherSentence = "\(subject) var ungefär lika varm som \(comparedTo) (\(temps))."
         }
 
-        if let adjusted {
-            let adjPercent = (adjusted - reference.kWh) / reference.kWh * 100
-            let adjUse = usePhrase(adjPercent)
-            if abs(rawPercent) >= similarUsePercent, colder || warmer {
-                let prefix = "\(rawClause), \(weather)."
-                if uncertain {
-                    return TemperatureInsight(
-                        id: id,
-                        title: "\(prefix) Justeringen är osäker, men den pekar på att du använde \(adjUse). \(temps)",
-                        isUncertain: true
-                    )
-                }
-                return TemperatureInsight(
-                    id: id,
-                    title: "\(prefix) Justerat för temperaturen använde du \(adjUse). \(temps)",
-                    isUncertain: false
-                )
-            }
-            if uncertain {
-                return TemperatureInsight(id: id, title: "\(rawClause), \(weather). \(temps)", isUncertain: true)
-            }
-            return TemperatureInsight(
-                id: id,
-                title: "\(rawClause), \(weather). Justerat för temperaturen använde du \(adjUse). \(temps)",
-                isUncertain: false
+        let rawPhrase = usePhrase(rawPercent)
+        let rawConnector = abs(rawPercent) < similarUsePercent ? "som" : "än"
+        let rawSentence = "Du använde \(rawPhrase) \(rawConnector) \(comparedTo)."
+        let usageSentence: String
+        let approx = adjusted.map { approximateUse((($0 - reference.kWh) / reference.kWh) * 100) }
+        if weatherDiffers, let approx {
+            usageSentence = "Räknat på samma väder använde du \(approx.phrase)."
+        } else if weatherDiffers {
+            usageSentence = "\(rawSentence) Det går inte att räkna om till samma väder."
+        } else {
+            usageSentence = rawSentence
+        }
+
+        // Info sheet text.
+        var details: [String] = []
+        details.append(
+            "\(subject) mot \(detailReference(reference.name, kind: kind)). Utan hänsyn till vädret använde du \(rawPhrase) el. I snitt var det \(temps)."
+        )
+        if weatherDiffers, adjusted != nil, let approx {
+            let heatLine = colder
+                ? "Det var kallare, så mer av elen gick till uppvärmning."
+                : "Det var varmare, så mindre av elen gick till uppvärmning."
+            let connector = approx.usesAs ? "som" : "än"
+            details.append(
+                "\(heatLine) Räknat på samma väder räknar vi om förbrukningen som om vädret hade varit som \(inReference(reference.name, kind: kind)). Då hade du använt \(approx.phrase) \(connector) \(inReference(reference.name, kind: kind))."
             )
+        }
+        if weatherDiffers, adjusted == nil {
+            details.append("Därför visar kortet bara förbrukningen som den är, utan omräkning för vädret.")
+        }
+        if uncertain, !notes.isEmpty {
+            let lead = adjusted == nil
+                ? "Varför det inte går att räkna om."
+                : "Därför är uppskattningen extra grov här."
+            details.append("\(lead) \(notes.joined(separator: " "))")
+        }
+        for (period, label) in [(current, "\(current.name)"), (reference, "\(detailReference(reference.name, kind: kind))")]
+        where period.windowDays > period.dayCount {
+            let missing = period.windowDays - period.dayCount
+            let dayWord = missing == 1 ? "dag" : "dagar"
+            details.append("Det saknas mätvärden för \(missing) \(dayWord) i \(label). De dagarna är inte med i jämförelsen.")
         }
 
         return TemperatureInsight(
             id: id,
-            title: "\(rawClause), \(weather). \(temps)",
-            isUncertain: false
+            title: "\(weatherSentence) \(usageSentence)",
+            details: details,
+            isUncertain: uncertain
         )
     }
 
-    static func usedClause(_ percent: Double, name: String) -> String {
-        if abs(percent) < similarUsePercent {
-            return "Du använde ungefär lika mycket som \(named(name))"
-        }
-        return "Du använde \(usePhrase(percent)) än \(named(name))"
+    // MARK: Wording
+
+    static func capitalized(_ text: String) -> String {
+        guard let first = text.first else { return text }
+        return first.uppercased() + text.dropFirst()
     }
 
-    static func named(_ name: String) -> String {
-        if let first = name.first, first.isNumber {
-            return name
+    /// "Oktober", "Oktober hittills", "Oktober i år" or "Oktober hittills i år".
+    static func subjectText(_ month: String, kind: TemperatureComparisonKind) -> String {
+        let name = capitalized(month)
+        switch kind {
+        case .previousMonth(let partial):
+            return partial ? "\(name) hittills" : name
+        case .yearAgo(let partial):
+            return partial ? "\(name) hittills i år" : "\(name) i år"
         }
-        return "i \(name)"
+    }
+
+    /// Used after "än" and "som" on the card: "september", "samma dagar i september", "i fjol".
+    static func titleReference(_ month: String, kind: TemperatureComparisonKind) -> String {
+        switch kind {
+        case .previousMonth(let partial):
+            return partial ? "samma dagar i \(month)" : month
+        case .yearAgo(let partial):
+            return partial ? "samma dagar i fjol" : "i fjol"
+        }
+    }
+
+    /// "i september", "samma dagar i september", "i fjol", "samma dagar i fjol".
+    static func inReference(_ month: String, kind: TemperatureComparisonKind) -> String {
+        switch kind {
+        case .previousMonth(let partial):
+            return partial ? "samma dagar i \(month)" : "i \(month)"
+        case .yearAgo(let partial):
+            return partial ? "samma dagar i fjol" : "i fjol"
+        }
+    }
+
+    /// "september", "samma dagar i september", "oktober i fjol", "samma dagar i oktober i fjol".
+    static func detailReference(_ month: String, kind: TemperatureComparisonKind) -> String {
+        switch kind {
+        case .previousMonth(let partial):
+            return partial ? "samma dagar i \(month)" : month
+        case .yearAgo(let partial):
+            return partial ? "samma dagar i \(month) i fjol" : "\(month) i fjol"
+        }
+    }
+
+    /// Rounded wording for an estimate: it never claims more precision than it has.
+    static func approximateUse(_ percent: Double) -> (phrase: String, usesAs: Bool) {
+        if abs(percent) < similarUsePercent {
+            return ("ungefär lika mycket", true)
+        }
+        if percent >= 85 && percent <= 115 {
+            return ("ungefär dubbelt så mycket", true)
+        }
+        if percent >= -55 && percent <= -45 {
+            return ("ungefär hälften så mycket", true)
+        }
+        var amount = abs(percent).rounded()
+        if amount >= 20 {
+            amount = (amount / 5).rounded() * 5
+        }
+        let word = percent > 0 ? "mer" : "mindre"
+        return ("ungefär \(Int(amount)) procent \(word)", false)
+    }
+
+    static func temperaturePair(_ current: Double, _ reference: Double) -> String {
+        let unit = degreeNumber(reference) == "1" ? "grad" : "grader"
+        return "\(degreeNumber(current)) mot \(degreeNumber(reference)) \(unit)"
     }
 
     static func usePhrase(_ percent: Double) -> String {
@@ -726,21 +1127,23 @@ nonisolated enum TemperatureAdjustment {
         return "ungefär lika mycket"
     }
 
-    static func degrees(_ value: Double) -> String {
+    /// "8,5", "12", "minus 2,5". No unit.
+    static func degreeNumber(_ value: Double) -> String {
         let rounded = (value * 10).rounded() / 10
         let isWhole = abs(rounded - rounded.rounded()) < 0.05
         let number: String
         if isWhole {
-            number = String(Int(rounded.rounded()))
+            number = String(Int(abs(rounded).rounded()))
         } else {
-            number = String(format: "%.1f", rounded).replacingOccurrences(of: ".", with: ",")
+            number = String(format: "%.1f", abs(rounded)).replacingOccurrences(of: ".", with: ",")
         }
-        let absValue = abs(rounded)
-        let unit = abs(absValue - 1) < 0.05 ? "grad" : "grader"
-        if rounded < 0 {
-            return "minus \(number.replacingOccurrences(of: "-", with: "")) \(unit)"
-        }
-        return "\(number) \(unit)"
+        return rounded < 0 ? "minus \(number)" : number
+    }
+
+    static func degrees(_ value: Double) -> String {
+        let rounded = (value * 10).rounded() / 10
+        let unit = abs(abs(rounded) - 1) < 0.05 ? "grad" : "grader"
+        return "\(degreeNumber(value)) \(unit)"
     }
 
     static func daysInWindow(
@@ -812,7 +1215,7 @@ nonisolated enum TemperatureAdjustment {
         }
         // Adjust current (450 kWh, HDD 150) to October HDD 75: 20*15 + 150*(75/150) = 300+75 = 375
         // October is 375 kWh, so adjusted use is equal.
-        let insight = insight(current: current, reference: reference, fit: fit, id: "test")
+        let insight = insight(current: current, reference: reference, fit: fit, id: "test", kind: .previousMonth(partial: false))
         let mentionsEqual = insight?.title.contains("ungefär lika mycket") == true
         let mentionsColder = insight?.title.contains("kallare") == true
         return baseOK && slopeOK && corrOK && mentionsEqual && mentionsColder

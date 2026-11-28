@@ -31,11 +31,11 @@ struct TopConsumptionDaysCard: View {
             HStack(spacing: DS.Spacing.xs) {
                 VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                     Text("Effekttoppar denna månad")
-                        .font(DS.Font.micro)
+                        .font(DS.Font.footnote)
                         .foregroundStyle(.primary)
                     if let avg = averageKW {
                         Text("Snitt: \(avg.formatted(.number.precision(.fractionLength(1)))) kW")
-                            .font(DS.Font.micro)
+                            .font(DS.Font.footnote)
                             .foregroundStyle(DS.Color.secondary)
                     }
                 }
@@ -60,7 +60,7 @@ struct TopConsumptionDaysCard: View {
                         if let label = value.as(String.self) {
                             AxisValueLabel {
                                 Text(label)
-                                    .font(DS.Font.micro)
+                                    .font(DS.Font.footnote)
                                     .foregroundStyle(DS.Color.secondary)
                             }
                         }

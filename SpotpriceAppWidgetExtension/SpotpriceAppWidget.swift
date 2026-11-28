@@ -142,7 +142,7 @@ struct SpotpriceAppWidgetView: View {
     }
 
     private var priceColor: Color {
-        DS.Color.forCategory(entry.priceCategory)
+        DS.Color.textForCategory(entry.priceCategory)
     }
 
     var body: some View {
@@ -157,7 +157,7 @@ struct SpotpriceAppWidgetView: View {
                     .lineLimit(1)
                     .foregroundStyle(renderingMode == .accented ? .primary : priceColor)
                 Text("kr/kWh")
-                    .font(DS.Font.micro)
+                    .font(DS.Font.footnote)
                     .foregroundStyle(DS.Color.secondary)
             } else {
                 Text("--")

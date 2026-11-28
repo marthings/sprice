@@ -157,12 +157,12 @@ struct ProviderSettingsView: View {
                 case .success:
                     Label("Anslutningen fungerar", systemImage: "checkmark.circle.fill")
                         .font(DS.Font.body)
-                        .foregroundStyle(DS.Color.success)
+                        .foregroundStyle(DS.Color.successText)
                         .spriceListRowBackground()
                 case .failure(let message):
                     Label(message, systemImage: "exclamationmark.triangle.fill")
                         .font(DS.Font.body)
-                        .foregroundStyle(DS.Color.warning)
+                        .foregroundStyle(DS.Color.warningText)
                         .spriceListRowBackground()
                 }
             } header: {
@@ -208,7 +208,7 @@ struct ProviderSettingsView: View {
 
             if !field.hint.isEmpty {
                 Text(field.hint)
-                    .font(DS.Font.micro)
+                    .font(DS.Font.footnote)
                     .foregroundStyle(DS.Color.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }

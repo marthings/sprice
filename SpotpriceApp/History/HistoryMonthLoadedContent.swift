@@ -39,12 +39,18 @@ struct HistoryMonthLoadedContent: View {
                             ?? presentation.previousSnapshot.map { AppFormatters.monthName($0.summary.periodStart) },
                         hasProvider: hasProvider,
                         hasPastMonths: presentation.hasPastMonths,
-                        temperatureInsights: temperatureInsights
+                        temperatureInsights: temperatureInsights,
+                        priceArea: priceArea,
+                        monthKey: presentation.selectedMonth?.periodKey
                     )
 
                     if presentation.previousSnapshot != nil {
                         HistoryPriceConsumptionEffect(
                             split: presentation.split,
+                            priceArea: priceArea,
+                            currentMonthKey: presentation.selectedMonth?.periodKey,
+                            previousMonthKey: presentation.previousSnapshot?.summary.periodKey,
+                            throughDay: presentation.comparisonThroughDay,
                             previousMonthName: presentation.comparisonMonthName
                                 ?? presentation.previousSnapshot.map { AppFormatters.monthName($0.summary.periodStart) }
                         )

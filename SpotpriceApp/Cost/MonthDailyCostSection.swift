@@ -17,6 +17,7 @@ struct MonthDailyCostSection: View {
     @State private var selectedDayTiming: String?
     @State private var loadFailed = false
     @State private var didLoad = false
+    @ScaledMetric(relativeTo: .body) private var chartHeight: CGFloat = 196
 
     private var calendar: Calendar { .energyHistory }
 
@@ -30,8 +31,8 @@ struct MonthDailyCostSection: View {
 
             if let hypotheticalEffectTariffKr {
                 Text("\(EffectTariffCopy.lineTitle): ca \(AppFormatters.wholeNumber(hypotheticalEffectTariffKr)) kr för månaden.")
-                    .font(DS.Font.micro)
-                    .foregroundStyle(DS.Color.warning)
+                    .font(DS.Font.footnote)
+                    .foregroundStyle(DS.Color.warningText)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityLabel(
                         "\(EffectTariffCopy.lineTitle), \(AppFormatters.wholeNumber(hypotheticalEffectTariffKr)) kronor för månaden"
@@ -78,7 +79,7 @@ struct MonthDailyCostSection: View {
         }
         if let baseload {
             parts.append(Self.baseloadTitle(baseload))
-            parts.append("Det är det som alltid är på, även när du inte gör något särskilt. Öppna Vad drog? för mer.")
+            parts.append("Det du alltid drar är det som är på hela tiden, även när du inte gör något särskilt. Öppna Vad drog? för mer.")
         }
         return parts
     }
@@ -104,12 +105,14 @@ struct MonthDailyCostSection: View {
                 .accessibilityLabel(forecastStatusCopy)
         }
         if let expensive, let cost = expensive.costKr {
-            Text("Dyrast: \(AppFormatters.weekdayDayMonth(expensive.date)), \(AppFormatters.wholeNumber(cost)) kr")
+            Text("Dyrast (röd stapel): \(AppFormatters.weekdayDayMonth(expensive.date)), \(AppFormatters.wholeNumber(cost)) kr")
                 .font(DS.Font.semibold(12))
                 .foregroundStyle(.primary)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityLabel("Dyraste dagen är \(AppFormatters.weekdayDayMonth(expensive.date)), \(AppFormatters.wholeNumber(cost)) kronor")
         }
+
+        ChartCaption("Kostnad per dag, i kronor")
 
         ZStack {
             dailyBarsChart(expensive: expensive)
@@ -117,7 +120,7 @@ struct MonthDailyCostSection: View {
                 cumulativeLineChart
             }
         }
-        .frame(height: 196)
+        .frame(height: chartHeight)
         .spriceChartMotion(days.map(\.costKr), selectedDay?.id, resolvedForecastKr, cumulativePoints.map(\.value))
         .zIndex(1)
         .accessibilityLabel(chartAccessibilityLabel)
@@ -155,17 +158,27 @@ struct MonthDailyCostSection: View {
     static func baseloadTitle(_ baseload: ConsumptionBaseloadInsight) -> String {
         let power = ConsumptionInsightsBuilder.powerPhrase(baseload.powerKW)
         let kronor = AppFormatters.wholeNumber(baseload.costKr)
-        return "Huset drar alltid ungefär \(power), det blir cirka \(kronor) kr den här månaden."
+        return "Det du alltid drar är ungefär \(power). Det blir cirka \(kronor) kr den här månaden."
     }
 
     private var seriesLegend: some View {
-        HStack(spacing: DS.Spacing.md) {
-            legendSwatch(color: DS.Color.info, label: "Per dag")
-            legendLine(style: StrokeStyle(lineWidth: 2), label: "Hittills")
-            legendLine(style: StrokeStyle(lineWidth: 2, dash: [5, 4]), label: "Prognos")
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: DS.Spacing.md) {
+                seriesLegendItems
+            }
+            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                seriesLegendItems
+            }
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Per dag som staplar, hittills som heldragen linje, prognos som streckad linje")
+    }
+
+    @ViewBuilder
+    private var seriesLegendItems: some View {
+        legendSwatch(color: DS.Color.info, label: "Per dag")
+        legendLine(style: StrokeStyle(lineWidth: 2), label: "Hittills")
+        legendLine(style: StrokeStyle(lineWidth: 2, dash: [5, 4]), label: "Prognos")
     }
 
     private func legendSwatch(color: Color, label: String) -> some View {
@@ -174,7 +187,7 @@ struct MonthDailyCostSection: View {
                 .fill(color)
                 .frame(width: 10, height: 8)
             Text(label)
-                .font(DS.Font.micro)
+                .font(DS.Font.footnote)
                 .foregroundStyle(DS.Color.secondary)
         }
     }
@@ -185,7 +198,7 @@ struct MonthDailyCostSection: View {
                 .stroke(DS.Color.brand, style: style)
                 .frame(width: 16, height: 2)
             Text(label)
-                .font(DS.Font.micro)
+                .font(DS.Font.footnote)
                 .foregroundStyle(DS.Color.secondary)
         }
     }
@@ -354,7 +367,7 @@ struct MonthDailyCostSection: View {
     private func axisAmountLabel(_ amount: Double?, visible: Bool, trailing: Bool) -> some View {
         if let amount {
             Text(amount, format: .number.precision(.fractionLength(0)))
-                .font(DS.Font.micro)
+                .font(DS.Font.footnote)
                 .foregroundStyle(DS.Color.secondary)
                 .frame(minWidth: 36, alignment: trailing ? .leading : .trailing)
                 .opacity(visible ? 1 : 0)

@@ -3,7 +3,20 @@ import SwiftUI
 struct DashboardView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var viewModel = SpotPriceViewModel()
-    @State private var selectedSection = 0
+    @State private var selectedSection = DashboardView.initialSection
+
+    /// DEBUG only: `-StartTab 1` opens a given tab, so screenshots can be taken without tapping.
+    private static var initialSection: Int {
+#if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        if let index = arguments.firstIndex(of: "-StartTab"),
+           arguments.indices.contains(index + 1),
+           let tab = Int(arguments[index + 1]) {
+            return tab
+        }
+#endif
+        return 0
+    }
 
     var body: some View {
         TabView(selection: $selectedSection) {
@@ -155,6 +168,8 @@ struct DashboardView: View {
             }
         }
 
+        @State private var scrollPosition = ScrollPosition(edge: .top)
+
         @ViewBuilder
         private var tabBody: some View {
             if embedsInScrollView {
@@ -164,9 +179,17 @@ struct DashboardView: View {
                     }
                     .padding(.horizontal, DS.Spacing.lg)
                 }
+                .scrollPosition($scrollPosition)
                 .scrollContentBackground(.hidden)
                 .spriceScrollContentMargins()
                 .scrollDismissesKeyboard(.interactively)
+#if DEBUG
+                .task {
+                    guard DebugLaunch.scrollY > 0 else { return }
+                    try? await Task.sleep(for: .seconds(2))
+                    scrollPosition.scrollTo(y: DebugLaunch.scrollY)
+                }
+#endif
                 .modifier(DashboardRefreshModifier(isEnabled: showsRefresh, onRefresh: onRefresh))
             } else {
                 tabContent()
@@ -207,3 +230,17 @@ private struct DashboardRefreshModifier: ViewModifier {
 #Preview {
     DashboardView()
 }
+
+#if DEBUG
+/// DEBUG only launch arguments, so screenshots can be taken without tapping.
+enum DebugLaunch {
+    static func value(after flag: String) -> Double? {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let index = arguments.firstIndex(of: flag), arguments.indices.contains(index + 1) else { return nil }
+        return Double(arguments[index + 1])
+    }
+
+    /// `-ScrollY 800` scrolls the first screen that reads it.
+    static var scrollY: CGFloat { CGFloat(value(after: "-ScrollY") ?? 0) }
+}
+#endif

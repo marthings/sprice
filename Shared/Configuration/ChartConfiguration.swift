@@ -35,7 +35,7 @@ enum HistoryChartAxis {
     @ViewBuilder
     static func label(_ text: String) -> some View {
         Text(text)
-            .font(DS.Font.micro)
+            .font(DS.Font.footnote)
             .foregroundStyle(DS.Color.secondary)
             .padding(.top, labelTopPadding)
     }

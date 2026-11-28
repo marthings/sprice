@@ -11,6 +11,10 @@ struct HistoryMonthChrome: View {
         return months.firstIndex { $0.periodKey == selectedMonth.periodKey }
     }
 
+    private var isSelectedMonthInProgress: Bool {
+        selectedMonth.map { HistoryMonthFormatting.isCurrentMonth($0) } == true
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.xs) {
             HStack(spacing: DS.Spacing.md) {
@@ -25,26 +29,15 @@ struct HistoryMonthChrome: View {
                 Spacer(minLength: 0)
 
                 VStack(spacing: DS.Spacing.xxs) {
-                    HStack(spacing: DS.Spacing.sm) {
-                        Text(monthTitle)
-                            .font(DS.Font.headline)
-                            .foregroundStyle(.primary)
-                            .multilineTextAlignment(.center)
-
-                        if selectedMonth.map({ HistoryMonthFormatting.isCurrentMonth($0) }) == true {
-                            Text("Pågår")
-                                .font(DS.Font.micro)
-                                .foregroundStyle(.primary)
-                                .padding(.horizontal, DS.Spacing.sm)
-                                .padding(.vertical, DS.Spacing.xxs)
-                                .background(DS.Color.warning.opacity(0.18), in: Capsule())
-                                .accessibilityLabel("Månaden pågår")
-                        }
-                    }
+                    Text(monthTitle)
+                        .font(DS.Font.headline)
+                        .foregroundStyle(.primary)
+                        .multilineTextAlignment(.center)
+                        .accessibilityValue(isSelectedMonthInProgress ? "Månaden pågår" : "")
 
                     if let comparisonMonthName {
                         Text("Jämförd med \(comparisonMonthName)")
-                            .font(DS.Font.micro)
+                            .font(DS.Font.footnote)
                             .foregroundStyle(DS.Color.secondary)
                     }
                 }

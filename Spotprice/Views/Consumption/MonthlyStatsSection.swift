@@ -151,7 +151,7 @@ struct MonthlyStatsSection: View {
                     .font(DS.Font.medium(12))
                     .foregroundStyle(.primary)
                 Text(summary.coverageText(style: .fallback))
-                    .font(DS.Font.micro)
+                    .font(DS.Font.footnote)
                     .foregroundStyle(DS.Color.secondary)
                     .lineLimit(2)
             }

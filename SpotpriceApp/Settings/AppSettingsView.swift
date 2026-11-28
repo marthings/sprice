@@ -107,7 +107,7 @@ struct AppSettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
                 if let overviewStatus {
                     Text(overviewStatus)
-                        .font(DS.Font.micro)
+                        .font(DS.Font.footnote)
                         .foregroundStyle(DS.Color.secondary)
                 }
             }
@@ -197,7 +197,7 @@ struct AppSettingsView: View {
             if let fieldError {
                 Label(fieldError, systemImage: "exclamationmark.triangle.fill")
                     .font(DS.Font.body)
-                    .foregroundStyle(DS.Color.warning)
+                    .foregroundStyle(DS.Color.warningText)
                     .spriceListRowBackground()
             }
         } header: {
@@ -239,7 +239,7 @@ struct AppSettingsView: View {
             if let gridTariffError {
                 Label(gridTariffError, systemImage: "exclamationmark.triangle.fill")
                     .font(DS.Font.body)
-                    .foregroundStyle(DS.Color.warning)
+                    .foregroundStyle(DS.Color.warningText)
                     .spriceListRowBackground()
             } else if let gridTariffSummary {
                 Label(gridTariffSummary, systemImage: "checkmark.circle.fill")

@@ -151,11 +151,16 @@ let showingCached: Bool
             monthlyConsumption = fresh
             settings.cachedConsumption = fresh
             showingCached = false
-        } else if monthlyConsumption != nil || settings.cachedConsumption != nil {
-            monthlyConsumption = monthlyConsumption ?? settings.cachedConsumption
-            showingCached = result.consumptionFailure != nil
         } else {
-            showingCached = false
+            // Keep the old number only if it is for this month. Last month's total must
+            // never be shown as "so far this month".
+            let now = nowProvider()
+            let calendar = Calendar.energyHistory
+            func thisMonth(_ data: ConsumptionData?) -> ConsumptionData? {
+                data.flatMap { calendar.isDate($0.monthDate, equalTo: now, toGranularity: .month) ? $0 : nil }
+            }
+            monthlyConsumption = thisMonth(monthlyConsumption) ?? thisMonth(settings.cachedConsumption)
+            showingCached = monthlyConsumption != nil && result.consumptionFailure != nil
         }
         consumptionMeasuredThrough = ConsumptionFreshness.lastMeasurement(
             quarterly: result.quarterlyConsumption,

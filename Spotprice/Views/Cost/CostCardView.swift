@@ -17,12 +17,12 @@ struct CostCardView: View {
             HStack(spacing: DS.Spacing.xs) {
                 VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
                     Text(title)
-                        .font(DS.Font.micro)
+                        .font(DS.Font.footnote)
                         .foregroundStyle(.primary)
                         .lineLimit(1)
 
                     Text(description)
-                        .font(DS.Font.micro)
+                        .font(DS.Font.footnote)
                         .foregroundStyle(DS.Color.secondary)
                         .lineLimit(1)
                 }
@@ -36,21 +36,21 @@ struct CostCardView: View {
                         .font(DS.Font.bold(15).monospacedDigit())
                         .foregroundStyle(.primary)
                     Text("kr")
-                        .font(DS.Font.micro)
+                        .font(DS.Font.footnote)
                         .foregroundStyle(DS.Color.secondary)
                 }
                 
                 if breakdown.hasGridCosts {
                     VStack(alignment: .leading, spacing: 1) {
                         Text("\(retailEnergyLabel): \(breakdown.spot.formatted(.number.precision(.fractionLength(2)))) kr")
-                            .font(DS.Font.micro)
+                            .font(DS.Font.footnote)
                             .foregroundStyle(.tertiary)
                         Text("Nät uppsk.: \(breakdown.grid.formatted(.number.precision(.fractionLength(2)))) kr")
-                            .font(DS.Font.micro)
+                            .font(DS.Font.footnote)
                             .foregroundStyle(.tertiary)
                         if breakdown.fixed > 0 {
                             Text("Övrigt: \(breakdown.fixed.formatted(.number.precision(.fractionLength(2)))) kr")
-                                .font(DS.Font.micro)
+                                .font(DS.Font.footnote)
                                 .foregroundStyle(.tertiary)
                         }
                     }

@@ -84,8 +84,8 @@ struct ConsumptionInsightsTeaserCard: View {
             SectionInfoHeader(
                 title: "Vad drog?",
                 paragraphs: [
-                    "Här ser du vad som alltid är på, när topparna kom och när på dygnet det drog mest.",
-                    "Öppna för mer om grundlast, toppar och tid på dygnet."
+                    "Här ser du det du alltid drar, när topparna kom och när på dygnet det drog mest.",
+                    "Öppna för mer om det du alltid drar, toppar och tid på dygnet."
                 ]
             )
 
@@ -99,11 +99,11 @@ struct ConsumptionInsightsTeaserCard: View {
 
             if isLoading && insights == nil {
                 Text("Räknar ut vad som drog.")
-                    .font(DS.Font.micro)
+                    .font(DS.Font.footnote)
                     .foregroundStyle(DS.Color.secondary)
             } else if !canOpen {
                 Text("Förbrukning saknas, så det går inte att räkna ut än.")
-                    .font(DS.Font.micro)
+                    .font(DS.Font.footnote)
                     .foregroundStyle(DS.Color.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -122,7 +122,7 @@ struct ConsumptionInsightsTeaserCard: View {
                 }
                 .buttonStyle(SpriceCardPressButtonStyle())
                 .accessibilityLabel("Visa mer om vad som drog")
-                .accessibilityHint("Öppnar grundlast, toppar och tid på dygnet")
+                .accessibilityHint("Öppnar det du alltid drar, toppar och tid på dygnet")
             }
         }
         .padding(DS.Spacing.card)

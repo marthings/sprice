@@ -1,5 +1,6 @@
 import SwiftUI
 import Charts
+import Accessibility
 
 struct DailyPriceTabView: View {
     let state: SpotPriceViewModel.State
@@ -47,11 +48,91 @@ private struct PriceChartSection: View {
                 ]
             )
 
+            PriceAnswerLine(series: series)
+
+            ChartCaption("Pris per kWh, i kronor")
+
             PriceChartPlot(
                 day: payload.day,
                 profile: costProfile
             )
         }
+    }
+
+    private var series: TotalPriceChartSeries {
+        TotalPriceChartSeries(day: payload.day, profile: costProfile)
+    }
+}
+
+/// Answers the question people open the tab with: when is it cheapest?
+private struct PriceAnswerLine: View {
+    let series: TotalPriceChartSeries
+
+    var body: some View {
+        let lines = series.answerLines
+        if !lines.isEmpty {
+            VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
+                ForEach(lines, id: \.self) { line in
+                    Text(line)
+                        .font(DS.Font.callout)
+                        .foregroundStyle(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .combine)
+        }
+    }
+}
+
+extension TotalPriceChartSeries {
+    var cheapestPoint: TotalPriceChartPoint? { points.min { $0.price < $1.price } }
+    var dearestPoint: TotalPriceChartPoint? { points.max { $0.price < $1.price } }
+
+    /// "Billigast runt kl. 03 (1,95 kr/kWh)." and "Dyrast runt kl. 16 (7,37 kr/kWh)."
+    var answerLines: [String] {
+        guard let cheapest = cheapestPoint, let dearest = dearestPoint, cheapest.start != dearest.start else {
+            return []
+        }
+        return [
+            "Billigast runt kl. \(Self.hourLabel(cheapest.start)) (\(AppFormatters.krPerKWh(cheapest.price))).",
+            "Dyrast runt kl. \(Self.hourLabel(dearest.start)) (\(AppFormatters.krPerKWh(dearest.price)))."
+        ]
+    }
+
+    var answerText: String? {
+        let lines = answerLines
+        return lines.isEmpty ? nil : lines.joined(separator: " ")
+    }
+
+    static func hourLabel(_ date: Date) -> String {
+        date.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).locale(AppFormatters.swedishLocale))
+    }
+
+    /// Stretches of the day where the price is in the cheapest quarter of the day's range.
+    /// Empty when the day is almost flat, since highlighting everything says nothing.
+    var cheapRuns: [(start: Date, end: Date)] {
+        guard let low = points.map(\.price).min(), let high = points.map(\.price).max(), high - low >= 0.2 else {
+            return []
+        }
+        let limit = low + (high - low) * 0.25
+        var runs: [(start: Date, end: Date)] = []
+        var current: (start: Date, end: Date)?
+        for point in points {
+            if point.price <= limit {
+                if let existing = current, existing.end == point.bucket.start {
+                    current = (existing.start, point.bucket.end)
+                } else {
+                    if let finished = current { runs.append(finished) }
+                    current = (point.bucket.start, point.bucket.end)
+                }
+            } else if let finished = current {
+                runs.append(finished)
+                current = nil
+            }
+        }
+        if let finished = current { runs.append(finished) }
+        return runs
     }
 }
 
@@ -73,6 +154,8 @@ private struct PriceChartCanvas: View {
     let day: DayChartData
     let profile: CostProfile
     @State private var selectedChartDate: Date?
+    @ScaledMetric(relativeTo: .body) private var chartHeight: CGFloat = 260
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 60)) { context in
@@ -86,7 +169,7 @@ private struct PriceChartCanvas: View {
     }
 
     private func nowPriceLabel(_ price: Double) -> String {
-        "Nu \(AppFormatters.kr(price, fractionLength: 2))"
+        "Nu \(AppFormatters.krPerKWh(price))"
     }
 
     private func nowPriceAccessibilityLabel(_ price: Double) -> String {
@@ -100,6 +183,17 @@ private struct PriceChartCanvas: View {
         let selectionIsCurrent = selectedPoint != nil && selectedPoint?.start == current?.start
 
         return Chart {
+            ForEach(Array(series.cheapRuns.enumerated()), id: \.offset) { _, run in
+                RectangleMark(
+                    xStart: .value("Billigt från", run.start),
+                    xEnd: .value("Billigt till", run.end),
+                    yStart: .value("kr/kWh", series.yDomain.lowerBound),
+                    yEnd: .value("kr/kWh", series.yDomain.upperBound)
+                )
+                .foregroundStyle(DS.Color.success.opacity(differentiateWithoutColor ? 0.2 : 0.09))
+                .accessibilityHidden(true)
+            }
+
             ForEach(series.points) { point in
                 LineMark(
                     x: .value("Tid", point.start),
@@ -168,7 +262,7 @@ private struct PriceChartCanvas: View {
                 if let date = value.as(Date.self) {
                     AxisValueLabel {
                         Text(date.formatted(.dateTime.hour()))
-                            .font(DS.Font.micro)
+                            .font(DS.Font.footnote)
                     }
                 }
             }
@@ -181,7 +275,7 @@ private struct PriceChartCanvas: View {
                 AxisValueLabel {
                     if let price = value.as(Double.self) {
                         Text(price, format: .number.precision(.fractionLength(2)))
-                            .font(DS.Font.micro)
+                            .font(DS.Font.footnote)
                     }
                 }
             }
@@ -192,11 +286,40 @@ private struct PriceChartCanvas: View {
             plot.padding(.top, DS.Spacing.sm)
         }
         .spriceChartMotion(series.points.map(\.price), selectedChartDate, current?.start)
-        .frame(height: 260)
+        .frame(height: chartHeight)
         .padding(DS.Spacing.card)
         .spriceCard(tone: .price)
         .zIndex(1)
-        .accessibilityHint("Dra över grafen för att se pris vid en viss tid.")
+        .accessibilityChartDescriptor(PriceChartDescriptor(series: series, current: current))
+        .accessibilityHint("Dra över grafen för att se pris vid en viss tid. Svep uppåt eller neråt för att stega timme för timme.")
+        .accessibilityValue(selectedPoint.map { Self.spokenPrice($0) } ?? "")
+        .accessibilityAdjustableAction { direction in
+            stepSelection(direction, current: current)
+        }
+    }
+
+    /// Lets VoiceOver users move the selected hour with swipe up and down,
+    /// since dragging a finger across the chart is not possible for them.
+    private func stepSelection(_ direction: AccessibilityAdjustmentDirection, current: TotalPriceChartPoint?) {
+        let hours = series.hourlyPoints
+        guard !hours.isEmpty else { return }
+        let reference = selectedChartDate ?? current?.start ?? hours[0].start
+        let index = hours.indices.min { lhs, rhs in
+            abs(hours[lhs].start.timeIntervalSince(reference)) < abs(hours[rhs].start.timeIntervalSince(reference))
+        } ?? 0
+        let next: Int
+        switch direction {
+        case .increment: next = min(index + 1, hours.count - 1)
+        case .decrement: next = max(index - 1, 0)
+        @unknown default: next = index
+        }
+        selectedChartDate = hours[next].start
+    }
+
+    private static func spokenPrice(_ point: TotalPriceChartPoint) -> String {
+        let hour = point.start.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits).locale(AppFormatters.swedishLocale))
+        let amount = point.price.formatted(.number.precision(.fractionLength(2)))
+        return "Klockan \(hour), \(amount) kronor per kilowattimme"
     }
 }
 
@@ -231,22 +354,31 @@ private struct MarketContractExplanation: View {
 
             VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                 Text("Fasta delar i totalpriset")
-                    .font(DS.Font.semibold(12))
+                    .font(DS.Font.semibold(13))
                     .foregroundStyle(.primary)
+                    .accessibilityAddTraits(.isHeader)
 
                 ForEach(staticCostRows, id: \.title) { row in
-                    HStack(spacing: DS.Spacing.sm) {
-                        Text(row.title)
-                            .font(DS.Font.micro)
-                            .foregroundStyle(DS.Color.secondary)
-                        Spacer(minLength: DS.Spacing.sm)
-                        Text(row.value, format: .number.precision(.fractionLength(2)))
-                            .font(DS.Font.micro.monospacedDigit())
-                            .foregroundStyle(.primary)
-                        Text("kr/kWh")
-                            .font(DS.Font.micro)
-                            .foregroundStyle(DS.Color.secondary)
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: DS.Spacing.sm) {
+                            Text(row.title)
+                                .font(DS.Font.footnote)
+                                .foregroundStyle(DS.Color.secondary)
+                            Spacer(minLength: DS.Spacing.sm)
+                            Text(AppFormatters.krPerKWh(row.value))
+                                .font(DS.Font.footnote.monospacedDigit())
+                                .foregroundStyle(.primary)
+                        }
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text(row.title)
+                                .font(DS.Font.footnote)
+                                .foregroundStyle(DS.Color.secondary)
+                            Text(AppFormatters.krPerKWh(row.value))
+                                .font(DS.Font.footnote.monospacedDigit())
+                                .foregroundStyle(.primary)
+                        }
                     }
+                    .accessibilityElement(children: .combine)
                 }
             }
         }
@@ -280,14 +412,14 @@ private struct MarketContractExplanation: View {
         case .spotPriceMarkup:
             let retailFees = baseCost.providerSurchargeKr + baseCost.providerMonthlyFeeKr
             if retailFees > 0 {
-                rows.append(("Elhandel utöver spot", retailFees))
+                rows.append(("Elhandlarens påslag", retailFees))
             }
         case .variableMonthlyPrice, .fixedPrice:
             if baseCost.spotCostKr > 0 {
                 rows.append((profile.retailContractDisplayName, baseCost.spotCostKr))
             }
             if baseCost.providerMonthlyFeeKr > 0 {
-                rows.append(("Elhandel månadsavgift", baseCost.providerMonthlyFeeKr))
+                rows.append(("Elhandlarens månadsavgift", baseCost.providerMonthlyFeeKr))
             }
         }
 
@@ -306,5 +438,61 @@ private struct MarketContractExplanation: View {
         }
 
         return rows
+    }
+}
+
+extension TotalPriceChartSeries {
+    /// One point per whole hour, for stepping with VoiceOver.
+    var hourlyPoints: [TotalPriceChartPoint] {
+        let calendar = Calendar.energyHistory
+        return points.filter { calendar.component(.minute, from: $0.start) == 0 }
+    }
+}
+
+/// Gives VoiceOver users a summary and Apple's audio graph for the price curve.
+private struct PriceChartDescriptor: AXChartDescriptorRepresentable {
+    let series: TotalPriceChartSeries
+    let current: TotalPriceChartPoint?
+
+    func makeChartDescriptor() -> AXChartDescriptor {
+        let points = series.points
+        let hourLabels = points.map {
+            $0.start.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits).locale(AppFormatters.swedishLocale))
+        }
+        let xAxis = AXCategoricalDataAxisDescriptor(
+            title: "Klockslag",
+            categoryOrder: hourLabels
+        )
+        let prices = points.map(\.price)
+        let lower = prices.min() ?? 0
+        let upper = max(prices.max() ?? 1, lower + 0.01)
+        let yAxis = AXNumericDataAxisDescriptor(
+            title: "Kronor per kilowattimme",
+            range: lower...upper,
+            gridlinePositions: []
+        ) { value in
+            "\(value.formatted(.number.precision(.fractionLength(2)))) kronor per kilowattimme"
+        }
+        let dataPoints = zip(hourLabels, prices).map { label, price in
+            AXDataPoint(x: label, y: price)
+        }
+        let dataSeries = AXDataSeriesDescriptor(
+            name: "Totalpris per kilowattimme",
+            isContinuous: true,
+            dataPoints: dataPoints
+        )
+        var summaryParts: [String] = []
+        if let text = series.answerText { summaryParts.append(text) }
+        if let current {
+            summaryParts.append("Nu \(AppFormatters.krPerKWh(current.price)).")
+        }
+        return AXChartDescriptor(
+            title: "Dagens totalpris",
+            summary: summaryParts.joined(separator: " "),
+            xAxis: xAxis,
+            yAxis: yAxis,
+            additionalAxes: [],
+            series: [dataSeries]
+        )
     }
 }

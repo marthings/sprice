@@ -18,7 +18,7 @@ struct SpotpriceApp: App {
     var body: some Scene {
         WindowGroup {
             DashboardView()
-                .tint(DS.Color.accent)
+                .tint(DS.Color.accentText)
         }
     }
 }

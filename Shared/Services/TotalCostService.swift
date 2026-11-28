@@ -273,8 +273,12 @@ struct MonthlyCostEstimator: Sendable {
         profile: CostProfile,
         now: Date
     ) -> MonthlyCostEstimate {
-        let monthlyKWh = historySummary?.totalConsumptionKWh ?? cachedConsumption?.totalKWh ?? 0
-        let monthDate = historySummary?.periodStart ?? cachedConsumption?.monthDate ?? now
+        // A cached total from another month must not show up as this month's.
+        let cachedThisMonth = cachedConsumption.flatMap { cached in
+            calendar.isDate(cached.monthDate, equalTo: now, toGranularity: .month) ? cached : nil
+        }
+        let monthlyKWh = historySummary?.totalConsumptionKWh ?? cachedThisMonth?.totalKWh ?? 0
+        let monthDate = historySummary?.periodStart ?? cachedThisMonth?.monthDate ?? now
 
         if let historyCost = historySummary?.totalCostSEK {
             return MonthlyCostEstimate(totalKr: historyCost, kWh: monthlyKWh, monthDate: monthDate)
@@ -374,16 +378,16 @@ enum CostBreakdownPresenter {
         var otherComponents: [(label: String, value: Double)] = []
 
         if profile.retailContractType == .spotPriceMarkup && cost.providerSurchargeKr > 0 {
-            otherComponents.append(("Elhandelsavgifter", cost.providerSurchargeKr))
+            otherComponents.append(("Elhandlarens påslag", cost.providerSurchargeKr))
         }
         if cost.providerMonthlyFeeKr > 0 {
-            otherComponents.append(("Elhandel månadavgift", cost.providerMonthlyFeeKr))
+            otherComponents.append(("Elhandlarens månadsavgift", cost.providerMonthlyFeeKr))
         }
         if cost.gridEnergyCostKr > 0 {
             otherComponents.append(("Elnätsavgift", cost.gridEnergyCostKr))
         }
         if cost.fixedFeeCostKr > 0 {
-            otherComponents.append(("Elnät månadavgift", cost.fixedFeeCostKr))
+            otherComponents.append(("Elnätets månadsavgift", cost.fixedFeeCostKr))
         }
 
         otherComponents.append(("Skatt på el", cost.energyTaxKr))
@@ -411,7 +415,7 @@ enum CostBreakdownPresenter {
         let remaining = otherComponents.dropFirst(2)
         if !remaining.isEmpty {
             components.append(CostBreakdownComponent(
-                label: "Övrigt",
+                label: "Övriga avgifter",
                 value: remaining.reduce(0) { $0 + $1.value },
                 isMain: false
             ))
@@ -432,12 +436,16 @@ enum KilowattHourLineKind: String, Sendable {
     case monthlyFees
     case powerTariff
     case vat
+    /// Several tiny lines folded into one, so the list stays easy to read.
+    case other
 }
 
 struct KilowattHourLine: Identifiable, Sendable {
     let kind: KilowattHourLineKind
     let title: String
     let amountKrPerKWh: Double
+    /// What is inside a folded line, for example "Elcertifikat".
+    var detail: String? = nil
 
     var id: String { kind.rawValue }
 
@@ -469,7 +477,7 @@ struct KilowattHourBreakdown: Sendable {
             appendLine(
                 &lines,
                 kind: .markup,
-                title: "Påslag",
+                title: "Elhandlarens påslag",
                 amount: cost.providerSurchargeKr
             )
         }
@@ -479,7 +487,7 @@ struct KilowattHourBreakdown: Sendable {
             appendLine(
                 &lines,
                 kind: .gridTransfer,
-                title: "Överföring",
+                title: "Elnätsavgift",
                 amount: cost.gridEnergyCostKr
             )
         }
@@ -491,11 +499,13 @@ struct KilowattHourBreakdown: Sendable {
         appendLine(
             &lines,
             kind: .monthlyFees,
-            title: "Andel av månadsavgifter",
+            title: "Fasta månadsavgifter",
             amount: monthlyShare
         )
         appendLine(&lines, kind: .powerTariff, title: EffectTariffCopy.lineTitle, amount: cost.powerTariffCostKr)
         appendLine(&lines, kind: .vat, title: "Moms", amount: cost.vatKr)
+
+        lines = foldingSmallLines(lines, total: cost.totalKr)
 
         let missingGridMessage = includesGrid
             ? nil
@@ -507,6 +517,31 @@ struct KilowattHourBreakdown: Sendable {
             includesGrid: includesGrid,
             missingGridMessage: missingGridMessage
         )
+    }
+
+    /// Lines under about 2 % of the price go into one "Annat smått" line.
+    /// VAT and the retailer's markup stay as their own lines: they are the ones people ask about.
+    private static func foldingSmallLines(_ lines: [KilowattHourLine], total: Double) -> [KilowattHourLine] {
+        guard total > 0 else { return lines }
+        let threshold = 0.02
+        let small = lines.filter { $0.kind != .vat && $0.kind != .markup && $0.amountKrPerKWh / total < threshold }
+        // A single small line keeps its own name.
+        guard small.count > 1 else { return lines }
+
+        let kept = lines.filter { line in !small.contains { $0.id == line.id } }
+        let folded = KilowattHourLine(
+            kind: .other,
+            title: "Annat smått",
+            amountKrPerKWh: small.reduce(0) { $0 + $1.amountKrPerKWh },
+            detail: small.map(\.title).joined(separator: ", ")
+        )
+        var result = kept
+        if let vatIndex = result.firstIndex(where: { $0.kind == .vat }) {
+            result.insert(folded, at: vatIndex)
+        } else {
+            result.append(folded)
+        }
+        return result
     }
 
     private static func appendLine(
@@ -556,15 +591,15 @@ enum CostUsageInsights {
         var deltaKr: Double { actualKr - comparisonKr }
 
         var title: String {
-            let price = AppFormatters.oreValue(fixedOrePerKWh)
+            let price = AppFormatters.krPerKWh(fixedOrePerKWh / 100)
             let amount = AppFormatters.wholeNumber(abs(deltaKr))
             if deltaKr < -4 {
-                return "Med spot har du betalat \(amount) kr mindre än med ett fast pris på \(price) öre/kWh."
+                return "Med spotpris har du betalat \(amount) kr mindre än med ett fast pris på \(price)."
             }
             if deltaKr > 4 {
-                return "Med spot har du betalat \(amount) kr mer än med ett fast pris på \(price) öre/kWh."
+                return "Med spotpris har du betalat \(amount) kr mer än med ett fast pris på \(price)."
             }
-            return "Med spot har du betalat ungefär lika mycket som med ett fast pris på \(price) öre/kWh."
+            return "Med spotpris har du betalat ungefär lika mycket som med ett fast pris på \(price)."
         }
     }
 
@@ -576,13 +611,13 @@ enum CostUsageInsights {
         var savedOrePerKWh: Double { evenOrePerKWh - weightedOrePerKWh }
 
         var title: String {
-            let ore = AppFormatters.oreValue(abs(savedOrePerKWh))
+            let kr = AppFormatters.krPerKWh(abs(savedOrePerKWh) / 100)
             let kronor = AppFormatters.wholeNumber(abs(savedKr))
             if savedKr > 4 {
-                return "Du betalade \(ore) öre mindre per kWh än om du hade använt lika mycket varje timme, ungefär \(kronor) kr."
+                return "Du betalade \(kr) mindre än om du hade använt lika mycket varje timme, ungefär \(kronor) kr."
             }
             if savedKr < -4 {
-                return "Du betalade \(ore) öre mer per kWh än om du hade använt lika mycket varje timme, ungefär \(kronor) kr."
+                return "Du betalade \(kr) mer än om du hade använt lika mycket varje timme, ungefär \(kronor) kr."
             }
             return "Du betalade ungefär samma per kWh som om du hade använt lika mycket varje timme."
         }

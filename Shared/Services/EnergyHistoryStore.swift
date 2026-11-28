@@ -1236,12 +1236,8 @@ nonisolated enum EnergyHistoryWriting {
                 continue
             }
 
-            let profile: CostProfile
-            if let snapshotProfile = try costProfile(for: record, context: context) {
-                profile = snapshotProfile
-            } else {
-                profile = fallbackProfile
-            }
+            let storedProfile = try costProfile(for: record, context: context) ?? fallbackProfile
+            let profile = HistoricalTariffRates.profile(storedProfile, forPeriodStarting: record.intervalStart)
 
             let cost = service.calculateTotalCost(
                 kWh: consumption,
@@ -1271,6 +1267,140 @@ nonisolated enum EnergyHistoryWriting {
             try rebuildMonthlySummaries(monthKeys: changedMonths, updatedAt: now, context: context, calendar: calendar)
             try context.save()
             try updateWidgetSummaryCache(monthKeys: changedMonths, updatedAt: now, context: context)
+        }
+        return updated
+    }
+
+    /// Prices saved intervals again with the fees that applied in their own period
+    /// (see `HistoricalTariffRates`). Consumption and spot prices are not touched.
+    /// Safe to run twice: a second run finds nothing to change.
+    ///
+    /// Call this away from the main thread. It works one month at a time with its
+    /// own short-lived context and saves after each month, so an interrupted run
+    /// keeps what it has done.
+    nonisolated static func repriceTariffs(
+        fallbackProfile: CostProfile,
+        container: ModelContainer,
+        calendar: Calendar
+    ) throws -> Int {
+        let monthKeys = Set(
+            try ModelContext(container)
+                .fetch(FetchDescriptor<HistoricalMonthlyEnergySummary>())
+                .map(\.monthKey)
+        ).sorted()
+
+        var updated = 0
+        var changedMonths = Set<String>()
+        for monthKey in monthKeys {
+            try Task.checkCancellation()
+            let context = ModelContext(container)
+            context.autosaveEnabled = false
+            let changedInMonth = try repriceTariffs(
+                monthKey: monthKey,
+                fallbackProfile: fallbackProfile,
+                context: context,
+                calendar: calendar
+            )
+            if changedInMonth > 0 {
+                updated += changedInMonth
+                changedMonths.insert(monthKey)
+            }
+        }
+
+        if !changedMonths.isEmpty {
+            try updateWidgetSummaryCache(monthKeys: changedMonths, updatedAt: Date(), context: ModelContext(container))
+        }
+        return updated
+    }
+
+    nonisolated private static func repriceTariffs(
+        monthKey: String,
+        fallbackProfile: CostProfile,
+        context: ModelContext,
+        calendar: Calendar
+    ) throws -> Int {
+        let records = try fetchRecords(monthKey: monthKey, priceArea: nil, context: context)
+        let service = TotalCostService.shared
+
+        var storedSnapshots: [String: HistoricalCostProfileSnapshot] = [:]
+        for stored in try context.fetch(FetchDescriptor<HistoricalCostProfileSnapshotRecord>()) {
+            if let snapshot = try? JSONDecoder().decode(HistoricalCostProfileSnapshot.self, from: stored.snapshotData) {
+                storedSnapshots[stored.snapshotHash] = snapshot
+            }
+        }
+        // (old hash, era) -> hash of the snapshot with that era's fees
+        var swappedHashes: [String: String] = [:]
+        var changedDays = Set<String>()
+        var updated = 0
+
+        for record in records {
+            guard let consumption = record.consumptionKWh, consumption > 0 else { continue }
+
+            let original: HistoricalCostProfileSnapshot?
+            if let hash = record.snapshotHash, let snapshot = storedSnapshots[hash] {
+                original = snapshot
+            } else if let data = record.costProfileSnapshotData {
+                original = try? JSONDecoder().decode(HistoricalCostProfileSnapshot.self, from: data)
+            } else {
+                original = nil
+            }
+            let stored = original.flatMap(CostProfile.init(historySnapshot:)) ?? fallbackProfile
+            let rated = HistoricalTariffRates.profile(stored, forPeriodStarting: record.intervalStart)
+
+            let hoursInPeriod = max(record.intervalEnd.timeIntervalSince(record.intervalStart) / 3600, 1 / 60)
+            let cost = service.calculateTotalCost(
+                kWh: consumption,
+                spotPriceOre: record.spotPriceOrePerKWh,
+                profile: rated,
+                hoursInPeriod: hoursInPeriod
+            )
+
+            var changed = false
+            if abs((record.totalCostSEK ?? 0) - cost.totalKr) > 0.0001 {
+                record.energyCostSEK = cost.providerTotalKr
+                record.gridCostSEK = cost.gridTotalKr
+                record.taxCostSEK = cost.taxesAndFeesKr
+                record.vatCostSEK = cost.vatKr
+                record.totalCostSEK = cost.totalKr
+                changed = true
+                updated += 1
+            }
+
+            // Keep the saved profile in step with the fees the interval was priced with.
+            if let original, rated != stored {
+                let cacheKey = "\(record.snapshotHash ?? "embedded")|\(HistoricalTariffRates.isFrom2026(record.intervalStart))"
+                let newHash: String?
+                if let known = swappedHashes[cacheKey] {
+                    newHash = known
+                } else {
+                    let snapshot = HistoricalCostProfileSnapshot(profile: rated, capturedAt: original.capturedAt)
+                    if let data = HistoricalCostProfileSnapshot.encodedData(snapshot) {
+                        let hash = HistoricalCostProfileSnapshot.hash(of: data)
+                        try upsertSnapshotRecord(snapshotHash: hash, data: data, context: context)
+                        swappedHashes[cacheKey] = hash
+                        newHash = hash
+                    } else {
+                        newHash = nil
+                    }
+                }
+                if let newHash, record.snapshotHash != newHash {
+                    record.snapshotHash = newHash
+                    record.costProfileSnapshotData = nil
+                    changed = true
+                }
+            }
+
+            if changed {
+                record.updatedAt = Date()
+                changedDays.insert(record.dayKey)
+            }
+        }
+
+        if !changedDays.isEmpty {
+            let now = Date()
+            try rebuildDailySummaries(dayKeys: changedDays, updatedAt: now, context: context, calendar: calendar)
+            try rebuildMonthlySummaries(monthKeys: [monthKey], updatedAt: now, context: context, calendar: calendar)
+            try context.save()
         }
         return updated
     }

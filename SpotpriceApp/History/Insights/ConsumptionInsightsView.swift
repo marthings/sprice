@@ -1,5 +1,7 @@
 import SwiftUI
 import Charts
+import Accessibility
+import UIKit
 
 struct ConsumptionInsightsScreen: View {
     let route: ConsumptionInsightsRoute
@@ -18,6 +20,8 @@ struct ConsumptionInsightsScreen: View {
     private var includeElectricCarGuess: Bool {
         ConsumptionInsightsService.includeElectricCarGuess
     }
+
+    @State private var debugScroll = ScrollPosition(edge: .top)
 
     var body: some View {
         ZStack {
@@ -42,6 +46,14 @@ struct ConsumptionInsightsScreen: View {
                 }
                 .padding(.horizontal, DS.Spacing.lg)
             }
+            .scrollPosition($debugScroll)
+#if DEBUG
+            .task {
+                guard DebugLaunch.scrollY > 0 else { return }
+                try? await Task.sleep(for: .seconds(2))
+                debugScroll.scrollTo(y: DebugLaunch.scrollY)
+            }
+#endif
             .scrollContentBackground(.hidden)
             .spriceScrollContentMargins()
         }
@@ -72,6 +84,7 @@ struct ConsumptionInsightsScreen: View {
 
 struct ConsumptionInsightsContent: View {
     let insights: ConsumptionInsights
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.lg) {
@@ -118,11 +131,12 @@ struct ConsumptionInsightsContent: View {
     private var baseloadCard: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
             SectionInfoHeader(
-                title: "Grundlast",
+                title: "Det du alltid drar",
                 paragraphs: [
-                    "Grundlasten är det som alltid är på, även på natten.",
-                    "När det finns timvärden räknas den från den låga nivån mellan midnatt och fem.",
-                    "Om bara dygnsvärden finns är det ett grovt golv från det lägsta dygnet."
+                    "Det du alltid drar är det som är på hela tiden, även på natten. Det kallas grundlast.",
+                    "När det finns timvärden räknas det från den låga nivån mellan midnatt och fem.",
+                    "Om bara dygnsvärden finns är det ett grovt golv från det lägsta dygnet.",
+                    "Siffran visas i watt (W) eller kilowatt (kW). Det är hur mycket el som går åt just då. Går 1 kW åt i en timme blir det 1 kWh."
                 ]
             )
 
@@ -131,13 +145,13 @@ struct ConsumptionInsightsContent: View {
                     Text(ConsumptionInsightsBuilder.powerPhrase(baseload.powerKW))
                         .font(DS.Font.bold(28).monospacedDigit())
                     Text("alltid på")
-                        .font(DS.Font.micro)
+                        .font(DS.Font.footnote)
                         .foregroundStyle(DS.Color.secondary)
                 }
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel("Grundlast \(ConsumptionInsightsBuilder.powerPhrase(baseload.powerKW))")
+                .accessibilityLabel("Det du alltid drar, \(ConsumptionInsightsBuilder.powerPhrase(baseload.powerKW))")
 
-                Text("Det som alltid är på kostade ca \(AppFormatters.wholeNumber(baseload.costKr)) kr (\(AppFormatters.kWh(baseload.energyKWh))).")
+                Text("Det du alltid drar kostade ca \(AppFormatters.wholeNumber(baseload.costKr)) kr (\(AppFormatters.kWh(baseload.energyKWh))).")
                     .font(DS.Font.callout)
                     .foregroundStyle(.primary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -150,7 +164,7 @@ struct ConsumptionInsightsContent: View {
                 }
 
             } else {
-                Text("Grundlasten kan inte räknas ut. Det saknas nattvärden med förbrukning.")
+                Text("Det du alltid drar kan inte räknas ut. Det saknas nattvärden med förbrukning.")
                     .font(DS.Font.callout)
                     .foregroundStyle(.primary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -190,7 +204,7 @@ struct ConsumptionInsightsContent: View {
             )
 
             if insights.events.isEmpty {
-                Text(insights.eventsUnavailableReason ?? "Inga tydliga toppar över grundlasten.")
+                Text(insights.eventsUnavailableReason ?? "Inga tydliga toppar över det du alltid drar.")
                     .font(DS.Font.callout)
                     .foregroundStyle(.primary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -216,7 +230,7 @@ struct ConsumptionInsightsContent: View {
                 .font(DS.Font.callout.monospacedDigit())
                 .foregroundStyle(.primary)
             Text("\(event.shape.shapeLabel) — \(event.guess())")
-                .font(DS.Font.micro)
+                .font(DS.Font.footnote)
                 .foregroundStyle(DS.Color.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -249,6 +263,7 @@ struct ConsumptionInsightsContent: View {
             )
 
             if let diurnal = insights.diurnal {
+                ChartCaption("Medelförbrukning per klockslag, i kWh")
                 ConsumptionInsightsHourChart(diurnal: diurnal)
 
                 Text("Mest pengar gick på \(diurnal.dominantBand.swedishName)en (\(AppFormatters.wholeNumber(dominantCost(diurnal))) kr).")
@@ -293,7 +308,7 @@ struct ConsumptionInsightsContent: View {
 
     private var peakInfoParagraphs: [String] {
         var parts = [
-            "Det här är den högsta timmen i perioden.",
+            "Det här är den timme i perioden då mest el gick åt. Den visas som effekt i kilowatt (kW), alltså hur mycket el som går åt just då.",
             EffectTariffCopy.explanation
         ]
         if insights.powerPeak?.usesAveragePeaks == true {
@@ -310,7 +325,7 @@ struct ConsumptionInsightsContent: View {
     private var peakCard: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.cardContent) {
             SectionInfoHeader(
-                title: "Effekttopp",
+                title: "Högsta timmen",
                 paragraphs: peakInfoParagraphs
             )
 
@@ -319,7 +334,7 @@ struct ConsumptionInsightsContent: View {
                     Text(ConsumptionInsightsBuilder.powerPhrase(peak.powerKW))
                         .font(DS.Font.bold(28).monospacedDigit())
                     Text(AppFormatters.powerPeakHourLabel(peak.hourStart))
-                        .font(DS.Font.micro)
+                        .font(DS.Font.footnote)
                         .foregroundStyle(DS.Color.secondary)
                 }
                 .accessibilityElement(children: .combine)
@@ -330,7 +345,7 @@ struct ConsumptionInsightsContent: View {
                 if peak.includeHypotheticalCost, let cost = peak.effectTariffCostKr {
                     Text("\(EffectTariffCopy.lineTitle): ca \(AppFormatters.wholeNumber(cost)) kr.")
                         .font(DS.Font.callout)
-                        .foregroundStyle(DS.Color.warning)
+                        .foregroundStyle(DS.Color.warningText)
                         .fixedSize(horizontal: false, vertical: true)
                 } else if peak.includeHypotheticalCost {
                     Text(EffectTariffCopy.missingRate)
@@ -369,10 +384,11 @@ struct ConsumptionInsightsContent: View {
                         .font(DS.Font.callout)
                         .foregroundStyle(.primary)
                         .fixedSize(horizontal: false, vertical: true)
+                    ChartCaption("El per timme, i kWh")
                     ForEach(ev.dayProfiles) { profile in
                         if ev.dayProfiles.count > 1 {
                             Text(AppFormatters.shortDayAndMonth(profile.day))
-                                .font(DS.Font.micro)
+                                .font(DS.Font.footnote)
                                 .foregroundStyle(DS.Color.secondary)
                         }
                         ConsumptionEVChargingHourChart(
@@ -380,6 +396,7 @@ struct ConsumptionInsightsContent: View {
                             baseloadKW: ev.baseloadKW
                         )
                     }
+                    evLegend(hasBaseload: (ev.baseloadKW ?? 0) > 0)
                 }
 
                 ForEach(Array(ev.sessions.enumerated()), id: \.element.id) { index, session in
@@ -395,15 +412,44 @@ struct ConsumptionInsightsContent: View {
         }
     }
 
+    /// Words for what the colors mean, so the chart reads the same without color.
+    private func evLegend(hasBaseload: Bool) -> some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
+            HStack(alignment: .firstTextBaseline, spacing: DS.Spacing.sm) {
+                ChargingLegendSwatch(isCharging: true)
+                Text(differentiateWithoutColor ? "Orange med streck: troligen laddning" : "Orange: troligen laddning")
+            }
+            HStack(alignment: .firstTextBaseline, spacing: DS.Spacing.sm) {
+                ChargingLegendSwatch(isCharging: false)
+                Text("Blå: övrig förbrukning")
+            }
+            if hasBaseload {
+                Text("Streckad linje: det du alltid drar")
+                    .padding(.leading, 18)
+            }
+        }
+        .font(DS.Font.footnote)
+        .foregroundStyle(DS.Color.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Orange staplar är timmar som troligen är laddning. Blå staplar är övrig förbrukning.")
+    }
+
     private func evSessionRow(_ session: ConsumptionEVChargingSession, rank: Int?) -> some View {
         let title = rank.map { "\($0). \(evTimeSpan(session))" } ?? evTimeSpan(session)
         return VStack(alignment: .leading, spacing: DS.Spacing.xs) {
             Text(title)
                 .font(DS.Font.semibold(14))
-            Text("\(AppFormatters.wholeNumber(session.costKr)) kr, \(AppFormatters.kWh(session.energyKWh)), \(ConsumptionInsightsBuilder.powerPhrase(session.averagePowerKW))")
+            Text("\(AppFormatters.wholeNumber(session.costKr)) kr, \(AppFormatters.kWh(session.energyKWh)), \(evDuration(session))")
                 .font(DS.Font.callout.monospacedDigit())
                 .foregroundStyle(.primary)
+                .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    private func evDuration(_ session: ConsumptionEVChargingSession) -> String {
+        let hours = max(Int((session.end.timeIntervalSince(session.start) / 3600).rounded()), 1)
+        return hours == 1 ? "1 timme" : "\(hours) timmar"
     }
 
     private func evTimeSpan(_ session: ConsumptionEVChargingSession) -> String {
@@ -428,7 +474,7 @@ struct ConsumptionInsightsContent: View {
 
     private var resolutionFooter: some View {
         Text(insights.resolution.swedishLabel)
-            .font(DS.Font.micro)
+            .font(DS.Font.footnote)
             .foregroundStyle(DS.Color.secondary)
             .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, DS.Spacing.xxs)
@@ -440,24 +486,26 @@ private struct ConsumptionEVChargingHourChart: View {
     let profile: ConsumptionEVDayProfile
     var baseloadKW: Double? = nil
     @State private var selectedHour: Double?
+    @ScaledMetric(relativeTo: .body) private var chartHeight: CGFloat = 112
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
 
     var body: some View {
         Chart {
             ForEach(profile.hours) { bar in
                 BarMark(
                     x: .value("Timme", Double(bar.hour)),
-                    y: .value("kWh", bar.kWh)
+                    y: .value("kWh", max(bar.kWh, 0))
                 )
-                .foregroundStyle(bar.isCharging ? DS.Color.warning : DS.Color.info)
+                .foregroundStyle(barStyle(for: bar))
                 .cornerRadius(2)
                 .opacity(barOpacity(for: bar))
             }
 
             if let baseloadKW, baseloadKW > 0 {
-                RuleMark(y: .value("Grundlast", baseloadKW))
+                RuleMark(y: .value("Det du alltid drar", baseloadKW))
                     .foregroundStyle(DS.Color.secondary.opacity(0.55))
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
-                    .accessibilityLabel("Grundlast \(ConsumptionInsightsBuilder.powerPhrase(baseloadKW))")
+                    .accessibilityLabel("Det du alltid drar, \(ConsumptionInsightsBuilder.powerPhrase(baseloadKW))")
             }
 
             if let selected = selectedBar {
@@ -492,19 +540,31 @@ private struct ConsumptionEVChargingHourChart: View {
                 AxisValueLabel {
                     if let amount = value.as(Double.self) {
                         Text(amount, format: .number.precision(.fractionLength(0...1)))
-                            .font(DS.Font.micro)
+                            .font(DS.Font.footnote)
                             .foregroundStyle(DS.Color.secondary)
                     }
                 }
             }
         }
+        .chartYScale(domain: 0...yMax)
         .chartXSelection(value: $selectedHour)
         .historyChartPlotStyle()
         .spriceChartMotion(profile.hours.map(\.kWh), selectedHour, profile.hours.filter(\.isCharging).map(\.hour))
-        .frame(height: 112)
+        .frame(height: chartHeight)
         .zIndex(1)
-        .accessibilityLabel("Stapeldiagram över förbrukning under dygnet. Timmar som ser ut som elbilsladdning är markerade.")
-        .accessibilityValue(chartAccessibilityValue)
+        .accessibilityChartDescriptor(EVChargingChartDescriptor(profile: profile, summary: chartAccessibilityValue))
+    }
+
+    /// Consumption can not be negative, so the scale starts at zero.
+    private var yMax: Double {
+        let tallest = profile.hours.map { max($0.kWh, 0) }.max() ?? 0
+        return max(tallest, baseloadKW ?? 0, 0.5) * 1.15
+    }
+
+    private func barStyle(for bar: ConsumptionEVHourBar) -> AnyShapeStyle {
+        guard bar.isCharging else { return AnyShapeStyle(DS.Color.info) }
+        // Striped when color alone must not carry the meaning.
+        return differentiateWithoutColor ? AnyShapeStyle(ChargingHatch.paint) : AnyShapeStyle(DS.Color.warning)
     }
 
     private var selectedBar: ConsumptionEVHourBar? {
@@ -533,6 +593,7 @@ private struct ConsumptionEVChargingHourChart: View {
 private struct ConsumptionInsightsHourChart: View {
     let diurnal: ConsumptionDiurnalInsight
     @State private var selectedHour: Double?
+    @ScaledMetric(relativeTo: .body) private var chartHeight: CGFloat = 160
 
     var body: some View {
         Chart {
@@ -578,7 +639,7 @@ private struct ConsumptionInsightsHourChart: View {
                 AxisValueLabel {
                     if let amount = value.as(Double.self) {
                         Text(amount, format: .number.precision(.fractionLength(0...1)))
-                            .font(DS.Font.micro)
+                            .font(DS.Font.footnote)
                             .foregroundStyle(DS.Color.secondary)
                     }
                 }
@@ -587,7 +648,7 @@ private struct ConsumptionInsightsHourChart: View {
         .chartXSelection(value: $selectedHour)
         .historyChartPlotStyle()
         .spriceChartMotion(diurnal.hourBars.map(\.averageKWh), selectedHour)
-        .frame(height: 160)
+        .frame(height: chartHeight)
         .zIndex(1)
         .accessibilityLabel("Stapeldiagram över medelförbrukning per klockslag, i kilowattimmar")
         .accessibilityValue(chartAccessibilityValue)
@@ -618,5 +679,90 @@ private struct ConsumptionInsightsHourChart: View {
             return "Ingen förbrukning per klockslag"
         }
         return "Högst i snitt kl \(top.hour), \(AppFormatters.kWh(top.averageKWh))"
+    }
+}
+
+// MARK: - Charging bars that do not depend on color
+
+/// Orange bars with diagonal stripes. The stripes carry "troligen laddning" for
+/// people who can not tell the colors apart, and they work in both appearances.
+enum ChargingHatch {
+    static let paint: ImagePaint = {
+        let size = CGSize(width: 8, height: 8)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 3
+        let image = UIGraphicsImageRenderer(size: size, format: format).image { context in
+            UIColor(red: 0.93, green: 0.59, blue: 0.29, alpha: 1).setFill()
+            context.fill(CGRect(origin: .zero, size: size))
+            UIColor.black.withAlphaComponent(0.55).setStroke()
+            let path = UIBezierPath()
+            path.lineWidth = 1.6
+            path.move(to: CGPoint(x: -2, y: size.height + 2))
+            path.addLine(to: CGPoint(x: size.width + 2, y: -2))
+            path.move(to: CGPoint(x: -2, y: size.height * 2 + 2))
+            path.addLine(to: CGPoint(x: size.width * 2 + 2, y: -2))
+            path.move(to: CGPoint(x: -2 - size.width, y: size.height + 2))
+            path.addLine(to: CGPoint(x: size.width + 2 - size.width, y: -2))
+            path.stroke()
+        }
+        return ImagePaint(image: Image(uiImage: image), scale: 3)
+    }()
+}
+
+private struct ChargingLegendSwatch: View {
+    let isCharging: Bool
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
+
+    var body: some View {
+        Group {
+            if isCharging {
+                if differentiateWithoutColor {
+                    RoundedRectangle(cornerRadius: 2, style: .continuous).fill(ChargingHatch.paint)
+                } else {
+                    RoundedRectangle(cornerRadius: 2, style: .continuous).fill(DS.Color.warning)
+                }
+            } else {
+                RoundedRectangle(cornerRadius: 2, style: .continuous).fill(DS.Color.info)
+            }
+        }
+        .frame(width: 10, height: 10)
+        .accessibilityHidden(true)
+    }
+}
+
+/// Summary and Apple's audio graph for the hour-by-hour chart.
+private struct EVChargingChartDescriptor: AXChartDescriptorRepresentable {
+    let profile: ConsumptionEVDayProfile
+    let summary: String
+
+    func makeChartDescriptor() -> AXChartDescriptor {
+        let labels = profile.hours.map { String(format: "%02d", $0.hour) }
+        let values = profile.hours.map { max($0.kWh, 0) }
+        let xAxis = AXCategoricalDataAxisDescriptor(title: "Klockslag", categoryOrder: labels)
+        let upper = max(values.max() ?? 1, 0.1)
+        let yAxis = AXNumericDataAxisDescriptor(
+            title: "Kilowattimmar per timme",
+            range: 0...upper,
+            gridlinePositions: []
+        ) { value in
+            "\(value.formatted(.number.precision(.fractionLength(0...1)))) kilowattimmar"
+        }
+        let points = zip(profile.hours, values).map { bar, value in
+            AXDataPoint(
+                x: String(format: "%02d", bar.hour),
+                y: value,
+                additionalValues: [],
+                label: bar.isCharging ? "Troligen laddning" : nil
+            )
+        }
+        let series = AXDataSeriesDescriptor(name: "El per timme", isContinuous: false, dataPoints: points)
+        return AXChartDescriptor(
+            title: "El per timme under dygnet",
+            summary: summary,
+            xAxis: xAxis,
+            yAxis: yAxis,
+            additionalAxes: [],
+            series: [series]
+        )
     }
 }
