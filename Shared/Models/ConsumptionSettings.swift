@@ -62,6 +62,8 @@ final class ConsumptionSettings {
         static let costProfile = "settings_costProfile"
         /// Every saved version of the profile, with the day each applies from (`CostProfileVersion`).
         static let costProfileVersions = "settings_costProfileVersions"
+        /// One agreement change that starts on a later day (`CostProfileVersion`), kept until its day comes.
+        static let plannedCostProfile = "settings_plannedCostProfile"
 
         static let includeHypotheticalEffectTariff = "settings_includeHypotheticalEffectTariff"
         static let compareFixedPriceOrePerKWh = "settings_compareFixedPriceOrePerKWh"
@@ -478,6 +480,100 @@ final class ConsumptionSettings {
         Self.defaults.set(data, forKey: Keys.costProfileVersions)
     }
 
+    // MARK: - Planned agreement change
+
+    /// An agreement change that starts on a later day. Until then `costProfile` is in force
+    /// and history, forecasts and widgets do not see the planned one.
+    var plannedCostProfile: CostProfileVersion? {
+        guard let data = Self.defaults.data(forKey: Keys.plannedCostProfile) else { return nil }
+        return try? JSONDecoder().decode(CostProfileVersion.self, from: data)
+    }
+
+    /// Plans `profile` (its retail agreement and prices) from `date`, which is never earlier
+    /// than today. Planning the agreement already in force removes the plan instead.
+    func planCostProfile(_ profile: CostProfile, from date: Date, now: Date = Date()) {
+        let validFrom = CostProfileHistory.plannedStart(date, now: now)
+        if CostProfileHistory.sameContract(profile, costProfile) {
+            clearPlannedCostProfile()
+            return
+        }
+        let planned = CostProfileVersion(
+            id: plannedCostProfile?.id ?? UUID(),
+            validFrom: validFrom,
+            profile: profile,
+            source: profile.source,
+            isPreliminary: false
+        )
+        guard let data = try? JSONEncoder().encode(planned) else { return }
+        Self.defaults.set(data, forKey: Keys.plannedCostProfile)
+    }
+
+    func clearPlannedCostProfile() {
+        Self.defaults.removeObject(forKey: Keys.plannedCostProfile)
+    }
+
+    /// When the day of a planned change has come, its agreement becomes the one in force.
+    /// The new version starts on the planned day, or today if a later version already exists.
+    /// Safe to run often: it does nothing until the day has come.
+    func applyDuePlannedCostProfile(now: Date = Date()) {
+        guard let planned = plannedCostProfile, planned.validFrom <= now else { return }
+        let profile = planned.profile
+        let merged = costProfile.settingRetailContract(
+            type: profile.retailContractType,
+            retailerMarkupOrePerKWh: profile.retailerMarkupOrePerKWh,
+            contractPriceOrePerKWh: profile.contractPriceOrePerKWh,
+            retailerMonthlyFee: profile.retailerMonthlyFee,
+            retailContractSource: profile.retailContractSource,
+            confidence: profile.confidence,
+            source: profile.source
+        )
+        let existing = costProfileVersions
+        let hasLater = existing.contains { $0.validFrom > planned.validFrom }
+        let start = hasLater ? now : planned.validFrom
+        let next = CostProfileHistory.saving(merged, on: start, to: existing)
+        if next != existing, let data = CostProfileHistory.encoded(next) {
+            Self.defaults.set(data, forKey: Keys.costProfileVersions)
+        }
+        clearPlannedCostProfile()
+        costProfile = merged
+    }
+
+#if DEBUG
+    /// DEBUG only (`-SeedContracts`): two earlier agreements and a planned one, for screenshots.
+    func debugSeedContracts(planDue: Bool = false) {
+        let calendar = Calendar.energyHistory
+        func day(_ y: Int, _ m: Int, _ d: Int) -> Date {
+            calendar.date(from: DateComponents(year: y, month: m, day: d)) ?? .distantPast
+        }
+        func version(_ from: Date, _ profile: CostProfile) -> CostProfileVersion {
+            CostProfileVersion(id: UUID(), validFrom: from, profile: profile, source: profile.source, isPreliminary: false)
+        }
+        costProfile = costProfile.settingRetailContract(
+            type: .spotPriceMarkup, retailerMarkupOrePerKWh: 5, contractPriceOrePerKWh: nil, retailerMonthlyFee: 45
+        )
+        let spot = costProfile.settingRetailContract(
+            type: .spotPriceMarkup, retailerMarkupOrePerKWh: 8, contractPriceOrePerKWh: nil, retailerMonthlyFee: 39
+        )
+        let fixed = costProfile.settingRetailContract(
+            type: .fixedPrice, retailerMarkupOrePerKWh: 0, contractPriceOrePerKWh: 92.5, retailerMonthlyFee: 49
+        )
+        let versions = [
+            version(.distantPast, spot),
+            version(day(2026, 3, 1), fixed),
+            version(day(2026, 10, 1), costProfile)
+        ]
+        if let data = CostProfileHistory.encoded(versions) {
+            Self.defaults.set(data, forKey: Keys.costProfileVersions)
+        }
+        let planned = costProfile.settingRetailContract(
+            type: .fixedPrice, retailerMarkupOrePerKWh: 0, contractPriceOrePerKWh: 85, retailerMonthlyFee: 35
+        )
+        if let data = try? JSONEncoder().encode(version(planDue ? day(2026, 11, 20) : day(2027, 1, 1), planned)) {
+            Self.defaults.set(data, forKey: Keys.plannedCostProfile)
+        }
+    }
+#endif
+
     private func mirrorCostProfileToLegacyDefaults(_ profile: CostProfile) {
         Self.defaults.set(profile.priceArea, forKey: Keys.priceArea)
         Self.defaults.set(profile.retailerMarkupOrePerKWh, forKey: Keys.providerSurcharge)
@@ -617,6 +713,7 @@ final class ConsumptionSettings {
         saveCostProfileVersion(costProfile)
         mirrorCostProfileToLegacyDefaults(costProfile)
         syncLegacyProperties(from: costProfile)
+        applyDuePlannedCostProfile()
 #if DEBUG
         _ = CostProfileVersionGuard.isValid
         _ = HistoricalTariffRatesGuard.isValid

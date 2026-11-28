@@ -585,6 +585,64 @@ nonisolated enum CostProfileHistory {
         return next
     }
 
+    /// One stretch of time under the same retail agreement, for the list of earlier agreements.
+    struct ContractPeriod: Equatable, Identifiable, Sendable {
+        let id: UUID
+        /// First day it applied. Nil when it was already in use before versions were saved.
+        let start: Date?
+        /// Last day it applied.
+        let end: Date
+        let profile: CostProfile
+    }
+
+    /// True when both profiles have the same retail agreement and prices. A change that only
+    /// touches the grid or the fees is not a new agreement.
+    static func sameContract(_ a: CostProfile, _ b: CostProfile) -> Bool {
+        a.retailContractType == b.retailContractType
+            && a.retailerMarkupOrePerKWh == b.retailerMarkupOrePerKWh
+            && (a.contractPriceOrePerKWh ?? 0) == (b.contractPriceOrePerKWh ?? 0)
+            && a.retailerMonthlyFee == b.retailerMonthlyFee
+    }
+
+    /// The agreements that no longer apply, newest first. Versions that only differ in the
+    /// grid or the fees are folded into the agreement they belong to. The agreement in force
+    /// at `now` is not part of the list, and neither is anything that starts later.
+    static func earlierContracts(
+        in versions: [CostProfileVersion],
+        now: Date,
+        calendar: Calendar = .energyHistory
+    ) -> [ContractPeriod] {
+        let started = versions
+            .filter { $0.validFrom <= now }
+            .sorted { $0.validFrom < $1.validFrom }
+        var groups: [CostProfileVersion] = []
+        for version in started {
+            if let last = groups.last, sameContract(last.profile, version.profile) { continue }
+            groups.append(version)
+        }
+        guard groups.count >= 2 else { return [] }
+        var periods: [ContractPeriod] = []
+        for index in 0..<(groups.count - 1) {
+            let group = groups[index]
+            let nextStart = groups[index + 1].validFrom
+            let lastDay = calendar.date(byAdding: .day, value: -1, to: nextStart) ?? nextStart
+            periods.append(
+                ContractPeriod(
+                    id: group.id,
+                    start: group.validFrom == .distantPast ? nil : group.validFrom,
+                    end: lastDay,
+                    profile: group.profile
+                )
+            )
+        }
+        return periods.reversed()
+    }
+
+    /// The first day a planned change can start is today. Changes never reach back in time.
+    static func plannedStart(_ date: Date, now: Date, calendar: Calendar = .energyHistory) -> Date {
+        max(dayStart(of: date, calendar: calendar), dayStart(of: now, calendar: calendar))
+    }
+
     /// First start with versions: the profile in use becomes the first version, valid
     /// from `distantPast`, so all saved history keeps the profile it was priced with.
     /// Does nothing when versions already exist, so it is safe to run on every start.
@@ -834,6 +892,22 @@ nonisolated enum CostProfileVersionGuard {
         check(autumn.count == 3 && autumn[2].validFrom == Date(timeIntervalSince1970: 1_792_879_200), "autumn validFrom is 22:00 UTC the day before")
         check(CostProfileHistory.profile(on: at(2026, 10, 24, 23, 59), in: autumn) == b, "day before autumn switch")
         check(CostProfileHistory.profile(on: at(2026, 10, 25, 23, 59), in: autumn) == c, "late on autumn DST day")
+
+        // Earlier agreements: the one in force is left out, a fee-only change is folded in,
+        // and the list is newest first.
+        let gridOnly = a.updating(gridMonthlyFee: (a.gridMonthlyFee ?? 0) + 50)
+        check(CostProfileHistory.earlierContracts(in: first, now: at(2026, 11, 20), calendar: calendar).isEmpty, "one version has no earlier agreements")
+        let withGrid = CostProfileHistory.saving(gridOnly, on: at(2026, 5, 2, 9), to: first, calendar: calendar)
+        check(CostProfileHistory.earlierContracts(in: withGrid, now: at(2026, 11, 20), calendar: calendar).isEmpty, "grid-only change is not a new agreement")
+        let earlier = CostProfileHistory.earlierContracts(in: autumn, now: at(2026, 11, 20), calendar: calendar)
+        check(earlier.count == 2, "two earlier agreements")
+        check(earlier[0].start == at(2026, 3, 29) && earlier[0].end == at(2026, 10, 24) && earlier[0].profile == b, "newest earlier agreement and its last day")
+        check(earlier[1].start == nil && earlier[1].end == at(2026, 3, 28) && earlier[1].profile == a, "oldest agreement has no known start")
+        check(CostProfileHistory.earlierContracts(in: autumn, now: at(2026, 10, 24), calendar: calendar).count == 1, "an agreement that starts later is not listed")
+
+        // Planned changes start today at the earliest.
+        check(CostProfileHistory.plannedStart(at(2026, 11, 1, 8), now: at(2026, 11, 20, 9), calendar: calendar) == at(2026, 11, 20), "no start before today")
+        check(CostProfileHistory.plannedStart(at(2027, 1, 1, 15), now: at(2026, 11, 20, 9), calendar: calendar) == at(2027, 1, 1), "later start keeps its day")
 
         // Saved and read back.
         check(CostProfileHistory.decoded(CostProfileHistory.encoded(autumn)) == autumn, "JSON round trip")

@@ -90,6 +90,7 @@ struct DashboardView: View {
         }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
+            settings.applyDuePlannedCostProfile()
             Task { await viewModel.handleForeground() }
         }
     }
