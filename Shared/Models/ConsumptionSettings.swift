@@ -58,6 +58,7 @@ final class ConsumptionSettings {
         static let includeHypotheticalEffectTariff = "settings_includeHypotheticalEffectTariff"
         static let compareFixedPriceOrePerKWh = "settings_compareFixedPriceOrePerKWh"
         static let temperaturePlaceId = "settings_temperaturePlaceId"
+        static let hasElectricCar = "settings_hasElectricCar"
     }
 
     // MARK: - Observable Properties
@@ -161,6 +162,17 @@ final class ConsumptionSettings {
         didSet {
             guard compareFixedPriceOrePerKWh != oldValue else { return }
             Self.defaults.set(compareFixedPriceOrePerKWh, forKey: Keys.compareFixedPriceOrePerKWh)
+            NotificationCenter.default.post(name: .consumptionSettingsDidSave, object: nil)
+            Self.defaults.synchronize()
+        }
+    }
+
+    /// When false (default), the app does not look for charging sessions.
+    /// When true, Vad drog? and the day view may show a guess about elbilsladdning.
+    var hasElectricCar: Bool {
+        didSet {
+            guard hasElectricCar != oldValue else { return }
+            Self.defaults.set(hasElectricCar, forKey: Keys.hasElectricCar)
             NotificationCenter.default.post(name: .consumptionSettingsDidSave, object: nil)
             Self.defaults.synchronize()
         }
@@ -539,6 +551,7 @@ final class ConsumptionSettings {
         let savedFuseSize = Self.defaults.integer(forKey: Keys.fuseSize)
         self.fuseSize = savedFuseSize > 0 ? savedFuseSize : 20
         self.includeHypotheticalEffectTariff = Self.defaults.bool(forKey: Keys.includeHypotheticalEffectTariff)
+        self.hasElectricCar = Self.defaults.bool(forKey: Keys.hasElectricCar)
         if Self.defaults.object(forKey: Keys.compareFixedPriceOrePerKWh) == nil {
             self.compareFixedPriceOrePerKWh = CostUsageInsights.defaultFixedPriceOrePerKWh
         } else {
@@ -811,4 +824,17 @@ nonisolated enum EffectTariffCopy {
     nonisolated static let lineTitle = "Effektavgift (om den räknades)"
     nonisolated static let missingRate = "Ingen effektavgift i dina elnätsuppgifter, så toppen syns bara som kW."
     nonisolated static let dailyBarsNote = "Den syns inte i dygnsstaplarna. Det är en månadsavgift, inte en kostnad per dag."
+}
+
+nonisolated enum ElectricCarCopy {
+    nonisolated static let toggleTitle = "Jag har elbil"
+    nonisolated static let toggleExplanation = "När det är på letar appen efter timmar som ser ut som laddning. Det är en gissning, inte ett faktum."
+
+    nonisolated static let infoParagraphs = [
+        "Appen tittar efter minst två timmar i rad där förbrukningen ligger tydligt över grundlasten, ungefär tre kilowatt extra eller mer. Det motsvarar en vanlig laddare, antingen enfas på cirka 3,7 kW eller trefas på cirka 11 kW.",
+        "Lasten ska vara ganska jämn, och det sker oftast på kvällen eller natten. Ett kort avbrott på högst en timme räknas in i samma tillfälle.",
+        "Ett tydligt, jämnt och högt uttag mitt på dagen kan också räknas med, eftersom det liknar trefasladdning.",
+        "Det är en gissning. En värmepump, en bastu eller något annat som går länge på jämn last kan se likadant ut."
+    ]
+
 }

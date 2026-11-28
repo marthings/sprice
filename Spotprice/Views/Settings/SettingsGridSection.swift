@@ -79,6 +79,12 @@ struct SettingsGridSection: View {
                 }
 
                 Section {
+                    Toggle(ElectricCarCopy.toggleTitle, isOn: $settings.hasElectricCar)
+                } footer: {
+                    Text(ElectricCarCopy.toggleExplanation)
+                }
+
+                Section {
                     LabeledContent("Fast avgift") {
                         HStack(spacing: DS.Spacing.xs) {
                             TextField("0", value: $settings[gridMonthlyFee: SettingsBind.gridMonthlyFee], format: .number)

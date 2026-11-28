@@ -627,6 +627,7 @@
 			);
 			name = SpotpriceApp;
 			packageProductDependencies = (
+				BEA100010000000000000002 /* BorderBeam */,
 			);
 			productName = SpotpriceApp;
 			productReference = 201EA1FD2FBCAC8C0036D7BF /* SpotpriceApp.app */;
@@ -713,6 +714,9 @@
 			productRefGroup = 200104F92F26582400B2F176 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
+			packageReferences = (
+				BEA100010000000000000001 /* XCRemoteSwiftPackageReference "border-beam-ios" */,
+			);
 			targets = (
 				200104F72F26582400B2F176 /* Spotprice */,
 				20861F8C2F2E0B9A0067EDC1 /* SpotpriceWidgetExtension */,
@@ -1307,6 +1311,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		BEA100010000000000000001 /* XCRemoteSwiftPackageReference "border-beam-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ismnoiet/border-beam-ios";
+			requirement = {
+				kind = revision;
+				revision = aa20499b346c37352ac5b443c8734592c17d708d;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		BEA100010000000000000002 /* BorderBeam */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = BEA100010000000000000001 /* XCRemoteSwiftPackageReference "border-beam-ios" */;
+			productName = BorderBeam;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 200104F02F26582400B2F176 /* Project object */;
 }

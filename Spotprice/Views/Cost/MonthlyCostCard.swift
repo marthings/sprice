@@ -56,7 +56,7 @@ struct MonthlyCostCard: View {
             
             // Consumption info
             if kWh > 0 {
-                Text("\(Int(kWh.rounded())) kWh • \((displayedTotalKr / kWh).formatted(.number.precision(.fractionLength(2)))) kr/kWh")
+                Text("\(Int(kWh.rounded())) kWh, \((displayedTotalKr / kWh).formatted(.number.precision(.fractionLength(2)))) kr/kWh")
                     .font(DS.Font.micro)
                     .foregroundStyle(.tertiary)
             }

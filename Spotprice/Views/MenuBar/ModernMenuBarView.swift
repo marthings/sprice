@@ -218,7 +218,7 @@ struct ModernMenuBarView: View {
             parts.append("Snitt spotpris \(AppFormatters.ore(averagePrice))/kWh")
         }
 
-        return parts.isEmpty ? "Prishistorik sparad för aktuell månad" : parts.joined(separator: " · ")
+        return parts.isEmpty ? "Prishistorik sparad för aktuell månad" : parts.joined(separator: ", ")
     }
 
 }

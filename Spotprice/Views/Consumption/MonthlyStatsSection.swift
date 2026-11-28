@@ -36,9 +36,6 @@ struct MonthlyStatsSection: View {
                     
                     // Show provider name badge
                     if let providerName {
-                        Text("·")
-                            .font(DS.Font.semibold(12))
-                            .foregroundStyle(DS.Color.secondary)
                         Text(providerName)
                             .font(DS.Font.medium(11))
                             .foregroundStyle(DS.Color.secondary)
@@ -175,7 +172,7 @@ struct MonthlyStatsSection: View {
             parts.append(AppFormatters.kWh(consumption))
         }
         if !parts.isEmpty {
-            return "\(parts.joined(separator: " · ")) sparat för månaden"
+            return "\(parts.joined(separator: ", ")) sparat för månaden"
         }
         if let averagePrice = summary.averageSpotPriceOrePerKWh {
             return "Snitt spotpris \(AppFormatters.ore(averagePrice))/kWh sparat"

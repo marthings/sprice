@@ -25,6 +25,10 @@ struct SettingsEstimateSection: View {
                 title: EffectTariffCopy.toggleTitle,
                 value: settings.includeHypotheticalEffectTariff ? "På" : "Av"
             )
+            SettingsSummaryRow(
+                title: ElectricCarCopy.toggleTitle,
+                value: settings.hasElectricCar ? "På" : "Av"
+            )
         } header: {
             Text("Uppskattning")
         } footer: {

@@ -120,7 +120,7 @@ private struct HypotheticalEffectTariffCard: View {
                         .foregroundStyle(DS.Color.secondary)
                 }
                 if let peak {
-                    Text("Räknat på \(powerPhrase(peak.kW)) \(AppFormatters.powerPeakHourLabel(peak.date)).")
+                    Text("Räknat på \(powerPhrase(peak.kW)), \(AppFormatters.sentenceDayMonthAndHour(peak.date)).")
                         .font(DS.Font.callout)
                         .foregroundStyle(.primary)
                         .fixedSize(horizontal: false, vertical: true)

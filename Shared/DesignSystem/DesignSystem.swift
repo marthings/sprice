@@ -110,6 +110,42 @@ enum AppFormatters {
         date.formatted(.dateTime.weekday(.wide).day().month(.abbreviated).locale(swedishLocale))
     }
 
+    /// Full weekday and month, safe at the end of a sentence (no trailing period).
+    nonisolated static func sentenceWeekdayDayMonth(_ date: Date) -> String {
+        let style = Date.FormatStyle(
+            date: .omitted,
+            time: .omitted,
+            locale: swedishLocale,
+            calendar: energyCalendar,
+            timeZone: swedishTimeZone
+        ).weekday(.wide).day().month(.wide)
+        return withoutTrailingPeriod(date.formatted(style))
+    }
+
+    /// Full month and clock hour, safe at the end of a sentence (no trailing period).
+    nonisolated static func sentenceDayMonthAndHour(_ date: Date) -> String {
+        let style = Date.FormatStyle(
+            date: .omitted,
+            time: .omitted,
+            locale: swedishLocale,
+            calendar: energyCalendar,
+            timeZone: swedishTimeZone
+        )
+        let day = date.formatted(style.day().month(.wide))
+        let hour = date.formatted(style.hour(.defaultDigits(amPM: .omitted)))
+        return withoutTrailingPeriod("\(day) klockan \(hour)")
+    }
+
+    /// Swedish abbreviated months often end with a period ("8 nov.").
+    /// Strip it when the value is placed at the end of a sentence that already has one.
+    nonisolated static func withoutTrailingPeriod(_ text: String) -> String {
+        var result = text
+        while result.hasSuffix(".") {
+            result.removeLast()
+        }
+        return result
+    }
+
     nonisolated static func csvNumber(_ value: Double) -> String {
         value.formatted(.number.locale(posixLocale).precision(.fractionLength(0...6)))
     }
